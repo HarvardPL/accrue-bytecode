@@ -1,16 +1,17 @@
 package pointer.statements;
 
-import pointer.LocalNode;
-import pointer.PointsToGraph;
-import pointer.PointsToGraphNode;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.PointsToGraph;
+import pointer.graph.PointsToGraphNode;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to statement for a local assignment, left = right
+ * Points-to statement for a local assignment, left = right
  */
 public class LocalToLocalStatement implements PointsToStatement {
 
@@ -22,18 +23,24 @@ public class LocalToLocalStatement implements PointsToStatement {
      * assigned
      */
     private final LocalNode right;
-
+    /**
+     * Code this statement occurs in
+     */
+    private final IR ir;
+    
+    
     /**
      * Statement for a local assignment, left = right
      * 
      * @param left
-     *            points to graph node for assignee
+     *            points-to graph node for assignee
      * @param right
-     *            points to graph node for the assigned value
+     *            points-to graph node for the assigned value
      */
-    public LocalToLocalStatement(LocalNode left, LocalNode right) {
+    public LocalToLocalStatement(LocalNode left, LocalNode right, IR ir) {
         this.left = left;
         this.right = right;
+        this.ir = ir;
     }
 
     @Override
@@ -49,4 +56,8 @@ public class LocalToLocalStatement implements PointsToStatement {
         return left.getExpectedType();
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }

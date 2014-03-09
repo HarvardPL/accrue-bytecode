@@ -1,6 +1,6 @@
 package pointer.analyses;
 
-import pointer.AllocSiteNode;
+import pointer.graph.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;

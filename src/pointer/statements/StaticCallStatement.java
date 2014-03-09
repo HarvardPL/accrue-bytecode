@@ -3,10 +3,10 @@ package pointer.statements;
 import java.util.LinkedList;
 import java.util.List;
 
-import pointer.LocalNode;
-import pointer.PointsToGraph;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.PointsToGraph;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -91,8 +91,11 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public TypeReference getExpectedType() {
-        // TODO Auto-generated method stub
-        return null;
+        return callSite.getDeclaredTarget().getReturnType();
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }

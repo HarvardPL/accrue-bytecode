@@ -3,7 +3,7 @@ package pointer.statements;
 import java.util.LinkedList;
 import java.util.List;
 
-import pointer.LocalNode;
+import pointer.graph.LocalNode;
 
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
@@ -33,7 +33,7 @@ public class MethodSummaryNodes {
      * Create nodes for formals and return values
      * 
      * @param registrar
-     *            points to statement registrar
+     *            points-to statement registrar
      * @param ir
      *            IR for the code
      */

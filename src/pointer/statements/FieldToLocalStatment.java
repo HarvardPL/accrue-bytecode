@@ -3,20 +3,21 @@ package pointer.statements;
 import java.util.HashSet;
 import java.util.Set;
 
-import pointer.LocalNode;
-import pointer.ObjectField;
-import pointer.PointsToGraph;
-import pointer.PointsToGraphNode;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.ObjectField;
+import pointer.graph.PointsToGraph;
+import pointer.graph.PointsToGraphNode;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to statement for an Access a field and assign the result to a local. l = o.f
+ * Points-to statement for an Access a field and assign the result to a local. l = o.f
  */
 public class FieldToLocalStatment implements PointsToStatement {
 
@@ -36,22 +37,27 @@ public class FieldToLocalStatment implements PointsToStatement {
      * Type of the assignment (type of the local)
      */
     private final TypeReference type;
+    /**
+     * Code this statement occurs in
+     */
+    private final IR ir;
 
     /**
-     * Points to statement for a field access assigned to a local, l = o.f
+     * Points-to statement for a field access assigned to a local, l = o.f
      * 
      * @param f
      *            field accessed
      * @param o
-     *            points to graph node for receiver of field access
+     *            points-to graph node for receiver of field access
      * @param l
-     *            points to graph node for local assigned into
+     *            points-to graph node for local assigned into
      */
-    public FieldToLocalStatment(FieldReference f, LocalNode o, LocalNode l) {
+    public FieldToLocalStatment(FieldReference f, LocalNode o, LocalNode l, IR ir) {
         this.declaredField = f;
         this.receiver = o;
         this.assignee = l;
         this.type = l.getExpectedType();
+        this.ir = ir;
     }
 
     @Override
@@ -74,4 +80,8 @@ public class FieldToLocalStatment implements PointsToStatement {
         return type;
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }

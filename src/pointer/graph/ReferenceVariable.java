@@ -1,4 +1,4 @@
-package pointer;
+package pointer.graph;
 
 import com.ibm.wala.types.TypeReference;
 

@@ -2,19 +2,20 @@ package pointer.statements;
 
 import java.util.Set;
 
-import pointer.LocalNode;
-import pointer.ObjectField;
-import pointer.PointsToGraph;
-import pointer.PointsToGraphNode;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.ObjectField;
+import pointer.graph.PointsToGraph;
+import pointer.graph.PointsToGraphNode;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to graph statement for an assignment into an array, a[i] = v
+ * Points-to graph statement for an assignment into an array, a[i] = v
  */
 public class LocalToArrayStatement implements PointsToStatement {
     /**
@@ -29,22 +30,27 @@ public class LocalToArrayStatement implements PointsToStatement {
      * Type of array elements
      */
     private final TypeReference baseType;
-
+    /**
+     * Code this statement occurs in
+     */
+    private final IR ir;
+    
     /**
      * Statement for an assignment into an array, a[i] = v. Note that we do not
      * reason about the individual array elements.
      * 
      * @param a
-     *            points to graph node for array assigned into
+     *            points-to graph node for array assigned into
      * @param value
-     *            points to graph node for assigned value
+     *            points-to graph node for assigned value
      * @param baseType
      *            type of the array elements
      */
-    public LocalToArrayStatement(LocalNode a, LocalNode v, TypeReference baseType) {
+    public LocalToArrayStatement(LocalNode a, LocalNode v, TypeReference baseType, IR ir) {
         this.array = a;
         this.value = v;
         this.baseType = baseType;
+        this.ir = ir;
     }
 
     @Override
@@ -67,4 +73,8 @@ public class LocalToArrayStatement implements PointsToStatement {
         return array.getExpectedType();
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }

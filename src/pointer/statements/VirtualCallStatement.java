@@ -3,10 +3,10 @@ package pointer.statements;
 import java.util.LinkedList;
 import java.util.List;
 
-import pointer.LocalNode;
-import pointer.PointsToGraph;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.PointsToGraph;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -16,7 +16,7 @@ import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to statement for a call to a virtual method (either a class or
+ * Points-to statement for a call to a virtual method (either a class or
  * interface method).
  */
 public class VirtualCallStatement extends CallStatement {
@@ -107,5 +107,10 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public TypeReference getExpectedType() {
         return resultNode.getExpectedType();
+    }
+    
+    @Override
+    public IR getCode() {
+        return ir;
     }
 }

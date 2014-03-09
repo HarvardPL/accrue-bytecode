@@ -2,20 +2,21 @@ package pointer.statements;
 
 import java.util.Set;
 
-import pointer.LocalNode;
-import pointer.ObjectField;
-import pointer.PointsToGraph;
-import pointer.PointsToGraphNode;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.ObjectField;
+import pointer.graph.PointsToGraph;
+import pointer.graph.PointsToGraphNode;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to statement for an assignment into a field, o.f = v
+ * Points-to statement for an assignment into a field, o.f = v
  */
 public class LocalToFieldStatement implements PointsToStatement {
     /**
@@ -30,21 +31,26 @@ public class LocalToFieldStatement implements PointsToStatement {
      * Value assigned into field
      */
     private final LocalNode assigned;
-
+    /**
+     * Code this statement occurs in
+     */
+    private final IR ir;
+    
     /**
      * Statement for an assignment into a field
      * 
      * @param f
      *            field assigned to
      * @param o
-     *            points to graph node for receiver of field access
+     *            points-to graph node for receiver of field access
      * @param v
-     *            points to graph node for value assigned
+     *            points-to graph node for value assigned
      */
-    public LocalToFieldStatement(FieldReference f, LocalNode o, LocalNode v) {
+    public LocalToFieldStatement(FieldReference f, LocalNode o, LocalNode v, IR ir) {
         this.field = f;
         this.receiver = o;
         this.assigned = v;
+        this.ir = ir;
     }
 
     @Override
@@ -67,4 +73,8 @@ public class LocalToFieldStatement implements PointsToStatement {
         return field.getFieldType();
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }

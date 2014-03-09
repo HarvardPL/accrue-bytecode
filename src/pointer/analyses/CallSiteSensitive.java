@@ -5,8 +5,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import pointer.AllocSiteNode;
-import accrue.analysis.pointer.analyses.CallSiteContextSensitiveAnalysis.ContextStack;
+import pointer.graph.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -39,10 +38,21 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
     private static final Context EMPTY_CONTEXT = new ContextStack(Collections.<CallSiteReference> emptyList(),
             Collections.<IR> emptyList());
 
+    /**
+     * Create a call site sensitive heap abstraction factory with the default
+     * depth
+     */
     public CallSiteSensitive() {
         this(DEFAULT_SENSITIVITY);
     }
 
+    /**
+     * Create a call site sensitive heap abstraction factory with the given
+     * depth
+     * 
+     * @param sensitivity
+     *            depth of the call site stack
+     */
     public CallSiteSensitive(int sensitivity) {
         this.sensitivity = sensitivity;
     }

@@ -48,7 +48,7 @@ public class StatementRegistrationPass {
      */
     private final IClassHierarchy cha;
     /**
-     * Container and manager of points to statements
+     * Container and manager of points-to statements
      */
     private final StatementRegistrar registrar;
     /**
@@ -57,7 +57,7 @@ public class StatementRegistrationPass {
     private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
 
     /**
-     * Create a pass which will generate points to statements
+     * Create a pass which will generate points-to statements
      * 
      * @param cha
      *            class hierarchy
@@ -88,9 +88,10 @@ public class StatementRegistrationPass {
             if (call == null) {
                 throw new RuntimeException("Missing entry point " + e);
             }
-
+            
             addFromMethod(q, e.getMethod());
         }
+        registrar.setEntryPoint(FakeRootMethod.rootMethod);
     }
 
     /**

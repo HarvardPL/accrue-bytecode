@@ -1,41 +1,49 @@
 package pointer.statements;
 
-import pointer.LocalNode;
-import pointer.ObjectField;
-import pointer.PointsToGraph;
-import pointer.PointsToGraphNode;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.ObjectField;
+import pointer.graph.PointsToGraph;
+import pointer.graph.PointsToGraphNode;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to graph statement for an assignment from an array element, v = a[i]
+ * Points-to graph statement for an assignment from an array element, v = a[i]
  */
 public class ArrayToLocalStatement implements PointsToStatement {
 
     private final LocalNode value;
     private final LocalNode array;
     private final TypeReference baseType;
+    /**
+     * Code this statement occurs in
+     */
+    private final IR ir;
 
     /**
-     * Points to graph statement for an assignment from an array element, v =
+     * Points-to graph statement for an assignment from an array element, v =
      * a[i]
      * 
      * @param v
-     *            Points to graph node for the assignee
+     *            Points-to graph node for the assignee
      * @param a
-     *            Points to graph node for the array being accessed
+     *            Points-to graph node for the array being accessed
      * @param baseType
      *            base type of the array
+     * @param ir 
+     *            Code this statement occurs in           
      */
-    public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType) {
+    public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType, IR ir) {
         super();
         this.value = v;
         this.array = a;
         this.baseType = baseType;
+        this.ir = ir;
     }
 
     @Override
@@ -58,4 +66,8 @@ public class ArrayToLocalStatement implements PointsToStatement {
         return value.getExpectedType();
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }

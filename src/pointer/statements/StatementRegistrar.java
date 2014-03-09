@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import pointer.LocalNode;
+import pointer.graph.LocalNode;
 import types.TypeRepository;
 
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
@@ -35,19 +35,23 @@ import com.ibm.wala.types.TypeReference;
 public class StatementRegistrar {
 
     /**
-     * Points to graph nodes for local variables
+     * Points-to graph nodes for local variables
      */
     private final Map<LocalKey, LocalNode> locals = new LinkedHashMap<>();
     /**
-     * Points to graph nodes for static fields
+     * Points-to graph nodes for static fields
      */
     private final Map<FieldReference, LocalNode> staticFields = new LinkedHashMap<>();
     /**
-     * Set of all points to statements
+     * Set of all points-to statements
      */
     private final Set<PointsToStatement> statements = new LinkedHashSet<>();
 
     private final Map<MethodReference, MethodSummaryNodes> methods = new LinkedHashMap<>();
+    /**
+     * Entry point for the code being analyzed
+     */
+    private MethodReference entryPoint;
 
     /**
      * x = v[j], load from an array
@@ -65,7 +69,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode local = getLocal(i.getDef(), ir);
-        statements.add(new ArrayToLocalStatement(local, array, i.getElementType()));
+        statements.add(new ArrayToLocalStatement(local, array, i.getElementType(), ir));
     }
 
     /**
@@ -84,7 +88,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode value = getLocal(i.getValue(), ir);
-        statements.add(new LocalToArrayStatement(array, value, i.getElementType()));
+        statements.add(new LocalToArrayStatement(array, value, i.getElementType(), ir));
     }
 
     /**
@@ -115,7 +119,7 @@ public class StatementRegistrar {
         // TODO throws class cast exception
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode checkedVal = getLocal(i.getVal(), ir);
-        statements.add(new LocalToLocalStatement(result, checkedVal));
+        statements.add(new LocalToLocalStatement(result, checkedVal, ir));
     }
 
     /**
@@ -134,12 +138,12 @@ public class StatementRegistrar {
         LocalNode assignee = getLocal(i.getDef(), ir);
         if (i.isStatic()) {
             LocalNode field = getNodeForStaticField(i.getDeclaredField());
-            statements.add(new LocalToLocalStatement(assignee, field));
+            statements.add(new LocalToLocalStatement(assignee, field, ir));
             return;
         }
 
         LocalNode receiver = getLocal(i.getRef(), ir);
-        statements.add(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee));
+        statements.add(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir));
     }
 
     /**
@@ -161,10 +165,10 @@ public class StatementRegistrar {
 
         if (i.isStatic()) {
             LocalNode fieldNode = getNodeForStaticField(f);
-            statements.add(new LocalToLocalStatement(fieldNode, assignedValue));
+            statements.add(new LocalToLocalStatement(fieldNode, assignedValue, ir));
         } else {
             LocalNode receiver = getLocal(i.getRef(), ir);
-            statements.add(new LocalToFieldStatement(f, receiver, assignedValue));
+            statements.add(new LocalToFieldStatement(f, receiver, assignedValue, ir));
         }
     }
 
@@ -282,7 +286,7 @@ public class StatementRegistrar {
             LocalNode use = getLocal(i.getUse(j), ir);
             uses.add(use);
         }
-        statements.add(new PhiStatement(assignee, uses));
+        statements.add(new PhiStatement(assignee, uses, ir));
     }
 
     /**
@@ -300,18 +304,18 @@ public class StatementRegistrar {
         }
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode summary = methods.get(ir.getMethod().getReference()).getReturnNode();
-        statements.add(new ReturnStatement(result, summary));
+        statements.add(new ReturnStatement(result, summary, ir));
     }
 
     /**
-     * Get the points to graph node for the given local in the given IR. If the
+     * Get the points-to graph node for the given local in the given IR. If the
      * local is a primitive type then this returns null.
      * 
      * @param local
      *            local ID
      * @param ir
      *            method intermediate representation
-     * @return points to graph node for the local, or null if the local is a
+     * @return points-to graph node for the local, or null if the local is a
      *         primitive
      */
     protected LocalNode getLocal(int local, IR ir) {
@@ -330,11 +334,11 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get the points to graph node for the given static field
+     * Get the points-to graph node for the given static field
      * 
      * @param field
      *            field to get the node for
-     * @return points to graph node for the static field
+     * @return points-to graph node for the static field
      */
     private LocalNode getNodeForStaticField(FieldReference field) {
         LocalNode node = staticFields.get(field);
@@ -350,7 +354,7 @@ public class StatementRegistrar {
     }
 
     /**
-     * Create a fresh points to graph local node
+     * Create a fresh points-to graph local node
      * 
      * @param debugString
      *            string used for printing and debugging (e.g. the local
@@ -359,7 +363,7 @@ public class StatementRegistrar {
      *            type of the local
      * @param isStatic
      *            true if this is a static field
-     * @return a new local points to graph node
+     * @return a new local points-to graph node
      */
     private LocalNode freshLocal(String debugString, TypeReference expectedType, boolean isStatic) {
         return new LocalNode(debugString, expectedType, isStatic);
@@ -376,10 +380,17 @@ public class StatementRegistrar {
     protected void recordMethod(MethodReference method, MethodSummaryNodes summary) {
         methods.put(method, summary);
     }
-    
+
+    /**
+     * Get the formal and return nodes for the given method
+     * 
+     * @param m
+     *            method to get the summary for
+     * @return summary nodes for the given method
+     */
     protected MethodSummaryNodes getSummaryNodes(MethodReference m) {
         MethodSummaryNodes msn = methods.get(m);
-        assert(msn != null);
+        assert (msn != null);
         return msn;
     }
 
@@ -437,5 +448,33 @@ public class StatementRegistrar {
             return true;
         }
 
+    }
+
+    /**
+     * Get all points-to statements
+     * 
+     * @return set of all statements
+     */
+    public Set<PointsToStatement> getAllStatements() {
+        return new LinkedHashSet<PointsToStatement>(statements);
+    }
+
+    /**
+     * Set the entry point for the code being analyzed
+     * 
+     * @param entryPoint
+     *            entry point for the analyzed code
+     */
+    public void setEntryPoint(MethodReference entryPoint) {
+        this.entryPoint = entryPoint;
+    }
+
+    /**
+     * Get the entry point for the code being analyzed
+     * 
+     * @return entry point for the analyzed code
+     */
+    public MethodReference getEntryPoint() {
+        return entryPoint;
     }
 }

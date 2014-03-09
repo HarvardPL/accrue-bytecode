@@ -1,10 +1,10 @@
 package pointer.statements;
 
-import pointer.AllocSiteNode;
-import pointer.LocalNode;
-import pointer.PointsToGraph;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.AllocSiteNode;
+import pointer.graph.LocalNode;
+import pointer.graph.PointsToGraph;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -13,13 +13,13 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to graph node for a "new" statement, e.g. Object o = new Object() TODO
+ * Points-to graph node for a "new" statement, e.g. Object o = new Object() TODO
  * I believe this is the allocation not the constructor call
  */
 public class NewStatement implements PointsToStatement {
 
     /**
-     * Points to graph node for the assignee of the new
+     * Points-to graph node for the assignee of the new
      */
     private final LocalNode result;
     /**
@@ -34,13 +34,14 @@ public class NewStatement implements PointsToStatement {
      * Reference variable for this allocation site
      */
     private final AllocSiteNode alloc;
-
+    
+    
     /**
-     * Points to graph statement for a "new" instruction, e.g. Object o = new
+     * Points-to graph statement for a "new" instruction, e.g. Object o = new
      * Object()
      * 
      * @param result
-     *            Points to graph node for the assignee of the new
+     *            Points-to graph node for the assignee of the new
      * @param newSite
      *            Constructor call site
      * @param ir
@@ -102,5 +103,10 @@ public class NewStatement implements PointsToStatement {
         } else if (!result.equals(other.result))
             return false;
         return true;
+    }
+    
+    @Override
+    public IR getCode() {
+        return ir;
     }
 }

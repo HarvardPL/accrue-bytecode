@@ -1,15 +1,16 @@
 package pointer.statements;
 
-import pointer.LocalNode;
-import pointer.PointsToGraph;
-import pointer.ReferenceVariableReplica;
 import pointer.analyses.HeapAbstractionFactory;
+import pointer.graph.LocalNode;
+import pointer.graph.PointsToGraph;
+import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points to statement for a "return" instruction
+ * Points-to statement for a "return" instruction
  */
 public class ReturnStatement implements PointsToStatement {
 
@@ -21,18 +22,23 @@ public class ReturnStatement implements PointsToStatement {
      * Node summarizing all return values for the method
      */
     private final LocalNode returnSummary;
-
     /**
-     * Create a points to statement for a return instruction
+     * Code this statement occurs in
+     */
+    private final IR ir;
+    
+    /**
+     * Create a points-to statement for a return instruction
      * 
      * @param result
      *            Node for return result
      * @param returnSummary
      *            Node summarizing all return values for the method
      */
-    public ReturnStatement(LocalNode result, LocalNode returnSummary) {
+    public ReturnStatement(LocalNode result, LocalNode returnSummary, IR ir) {
         this.result = result;
         this.returnSummary = returnSummary;
+        this.ir = ir;
     }
 
     @Override
@@ -49,4 +55,8 @@ public class ReturnStatement implements PointsToStatement {
         return result.getExpectedType();
     }
 
+    @Override
+    public IR getCode() {
+        return ir;
+    }
 }
