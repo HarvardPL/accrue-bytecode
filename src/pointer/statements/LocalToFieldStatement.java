@@ -48,7 +48,7 @@ public class LocalToFieldStatement implements PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g) {
+    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
 

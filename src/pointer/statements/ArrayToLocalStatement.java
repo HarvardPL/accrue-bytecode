@@ -39,7 +39,7 @@ public class ArrayToLocalStatement implements PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g) {
+    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
@@ -55,7 +55,7 @@ public class ArrayToLocalStatement implements PointsToStatement {
 
     @Override
     public TypeReference getExpectedType() {
-        return value.expectedType();
+        return value.getExpectedType();
     }
 
 }

@@ -26,6 +26,7 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
+import com.ibm.wala.ssa.SSAReturnInstruction;
 
 /**
  * Collect pointer analysis constraints with a pass over the code
@@ -100,12 +101,14 @@ public class StatementRegistrationPass {
      *            method to process
      */
     private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
+        
         if (visitedMethods.contains(m)) {
             return;
         }
         visitedMethods.add(m);
         IR ir = cache.getSSACache().findOrCreateIR(m, Everywhere.EVERYWHERE, options.getSSAOptions());
-
+        registrar.recordMethod( m.getReference(), new MethodSummaryNodes(registrar, ir));
+        
         // TODO make sure that catch instructions end up getting added
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
             for (SSAInstruction ins : bb) {
@@ -199,10 +202,10 @@ public class StatementRegistrationPass {
             registrar.handleArrayLoad((SSAArrayLoadInstruction) i, ir);
             return;
         }
-
-        // The rest should be local assignments of various forms
-        if (i.hasDef()) {
-            registrar.handleLocalAssignment(i, ir);
+        
+        // return v
+        if (i instanceof SSAReturnInstruction) {
+            registrar.handleReturn((SSAReturnInstruction) i,ir);
             return;
         }
 

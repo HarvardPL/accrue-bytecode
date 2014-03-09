@@ -1,7 +1,8 @@
 package pointer.analyses;
 
+import pointer.AllocSiteNode;
+
 import com.ibm.wala.classLoader.CallSiteReference;
-import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
@@ -28,7 +29,7 @@ public interface HeapAbstractionFactory {
      * 
      * @return Abstract heap object
      */
-    InstanceKey merge(Context context, NewSiteReference allocationSite, IR ir);
+    InstanceKey record(Context context, AllocSiteNode allocationSite, IR ir);
 
     /**
      * Create a new code context for a new callee
@@ -43,7 +44,7 @@ public interface HeapAbstractionFactory {
      *            Code context in the method caller
      * @return code context for the callee
      */
-    Context record(CallSiteReference callSite, IR ir, InstanceKey receiver, Context callerContext);
+    Context merge(CallSiteReference callSite, IR ir, InstanceKey receiver, Context callerContext);
 
     /**
      * Return the initial Context, i.e., to analyze the main method.

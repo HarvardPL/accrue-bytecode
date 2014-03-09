@@ -17,5 +17,5 @@ public class AllocSiteNode extends ReferenceVariable {
 
     public IClass getContainingClass() {
         return containingClass;
-    }
+    } 
 }

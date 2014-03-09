@@ -51,11 +51,11 @@ public class FieldToLocalStatment implements PointsToStatement {
         this.declaredField = f;
         this.receiver = o;
         this.assignee = l;
-        this.type = l.expectedType();
+        this.type = l.getExpectedType();
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g) {
+    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 

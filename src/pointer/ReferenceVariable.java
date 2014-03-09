@@ -16,6 +16,7 @@ public abstract class ReferenceVariable {
     private static int count;
 
     public ReferenceVariable(String debugString, TypeReference expectedType) {
+        assert (!expectedType.isPrimitiveType());
         this.id = ++count;
         this.debugString = debugString;
         this.expectedType = expectedType;
@@ -23,13 +24,13 @@ public abstract class ReferenceVariable {
             throw new RuntimeException("Need debug string");
         }
         if ("null".equals(debugString)) {
-            throw new RuntimeException("Whacky debug string");
+            throw new RuntimeException("Weird debug string");
         }
     }
 
     @Override
     public String toString() {
-        return debugString + "{" + id + "}";
+        return debugString + " {" + id + "}";
     }
 
     @Override
@@ -39,7 +40,7 @@ public abstract class ReferenceVariable {
 
     @Override
     final public int hashCode() {
-        return id;
+        return System.identityHashCode(this);
     }
 
     /**
@@ -54,7 +55,7 @@ public abstract class ReferenceVariable {
         return false;
     }
 
-    public TypeReference expectedType() {
+    public TypeReference getExpectedType() {
         return expectedType;
     }
 

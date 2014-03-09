@@ -20,9 +20,11 @@ public interface PointsToStatement {
      *            factory for creating new analysis contexts
      * @param g
      *            points to graph (may be modified)
+     * @param registrar
+     *            Points to statement registrar
      * @return true if the points to graph was modified
      */
-    boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g);
+    boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar);
 
     @Override
     public boolean equals(Object obj);

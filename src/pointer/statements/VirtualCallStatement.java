@@ -10,14 +10,16 @@ import pointer.analyses.HeapAbstractionFactory;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Points-to statement for a static method call
+ * Points to statement for a call to a virtual method (either a class or
+ * interface method).
  */
-public class StaticCallStatement extends CallStatement {
+public class VirtualCallStatement extends CallStatement {
 
     /**
      * Method call site
@@ -32,6 +34,10 @@ public class StaticCallStatement extends CallStatement {
      */
     private final MethodReference callee;
     /**
+     * Receiver of the call
+     */
+    private final LocalNode receiver;
+    /**
      * Actual arguments to the call
      */
     private final List<LocalNode> actuals;
@@ -45,7 +51,7 @@ public class StaticCallStatement extends CallStatement {
     private final LocalNode exceptionNode;
 
     /**
-     * Points-to statement for a static method invocation.
+     * Points-to statement for a virtual method invocation.
      * 
      * @param callSite
      *            Method call site
@@ -62,11 +68,12 @@ public class StaticCallStatement extends CallStatement {
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
      */
-    public StaticCallStatement(CallSiteReference callSite, IR ir, MethodReference callee, List<LocalNode> actuals,
-            LocalNode resultNode, LocalNode exceptionNode) {
+    public VirtualCallStatement(CallSiteReference callSite, IR ir, MethodReference callee, LocalNode receiver,
+            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode) {
         this.callSite = callSite;
         this.ir = ir;
         this.callee = callee;
+        this.receiver = receiver;
         this.actuals = actuals;
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
@@ -74,25 +81,31 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        List<ReferenceVariableReplica> actualReps = new LinkedList<>();
-        for (LocalNode actual : actuals) {
-            if (actuals == null) {
-                actualReps.add(null);
-                continue;
-            }
-            actualReps.add(new ReferenceVariableReplica(context, actual));
-        }
 
         ReferenceVariableReplica resultRep = new ReferenceVariableReplica(context, resultNode);
         ReferenceVariableReplica exceptionRep = new ReferenceVariableReplica(context, exceptionNode);
+        List<ReferenceVariableReplica> actualReps = new LinkedList<>();
+        for (LocalNode actual : actuals) {
+            if (actual == null) {
+                // not a reference type
+                actualReps.add(null);
+            }
+            ReferenceVariableReplica actualRep = new ReferenceVariableReplica(context, actual);
+            actualReps.add(actualRep);
+        }
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
 
-        return processCall(callSite, ir, context, callee, null, actualReps, resultRep, exceptionRep, haf, g, registrar);
+        boolean changed = false;
+        for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
+            changed |= processCall(callSite, ir, context, callee, recHeapContext, actualReps, resultRep, exceptionRep,
+                    haf, g, registrar);
+        }
+
+        return changed;
     }
 
     @Override
     public TypeReference getExpectedType() {
-        // TODO Auto-generated method stub
-        return null;
+        return resultNode.getExpectedType();
     }
-
 }

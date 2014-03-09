@@ -41,11 +41,11 @@ public class PhiStatement implements PointsToStatement {
     public PhiStatement(LocalNode v, List<LocalNode> xs) {
         this.assignee = v;
         this.uses = xs;
-        this.type = v.expectedType();
+        this.type = v.getExpectedType();
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g) {
+    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
 
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
         boolean changed = false;
@@ -53,7 +53,7 @@ public class PhiStatement implements PointsToStatement {
         // For every possible branch add edges into assignee
         for (LocalNode use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
-            changed |= g.addEdges(a, g.getPointsToSetFiltered(n, assignee.expectedType()));
+            changed |= g.addEdges(a, g.getPointsToSetFiltered(n, assignee.getExpectedType()));
         }
         return changed;
     }

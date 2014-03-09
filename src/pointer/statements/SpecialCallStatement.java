@@ -12,23 +12,48 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
-public class SpecialCallStatement implements PointsToStatement {
+/**
+ * Statement for a special invoke statement.
+ */
+public class SpecialCallStatement extends CallStatement {
 
-    public SpecialCallStatement(CallSiteReference callSite, IR ir, MethodReference callee, List<LocalNode> actuals,
-            LocalNode resultNode, LocalNode exceptionNode) {
-        // TODO Auto-generated constructor stub
+    /**
+     * Delegate virtual call statement 
+     * TODO should something different happen for special invoke?
+     */
+    private final VirtualCallStatement virtCall;
+
+    /**
+     * Points-to statement for a special method invocation.
+     * 
+     * @param callSite
+     *            Method call site
+     * @param ir
+     *            IR for the caller method
+     * @param callee
+     *            Method being called
+     * @param receiver
+     *            Receiver of the call
+     * @param actuals
+     *            Actual arguments to the call
+     * @param resultNode
+     *            Node for the assignee if any (i.e. v in v = foo())
+     * @param exceptionNode
+     *            Node representing the exception thrown by this call (if any)
+     */
+    public SpecialCallStatement(CallSiteReference callSite, IR ir, MethodReference callee, LocalNode receiver,
+            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode) {
+        virtCall = new VirtualCallStatement(callSite, ir, callee, receiver, actuals, resultNode, exceptionNode);
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g) {
-        // TODO Auto-generated method stub
-        return false;
+    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+        return virtCall.process(context, haf, g, registrar);
     }
 
     @Override
     public TypeReference getExpectedType() {
-        // TODO Auto-generated method stub
-        return null;
+        return virtCall.getExpectedType();
     }
 
 }

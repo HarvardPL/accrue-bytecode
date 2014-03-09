@@ -2,15 +2,15 @@ package pointer.statements;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import pointer.LocalNode;
 import types.TypeRepository;
 
-import com.ibm.wala.classLoader.CallSiteReference;
-import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
@@ -23,12 +23,13 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
+import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * This class manages the registration of new points to graph statements, which
+ * This class manages the registration of new points-to graph statements, which
  * are then processed by the pointer analysis
  */
 public class StatementRegistrar {
@@ -42,9 +43,11 @@ public class StatementRegistrar {
      */
     private final Map<FieldReference, LocalNode> staticFields = new LinkedHashMap<>();
     /**
-     * list of all points to statements TODO should this be a set?
+     * Set of all points to statements
      */
-    private final List<PointsToStatement> statements = new LinkedList<>();
+    private final Set<PointsToStatement> statements = new LinkedHashSet<>();
+
+    private final Map<MethodReference, MethodSummaryNodes> methods = new LinkedHashMap<>();
 
     /**
      * x = v[j], load from an array
@@ -62,7 +65,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode local = getLocal(i.getDef(), ir);
-        addArrayToLocalAssign(local, array, i.getElementType());
+        statements.add(new ArrayToLocalStatement(local, array, i.getElementType()));
     }
 
     /**
@@ -81,7 +84,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode value = getLocal(i.getValue(), ir);
-        addLocalToArrayAssign(array, value, i.getElementType());
+        statements.add(new LocalToArrayStatement(array, value, i.getElementType()));
     }
 
     /**
@@ -112,7 +115,7 @@ public class StatementRegistrar {
         // TODO throws class cast exception
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode checkedVal = getLocal(i.getVal(), ir);
-        addLocalToLocalAssign(result, checkedVal);
+        statements.add(new LocalToLocalStatement(result, checkedVal));
     }
 
     /**
@@ -131,12 +134,12 @@ public class StatementRegistrar {
         LocalNode assignee = getLocal(i.getDef(), ir);
         if (i.isStatic()) {
             LocalNode field = getNodeForStaticField(i.getDeclaredField());
-            addLocalToLocalAssign(assignee, field);
+            statements.add(new LocalToLocalStatement(assignee, field));
             return;
         }
 
         LocalNode receiver = getLocal(i.getRef(), ir);
-        addFieldToLocalAssign(i.getDeclaredField(), receiver, assignee);
+        statements.add(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee));
     }
 
     /**
@@ -158,10 +161,10 @@ public class StatementRegistrar {
 
         if (i.isStatic()) {
             LocalNode fieldNode = getNodeForStaticField(f);
-            addLocalToLocalAssign(fieldNode, assignedValue);
+            statements.add(new LocalToLocalStatement(fieldNode, assignedValue));
         } else {
             LocalNode receiver = getLocal(i.getRef(), ir);
-            addLocalToFieldAssign(f, receiver, assignedValue);
+            statements.add(new LocalToFieldStatement(f, receiver, assignedValue));
         }
     }
 
@@ -209,12 +212,15 @@ public class StatementRegistrar {
         LocalNode receiver = i.isStatic() ? null : getLocal(i.getReceiver(), ir);
 
         if (i.isStatic()) {
-            addStaticCall(i.getCallSite(), ir, i.getDeclaredTarget(), actuals, resultNode, exceptionNode);
+            statements.add(new StaticCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), actuals, resultNode,
+                    exceptionNode));
         } else if (i.isSpecial()) {
-            addSpecialCall(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals, resultNode, exceptionNode);
+            statements.add(new SpecialCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
+                    resultNode, exceptionNode));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
-            addVirtualCall(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals, resultNode, exceptionNode);
+            statements.add(new VirtualCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
+                    resultNode, exceptionNode));
         }
     }
 
@@ -253,7 +259,7 @@ public class StatementRegistrar {
         // TODO Do we need to do anything with array dimensions, probably do
         // TODO How are constructors handled, I think they are called on the
         // result of the new. The new allocates and then a method is called.
-        addNewStatement(result, i.getNewSite(), ir);
+        statements.add(new NewStatement(result, i.getNewSite(), ir));
     }
 
     /**
@@ -276,190 +282,47 @@ public class StatementRegistrar {
             LocalNode use = getLocal(i.getUse(j), ir);
             uses.add(use);
         }
-        addPhiStatement(assignee, uses);
-    }
-
-    /**
-     * Add assignment to a local from an array
-     * 
-     * @param local
-     *            assignee
-     * @param array
-     *            array assigning from
-     * @param elementType
-     *            base type for array
-     */
-    private void addArrayToLocalAssign(LocalNode local, LocalNode array, TypeReference elementType) {
-        statements.add(new ArrayToLocalStatement(local, array, elementType));
-    }
-
-    /**
-     * Add an assignment from a non-static field into a local
-     * 
-     * @param declaredField
-     *            field assigned from
-     * @param value
-     *            local assigned to
-     * @param receiver
-     *            target or field dereference
-     */
-    private void addFieldToLocalAssign(FieldReference declaredField, LocalNode receiver, LocalNode value) {
-        statements.add(new FieldToLocalStatment(declaredField, receiver, value));
-    }
-
-    /**
-     * Assign a local into an array
-     * 
-     * @param array
-     *            node for array
-     * @param value
-     *            node for the value being assigned
-     */
-    private void addLocalToArrayAssign(LocalNode array, LocalNode value, TypeReference baseType) {
-        statements.add(new LocalToArrayStatement(array, value, baseType));
-    }
-
-    /**
-     * Add an assignment statement of the form, left = right
-     * 
-     * @param left
-     *            local node for assignee
-     * @param right
-     *            local node for assigned value
-     */
-    private void addLocalToLocalAssign(LocalNode left, LocalNode right) {
-        statements.add(new LocalToLocalStatement(left, right));
-    }
-
-    /**
-     * Add an assignment to an object (i.e. non-static) field, target.field =
-     * assigned
-     * 
-     * @param field
-     *            field in a class
-     * @param receiver
-     *            local node for the target of the field dereference
-     * @param assigned
-     *            local node for the assigned value
-     */
-    private void addLocalToFieldAssign(FieldReference field, LocalNode receiver, LocalNode assigned) {
-        statements.add(new LocalToFieldStatement(field, receiver, assigned));
-    }
-
-    /**
-     * Add a statement for a new allocation
-     * 
-     * @param result
-     *            result of the allocation
-     * @param newSite
-     *            site of the allocation
-     * @param ir
-     *            code where the allocation occurs
-     */
-    private void addNewStatement(LocalNode result, NewSiteReference newSite, IR ir) {
-        statements.add(new NewStatement(result, newSite, ir));
-    }
-
-    /**
-     * Add a call to a non-static method
-     * 
-     * @param callSite
-     *            call site
-     * @param ir
-     *            code for the caller
-     * @param callee
-     *            method being called
-     * @param receiver
-     *            node for receiver of the call
-     * @param actuals
-     *            nodes for the actual arguments (in order)
-     * @param resultNode
-     *            node for the return result, will be null if the method has a
-     *            void return or returns a primitive.
-     * @param exceptionNode
-     *            node for exceptions thrown by this call
-     */
-    private void addVirtualCall(CallSiteReference callSite, IR ir, MethodReference callee, LocalNode receiver,
-            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode) {
-        statements.add(new NonstaticCallStatement(callSite, ir, callee, receiver, actuals, resultNode, exceptionNode));
-    }
-
-    /**
-     * Add a phi statement, x = phi(x_1, x_2, ...)
-     * 
-     * @param assignee
-     *            local being assigned into
-     * @param uses
-     *            all elements being merged (in the same order as in the
-     *            instruction)
-     */
-    private void addPhiStatement(LocalNode assignee, List<LocalNode> uses) {
         statements.add(new PhiStatement(assignee, uses));
     }
 
     /**
-     * Add a call to a non-static method
+     * Handle a return instruction "return v"
      * 
-     * @param callSite
-     *            call site
+     * @param i
+     *            instruction
      * @param ir
-     *            code for the caller
-     * @param callee
-     *            method being called
-     * @param receiver
-     *            node for receiver of the call
-     * @param actuals
-     *            nodes for the actual arguments (in order)
-     * @param resultNode
-     *            node for the return result, will be null if the method has a
-     *            void return or returns a primitive.
-     * @param exceptionNode
-     *            node for exceptions thrown by this call
+     *            code for method containing the instruction
      */
-    private void addSpecialCall(CallSiteReference callSite, IR ir, MethodReference callee, LocalNode receiver,
-            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode) {
-        statements.add(new SpecialCallStatement(callSite, ir, callee, actuals, resultNode, exceptionNode));
+    public void handleReturn(SSAReturnInstruction i, IR ir) {
+        if (i.returnsPrimitiveType() || i.returnsVoid()) {
+            // no pointers here
+            return;
+        }
+        LocalNode result = getLocal(i.getResult(), ir);
+        LocalNode summary = methods.get(ir.getMethod().getReference()).getReturnNode();
+        statements.add(new ReturnStatement(result, summary));
     }
 
     /**
-     * Add a call to a static method
-     * 
-     * @param callSite
-     *            call site
-     * @param ir
-     *            code for the caller
-     * @param callee
-     *            method being called
-     * @param actuals
-     *            nodes for the actual arguments (in order)
-     * @param resultNode
-     *            node for the return result, will be null if the method has a
-     *            void return or returns a primitive.
-     * @param exceptionNode
-     *            node for exceptions thrown by this call
-     */
-    private void addStaticCall(CallSiteReference callSite, IR ir, MethodReference callee, List<LocalNode> actuals,
-            LocalNode resultNode, LocalNode exceptionNode) {
-        statements.add(new StaticCallStatement(callSite, ir, callee, actuals, resultNode, exceptionNode));
-    }
-
-    /**
-     * Get the points to graph node for the given local in the given IR
+     * Get the points to graph node for the given local in the given IR. If the
+     * local is a primitive type then this returns null.
      * 
      * @param local
      *            local ID
      * @param ir
      *            method intermediate representation
-     * @return points to graph node for the local
+     * @return points to graph node for the local, or null if the local is a
+     *         primitive
      */
-    private LocalNode getLocal(int local, IR ir) {
+    protected LocalNode getLocal(int local, IR ir) {
+        if (TypeRepository.getType(local, ir).isPrimitiveType()) {
+            return null;
+        }
+
         LocalKey key = new LocalKey(local, ir);
         LocalNode node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
-            if (type.isPrimitiveType()) {
-                throw new RuntimeException("Trying to create reference variable for a local with a primitive type.");
-            }
             node = freshLocal(ir.getSymbolTable().getValueString(local), type, false);
             locals.put(key, node);
         }
@@ -500,6 +363,24 @@ public class StatementRegistrar {
      */
     private LocalNode freshLocal(String debugString, TypeReference expectedType, boolean isStatic) {
         return new LocalNode(debugString, expectedType, isStatic);
+    }
+
+    /**
+     * Register a new method
+     * 
+     * @param method
+     *            new method
+     * @param summary
+     *            nodes for formals and returns
+     */
+    protected void recordMethod(MethodReference method, MethodSummaryNodes summary) {
+        methods.put(method, summary);
+    }
+    
+    protected MethodSummaryNodes getSummaryNodes(MethodReference m) {
+        MethodSummaryNodes msn = methods.get(m);
+        assert(msn != null);
+        return msn;
     }
 
     /**

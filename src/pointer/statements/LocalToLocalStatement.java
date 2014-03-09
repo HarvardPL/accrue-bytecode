@@ -37,16 +37,16 @@ public class LocalToLocalStatement implements PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g) {
+    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
 
-        return g.addEdges(l, g.getPointsToSetFiltered(r, left.expectedType()));
+        return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
     }
 
     @Override
     public TypeReference getExpectedType() {
-        return left.expectedType();
+        return left.getExpectedType();
     }
 
 }

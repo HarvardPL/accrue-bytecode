@@ -9,10 +9,10 @@ import java.util.Set;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
 public class PointsToGraph {
@@ -23,8 +23,8 @@ public class PointsToGraph {
     
     private Set<PointsToGraphNode> changedNodes;
     private Set<PointsToGraphNode> readNodes;
-    private Map<IMethod, Set<Context>> newContexts;
-    private final Map<IMethod,Set<Context>> contexts;
+    private Map<MethodReference, Set<Context>> newContexts;
+    private final Map<MethodReference,Set<Context>> contexts;
     
     public PointsToGraph(IClassHierarchy cha) {
         this.cha = cha;
@@ -95,7 +95,7 @@ public class PointsToGraph {
         return s;
     }
     
-    public boolean addCall(CallSiteReference caller, Context callerContext, IMethod callee, Context calleeContext) {
+    public boolean addCall(CallSiteReference caller, Context callerContext, MethodReference callee, Context calleeContext) {
         // TODO Add edge to call graph
         
         Set<Context> s = contexts.get(callee);
