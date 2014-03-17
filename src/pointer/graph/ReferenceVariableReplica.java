@@ -53,5 +53,8 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
         return true;
     }
 
-    
+    @Override
+    public String toString() {
+        return  r + " in " + context;
+    }
 }

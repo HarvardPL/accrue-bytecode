@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import pointer.graph.AllocSiteNode;
+import util.PrettyPrinter;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -82,6 +83,19 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
      * A sequence of call sites
      */
     private static class ContextStack implements Context {
+
+        public static final ContextKey CALL_SITE_STACK_STRING = new ContextKey() {
+            @Override
+            public String toString() {
+              return "CALL_SITE_STACK_STRING_KEY";
+            }
+          };
+          public static final ContextKey CALL_SITE_IR_STACK_STRING = new ContextKey() {
+              @Override
+              public String toString() {
+                return "CALL_SITE_IR_STACK_STRING_KEY";
+              }
+            };
 
         /**
          * List of call sites in the stack
@@ -163,12 +177,28 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
 
         @Override
         public String toString() {
-            return "Context: " + sites.toString();
+            StringBuilder s = new StringBuilder();
+            s.append("[");
+            int len = sites.size() - 1;
+            for (int i = 0; i <= len; i++) {
+                CallSiteReference site = sites.get(i);
+                String meth = PrettyPrinter.parseMethod(site.getDeclaredTarget()) + "@" + site.getProgramCounter();
+                String sep = (i == len) ? "" : ", ";
+                s.append(meth + sep);
+            }
+            s.append("]");
+            return s.toString();
         }
 
         @Override
         public ContextItem get(ContextKey name) {
-            throw new UnsupportedOperationException();
+            if (CALL_SITE_STACK_STRING.equals(name)) {
+                return new ContextItem.Value<List<CallSiteReference>>(this.sites);
+            }
+            if (CALL_SITE_IR_STACK_STRING.equals(name)) {
+                return new ContextItem.Value<List<IR>>(this.irs);
+            }
+            return null;
         }
     }
 
@@ -258,12 +288,12 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
 
         @Override
         public String toString() {
-            return "stack: " + context + ", node: " + asn;
+            return asn + " in " + context;
         }
 
         @Override
         public IClass getConcreteType() {
-            throw new UnsupportedOperationException();
+            return asn.getInstantiatedClass();
         }
 
         @Override

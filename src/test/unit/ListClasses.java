@@ -82,7 +82,8 @@ public class ListClasses extends WalaTestCase {
 		cha = null;
 	}
 
-	@Test
+	@SuppressWarnings("unused")
+    @Test
 	public void testScratch() throws IllegalArgumentException,
 			CallGraphBuilderCancelException, InvalidClassFileException {
 
@@ -149,7 +150,7 @@ public class ListClasses extends WalaTestCase {
 				if (bb.isEntryBlock()) {
 					System.out.println("IR");
 					IR ir = bb.getNode().getIR();
-					pp = new PrettyPrinter(ir.getSymbolTable(), true);
+					pp = PrettyPrinter.getPrinter(ir);
 					int j = 0;
 					Iterator<SSAInstruction> iter = ir.iterateAllInstructions();
 					while (iter.hasNext()) {

@@ -30,17 +30,26 @@ public abstract class ReferenceVariable {
 
     @Override
     public String toString() {
-        return debugString + " {" + id + "}";
+        return debugString;
     }
 
     @Override
-    final public boolean equals(Object o) {
-        return this == o;
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        ReferenceVariable other = (ReferenceVariable) obj;
+        if (id != other.id)
+            return false;
+        return true;
     }
 
     @Override
-    final public int hashCode() {
-        return System.identityHashCode(this);
+    public int hashCode() {
+        return System.identityHashCode(id);
     }
 
     /**

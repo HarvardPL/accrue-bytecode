@@ -1,18 +1,16 @@
 package pointer.statements;
 
-import java.util.LinkedList;
 import java.util.List;
 
 import pointer.analyses.HeapAbstractionFactory;
 import pointer.graph.LocalNode;
 import pointer.graph.PointsToGraph;
-import pointer.graph.ReferenceVariableReplica;
+import util.PrettyPrinter;
 
 import com.ibm.wala.classLoader.CallSiteReference;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.types.MethodReference;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to statement for a static method call
@@ -20,29 +18,9 @@ import com.ibm.wala.types.TypeReference;
 public class StaticCallStatement extends CallStatement {
 
     /**
-     * Method call site
+     * Called method
      */
-    private final CallSiteReference callSite;
-    /**
-     * IR for the caller method
-     */
-    private final IR ir;
-    /**
-     * Method being called
-     */
-    private final MethodReference callee;
-    /**
-     * Actual arguments to the call
-     */
-    private final List<LocalNode> actuals;
-    /**
-     * Node for the assignee if any (i.e. v in v = foo())
-     */
-    private final LocalNode resultNode;
-    /**
-     * Node representing the exception thrown by this call (if any)
-     */
-    private final LocalNode exceptionNode;
+    private final IMethod callee;
 
     /**
      * Points-to statement for a static method invocation.
@@ -58,44 +36,55 @@ public class StaticCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo())
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
      */
-    public StaticCallStatement(CallSiteReference callSite, IR ir, MethodReference callee, List<LocalNode> actuals,
+    public StaticCallStatement(CallSiteReference callSite, IR ir, IMethod callee, List<LocalNode> actuals,
             LocalNode resultNode, LocalNode exceptionNode) {
-        this.callSite = callSite;
-        this.ir = ir;
+        super(callSite, ir, actuals, resultNode, exceptionNode);
         this.callee = callee;
-        this.actuals = actuals;
-        this.resultNode = resultNode;
-        this.exceptionNode = exceptionNode;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        List<ReferenceVariableReplica> actualReps = new LinkedList<>();
-        for (LocalNode actual : actuals) {
-            if (actuals == null) {
-                actualReps.add(null);
-                continue;
-            }
-            actualReps.add(new ReferenceVariableReplica(context, actual));
+        Context calleeContext = haf.merge(getCallSite(), getCode(), null, context);
+        return processCall(context, null, callee, calleeContext, g, registrar);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        if (getResultNode() != null) {
+            s.append(getResultNode().toString() + " = ");
         }
+        s.append("invokestatic " + PrettyPrinter.parseMethod(callee.getReference()));
 
-        ReferenceVariableReplica resultRep = new ReferenceVariableReplica(context, resultNode);
-        ReferenceVariableReplica exceptionRep = new ReferenceVariableReplica(context, exceptionNode);
-
-        return processCall(callSite, ir, context, callee, null, actualReps, resultRep, exceptionRep, haf, g, registrar);
+        return s.toString();
     }
 
     @Override
-    public TypeReference getExpectedType() {
-        return callSite.getDeclaredTarget().getReturnType();
+    public int hashCode() {
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + ((callee == null) ? 0 : callee.hashCode());
+        return result;
     }
 
     @Override
-    public IR getCode() {
-        return ir;
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (!super.equals(obj))
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        StaticCallStatement other = (StaticCallStatement) obj;
+        if (callee == null) {
+            if (other.callee != null)
+                return false;
+        } else if (!callee.equals(other.callee))
+            return false;
+        return true;
     }
 }

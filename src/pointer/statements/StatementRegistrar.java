@@ -9,8 +9,12 @@ import java.util.Map;
 import java.util.Set;
 
 import pointer.graph.LocalNode;
+import pointer.graph.MethodSummaryNodes;
 import types.TypeRepository;
+import util.PrettyPrinter;
 
+import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
@@ -25,7 +29,6 @@ import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -47,11 +50,18 @@ public class StatementRegistrar {
      */
     private final Set<PointsToStatement> statements = new LinkedHashSet<>();
 
-    private final Map<MethodReference, MethodSummaryNodes> methods = new LinkedHashMap<>();
+    /**
+     * Map from method signature to nodes representing formals and returns
+     */
+    private final Map<IMethod, MethodSummaryNodes> methods = new LinkedHashMap<>();
     /**
      * Entry point for the code being analyzed
      */
-    private MethodReference entryPoint;
+    private IMethod entryPoint;
+    /**
+     * Class initializers
+     */
+    private Set<IMethod> classInitializers = new LinkedHashSet<>();
 
     /**
      * x = v[j], load from an array
@@ -61,7 +71,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void handleArrayLoad(SSAArrayLoadInstruction i, IR ir) {
+    public void registerArrayLoad(SSAArrayLoadInstruction i, IR ir) {
         TypeReference t = i.getElementType();
         if (t.isPrimitiveType()) {
             // Assigning into a primitive array so value is not a pointer
@@ -80,7 +90,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void handleArrayStore(SSAArrayStoreInstruction i, IR ir) {
+    public void registerArrayStore(SSAArrayStoreInstruction i, IR ir) {
         TypeReference t = TypeRepository.getType(i.getValue(), ir);
         if (t.isPrimitiveType()) {
             // Assigning into a primitive array so value is not a pointer
@@ -99,7 +109,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void handleCatchAssignment(SSAGetCaughtExceptionInstruction i, IR ir) {
+    public void registerCatchAssignment(SSAGetCaughtExceptionInstruction i, IR ir) {
         getLocal(i.getException(), ir);
         // TODO Is there a way to get the actual argument?
         // They may have the same index in the IR symbol table, might have to
@@ -114,7 +124,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void handleCheckCast(SSACheckCastInstruction i, IR ir) {
+    public void registerCheckCast(SSACheckCastInstruction i, IR ir) {
         // This has the same effect as a copy, v = x
         // TODO throws class cast exception
         LocalNode result = getLocal(i.getResult(), ir);
@@ -130,7 +140,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void handleFieldAccess(SSAGetInstruction i, IR ir) {
+    public void registerFieldAccess(SSAGetInstruction i, IR ir) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
@@ -138,7 +148,7 @@ public class StatementRegistrar {
         LocalNode assignee = getLocal(i.getDef(), ir);
         if (i.isStatic()) {
             LocalNode field = getNodeForStaticField(i.getDeclaredField());
-            statements.add(new LocalToLocalStatement(assignee, field, ir));
+            statements.add(new StaticFieldToLocalStatement(assignee, field, ir));
             return;
         }
 
@@ -154,7 +164,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void handleFieldAssign(SSAPutInstruction i, IR ir) {
+    public void registerFieldAssign(SSAPutInstruction i, IR ir) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
@@ -165,7 +175,7 @@ public class StatementRegistrar {
 
         if (i.isStatic()) {
             LocalNode fieldNode = getNodeForStaticField(f);
-            statements.add(new LocalToLocalStatement(fieldNode, assignedValue, ir));
+            statements.add(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir));
         } else {
             LocalNode receiver = getLocal(i.getRef(), ir);
             statements.add(new LocalToFieldStatement(f, receiver, assignedValue, ir));
@@ -179,8 +189,10 @@ public class StatementRegistrar {
      *            invoke instruction
      * @param ir
      *            code for the method containing the instruction (the caller)
+     * @param cha
+     *            Class hierarchy, used to resolve method calls
      */
-    public void handleInvoke(SSAInvokeInstruction i, IR ir) {
+    public void registerInvoke(SSAInvokeInstruction i, IR ir, IClassHierarchy cha) {
         LocalNode resultNode = null;
         int numOfRetVals = i.getNumberOfReturnValues();
         if (!(numOfRetVals == 0 || numOfRetVals == 1)) {
@@ -195,7 +207,7 @@ public class StatementRegistrar {
 
         List<LocalNode> actuals = new LinkedList<>();
         // actuals
-        if (i.isStatic()) {
+        if (i.isStatic() && i.getNumberOfParameters() > 0) {
             // for non-static methods param(0) is the target
             // for static it is the first argument
             actuals.add(getLocal(i.getUse(0), ir));
@@ -216,37 +228,20 @@ public class StatementRegistrar {
         LocalNode receiver = i.isStatic() ? null : getLocal(i.getReceiver(), ir);
 
         if (i.isStatic()) {
-            statements.add(new StaticCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), actuals, resultNode,
+            // TODO is this right
+            IMethod resolvedMethod = cha.resolveMethod(i.getDeclaredTarget());
+            statements.add(new StaticCallStatement(i.getCallSite(), ir, resolvedMethod, actuals, resultNode,
                     exceptionNode));
         } else if (i.isSpecial()) {
-            statements.add(new SpecialCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
-                    resultNode, exceptionNode));
+            // TODO check that this is right
+            IMethod resolvedMethod = cha.resolveMethod(i.getDeclaredTarget());
+            statements.add(new SpecialCallStatement(i.getCallSite(), ir, resolvedMethod, receiver, actuals, resultNode,
+                    exceptionNode));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             statements.add(new VirtualCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
-                    resultNode, exceptionNode));
+                    resultNode, exceptionNode, cha));
         }
-    }
-
-    /**
-     * Handle an assignment into a local variable.
-     * 
-     * @param i
-     *            assignment instruction
-     * @param ir
-     *            code for the method containing the instruction
-     */
-    public void handleLocalAssignment(SSAInstruction i, IR ir) {
-        TypeReference type = TypeRepository.getType(i.getDef(), ir);
-        if (type.isPrimitiveType()) {
-            // No pointers here
-            return;
-        }
-        // TODO direct copies seem to be impossible
-        // so there is no points information transferred in a local assignment
-        // statement.
-        // TODO Might be missing some other cases.
-        freshLocal(ir.getSymbolTable().getValueString(i.getDef()), type, false);
     }
 
     /**
@@ -257,13 +252,11 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void handleNew(SSANewInstruction i, IR ir) {
+    public void registerNew(SSANewInstruction i, IR ir, IClassHierarchy cha) {
         // all "new" instructions are assigned to a local
         LocalNode result = getLocal(i.getDef(), ir);
         // TODO Do we need to do anything with array dimensions, probably do
-        // TODO How are constructors handled, I think they are called on the
-        // result of the new. The new allocates and then a method is called.
-        statements.add(new NewStatement(result, i.getNewSite(), ir));
+        statements.add(new NewStatement(result, i.getNewSite(), ir, cha));
     }
 
     /**
@@ -274,7 +267,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void handlePhiAssignment(SSAPhiInstruction i, IR ir) {
+    public void registerPhiAssignment(SSAPhiInstruction i, IR ir) {
         TypeReference type = TypeRepository.getType(i.getDef(), ir);
         if (type.isPrimitiveType()) {
             // No pointers here
@@ -297,13 +290,13 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void handleReturn(SSAReturnInstruction i, IR ir) {
+    public void registerReturn(SSAReturnInstruction i, IR ir) {
         if (i.returnsPrimitiveType() || i.returnsVoid()) {
             // no pointers here
             return;
         }
         LocalNode result = getLocal(i.getResult(), ir);
-        LocalNode summary = methods.get(ir.getMethod().getReference()).getReturnNode();
+        LocalNode summary = methods.get(ir.getMethod()).getReturnNode();
         statements.add(new ReturnStatement(result, summary, ir));
     }
 
@@ -318,7 +311,7 @@ public class StatementRegistrar {
      * @return points-to graph node for the local, or null if the local is a
      *         primitive
      */
-    protected LocalNode getLocal(int local, IR ir) {
+    public LocalNode getLocal(int local, IR ir) {
         if (TypeRepository.getType(local, ir).isPrimitiveType()) {
             return null;
         }
@@ -327,7 +320,7 @@ public class StatementRegistrar {
         LocalNode node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
-            node = freshLocal(ir.getSymbolTable().getValueString(local), type, false);
+            node = freshLocal(PrettyPrinter.getPrinter(ir).stringForValue(local), type, false);
             locals.put(key, node);
         }
         return node;
@@ -377,20 +370,20 @@ public class StatementRegistrar {
      * @param summary
      *            nodes for formals and returns
      */
-    protected void recordMethod(MethodReference method, MethodSummaryNodes summary) {
+    protected void recordMethod(IMethod method, MethodSummaryNodes summary) {
         methods.put(method, summary);
     }
 
     /**
      * Get the formal and return nodes for the given method
      * 
-     * @param m
-     *            method to get the summary for
+     * @param resolvedCallee
+     *            signature of the method to get the summary for
      * @return summary nodes for the given method
      */
-    protected MethodSummaryNodes getSummaryNodes(MethodReference m) {
-        MethodSummaryNodes msn = methods.get(m);
-        assert (msn != null);
+    protected MethodSummaryNodes getSummaryNodes(IMethod resolvedCallee) {
+        MethodSummaryNodes msn = methods.get(resolvedCallee);
+        assert (msn != null) : "Missing method summary " + resolvedCallee;
         return msn;
     }
 
@@ -465,7 +458,7 @@ public class StatementRegistrar {
      * @param entryPoint
      *            entry point for the analyzed code
      */
-    public void setEntryPoint(MethodReference entryPoint) {
+    public void setEntryPoint(IMethod entryPoint) {
         this.entryPoint = entryPoint;
     }
 
@@ -474,7 +467,22 @@ public class StatementRegistrar {
      * 
      * @return entry point for the analyzed code
      */
-    public MethodReference getEntryPoint() {
+    public IMethod getEntryPoint() {
         return entryPoint;
+    }
+
+    /**
+     * Get all methods that should be analyzed in the initial empty context
+     * 
+     * @return set of methods
+     */
+    public Set<IMethod> getInitialContextMethods() {
+        Set<IMethod> ret = new LinkedHashSet<>(classInitializers);
+        ret.add(getEntryPoint());
+        return ret;
+    }
+
+    public void addClassInitializer(IMethod classInitializer) {
+        classInitializers.add(classInitializer);
     }
 }

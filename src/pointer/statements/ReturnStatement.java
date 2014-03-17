@@ -7,7 +7,6 @@ import pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to statement for a "return" instruction
@@ -51,12 +50,11 @@ public class ReturnStatement implements PointsToStatement {
     }
 
     @Override
-    public TypeReference getExpectedType() {
-        return result.getExpectedType();
-    }
-
-    @Override
     public IR getCode() {
         return ir;
+    }
+    @Override
+    public String toString() {
+        return("return " + result);
     }
 }

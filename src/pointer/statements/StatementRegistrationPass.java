@@ -4,8 +4,11 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import pointer.graph.MethodSummaryNodes;
+import util.PrettyPrinter;
 import util.WorkQueue;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
@@ -16,11 +19,15 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
+import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
+import com.ibm.wala.ssa.SSABinaryOpInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
+import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
+import com.ibm.wala.ssa.SSAGotoInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
@@ -30,6 +37,7 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 
 /**
  * Collect pointer analysis constraints with a pass over the code
+ * TODO should this implement IVisitor? I think not since we also need the IR
  * 
  * @author ajohnson
  */
@@ -55,6 +63,10 @@ public class StatementRegistrationPass {
      * Methods we have already added statements for
      */
     private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
+    /**
+     * Classes we have already called <clinit> for
+     */
+    private final Set<IClass> visitedClasses = new LinkedHashSet<>();
 
     /**
      * Create a pass which will generate points-to statements
@@ -79,19 +91,18 @@ public class StatementRegistrationPass {
     private void init(WorkQueue<InstrAndCode> q) {
 
         // Set up the entry points
-        FakeRootMethod fakeMethodRoot = new FakeRootMethod(cha, options, cache);
+        FakeRootMethod fakeRoot = new FakeRootMethod(cha, options, cache);
         for (Iterator<? extends Entrypoint> it = options.getEntrypoints().iterator(); it.hasNext();) {
             Entrypoint e = (Entrypoint) it.next();
             // Add in the fake root method that sets up the call to main
-            SSAAbstractInvokeInstruction call = e.addCall(fakeMethodRoot);
+            SSAAbstractInvokeInstruction call = e.addCall(fakeRoot);
 
             if (call == null) {
                 throw new RuntimeException("Missing entry point " + e);
-            }
-            
-            addFromMethod(q, e.getMethod());
+            }            
         }
-        registrar.setEntryPoint(FakeRootMethod.rootMethod);
+        registrar.setEntryPoint(fakeRoot);
+        addFromMethod(q,fakeRoot, false);
     }
 
     /**
@@ -101,14 +112,38 @@ public class StatementRegistrationPass {
      * @param m
      *            method to process
      */
-    private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
+    private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m, boolean addClassInit) {
         
         if (visitedMethods.contains(m)) {
             return;
         }
+        if (m.isNative()) {
+            handleNative(q,m,addClassInit);
+            return;
+        }
+        if (m.isAbstract()) {
+            System.err.println("No need to analyze abstract methods: " + m.getSignature());
+            return;
+        }
+        
+        // If we haven't analyzed the <clinit> method for the receiver class do it now
+        IClass declaringClass = m.getDeclaringClass();
+        if (addClassInit && !visitedClasses.contains(declaringClass)) {
+            visitedClasses.add(declaringClass);
+            if (declaringClass.getClassInitializer() == null) {
+                System.err.println("null class initializer for " + declaringClass);
+            } else {
+                registrar.addClassInitializer(declaringClass.getClassInitializer());
+                addFromMethod(q, declaringClass.getClassInitializer(), true);
+            }
+        }
+        
         visitedMethods.add(m);
+        
         IR ir = cache.getSSACache().findOrCreateIR(m, Everywhere.EVERYWHERE, options.getSSAOptions());
-        registrar.recordMethod( m.getReference(), new MethodSummaryNodes(registrar, ir));
+        registrar.recordMethod(m, new MethodSummaryNodes(registrar, ir));
+        
+        PrettyPrinter.printIR("\t",ir);
         
         // TODO make sure that catch instructions end up getting added
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
@@ -116,6 +151,10 @@ public class StatementRegistrationPass {
                 q.add(new InstrAndCode(ins, ir));
             }
         }
+    }
+
+    private void handleNative(WorkQueue<InstrAndCode> q, IMethod m, boolean addClassInit) {
+        System.err.println("Not handling native methods yet: " + m.getSignature());
     }
 
     /**
@@ -142,8 +181,8 @@ public class StatementRegistrationPass {
         SSAInstruction i = info.instruction;
         IR ir = info.ir;
 
-        if (i.getNumberOfDefs() > 1) {
-            throw new RuntimeException("More than one def in instruction: " + i.toString(ir.getSymbolTable()));
+        if (i.getNumberOfDefs() > 2) {
+            throw new RuntimeException("More than two defs in instruction: " + i.toString(ir.getSymbolTable()));
         }
 
         // procedure calls, class init, instance init, constructor calls
@@ -151,67 +190,78 @@ public class StatementRegistrationPass {
             SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
             Set<IMethod> targets = cha.getPossibleTargets(inv.getDeclaredTarget());
             for (IMethod m : targets) {
-                addFromMethod(q, m);
+                addFromMethod(q, m, true);
             }
-            registrar.handleInvoke(inv, ir);
+            registrar.registerInvoke(inv, ir, cha);
             return;
+        }
+        
+        if (i.getNumberOfDefs() > 1) {
+            throw new RuntimeException("More than one defs in instruction: " + i.toString(ir.getSymbolTable()));
         }
 
         // v = new Foo();
         if (i instanceof SSANewInstruction) {
-            registrar.handleNew((SSANewInstruction) i, ir);
+            registrar.registerNew((SSANewInstruction) i, ir, cha);
             return;
         }
 
         // v = o.f
         if (i instanceof SSAGetInstruction) {
-            registrar.handleFieldAccess((SSAGetInstruction) i, ir);
+            registrar.registerFieldAccess((SSAGetInstruction) i, ir);
             return;
         }
 
         // o.f = v
         if (i instanceof SSAPutInstruction) {
-            registrar.handleFieldAssign((SSAPutInstruction) i, ir);
+            registrar.registerFieldAssign((SSAPutInstruction) i, ir);
             return;
         }
 
         // assignment into catch block exception variable
         if (i instanceof SSAGetCaughtExceptionInstruction) {
-            registrar.handleCatchAssignment((SSAGetCaughtExceptionInstruction) i, ir);
+            registrar.registerCatchAssignment((SSAGetCaughtExceptionInstruction) i, ir);
             return;
         }
 
         // v = phi(x_1,x_2)
         if (i instanceof SSAPhiInstruction) {
-            registrar.handlePhiAssignment((SSAPhiInstruction) i, ir);
+            registrar.registerPhiAssignment((SSAPhiInstruction) i, ir);
             return;
         }
 
         // v = (Type) x
         if (i instanceof SSACheckCastInstruction) {
-            registrar.handleCheckCast((SSACheckCastInstruction) i, ir);
+            registrar.registerCheckCast((SSACheckCastInstruction) i, ir);
             return;
         }
 
         // v[i] = x
         if (i instanceof SSAArrayStoreInstruction) {
-            registrar.handleArrayStore((SSAArrayStoreInstruction) i, ir);
+            registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir);
             return;
         }
         // x = v[i]
         if (i instanceof SSAArrayLoadInstruction) {
-            registrar.handleArrayLoad((SSAArrayLoadInstruction) i, ir);
+            registrar.registerArrayLoad((SSAArrayLoadInstruction) i, ir);
             return;
         }
         
         // return v
         if (i instanceof SSAReturnInstruction) {
-            registrar.handleReturn((SSAReturnInstruction) i,ir);
+            registrar.registerReturn((SSAReturnInstruction) i,ir);
             return;
         }
 
-        System.err.println(i.toString() + " not handled");
-    }
+        i.visit(PrettyPrinter.getPrinter(ir));
+        System.err.println(" not handled");
+        assert 
+            i instanceof SSAArrayLengthInstruction || 
+            i instanceof SSAGotoInstruction || 
+            i instanceof SSAConditionalBranchInstruction ||
+            i instanceof SSABinaryOpInstruction: 
+                "Instructions of type " + i.getClass() + " not handled in Statement registration pass";
+   }
 
     /**
      * Instruction together with the code it is a part of
@@ -255,5 +305,14 @@ public class StatementRegistrationPass {
                 return false;
             return true;
         }
+    }
+    
+    /**
+     * Get the statement registrar
+     * 
+     * @return statement registrar
+     */
+    public StatementRegistrar getRegistrar() {
+        return registrar;
     }
 }

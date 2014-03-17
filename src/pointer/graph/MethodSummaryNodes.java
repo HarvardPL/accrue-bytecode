@@ -1,9 +1,10 @@
-package pointer.statements;
+package pointer.graph;
 
 import java.util.LinkedList;
 import java.util.List;
 
-import pointer.graph.LocalNode;
+import pointer.statements.StatementRegistrar;
+import util.PrettyPrinter;
 
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
@@ -37,7 +38,10 @@ public class MethodSummaryNodes {
      * @param ir
      *            IR for the code
      */
-    protected MethodSummaryNodes(StatementRegistrar registrar, IR ir) {
+    public MethodSummaryNodes(StatementRegistrar registrar, IR ir) {
+        if (ir == null) {
+            System.out.println("IR is null");
+        }
         
         boolean isStatic = ir.getMethod().isStatic();
         thisNode = isStatic ? null : registrar.getLocal(ir.getParameter(0), ir);
@@ -55,7 +59,8 @@ public class MethodSummaryNodes {
 
         TypeReference returnType = ir.getMethod().getReturnType();
         returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : 
-            new LocalNode(ir.getMethod().getSignature() + " return", returnType,false);       
+            // TODO this is the only place this is called outside of the Registrar
+            new LocalNode(PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT", returnType, false);       
     }
 
     private boolean isVoid(TypeReference type) {

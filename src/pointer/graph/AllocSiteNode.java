@@ -1,7 +1,6 @@
 package pointer.graph;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Represents an allocation site in the code
@@ -9,13 +8,19 @@ import com.ibm.wala.types.TypeReference;
 public class AllocSiteNode extends ReferenceVariable {
 
     private final IClass containingClass;
+    private final IClass instantiatedClass;
 
-    public AllocSiteNode(String debugString, TypeReference instantiatedType, IClass containingClass) {
-        super(debugString, instantiatedType);
+    public AllocSiteNode(String debugString, IClass instantiatedClass, IClass containingClass) {
+        super(debugString, instantiatedClass.getReference());
         this.containingClass = containingClass;
+        this.instantiatedClass = instantiatedClass;
     }
 
     public IClass getContainingClass() {
         return containingClass;
-    } 
+    }
+
+    public IClass getInstantiatedClass() {
+        return instantiatedClass;
+    }
 }

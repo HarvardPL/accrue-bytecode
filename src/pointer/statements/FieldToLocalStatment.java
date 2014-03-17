@@ -14,7 +14,6 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to statement for an Access a field and assign the result to a local. l = o.f
@@ -34,10 +33,6 @@ public class FieldToLocalStatment implements PointsToStatement {
      */
     private final LocalNode assignee;
     /**
-     * Type of the assignment (type of the local)
-     */
-    private final TypeReference type;
-    /**
      * Code this statement occurs in
      */
     private final IR ir;
@@ -56,8 +51,12 @@ public class FieldToLocalStatment implements PointsToStatement {
         this.declaredField = f;
         this.receiver = o;
         this.assignee = l;
-        this.type = l.getExpectedType();
         this.ir = ir;
+    }
+    
+    @Override
+    public String toString() {
+        return assignee + " = " + receiver + "." + declaredField.getName();
     }
 
     @Override
@@ -67,8 +66,8 @@ public class FieldToLocalStatment implements PointsToStatement {
 
         Set<InstanceKey> fields = new HashSet<>();
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), getExpectedType());
-            for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, getExpectedType())) {
+            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), declaredField.getFieldType());
+            for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, assignee.getExpectedType())) {
                 fields.add(fieldHeapContext);
             }
         }
@@ -76,12 +75,58 @@ public class FieldToLocalStatment implements PointsToStatement {
     }
 
     @Override
-    public TypeReference getExpectedType() {
-        return type;
-    }
-
-    @Override
     public IR getCode() {
         return ir;
     }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#hashCode()
+     */
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((assignee == null) ? 0 : assignee.hashCode());
+        result = prime * result + ((declaredField == null) ? 0 : declaredField.hashCode());
+        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+        result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
+        return result;
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#equals(java.lang.Object)
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        FieldToLocalStatment other = (FieldToLocalStatment) obj;
+        if (assignee == null) {
+            if (other.assignee != null)
+                return false;
+        } else if (!assignee.equals(other.assignee))
+            return false;
+        if (declaredField == null) {
+            if (other.declaredField != null)
+                return false;
+        } else if (!declaredField.equals(other.declaredField))
+            return false;
+        if (ir == null) {
+            if (other.ir != null)
+                return false;
+        } else if (!ir.equals(other.ir))
+            return false;
+        if (receiver == null) {
+            if (other.receiver != null)
+                return false;
+        } else if (!receiver.equals(other.receiver))
+            return false;
+        return true;
+    }
+    
+    
 }

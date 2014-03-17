@@ -10,18 +10,18 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
 
 /**
- * Points-to statement for a local assignment, left = right
+ * Points-to statement for an assignment from a local into a static field
  */
-public class LocalToLocalStatement implements PointsToStatement {
+public class LocalToStaticFieldStatement implements PointsToStatement {
 
     /**
      * assignee
      */
-    private final LocalNode left;
+    private final LocalNode local;
     /**
      * assigned
      */
-    private final LocalNode right;
+    private final LocalNode staticField;
     /**
      * Code this statement occurs in
      */
@@ -29,27 +29,28 @@ public class LocalToLocalStatement implements PointsToStatement {
     
     
     /**
-     * Statement for a local assignment, left = right
+     * Statement for an assignment from a local into a static field,
+     * ClassName.staticField = local
      * 
-     * @param left
-     *            points-to graph node for assignee
-     * @param right
+     * @param staticField
      *            points-to graph node for the assigned value
+     * @param local
+     *            points-to graph node for assignee
      */
-    public LocalToLocalStatement(LocalNode left, LocalNode right, IR ir) {
-        assert !left.isStatic() : left + " is static";
-        assert !right.isStatic() : right + " is static";
-        this.left = left;
-        this.right = right;
+    public LocalToStaticFieldStatement(LocalNode staticField, LocalNode local, IR ir) {
+        assert !local.isStatic() : local + " is static";
+        assert staticField.isStatic() : staticField + " is not static";
+        this.local = local;
+        this.staticField = staticField;
         this.ir = ir;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        PointsToGraphNode l = new ReferenceVariableReplica(context, left);
-        PointsToGraphNode r = new ReferenceVariableReplica(context, right);
+        PointsToGraphNode l = new ReferenceVariableReplica(haf.initialContext(), staticField);
+        PointsToGraphNode r = new ReferenceVariableReplica(context, local);
 
-        return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
+        return g.addEdges(l, g.getPointsToSetFiltered(r, local.getExpectedType()));
     }
 
     @Override
@@ -57,22 +58,16 @@ public class LocalToLocalStatement implements PointsToStatement {
         return ir;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#hashCode()
-     */
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
         result = prime * result + ((ir == null) ? 0 : ir.hashCode());
-        result = prime * result + ((left == null) ? 0 : left.hashCode());
-        result = prime * result + ((right == null) ? 0 : right.hashCode());
+        result = prime * result + ((local == null) ? 0 : local.hashCode());
+        result = prime * result + ((staticField == null) ? 0 : staticField.hashCode());
         return result;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
@@ -81,27 +76,27 @@ public class LocalToLocalStatement implements PointsToStatement {
             return false;
         if (getClass() != obj.getClass())
             return false;
-        LocalToLocalStatement other = (LocalToLocalStatement) obj;
+        LocalToStaticFieldStatement other = (LocalToStaticFieldStatement) obj;
         if (ir == null) {
             if (other.ir != null)
                 return false;
         } else if (!ir.equals(other.ir))
             return false;
-        if (left == null) {
-            if (other.left != null)
+        if (local == null) {
+            if (other.local != null)
                 return false;
-        } else if (!left.equals(other.left))
+        } else if (!local.equals(other.local))
             return false;
-        if (right == null) {
-            if (other.right != null)
+        if (staticField == null) {
+            if (other.staticField != null)
                 return false;
-        } else if (!right.equals(other.right))
+        } else if (!staticField.equals(other.staticField))
             return false;
         return true;
     }
     
     @Override
     public String toString() {
-        return left + " = " + right;
+        return local + " = " + staticField;
     }
 }

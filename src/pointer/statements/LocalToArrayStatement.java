@@ -69,12 +69,61 @@ public class LocalToArrayStatement implements PointsToStatement {
     }
 
     @Override
-    public TypeReference getExpectedType() {
-        return array.getExpectedType();
-    }
-
-    @Override
     public IR getCode() {
         return ir;
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#hashCode()
+     */
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((array == null) ? 0 : array.hashCode());
+        result = prime * result + ((baseType == null) ? 0 : baseType.hashCode());
+        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+        result = prime * result + ((value == null) ? 0 : value.hashCode());
+        return result;
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#equals(java.lang.Object)
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        LocalToArrayStatement other = (LocalToArrayStatement) obj;
+        if (array == null) {
+            if (other.array != null)
+                return false;
+        } else if (!array.equals(other.array))
+            return false;
+        if (baseType == null) {
+            if (other.baseType != null)
+                return false;
+        } else if (!baseType.equals(other.baseType))
+            return false;
+        if (ir == null) {
+            if (other.ir != null)
+                return false;
+        } else if (!ir.equals(other.ir))
+            return false;
+        if (value == null) {
+            if (other.value != null)
+                return false;
+        } else if (!value.equals(other.value))
+            return false;
+        return true;
+    }
+    
+    @Override
+    public String toString() {
+        return array + "." + PointsToGraph.ARRAY_CONTENTS + " = " + value;
     }
 }

@@ -32,11 +32,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         PointsToGraph g = new PointsToGraph(cha, registrar, haf);
 
         boolean changed = true;
+        int count = 0;
         while (changed) {
+            changed = false;
+//            System.err.println("\nITERATION: " + count);
             for (PointsToStatement s : registrar.getAllStatements()) {
-                for (Context c : g.getContexts(s.getCode().getMethod().getReference())) {
+                for (Context c : g.getContexts(s.getCode().getMethod())) {
+//                    System.err.println(s + " in " + c.toString());
                     changed |= s.process(c, haf, g, registrar);
+//                    System.err.println("changed = " + changed);
                 }
+            }
+            count++;
+            if (count % 10 == 0) {
+                System.err.println(count + " iterations ");
+                break;
             }
         }
         return g;

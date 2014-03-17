@@ -5,16 +5,17 @@ import pointer.graph.AllocSiteNode;
 import pointer.graph.LocalNode;
 import pointer.graph.PointsToGraph;
 import pointer.graph.ReferenceVariableReplica;
+import util.PrettyPrinter;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.types.TypeReference;
 
 /**
- * Points-to graph node for a "new" statement, e.g. Object o = new Object() TODO
- * I believe this is the allocation not the constructor call
+ * Points-to graph node for a "new" statement, e.g. Object o = new Object()
  */
 public class NewStatement implements PointsToStatement {
 
@@ -47,11 +48,13 @@ public class NewStatement implements PointsToStatement {
      * @param ir
      *            Code containing the new statement
      */
-    public NewStatement(LocalNode result, NewSiteReference newSite, IR ir) {
+    public NewStatement(LocalNode result, NewSiteReference newSite, IR ir, IClassHierarchy cha) {
         this.result = result;
         this.newSite = newSite;
         this.ir = ir;
-        alloc = new AllocSiteNode(newSite.toString(), newSite.getDeclaredType(), ir.getMethod().getDeclaringClass());
+        IClass instantiated = cha.lookupClass(newSite.getDeclaredType());
+        assert (instantiated != null) : newSite;
+        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newSite.getDeclaredType()), cha.lookupClass(newSite.getDeclaredType()), ir.getMethod().getDeclaringClass());
     }
 
     @Override
@@ -61,11 +64,6 @@ public class NewStatement implements PointsToStatement {
 
         // Add an edge from the assignee to the newly allocated object
         return g.addEdge(r, k);
-    }
-
-    @Override
-    public TypeReference getExpectedType() {
-        return result.getExpectedType();
     }
 
     @Override
@@ -108,5 +106,13 @@ public class NewStatement implements PointsToStatement {
     @Override
     public IR getCode() {
         return ir;
+    }
+    
+    @Override
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        s.append(result.toString() + " = new ");
+        s.append(PrettyPrinter.parseType(newSite.getDeclaredType()));
+        return s.toString();
     }
 }

@@ -65,12 +65,68 @@ public class PhiStatement implements PointsToStatement {
     }
 
     @Override
-    public TypeReference getExpectedType() {
-        return type;
+    public IR getCode() {
+        return ir;
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#hashCode()
+     */
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((assignee == null) ? 0 : assignee.hashCode());
+        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+        result = prime * result + ((type == null) ? 0 : type.hashCode());
+        result = prime * result + ((uses == null) ? 0 : uses.hashCode());
+        return result;
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#equals(java.lang.Object)
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        PhiStatement other = (PhiStatement) obj;
+        if (assignee == null) {
+            if (other.assignee != null)
+                return false;
+        } else if (!assignee.equals(other.assignee))
+            return false;
+        if (ir == null) {
+            if (other.ir != null)
+                return false;
+        } else if (!ir.equals(other.ir))
+            return false;
+        if (type == null) {
+            if (other.type != null)
+                return false;
+        } else if (!type.equals(other.type))
+            return false;
+        if (uses == null) {
+            if (other.uses != null)
+                return false;
+        } else if (!uses.equals(other.uses))
+            return false;
+        return true;
     }
     
     @Override
-    public IR getCode() {
-        return ir;
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        s.append(assignee + " = ");
+        s.append("phi(");
+        for (int i = 0; i < uses.size() - 1; i ++) {
+            s.append(uses.get(i) + ", ");
+        }
+        s.append(uses.get(uses.size() - 1) + ")");
+        return s.toString();
     }
 }

@@ -5,7 +5,6 @@ import pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Defines how to process points-to graph information for a particular statement
@@ -32,13 +31,6 @@ public interface PointsToStatement {
 
     @Override
     public int hashCode();
-
-    /**
-     * Type of the statement this represents
-     * 
-     * @return type of this statement
-     */
-    public TypeReference getExpectedType();
 
     /**
      * Get the code for the method this points-to statement was created in

@@ -62,12 +62,56 @@ public class ArrayToLocalStatement implements PointsToStatement {
     }
 
     @Override
-    public TypeReference getExpectedType() {
-        return value.getExpectedType();
-    }
-
-    @Override
     public IR getCode() {
         return ir;
     }
+    
+    @Override
+    public String toString() {
+        return value + " = " + array + "." + PointsToGraph.ARRAY_CONTENTS;
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((array == null) ? 0 : array.hashCode());
+        result = prime * result + ((baseType == null) ? 0 : baseType.hashCode());
+        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+        result = prime * result + ((value == null) ? 0 : value.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        ArrayToLocalStatement other = (ArrayToLocalStatement) obj;
+        if (array == null) {
+            if (other.array != null)
+                return false;
+        } else if (!array.equals(other.array))
+            return false;
+        if (baseType == null) {
+            if (other.baseType != null)
+                return false;
+        } else if (!baseType.equals(other.baseType))
+            return false;
+        if (ir == null) {
+            if (other.ir != null)
+                return false;
+        } else if (!ir.equals(other.ir))
+            return false;
+        if (value == null) {
+            if (other.value != null)
+                return false;
+        } else if (!value.equals(other.value))
+            return false;
+        return true;
+    }
+      
 }

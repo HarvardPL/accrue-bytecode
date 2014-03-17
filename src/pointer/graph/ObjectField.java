@@ -56,4 +56,9 @@ public class ObjectField implements PointsToGraphNode {
             return false;
         return true;
     }
+	
+	@Override
+	public String toString() {
+	    return "{" + receiver + "}." + fieldName;
+	}
 }
