@@ -37,7 +37,17 @@ public class PointsToGraph {
     private Set<PointsToGraphNode> readNodes;
     private Map<IMethod, Set<Context>> newContexts;
     private final Map<IMethod, Set<Context>> contexts;
+    /**
+     * If true then every statement is assumed to throw an error
+     * TODO this doesn't do much right now 
+     */
+    private boolean trackImplicitErrors = false;
 
+    public PointsToGraph(IClassHierarchy cha, StatementRegistrar registrar, HeapAbstractionFactory haf, boolean trackImplicitErrors) {
+        this(cha,registrar, haf);
+        this.trackImplicitErrors  = trackImplicitErrors;
+    }
+    
     public PointsToGraph(IClassHierarchy cha, StatementRegistrar registrar, HeapAbstractionFactory haf) {
         this.cha = cha;
         changedNodes = new LinkedHashSet<>();
@@ -116,6 +126,54 @@ public class PointsToGraph {
                 i.remove();
             }
         }
+        return s;
+    }
+
+    /**
+     * Get the points-to set for the given points-to graph node, filtering out
+     * results which do not have a particular type, or which have one of a set
+     * of types
+     * 
+     * @param node
+     *            node to get the points-to set for
+     * @param isType
+     *            type the node must have (or be a subtype of)
+     * @param notTypes
+     *            the node cannot be a subclass of any of these classes
+     * @return Set of heap contexts filtered based on type
+     */
+    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference isType,
+            Set<IClass> notTypes) {
+        Set<InstanceKey> s = getPointsToSet(node);
+        if (s.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
+        
+        IClass isClass = cha.lookupClass(isType);
+        Iterator<InstanceKey> iter = s.iterator();
+        while (iter.hasNext()) {
+            InstanceKey k = iter.next();
+            IClass klass = k.getConcreteType();
+            // TODO assuming we have a precise type could be dangerous
+            if (cha.isSubclassOf(klass, isClass)) {
+                if (areNotTypes) {
+                    for (IClass notClass : notTypes){
+                        if (cha.isSubclassOf(klass, notClass)) {
+                            // klass is a subclass of one of the classes we do not want
+                            iter.remove();
+                            break;
+                        }
+                    }
+                }
+            } else {
+                iter.remove();
+            }
+            
+            
+        }
+        
         return s;
     }
 
@@ -247,5 +305,23 @@ public class PointsToGraph {
      */
     public Set<InstanceKey> getAllHContexts() {
         return allHContexts;
+    }
+    
+    /**
+     * Get the class hierarchy defining the type system
+     * 
+     * @return class hierarchy
+     */
+    public IClassHierarchy getClassHierarchy() {
+        return cha;
+    }
+    
+    /**
+     * Track implicit {@link Error}s 
+     * 
+     * @return if true then we track implicitly thrown errors
+     */
+    public boolean trackImplicitErrors() {
+        return trackImplicitErrors;
     }
 }

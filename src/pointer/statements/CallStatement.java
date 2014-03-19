@@ -1,5 +1,7 @@
 package pointer.statements;
 
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -8,12 +10,19 @@ import pointer.graph.LocalNode;
 import pointer.graph.MethodSummaryNodes;
 import pointer.graph.PointsToGraph;
 import pointer.graph.ReferenceVariableReplica;
+import util.PrettyPrinter;
 
 import com.ibm.wala.classLoader.CallSiteReference;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.ISSABasicBlock;
+import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to statement for a call to a method
@@ -133,10 +142,101 @@ public abstract class CallStatement implements PointsToStatement {
             changed |= g
                     .addEdges(resultRep, g.getPointsToSetFiltered(returnValueFormal, resultRep.getExpectedType()));
         }
-
-        // TODO exceptions
+        
+        /////////////////// Exceptions //////////////////
+        
+        // Get the basic block for the call 
+        // TODO why is this an array?
+        ISSABasicBlock[] bbs = getCode().getBasicBlocksForCall(getCallSite());
+        if (bbs.length > 1) {
+            throw new RuntimeException("More than one basic block for a call");
+        }
+        
+        // Find successor catch blocks in the CFG
+        SSACFG cfg = getCode().getControlFlowGraph();
+        List<ISSABasicBlock> catchBasicBlocks = cfg.getExceptionalSuccessors(bbs[0]);
+        
+        // Find exceptions caught by each successor block
+        List<CatchBlock> catchBlocks = new LinkedList<>();
+        for (ISSABasicBlock bb : catchBasicBlocks) {
+            Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
+            // The catch instruction is the first instruction in the basic block
+            SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
+            LocalNode formalNode = registrar.getLocal(catchIns.getException(), getCode());
+            ReferenceVariableReplica formalRep = new ReferenceVariableReplica(callerContext, formalNode);
+            CatchBlock cb = new CatchBlock(types, formalRep);
+            catchBlocks.add(cb);
+        }
+        
         ReferenceVariableReplica exceptionRep = getReplica(callerContext, exceptionNode);
+        boolean containsRTE = false;
+        boolean containsError = false;
+        for (TypeReference exType : summary.getExceptions().keySet()) {
+            // Add edges from the exception in the callee to the exception in the caller
+            // TODO different nodes for different exception types in the caller
+            ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, summary.getExceptions().get(exType));
+            changed |= g.addEdges(exceptionRep, g.getPointsToSetFiltered(calleeEx, exType));
+            if (exType == TypeReference.JavaLangRuntimeException) {
+                containsRTE = true;
+            }
+            if (exType == TypeReference.JavaLangError) {
+                containsError = true;
+            }
+            changed |= checkThrown(exType, exceptionRep, calleeContext, g, summary, catchBlocks);
+        }
+        
+        if (!containsRTE) {
+            changed |= checkThrown(TypeReference.JavaLangRuntimeException, exceptionRep, calleeContext, g, summary, catchBlocks);
+        }
+        if (g.trackImplicitErrors() && !containsError) {
+            changed |= checkThrown(TypeReference.JavaLangError, exceptionRep, calleeContext, g, summary, catchBlocks);
+        }
 
+        return changed;
+    }
+
+    private boolean checkThrown(TypeReference e, ReferenceVariableReplica exceptionRep, Context calleeContext, PointsToGraph g, MethodSummaryNodes summary,
+            List<CatchBlock> catchBlocks) {
+        IClassHierarchy cha = g.getClassHierarchy();
+        IClass thrown = cha.lookupClass(e);
+        Set<IClass> alreadyCaught = new LinkedHashSet<IClass>();
+        boolean isRethrown = false;
+        boolean changed = false;
+        
+        // See if there is a catch block that catches this exception
+        for (CatchBlock cb : catchBlocks) {
+            while (cb.caughtTypes.hasNext()) {
+                TypeReference caughtType = cb.caughtTypes.next();
+                IClass caught = cha.lookupClass(caughtType);
+                if (cha.isSubclassOf(thrown, caught)) {
+                    return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(exceptionRep, caughtType));
+                } else if (cha.isSubclassOf(caught, thrown)) {
+                    // The catch type is a subtype of the exception being thrown
+                    // so it could be caught
+                    // TODO make exceptions more precise in a later pass
+                    alreadyCaught.add(caught);
+                    changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(exceptionRep, caughtType, alreadyCaught));
+                }
+            }
+        }
+        
+        // There may not be a catch block so this exception may be re-thrown
+        for (TypeReference exType : summary.getExceptions().keySet()) {
+            IClass exClass = cha.lookupClass(exType);
+            if (cha.isSubclassOf(exClass, thrown) || cha.isSubclassOf(thrown, exClass)) {
+                // may fall under this throwtype.
+                LocalNode ln = summary.getExceptions().get(exType);
+                ReferenceVariableReplica rethrown = new ReferenceVariableReplica(calleeContext, ln);
+                changed |= g.addEdges(rethrown, g.getPointsToSetFiltered(exceptionRep, exType, alreadyCaught));
+            }
+            if (cha.isSubclassOf(thrown, exClass)) {
+                isRethrown = true;
+            }
+        }
+
+        if (!isRethrown) {
+            throw new RuntimeException("Exception of type " + PrettyPrinter.parseType(e) + " may not be handled when calling " + summary);
+        }
         return changed;
     }
 
@@ -245,5 +345,33 @@ public abstract class CallStatement implements PointsToStatement {
      */
     public LocalNode getResultNode() {
         return resultNode;
+    }
+    
+    /**
+     * Information about a catch block
+     */
+    private static class CatchBlock {
+        /**
+         * Types of exceptions caught by this catch block
+         */
+        protected final Iterator<TypeReference> caughtTypes;
+        /**
+         * Points-to graph node for the formal argument to the catch block
+         */
+        protected final ReferenceVariableReplica formalNode;
+
+        /**
+         * Create a new catch block
+         * 
+         * @param caughtTypes
+         *            iterator for types caught by this catch block
+         * @param formalNode
+         *            Points-to graph node for the formal argument to the catch
+         *            block
+         */
+        public CatchBlock(Iterator<TypeReference> caughtTypes, ReferenceVariableReplica formalNode) {
+            this.caughtTypes = caughtTypes;
+            this.formalNode = formalNode;
+        }
     }
 }

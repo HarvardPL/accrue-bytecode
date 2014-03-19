@@ -1,11 +1,14 @@
 package pointer.graph;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import pointer.statements.StatementRegistrar;
 import util.PrettyPrinter;
 
+import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
@@ -29,6 +32,14 @@ public class MethodSummaryNodes {
      * has a primitive type
      */
     private final LocalNode returnNode;
+    /**
+     * Nodes for each type of exception that may be thrown
+     */
+    private final Map<TypeReference, LocalNode> exceptions = new LinkedHashMap<>();
+    /**
+     * String for method
+     */
+    private final String name;
 
     /**
      * Create nodes for formals and return values
@@ -59,8 +70,30 @@ public class MethodSummaryNodes {
 
         TypeReference returnType = ir.getMethod().getReturnType();
         returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : 
-            // TODO this is the only place this is called outside of the Registrar
-            new LocalNode(PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT", returnType, false);       
+            // TODO this and below are the only places this is called outside of the Registrar
+            new LocalNode(PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT", returnType, false);  
+        
+        TypeReference[] exceptionTypes = null;
+        try {
+            exceptionTypes = ir.getMethod().getDeclaredExceptions();
+        } catch (UnsupportedOperationException | InvalidClassFileException e) {
+            throw new RuntimeException("Cannot find exception types for " + ir.getMethod().getSignature(), e);
+        }
+        for (TypeReference type : exceptionTypes) {
+            String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
+                    + PrettyPrinter.parseType(type);
+            LocalNode val = new LocalNode(str, type, false);
+            exceptions.put(type, val);
+        }
+        if (!exceptions.containsKey(TypeReference.JavaLangRuntimeException)) {
+            String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
+                    + PrettyPrinter.parseType(TypeReference.JavaLangRuntimeException);
+            LocalNode val = new LocalNode(str, TypeReference.JavaLangRuntimeException, false);
+            exceptions.put(TypeReference.JavaLangRuntimeException, val);
+        }
+        // TODO add exception node for errors if we are tracking errors
+        
+        name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
     }
 
     private boolean isVoid(TypeReference type) {
@@ -78,11 +111,21 @@ public class MethodSummaryNodes {
     public LocalNode getReturnNode() {
         return returnNode;
     }
+    
+    public Map<TypeReference, LocalNode> getExceptions() {
+        return exceptions;
+    }
+    
+    @Override
+    public String toString() {
+        return name;
+    }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
+        result = prime * result + ((exceptions == null) ? 0 : exceptions.hashCode());
         result = prime * result + ((formals == null) ? 0 : formals.hashCode());
         result = prime * result + ((returnNode == null) ? 0 : returnNode.hashCode());
         result = prime * result + ((thisNode == null) ? 0 : thisNode.hashCode());
@@ -98,6 +141,11 @@ public class MethodSummaryNodes {
         if (getClass() != obj.getClass())
             return false;
         MethodSummaryNodes other = (MethodSummaryNodes) obj;
+        if (exceptions == null) {
+            if (other.exceptions != null)
+                return false;
+        } else if (!exceptions.equals(other.exceptions))
+            return false;
         if (formals == null) {
             if (other.formals != null)
                 return false;
