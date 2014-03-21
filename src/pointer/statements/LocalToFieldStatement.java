@@ -17,7 +17,7 @@ import com.ibm.wala.types.FieldReference;
 /**
  * Points-to statement for an assignment into a field, o.f = v
  */
-public class LocalToFieldStatement implements PointsToStatement {
+public class LocalToFieldStatement extends PointsToStatement {
     /**
      * Field assigned into
      */
@@ -30,11 +30,7 @@ public class LocalToFieldStatement implements PointsToStatement {
      * Value assigned into field
      */
     private final LocalNode assigned;
-    /**
-     * Code this statement occurs in
-     */
-    private final IR ir;
-    
+
     /**
      * Statement for an assignment into a field
      * 
@@ -46,10 +42,10 @@ public class LocalToFieldStatement implements PointsToStatement {
      *            points-to graph node for value assigned
      */
     public LocalToFieldStatement(FieldReference f, LocalNode o, LocalNode v, IR ir) {
+        super(ir);
         this.field = f;
         this.receiver = o;
         this.assigned = v;
-        this.ir = ir;
     }
 
     @Override
@@ -61,39 +57,32 @@ public class LocalToFieldStatement implements PointsToStatement {
 
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
+            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType(), field.getDeclaringClass());
             changed |= g.addEdges(f, localHeapContexts);
         }
         return changed;
     }
 
     @Override
-    public IR getCode() {
-        return ir;
+    public String toString() {
+        return receiver + "." + field.getName() + " = " + assigned;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#hashCode()
-     */
     @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
+        int result = super.hashCode();
         result = prime * result + ((assigned == null) ? 0 : assigned.hashCode());
         result = prime * result + ((field == null) ? 0 : field.hashCode());
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
         result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
         return result;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
             return true;
-        if (obj == null)
+        if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
             return false;
@@ -108,21 +97,11 @@ public class LocalToFieldStatement implements PointsToStatement {
                 return false;
         } else if (!field.equals(other.field))
             return false;
-        if (ir == null) {
-            if (other.ir != null)
-                return false;
-        } else if (!ir.equals(other.ir))
-            return false;
         if (receiver == null) {
             if (other.receiver != null)
                 return false;
         } else if (!receiver.equals(other.receiver))
             return false;
         return true;
-    }
-    
-    @Override
-    public String toString() {
-        return receiver + "." + field.getName() + " = " + assigned;
     }
 }

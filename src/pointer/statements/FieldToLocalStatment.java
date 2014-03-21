@@ -1,6 +1,6 @@
 package pointer.statements;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import pointer.analyses.HeapAbstractionFactory;
@@ -18,7 +18,7 @@ import com.ibm.wala.types.FieldReference;
 /**
  * Points-to statement for an Access a field and assign the result to a local. l = o.f
  */
-public class FieldToLocalStatment implements PointsToStatement {
+public class FieldToLocalStatment extends PointsToStatement {
 
     /**
      * Field being accessed
@@ -32,10 +32,6 @@ public class FieldToLocalStatment implements PointsToStatement {
      * local assigned into
      */
     private final LocalNode assignee;
-    /**
-     * Code this statement occurs in
-     */
-    private final IR ir;
 
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
@@ -48,10 +44,10 @@ public class FieldToLocalStatment implements PointsToStatement {
      *            points-to graph node for local assigned into
      */
     public FieldToLocalStatment(FieldReference f, LocalNode o, LocalNode l, IR ir) {
+        super(ir);
         this.declaredField = f;
         this.receiver = o;
         this.assignee = l;
-        this.ir = ir;
     }
     
     @Override
@@ -64,43 +60,32 @@ public class FieldToLocalStatment implements PointsToStatement {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
-        Set<InstanceKey> fields = new HashSet<>();
+        Set<InstanceKey> fields = new LinkedHashSet<>();
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), declaredField.getFieldType());
+            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), declaredField.getFieldType(), declaredField.getDeclaringClass());
             for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, assignee.getExpectedType())) {
                 fields.add(fieldHeapContext);
             }
         }
+        
         return g.addEdges(left, fields);
     }
 
     @Override
-    public IR getCode() {
-        return ir;
-    }
-
-    /* (non-Javadoc)
-     * @see java.lang.Object#hashCode()
-     */
-    @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
+        int result = super.hashCode();
         result = prime * result + ((assignee == null) ? 0 : assignee.hashCode());
         result = prime * result + ((declaredField == null) ? 0 : declaredField.hashCode());
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
         result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
         return result;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
             return true;
-        if (obj == null)
+        if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
             return false;
@@ -115,11 +100,6 @@ public class FieldToLocalStatment implements PointsToStatement {
                 return false;
         } else if (!declaredField.equals(other.declaredField))
             return false;
-        if (ir == null) {
-            if (other.ir != null)
-                return false;
-        } else if (!ir.equals(other.ir))
-            return false;
         if (receiver == null) {
             if (other.receiver != null)
                 return false;
@@ -127,6 +107,4 @@ public class FieldToLocalStatment implements PointsToStatement {
             return false;
         return true;
     }
-    
-    
 }

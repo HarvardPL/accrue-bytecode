@@ -1,17 +1,17 @@
 package pointer.engine;
 
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
-
 import pointer.analyses.HeapAbstractionFactory;
 import pointer.graph.PointsToGraph;
 import pointer.statements.PointsToStatement;
 import pointer.statements.StatementRegistrar;
+import analysis.AnalysisUtil;
+
+import com.ibm.wala.ipa.callgraph.Context;
 
 public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
-    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf, IClassHierarchy cha) {
-        super(haf, cha);
+    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf, AnalysisUtil util) {
+        super(haf, util);
     }
 
     @Override
@@ -29,7 +29,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     @Deprecated
     public PointsToGraph solveSimple(StatementRegistrar registrar) {
-        PointsToGraph g = new PointsToGraph(cha, registrar, haf);
+        PointsToGraph g = new PointsToGraph(util, registrar, haf);
 
         boolean changed = true;
         int count = 0;

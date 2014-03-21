@@ -3,8 +3,7 @@ package pointer.engine;
 import pointer.analyses.HeapAbstractionFactory;
 import pointer.graph.PointsToGraph;
 import pointer.statements.StatementRegistrar;
-
-import com.ibm.wala.ipa.cha.IClassHierarchy;
+import analysis.AnalysisUtil;
 
 /**
  * Points-to analysis engine
@@ -18,14 +17,14 @@ public abstract class PointsToAnalysis {
     /**
      * Class hierarchy
      */
-    protected final IClassHierarchy cha;
+    protected final AnalysisUtil util;
 
     /**
      * Create a new analysis with the given abstraction
      */
-    public PointsToAnalysis(HeapAbstractionFactory haf, IClassHierarchy cha) {
+    public PointsToAnalysis(HeapAbstractionFactory haf, AnalysisUtil util) {
         this.haf = haf;
-        this.cha = cha;
+        this.util = util;
     }
 
     public abstract PointsToGraph solve(StatementRegistrar registrar);

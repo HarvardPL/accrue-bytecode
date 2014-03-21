@@ -49,7 +49,7 @@ public abstract class ReferenceVariable {
 
     @Override
     public int hashCode() {
-        return System.identityHashCode(id);
+        return System.identityHashCode(this);
     }
 
     /**
@@ -67,5 +67,4 @@ public abstract class ReferenceVariable {
     public TypeReference getExpectedType() {
         return expectedType;
     }
-
 }

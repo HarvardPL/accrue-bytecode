@@ -25,11 +25,13 @@ import pointer.graph.PointsToGraphNode;
 import pointer.statements.PointsToStatement;
 import pointer.statements.StatementRegistrar;
 import pointer.statements.StatementRegistrationPass;
+import analysis.AnalysisUtil;
 
 import com.ibm.wala.core.tests.util.WalaTestCase;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
+import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
@@ -92,19 +94,21 @@ public class GenPointsToGraph extends WalaTestCase {
 				.makeMainEntrypoints(scope, cha, "Ltest/Scratch");
 		System.out.println("Made entry points");
         options = new AnalysisOptions(scope, entrypoints);
-
-		StatementRegistrationPass pass = new StatementRegistrationPass(cha, cache, options);
+        
+        AnalysisUtil util = new AnalysisUtil(cha, cache, options);
+		StatementRegistrationPass pass = new StatementRegistrationPass(util);
 		pass.run();
 		System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
-		for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-		    System.out.println("\t" + s + " (" + s.getClass().getSimpleName() +")");
-		}
+//		for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
+//		    System.out.println("\t" + s + " (" + s.getClass().getSimpleName() +")");
+//		}
 		StatementRegistrar registrar = pass.getRegistrar();
 		
 		HeapAbstractionFactory context = new CallSiteSensitive();
-		PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, cha);
+		PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
 		PointsToGraph g = analysis.solve(registrar);
-		g.dumpPointsToGraphToFile(false);
+		g.dumpPointsToGraphToFile("pointsTo", false);
+
 		System.out.println(g.getNodes().size() + " Nodes");
 		int num = 0;
 		for (PointsToGraphNode n : g.getNodes()) {
@@ -112,5 +116,11 @@ public class GenPointsToGraph extends WalaTestCase {
 		}
 		System.out.println(num + " Edges");
 		System.out.println(g.getAllHContexts().size() + " HContexts");
+		
+        int numNodes = 0;
+        for (@SuppressWarnings("unused") CGNode n : g.getCallGraph()) {
+            numNodes++;
+        }
+        System.out.println(numNodes + " CGNodes");
 	}
 }

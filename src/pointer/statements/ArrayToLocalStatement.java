@@ -15,15 +15,11 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Points-to graph statement for an assignment from an array element, v = a[i]
  */
-public class ArrayToLocalStatement implements PointsToStatement {
+public class ArrayToLocalStatement extends PointsToStatement {
 
     private final LocalNode value;
     private final LocalNode array;
     private final TypeReference baseType;
-    /**
-     * Code this statement occurs in
-     */
-    private final IR ir;
 
     /**
      * Points-to graph statement for an assignment from an array element, v =
@@ -39,11 +35,10 @@ public class ArrayToLocalStatement implements PointsToStatement {
      *            Code this statement occurs in           
      */
     public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType, IR ir) {
-        super();
+        super(ir);
         this.value = v;
         this.array = a;
         this.baseType = baseType;
-        this.ir = ir;
     }
 
     @Override
@@ -60,11 +55,6 @@ public class ArrayToLocalStatement implements PointsToStatement {
         }
         return changed;
     }
-
-    @Override
-    public IR getCode() {
-        return ir;
-    }
     
     @Override
     public String toString() {
@@ -74,10 +64,9 @@ public class ArrayToLocalStatement implements PointsToStatement {
     @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
+        int result = super.hashCode();
         result = prime * result + ((array == null) ? 0 : array.hashCode());
         result = prime * result + ((baseType == null) ? 0 : baseType.hashCode());
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
         result = prime * result + ((value == null) ? 0 : value.hashCode());
         return result;
     }
@@ -86,7 +75,7 @@ public class ArrayToLocalStatement implements PointsToStatement {
     public boolean equals(Object obj) {
         if (this == obj)
             return true;
-        if (obj == null)
+        if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
             return false;
@@ -101,11 +90,6 @@ public class ArrayToLocalStatement implements PointsToStatement {
                 return false;
         } else if (!baseType.equals(other.baseType))
             return false;
-        if (ir == null) {
-            if (other.ir != null)
-                return false;
-        } else if (!ir.equals(other.ir))
-            return false;
         if (value == null) {
             if (other.value != null)
                 return false;
@@ -113,5 +97,4 @@ public class ArrayToLocalStatement implements PointsToStatement {
             return false;
         return true;
     }
-      
 }

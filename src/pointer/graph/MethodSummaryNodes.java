@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import pointer.statements.StatementRegistrar;
+import types.TypeRepository;
 import util.PrettyPrinter;
 
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
@@ -61,11 +62,21 @@ public class MethodSummaryNodes {
         if (isStatic) {
             if (ir.getNumberOfParameters() > 0) {
                 // if static then the first argument is the 0th parameter
-                formals.add(registrar.getLocal(ir.getParameter(0), ir));
+                int arg = ir.getParameter(0);
+                if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
+                    formals.add(null);
+                } else {
+                    formals.add(registrar.getLocal(ir.getParameter(0), ir));
+                }
             }
         }
         for (int i = 1; i < ir.getNumberOfParameters(); i++) {
-            formals.add(registrar.getLocal(ir.getParameter(i), ir));
+            int arg = ir.getParameter(i);
+            if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
+                formals.add(null);
+            } else {
+                formals.add(registrar.getLocal(ir.getParameter(i), ir));
+            }
         }
 
         TypeReference returnType = ir.getMethod().getReturnType();
@@ -79,19 +90,27 @@ public class MethodSummaryNodes {
         } catch (UnsupportedOperationException | InvalidClassFileException e) {
             throw new RuntimeException("Cannot find exception types for " + ir.getMethod().getSignature(), e);
         }
-        for (TypeReference type : exceptionTypes) {
-            String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
-                    + PrettyPrinter.parseType(type);
-            LocalNode val = new LocalNode(str, type, false);
-            exceptions.put(type, val);
+        if (exceptionTypes != null) {
+            for (TypeReference type : exceptionTypes) {
+                String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
+                        + PrettyPrinter.parseType(type);
+                LocalNode val = new LocalNode(str, type, false);
+                exceptions.put(type, val);
+            }
         }
+        // All methods can throw RuntimException or Error
         if (!exceptions.containsKey(TypeReference.JavaLangRuntimeException)) {
             String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
                     + PrettyPrinter.parseType(TypeReference.JavaLangRuntimeException);
             LocalNode val = new LocalNode(str, TypeReference.JavaLangRuntimeException, false);
             exceptions.put(TypeReference.JavaLangRuntimeException, val);
         }
-        // TODO add exception node for errors if we are tracking errors
+        if (!exceptions.containsKey(TypeReference.JavaLangError)) {
+            String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
+                    + PrettyPrinter.parseType(TypeReference.JavaLangError);
+            LocalNode val = new LocalNode(str, TypeReference.JavaLangError, false);
+            exceptions.put(TypeReference.JavaLangError, val);
+        }
         
         name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
     }

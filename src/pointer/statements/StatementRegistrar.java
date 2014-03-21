@@ -1,6 +1,6 @@
 package pointer.statements;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -20,13 +20,14 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
-import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.ssa.SSALoadMetadataInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
+import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
@@ -73,7 +74,7 @@ public class StatementRegistrar {
     public void registerArrayLoad(SSAArrayLoadInstruction i, IR ir) {
         TypeReference t = i.getElementType();
         if (t.isPrimitiveType()) {
-            // Assigning into a primitive array so value is not a pointer
+            // Assigning from a primitive array so result is not a pointer
             return;
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
@@ -90,29 +91,15 @@ public class StatementRegistrar {
      *            code for method containing the instruction
      */
     public void registerArrayStore(SSAArrayStoreInstruction i, IR ir) {
-        TypeReference t = TypeRepository.getType(i.getValue(), ir);
-        if (t.isPrimitiveType()) {
-            // Assigning into a primitive array so value is not a pointer
+        TypeReference t = i.getElementType();
+        if (t.isPrimitiveType() || TypeRepository.getType(i.getValue(), ir) == TypeReference.Null) {
+            // Assigning into a primitive array so value is not a pointer, or
+            // assigning null
             return;
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode value = getLocal(i.getValue(), ir);
         statements.add(new LocalToArrayStatement(array, value, i.getElementType(), ir));
-    }
-
-    /**
-     * Assignment into a catch block local
-     * 
-     * @param i
-     *            catch block entry instruction
-     * @param ir
-     *            code for method containing the instruction
-     */
-    public void registerCatchAssignment(SSAGetCaughtExceptionInstruction i, IR ir) {
-        getLocal(i.getException(), ir);
-        // TODO Is there a way to get the actual argument?
-        // They may have the same index in the IR symbol table, might have to
-        // disambiguate i.getbbNumber()
     }
 
     /**
@@ -124,6 +111,11 @@ public class StatementRegistrar {
      *            code for method containing the instruction
      */
     public void registerCheckCast(SSACheckCastInstruction i, IR ir) {
+        if (TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
+            // the cast value is null so no effect on pointer analysis
+            return;
+        }
+
         // This has the same effect as a copy, v = x
         // TODO throws class cast exception
         LocalNode result = getLocal(i.getResult(), ir);
@@ -156,7 +148,7 @@ public class StatementRegistrar {
     }
 
     /**
-     * Handle an assignment into a field.
+     * Handle an assignment into a field, o.f = v
      * 
      * @param i
      *            instruction for the assignment
@@ -164,8 +156,8 @@ public class StatementRegistrar {
      *            code for the method containing the instruction
      */
     public void registerFieldAssign(SSAPutInstruction i, IR ir) {
-        if (i.getDeclaredFieldType().isPrimitiveType()) {
-            // No pointers here
+        if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
+            // Assigning into a primitive field, or assigning null
             return;
         }
 
@@ -209,37 +201,45 @@ public class StatementRegistrar {
         if (i.isStatic() && i.getNumberOfParameters() > 0) {
             // for non-static methods param(0) is the target
             // for static it is the first argument
-            actuals.add(getLocal(i.getUse(0), ir));
+            if (TypeRepository.getType(i.getUse(0), ir).isPrimitiveType()) {
+                actuals.add(null);
+            } else {
+                actuals.add(getLocal(i.getUse(0), ir));
+            }
         }
         for (int j = 1; j < i.getNumberOfParameters(); j++) {
-            actuals.add(getLocal(i.getUse(j), ir));
+            if (TypeRepository.getType(i.getUse(j), ir).isPrimitiveType()) {
+                actuals.add(null);
+            } else {
+                actuals.add(getLocal(i.getUse(j), ir));
+            }
         }
 
         // TODO can we do better than one value for the exception
-        // there is a list of thrown types i.getExceptionTypes(), maybe use that
-        // somehow
-        // can use ir.iterateCatchInstructions(); to get exception handlers
-        // or iterate over basic blocks in ir.getControlFlowGraph() to get
-        // caught exceptions
+        // could create one on each type
         LocalNode exceptionNode = getLocal(i.getException(), ir);
 
-        // Not a static call
+        // Get the receiver if it is not static
         LocalNode receiver = i.isStatic() ? null : getLocal(i.getReceiver(), ir);
 
+        Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, cha);
         if (i.isStatic()) {
-            // TODO is this right
-            IMethod resolvedMethod = cha.resolveMethod(i.getDeclaredTarget());
+            assert resolvedMethods.size() == 1;
+            IMethod resolvedMethod = resolvedMethods.iterator().next();
             statements.add(new StaticCallStatement(i.getCallSite(), ir, resolvedMethod, actuals, resultNode,
                     exceptionNode));
         } else if (i.isSpecial()) {
-            // TODO check that this is right
-            IMethod resolvedMethod = cha.resolveMethod(i.getDeclaredTarget());
+            assert resolvedMethods.size() == 1;
+            IMethod resolvedMethod = resolvedMethods.iterator().next();
             statements.add(new SpecialCallStatement(i.getCallSite(), ir, resolvedMethod, receiver, actuals, resultNode,
                     exceptionNode));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             statements.add(new VirtualCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
                     resultNode, exceptionNode, cha));
+        } else {
+            throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
+                    + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
         }
     }
 
@@ -273,12 +273,32 @@ public class StatementRegistrar {
             return;
         }
         LocalNode assignee = getLocal(i.getDef(), ir);
-        List<LocalNode> uses = new ArrayList<>();
+        List<LocalNode> uses = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            LocalNode use = getLocal(i.getUse(j), ir);
-            uses.add(use);
+            int arg = i.getUse(j);
+            if (TypeRepository.getType(arg, ir) != TypeReference.Null) {
+                LocalNode use = getLocal(i.getUse(j), ir);
+                uses.add(use);
+            }
+        }
+        if (uses.isEmpty()) {
+            // All entries to the phi are null literals, no effect on pointer
+            // analysis
+            return;
         }
         statements.add(new PhiStatement(assignee, uses, ir));
+    }
+
+    /**
+     * Load-metadata is used for reflective operations
+     * 
+     * @param i
+     *            instruction
+     * @param ir
+     *            code for method containing instruction
+     */
+    public void registerReflection(SSALoadMetadataInstruction i, IR ir) {
+        // TODO statement registrar not handling reflection yet
     }
 
     /**
@@ -290,7 +310,8 @@ public class StatementRegistrar {
      *            code for method containing the instruction
      */
     public void registerReturn(SSAReturnInstruction i, IR ir) {
-        if (i.returnsPrimitiveType() || i.returnsVoid()) {
+        if (i.returnsPrimitiveType() || i.returnsVoid()
+                || TypeRepository.getType(i.getResult(), ir) == TypeReference.Null) {
             // no pointers here
             return;
         }
@@ -300,20 +321,34 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get the points-to graph node for the given local in the given IR. If the
-     * local is a primitive type then this returns null.
+     * Handle an exception throw
+     * 
+     * @param i
+     *            instruction
+     * @param ir
+     *            code for method containing the instruction
+     */
+    public void registerThrow(SSAThrowInstruction i, IR ir) {
+        // TODO technically you can throw "null" literals, but seems unlikely
+        assert TypeRepository.getType(i.getException(), ir) != TypeReference.Null;
+
+        LocalNode exception = getLocal(i.getException(), ir);
+        statements.add(new ThrowStatement(exception, ir, ir.getBasicBlockForInstruction(i)));
+    }
+
+    /**
+     * Get the points-to graph node for the given local in the given IR. The
+     * local should not have a primitive type or null.
      * 
      * @param local
-     *            local ID
+     *            local ID, the type of this should not be primitive or null
      * @param ir
      *            method intermediate representation
-     * @return points-to graph node for the local, or null if the local is a
-     *         primitive
+     * @return points-to graph node for the local
      */
     public LocalNode getLocal(int local, IR ir) {
-        if (TypeRepository.getType(local, ir).isPrimitiveType()) {
-            return null;
-        }
+        assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
+                + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
 
         LocalKey key = new LocalKey(local, ir);
         LocalNode node = locals.get(key);
@@ -416,7 +451,7 @@ public class StatementRegistrar {
         public int hashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + ((ir == null) ? 0 : System.identityHashCode(ir));
+            result = prime * result + ir.hashCode();
             result = prime * result + value;
             return result;
         }
@@ -483,5 +518,41 @@ public class StatementRegistrar {
 
     public void addClassInitializer(IMethod classInitializer) {
         classInitializers.add(classInitializer);
+    }
+
+    /**
+     * If this is a static or special call then we know statically what the
+     * target of the call is and can therefore resolve the method statically. If
+     * it is virtual then we need to add statements for all possible run time
+     * method resolutions but may only analyze some of these depending on what
+     * the pointer analysis gives for the receiver type.
+     * 
+     * @param inv
+     *            method invocation to resolve methods for
+     * @param cha
+     *            class hierarchy to use for method resolution
+     * @return Set of methods the invocation could call
+     */
+    public static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IClassHierarchy cha) {
+        Set<IMethod> targets = null;
+        if (inv.isStatic()) {
+            // TODO is this right
+            IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
+            assert resolvedMethod != null : "No method found for " + inv.toString();
+            targets = Collections.singleton(resolvedMethod);
+        } else if (inv.isSpecial()) {
+            // TODO check that this is right
+            IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
+            assert resolvedMethod != null : "No method found for " + inv.toString();
+            targets = Collections.singleton(resolvedMethod);
+        } else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
+                || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+            targets = cha.getPossibleTargets(inv.getDeclaredTarget());
+            assert targets != null : "No methods found for " + inv.toString();
+        } else {
+            throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
+                    + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
+        }
+        return targets;
     }
 }

@@ -7,6 +7,7 @@ import java.util.Map;
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.shrikeBT.IInvokeInstruction.Dispatch;
+import com.ibm.wala.shrikeBT.IUnaryOpInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
@@ -81,7 +82,7 @@ public class PrettyPrinter implements IVisitor {
 
     @Override
     public void visitGoto(SSAGotoInstruction instruction) {
-        System.out.print(instruction.toString(st));
+        System.out.print("goto ...");
     }
 
     @Override
@@ -152,17 +153,24 @@ public class PrettyPrinter implements IVisitor {
 
     @Override
     public void visitUnaryOp(SSAUnaryOpInstruction instruction) {
-        System.out.print(instruction.toString(st));
+        if (instruction.getOpcode() == IUnaryOpInstruction.Operator.NEG){
+            System.out.print(stringForValue(instruction.getDef()) + " = -" + stringForValue(instruction.getUse(0))); 
+        } else {
+            System.out.print(instruction.toString(st));
+        }
     }
 
     @Override
     public void visitConversion(SSAConversionInstruction instruction) {
-        System.out.print(instruction.toString(st));
+        String toType = parseType(instruction.getToType());
+        System.out.print(stringForValue(instruction.getDef()) + " = " + "(" + toType + ") "
+                + stringForValue(instruction.getUse(0)));
     }
 
     @Override
     public void visitComparison(SSAComparisonInstruction instruction) {
-        System.out.print(instruction.toString(st));
+        System.out.print(stringForValue(instruction.getDef()) + " = " + stringForValue(instruction.getUse(0))
+                + " == " + stringForValue(instruction.getUse(1)));
     }
 
     @Override
@@ -194,7 +202,7 @@ public class PrettyPrinter implements IVisitor {
                     + instruction);
         }
         sb.append(" " + opString + " ");
-        sb.append(stringForValue(instruction.getUse(1)) + ")" + " then goto");
+        sb.append(stringForValue(instruction.getUse(1)) + ")" + " then goto ...");
         System.out.print(sb.toString());
     }
 
@@ -428,6 +436,9 @@ public class PrettyPrinter implements IVisitor {
             break;
         case "V":
             baseName = "void";
+            break;
+        case "n":
+            baseName = "null-type";
             break;
         default:
             throw new RuntimeException(typeName.substring(0, 1) + " is an invalid type specifier.");

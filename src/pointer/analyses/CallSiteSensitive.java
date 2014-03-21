@@ -293,7 +293,7 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
 
         @Override
         public IClass getConcreteType() {
-            return asn.getInstantiatedClass();
+           return asn.getInstantiatedClass();
         }
 
         @Override

@@ -16,7 +16,7 @@ import com.ibm.wala.types.TypeReference;
  * Points-to graph statement for a phi, representing choice at control flow
  * merges. v = phi(x1, x2, ...)
  */
-public class PhiStatement implements PointsToStatement {
+public class PhiStatement extends PointsToStatement {
 
     /**
      * Value assigned into
@@ -30,10 +30,6 @@ public class PhiStatement implements PointsToStatement {
      * Type of the value assigned into
      */
     private final TypeReference type;
-    /**
-     * Code this statement occurs in
-     */
-    private final IR ir; 
     
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
@@ -44,10 +40,11 @@ public class PhiStatement implements PointsToStatement {
      *            list of arguments to the phi, v is a choice amongst these
      */
     public PhiStatement(LocalNode v, List<LocalNode> xs, IR ir) {
+        super(ir);
+        assert !xs.isEmpty();
         this.assignee = v;
         this.uses = xs;
         this.type = v.getExpectedType();
-        this.ir = ir;
     }
 
     @Override
@@ -63,34 +60,34 @@ public class PhiStatement implements PointsToStatement {
         }
         return changed;
     }
-
+    
     @Override
-    public IR getCode() {
-        return ir;
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        s.append(assignee + " = ");
+        s.append("phi(");
+        for (int i = 0; i < uses.size() - 1; i ++) {
+            s.append(uses.get(i) + ", ");
+        }
+        s.append(uses.get(uses.size() - 1) + ")");
+        return s.toString();
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#hashCode()
-     */
     @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
+        int result = super.hashCode();
         result = prime * result + ((assignee == null) ? 0 : assignee.hashCode());
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
         result = prime * result + ((type == null) ? 0 : type.hashCode());
         result = prime * result + ((uses == null) ? 0 : uses.hashCode());
         return result;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
             return true;
-        if (obj == null)
+        if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
             return false;
@@ -99,11 +96,6 @@ public class PhiStatement implements PointsToStatement {
             if (other.assignee != null)
                 return false;
         } else if (!assignee.equals(other.assignee))
-            return false;
-        if (ir == null) {
-            if (other.ir != null)
-                return false;
-        } else if (!ir.equals(other.ir))
             return false;
         if (type == null) {
             if (other.type != null)
@@ -116,17 +108,5 @@ public class PhiStatement implements PointsToStatement {
         } else if (!uses.equals(other.uses))
             return false;
         return true;
-    }
-    
-    @Override
-    public String toString() {
-        StringBuilder s = new StringBuilder();
-        s.append(assignee + " = ");
-        s.append("phi(");
-        for (int i = 0; i < uses.size() - 1; i ++) {
-            s.append(uses.get(i) + ", ");
-        }
-        s.append(uses.get(uses.size() - 1) + ")");
-        return s.toString();
     }
 }

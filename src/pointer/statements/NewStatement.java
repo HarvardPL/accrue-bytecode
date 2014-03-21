@@ -17,7 +17,7 @@ import com.ibm.wala.ssa.IR;
 /**
  * Points-to graph node for a "new" statement, e.g. Object o = new Object()
  */
-public class NewStatement implements PointsToStatement {
+public class NewStatement extends PointsToStatement {
 
     /**
      * Points-to graph node for the assignee of the new
@@ -27,10 +27,6 @@ public class NewStatement implements PointsToStatement {
      * Constructor call site
      */
     private final NewSiteReference newSite;
-    /**
-     * Code containing the new statement
-     */
-    private final IR ir;
     /**
      * Reference variable for this allocation site
      */
@@ -49,17 +45,18 @@ public class NewStatement implements PointsToStatement {
      *            Code containing the new statement
      */
     public NewStatement(LocalNode result, NewSiteReference newSite, IR ir, IClassHierarchy cha) {
+        super(ir);
         this.result = result;
         this.newSite = newSite;
-        this.ir = ir;
         IClass instantiated = cha.lookupClass(newSite.getDeclaredType());
-        assert (instantiated != null) : newSite;
-        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newSite.getDeclaredType()), cha.lookupClass(newSite.getDeclaredType()), ir.getMethod().getDeclaringClass());
+        assert (instantiated != null) : "No class found for " + PrettyPrinter.parseType(newSite.getDeclaredType());
+        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newSite.getDeclaredType()), instantiated, ir
+                .getMethod().getDeclaringClass());
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        InstanceKey k = haf.record(context, alloc, ir);
+        InstanceKey k = haf.record(context, alloc, getCode());
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
 
         // Add an edge from the assignee to the newly allocated object
@@ -67,10 +64,18 @@ public class NewStatement implements PointsToStatement {
     }
 
     @Override
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        s.append(result.toString() + " = new ");
+        s.append(PrettyPrinter.parseType(newSite.getDeclaredType()));
+        return s.toString();
+    }
+
+    @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+        int result = super.hashCode();
+        result = prime * result + ((alloc == null) ? 0 : alloc.hashCode());
         result = prime * result + ((newSite == null) ? 0 : newSite.hashCode());
         result = prime * result + ((this.result == null) ? 0 : this.result.hashCode());
         return result;
@@ -80,15 +85,15 @@ public class NewStatement implements PointsToStatement {
     public boolean equals(Object obj) {
         if (this == obj)
             return true;
-        if (obj == null)
+        if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
             return false;
         NewStatement other = (NewStatement) obj;
-        if (ir == null) {
-            if (other.ir != null)
+        if (alloc == null) {
+            if (other.alloc != null)
                 return false;
-        } else if (!ir.equals(other.ir))
+        } else if (!alloc.equals(other.alloc))
             return false;
         if (newSite == null) {
             if (other.newSite != null)
@@ -101,18 +106,5 @@ public class NewStatement implements PointsToStatement {
         } else if (!result.equals(other.result))
             return false;
         return true;
-    }
-    
-    @Override
-    public IR getCode() {
-        return ir;
-    }
-    
-    @Override
-    public String toString() {
-        StringBuilder s = new StringBuilder();
-        s.append(result.toString() + " = new ");
-        s.append(PrettyPrinter.parseType(newSite.getDeclaredType()));
-        return s.toString();
     }
 }

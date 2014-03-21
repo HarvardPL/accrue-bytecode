@@ -12,7 +12,7 @@ import com.ibm.wala.ssa.IR;
 /**
  * Points-to statement for a local assignment, left = right
  */
-public class LocalToLocalStatement implements PointsToStatement {
+public class LocalToLocalStatement extends PointsToStatement {
 
     /**
      * assignee
@@ -21,12 +21,7 @@ public class LocalToLocalStatement implements PointsToStatement {
     /**
      * assigned
      */
-    private final LocalNode right;
-    /**
-     * Code this statement occurs in
-     */
-    private final IR ir;
-    
+    private final LocalNode right;    
     
     /**
      * Statement for a local assignment, left = right
@@ -37,11 +32,11 @@ public class LocalToLocalStatement implements PointsToStatement {
      *            points-to graph node for the assigned value
      */
     public LocalToLocalStatement(LocalNode left, LocalNode right, IR ir) {
+        super(ir);
         assert !left.isStatic() : left + " is static";
         assert !right.isStatic() : right + " is static";
         this.left = left;
         this.right = right;
-        this.ir = ir;
     }
 
     @Override
@@ -51,42 +46,30 @@ public class LocalToLocalStatement implements PointsToStatement {
 
         return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
     }
-
+    
     @Override
-    public IR getCode() {
-        return ir;
+    public String toString() {
+        return left + " = " + right;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#hashCode()
-     */
     @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+        int result = super.hashCode();
         result = prime * result + ((left == null) ? 0 : left.hashCode());
         result = prime * result + ((right == null) ? 0 : right.hashCode());
         return result;
     }
 
-    /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
             return true;
-        if (obj == null)
+        if (!super.equals(obj))
             return false;
         if (getClass() != obj.getClass())
             return false;
         LocalToLocalStatement other = (LocalToLocalStatement) obj;
-        if (ir == null) {
-            if (other.ir != null)
-                return false;
-        } else if (!ir.equals(other.ir))
-            return false;
         if (left == null) {
             if (other.left != null)
                 return false;
@@ -98,10 +81,5 @@ public class LocalToLocalStatement implements PointsToStatement {
         } else if (!right.equals(other.right))
             return false;
         return true;
-    }
-    
-    @Override
-    public String toString() {
-        return left + " = " + right;
     }
 }

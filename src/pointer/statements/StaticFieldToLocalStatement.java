@@ -12,7 +12,7 @@ import com.ibm.wala.ssa.IR;
 /**
  * Points-to statement for an assignment from a static field to a local variable
  */
-public class StaticFieldToLocalStatement implements PointsToStatement {
+public class StaticFieldToLocalStatement extends PointsToStatement {
 
     /**
      * assignee
@@ -21,12 +21,7 @@ public class StaticFieldToLocalStatement implements PointsToStatement {
     /**
      * assigned
      */
-    private final LocalNode local;
-    /**
-     * Code this statement occurs in
-     */
-    private final IR ir;
-    
+    private final LocalNode local;    
     
     /**
      * Statement for an assignment from a static field to a local, local =
@@ -38,11 +33,11 @@ public class StaticFieldToLocalStatement implements PointsToStatement {
      *            points-to graph node for assignee
      */
     public StaticFieldToLocalStatement(LocalNode local, LocalNode staticField, IR ir) {
+        super(ir);
         assert staticField.isStatic() : staticField + " is not static";
         assert !local.isStatic() : local + " is static";
         this.staticField = staticField;
         this.local = local;
-        this.ir = ir;
     }
 
     @Override
@@ -54,12 +49,38 @@ public class StaticFieldToLocalStatement implements PointsToStatement {
     }
 
     @Override
-    public IR getCode() {
-        return ir;
-    }
-    
-    @Override
     public String toString() {
         return staticField + " = " + local;
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + ((local == null) ? 0 : local.hashCode());
+        result = prime * result + ((staticField == null) ? 0 : staticField.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (!super.equals(obj))
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        StaticFieldToLocalStatement other = (StaticFieldToLocalStatement) obj;
+        if (local == null) {
+            if (other.local != null)
+                return false;
+        } else if (!local.equals(other.local))
+            return false;
+        if (staticField == null) {
+            if (other.staticField != null)
+                return false;
+        } else if (!staticField.equals(other.staticField))
+            return false;
+        return true;
     }
 }
