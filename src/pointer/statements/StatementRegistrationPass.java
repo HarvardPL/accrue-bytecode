@@ -116,7 +116,9 @@ public class StatementRegistrationPass {
     private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
 
         if (visitedMethods.contains(m)) {
-            System.out.println("\tAlready added " + PrettyPrinter.parseMethod(m.getReference()));
+            if (VERBOSE >= 2) {
+                System.out.println("\tAlready added " + PrettyPrinter.parseMethod(m.getReference()));
+            }
             return;
         }
         if (m.isNative()) {

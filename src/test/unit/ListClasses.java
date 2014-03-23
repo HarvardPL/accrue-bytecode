@@ -1,16 +1,8 @@
-/*******************************************************************************
- * Copyright (c) 2008 IBM Corporation.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Contributors:
- *     IBM Corporation - initial API and implementation
- *******************************************************************************/
 package test.unit;
 
 import java.util.Iterator;
+
+import junit.framework.TestCase;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -20,8 +12,6 @@ import util.PrettyPrinter;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.JavaLanguage.JavaInstructionFactory;
-import com.ibm.wala.core.tests.callGraph.CallGraphTestUtil;
-import com.ibm.wala.core.tests.util.WalaTestCase;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
@@ -45,7 +35,7 @@ import com.ibm.wala.util.config.AnalysisScopeReader;
 /**
  * Tests of various flow analysis engines.
  */
-public class ListClasses extends WalaTestCase {
+public class ListClasses extends TestCase {
 
 	private static AnalysisScope scope;
 
@@ -96,8 +86,7 @@ public class ListClasses extends WalaTestCase {
 			System.out.println("EP: " + e.getMethod());
 		}
 		
-		AnalysisOptions options = CallGraphTestUtil.makeAnalysisOptions(scope,
-				entrypoints);
+		AnalysisOptions options =  new AnalysisOptions(scope, entrypoints);
 		System.out.println("Made options");
 		
 		CallGraphBuilder builder = Util.makeZeroOneCFABuilder(options,

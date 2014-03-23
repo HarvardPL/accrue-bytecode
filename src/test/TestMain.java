@@ -1,4 +1,4 @@
-package test.pointer;
+package test;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class TestMain {
         /********************************
          * Start of WALA set up code
          ********************************/
-        String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/bin";
+        String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
         File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
 
         AnalysisScope scope = AnalysisScopeReader.makePrimordialScope(exclusions);

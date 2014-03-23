@@ -12,6 +12,8 @@ package test.unit;
 
 import java.io.File;
 
+import junit.framework.TestCase;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -27,7 +29,6 @@ import pointer.statements.StatementRegistrar;
 import pointer.statements.StatementRegistrationPass;
 import analysis.AnalysisUtil;
 
-import com.ibm.wala.core.tests.util.WalaTestCase;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
@@ -42,7 +43,7 @@ import com.ibm.wala.util.config.AnalysisScopeReader;
 /**
  * Generate a points-to graph
  */
-public class GenPointsToGraph extends WalaTestCase {
+public class GenPointsToGraph extends TestCase {
 
 	private static AnalysisScope scope;
 
@@ -55,7 +56,7 @@ public class GenPointsToGraph extends WalaTestCase {
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 
-		String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/bin";
+		String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
 		File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
 
 		scope = AnalysisScopeReader.makePrimordialScope(exclusions);
