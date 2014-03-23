@@ -99,9 +99,9 @@ public class GenPointsToGraph extends WalaTestCase {
 		StatementRegistrationPass pass = new StatementRegistrationPass(util);
 		pass.run();
 		System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
-//		for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-//		    System.out.println("\t" + s + " (" + s.getClass().getSimpleName() +")");
-//		}
+		for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
+		    System.out.println("\t" + s + " (" + s.getClass().getSimpleName() +")");
+		}
 		StatementRegistrar registrar = pass.getRegistrar();
 		
 		HeapAbstractionFactory context = new CallSiteSensitive();

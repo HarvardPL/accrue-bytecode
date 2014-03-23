@@ -31,8 +31,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
      *            Points-to graph node for the array being accessed
      * @param baseType
      *            base type of the array
-     * @param ir 
-     *            Code this statement occurs in           
+     * @param ir
+     *            Code this statement occurs in
      */
     public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType, IR ir) {
         super(ir);
@@ -55,7 +55,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
         }
         return changed;
     }
-    
+
     @Override
     public String toString() {
         return value + " = " + array + "." + PointsToGraph.ARRAY_CONTENTS;

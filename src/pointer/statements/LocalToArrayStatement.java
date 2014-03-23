@@ -30,7 +30,7 @@ public class LocalToArrayStatement extends PointsToStatement {
      * Type of array elements
      */
     private final TypeReference baseType;
-    
+
     /**
      * Statement for an assignment into an array, a[i] = v. Note that we do not
      * reason about the individual array elements.
@@ -63,7 +63,7 @@ public class LocalToArrayStatement extends PointsToStatement {
         }
         return changed;
     }
-    
+
     @Override
     public String toString() {
         return array + "." + PointsToGraph.ARRAY_CONTENTS + " = " + value;

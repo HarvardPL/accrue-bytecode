@@ -57,7 +57,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType(), field.getDeclaringClass());
+            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
             changed |= g.addEdges(f, localHeapContexts);
         }
         return changed;

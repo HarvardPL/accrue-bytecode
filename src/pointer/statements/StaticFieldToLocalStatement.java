@@ -10,7 +10,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
 
 /**
- * Points-to statement for an assignment from a static field to a local variable
+ * Points-to statement for an assignment from a static field to a local variable, v = o.x
  */
 public class StaticFieldToLocalStatement extends PointsToStatement {
 
@@ -45,12 +45,12 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
         
-        return g.addEdges(l, g.getPointsToSetFiltered(r, staticField.getExpectedType()));
+        return g.addEdges(l, g.getPointsToSetFiltered(r, local.getExpectedType()));
     }
 
     @Override
     public String toString() {
-        return staticField + " = " + local;
+        return local + " = " + staticField;
     }
 
     @Override

@@ -1,6 +1,7 @@
 package pointer.statements;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -13,6 +14,7 @@ import pointer.graph.MethodSummaryNodes;
 import types.TypeRepository;
 import util.PrettyPrinter;
 
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
@@ -44,7 +46,7 @@ public class StatementRegistrar {
     /**
      * Points-to graph nodes for static fields
      */
-    private final Map<FieldReference, LocalNode> staticFields = new LinkedHashMap<>();
+    private final Map<IField, LocalNode> staticFields = new LinkedHashMap<>();
     /**
      * Set of all points-to statements
      */
@@ -61,7 +63,12 @@ public class StatementRegistrar {
     /**
      * Class initializers
      */
-    private Set<IMethod> classInitializers = new LinkedHashSet<>();
+    private final Set<IMethod> classInitializers = new LinkedHashSet<>();
+    /**
+     * Map from method to the points-to statements generated from instructions
+     * in that method
+     */
+    private final Map<IMethod, Set<PointsToStatement>> statementsForMethod = new HashMap<>();
 
     /**
      * x = v[j], load from an array
@@ -79,7 +86,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode local = getLocal(i.getDef(), ir);
-        statements.add(new ArrayToLocalStatement(local, array, i.getElementType(), ir));
+        addStatement(new ArrayToLocalStatement(local, array, i.getElementType(), ir));
     }
 
     /**
@@ -99,7 +106,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode value = getLocal(i.getValue(), ir);
-        statements.add(new LocalToArrayStatement(array, value, i.getElementType(), ir));
+        addStatement(new LocalToArrayStatement(array, value, i.getElementType(), ir));
     }
 
     /**
@@ -120,7 +127,7 @@ public class StatementRegistrar {
         // TODO throws class cast exception
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode checkedVal = getLocal(i.getVal(), ir);
-        statements.add(new LocalToLocalStatement(result, checkedVal, ir));
+        addStatement(new LocalToLocalStatement(result, checkedVal, ir));
     }
 
     /**
@@ -131,20 +138,20 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerFieldAccess(SSAGetInstruction i, IR ir) {
+    public void registerFieldAccess(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
         }
         LocalNode assignee = getLocal(i.getDef(), ir);
         if (i.isStatic()) {
-            LocalNode field = getNodeForStaticField(i.getDeclaredField());
-            statements.add(new StaticFieldToLocalStatement(assignee, field, ir));
+            LocalNode field = getNodeForStaticField(i.getDeclaredField(), cha);
+            addStatement(new StaticFieldToLocalStatement(assignee, field, ir));
             return;
         }
 
         LocalNode receiver = getLocal(i.getRef(), ir);
-        statements.add(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir));
+        addStatement(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir));
     }
 
     /**
@@ -155,7 +162,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void registerFieldAssign(SSAPutInstruction i, IR ir) {
+    public void registerFieldAssign(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // Assigning into a primitive field, or assigning null
             return;
@@ -165,11 +172,11 @@ public class StatementRegistrar {
         LocalNode assignedValue = getLocal(i.getVal(), ir);
 
         if (i.isStatic()) {
-            LocalNode fieldNode = getNodeForStaticField(f);
-            statements.add(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir));
+            LocalNode fieldNode = getNodeForStaticField(f, cha);
+            addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir));
         } else {
             LocalNode receiver = getLocal(i.getRef(), ir);
-            statements.add(new LocalToFieldStatement(f, receiver, assignedValue, ir));
+            addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir));
         }
     }
 
@@ -184,12 +191,10 @@ public class StatementRegistrar {
      *            Class hierarchy, used to resolve method calls
      */
     public void registerInvoke(SSAInvokeInstruction i, IR ir, IClassHierarchy cha) {
+        assert (i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1);
+
         LocalNode resultNode = null;
-        int numOfRetVals = i.getNumberOfReturnValues();
-        if (!(numOfRetVals == 0 || numOfRetVals == 1)) {
-            throw new RuntimeException("Don't handle mutliple return values.");
-        }
-        if (numOfRetVals > 0) {
+        if (i.getNumberOfReturnValues() > 0) {
             TypeReference returnType = TypeRepository.getType(i.getReturnValue(0), ir);
             if (!returnType.isPrimitiveType()) {
                 resultNode = getLocal(i.getReturnValue(0), ir);
@@ -226,16 +231,16 @@ public class StatementRegistrar {
         if (i.isStatic()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
-            statements.add(new StaticCallStatement(i.getCallSite(), ir, resolvedMethod, actuals, resultNode,
+            addStatement(new StaticCallStatement(i.getCallSite(), ir, resolvedMethod, actuals, resultNode,
                     exceptionNode));
         } else if (i.isSpecial()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
-            statements.add(new SpecialCallStatement(i.getCallSite(), ir, resolvedMethod, receiver, actuals, resultNode,
+            addStatement(new SpecialCallStatement(i.getCallSite(), ir, resolvedMethod, receiver, actuals, resultNode,
                     exceptionNode));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
-            statements.add(new VirtualCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
+            addStatement(new VirtualCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
                     resultNode, exceptionNode, cha));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
@@ -255,7 +260,7 @@ public class StatementRegistrar {
         // all "new" instructions are assigned to a local
         LocalNode result = getLocal(i.getDef(), ir);
         // TODO Do we need to do anything with array dimensions, probably do
-        statements.add(new NewStatement(result, i.getNewSite(), ir, cha));
+        addStatement(new NewStatement(result, i.getNewSite(), ir, cha));
     }
 
     /**
@@ -286,7 +291,7 @@ public class StatementRegistrar {
             // analysis
             return;
         }
-        statements.add(new PhiStatement(assignee, uses, ir));
+        addStatement(new PhiStatement(assignee, uses, ir));
     }
 
     /**
@@ -317,7 +322,7 @@ public class StatementRegistrar {
         }
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode summary = methods.get(ir.getMethod()).getReturnNode();
-        statements.add(new ReturnStatement(result, summary, ir));
+        addStatement(new ReturnStatement(result, summary, ir));
     }
 
     /**
@@ -333,7 +338,7 @@ public class StatementRegistrar {
         assert TypeRepository.getType(i.getException(), ir) != TypeReference.Null;
 
         LocalNode exception = getLocal(i.getException(), ir);
-        statements.add(new ThrowStatement(exception, ir, ir.getBasicBlockForInstruction(i)));
+        addStatement(new ThrowStatement(exception, ir, ir.getBasicBlockForInstruction(i)));
     }
 
     /**
@@ -367,15 +372,18 @@ public class StatementRegistrar {
      *            field to get the node for
      * @return points-to graph node for the static field
      */
-    private LocalNode getNodeForStaticField(FieldReference field) {
-        LocalNode node = staticFields.get(field);
+    private LocalNode getNodeForStaticField(FieldReference field, IClassHierarchy cha) {
+        IField f = cha.resolveField(field);
+        LocalNode node = staticFields.get(f);
         if (node == null) {
-            if (field.getFieldType().isPrimitiveType()) {
+            if (f.getFieldTypeReference().isPrimitiveType()) {
                 throw new RuntimeException(
                         "Trying to create reference variable for a static field with a primitive type.");
             }
-            node = freshLocal(field.getName().toString(), field.getFieldType(), true);
-            staticFields.put(field, node);
+
+            node = freshLocal(PrettyPrinter.parseType(f.getDeclaringClass().getReference()) + "."
+                    + f.getName().toString(), f.getFieldTypeReference(), true);
+            staticFields.put(f, node);
         }
         return node;
     }
@@ -554,5 +562,40 @@ public class StatementRegistrar {
                     + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
         }
         return targets;
+    }
+
+    /**
+     * Add a new statement to the registrar
+     * 
+     * @param s
+     *            statement to add
+     */
+    private void addStatement(PointsToStatement s) {
+        statements.add(s);
+        IMethod m = s.getCode().getMethod();
+        Set<PointsToStatement> ss = statementsForMethod.get(m);
+        if (ss == null) {
+            ss = new LinkedHashSet<>();
+            statementsForMethod.put(m, ss);
+        }
+        ss.add(s);
+    }
+
+    /**
+     * Get all the statements for a particular method
+     * 
+     * @param m
+     *            method to get the statements for
+     * @return set of points-to statements for <code>m</code>
+     */
+    public Set<PointsToStatement> getStatementsForMethod(IMethod m) {
+        Set<PointsToStatement> ret = statementsForMethod.get(m);
+        if (ret != null) {
+            return ret;
+
+        }
+        // TODO Is it OK to return an empty set if the key is missing
+        // or could this indicate another issue
+        return Collections.emptySet();
     }
 }

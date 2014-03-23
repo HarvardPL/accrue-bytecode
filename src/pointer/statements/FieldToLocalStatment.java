@@ -62,7 +62,7 @@ public class FieldToLocalStatment extends PointsToStatement {
 
         Set<InstanceKey> fields = new LinkedHashSet<>();
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), declaredField.getFieldType(), declaredField.getDeclaringClass());
+            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), declaredField.getFieldType());
             for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, assignee.getExpectedType())) {
                 fields.add(fieldHeapContext);
             }

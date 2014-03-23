@@ -1,7 +1,7 @@
-package test;
+package test.pointer;
 
 
-public class ClassNotFoundBug {
+public class TryCallCatch {
 
     public static void main(String[] args) {
         try {

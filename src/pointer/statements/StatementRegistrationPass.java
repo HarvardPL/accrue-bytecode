@@ -39,6 +39,7 @@ import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Collect pointer analysis constraints with a pass over the code TODO should
@@ -47,9 +48,9 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 public class StatementRegistrationPass {
 
     /**
-     * Verbosity level, 2 prints all method bodies
+     * Output level, 2 prints all method bodies
      */
-    private static int VERBOSE = 0;
+    public static int VERBOSE = 2;
     /**
      * Container and manager of points-to statements
      */
@@ -61,7 +62,10 @@ public class StatementRegistrationPass {
     /**
      * Classes we have already called <clinit> for
      */
-    private final Set<IClass> visitedClasses = new LinkedHashSet<>();
+    private final Set<IClass> initializedClasses = new LinkedHashSet<>();
+    /**
+     * WALA-defined analysis utilities
+     */
     private final AnalysisUtil util;
 
     /**
@@ -92,39 +96,36 @@ public class StatementRegistrationPass {
             }
         }
         registrar.setEntryPoint(fakeRoot);
-        addFromMethod(q, fakeRoot, false);
+        addFromMethod(q, fakeRoot);
     }
 
     /**
      * Add instructions to the work queue for the given method, if this method
      * has not already been processed.
      * 
+     * @param q
+     *            work queue containing instructions to be processed
+     * 
      * @param m
      *            method to process
+     * @param addClassInit
+     *            if true then a class initializer will be added if needed
+     *            (should be false if <code>m</code> is WALA's fake root method
+     *            which has no class initializer)
      */
-    private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m, boolean addClassInit) {
+    private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
 
         if (visitedMethods.contains(m)) {
+            System.out.println("\tAlready added " + PrettyPrinter.parseMethod(m.getReference()));
             return;
         }
         if (m.isNative()) {
-            handleNative(q, m, addClassInit);
+            handleNative(q, m);
             return;
         }
         if (m.isAbstract()) {
             System.err.println("No need to analyze abstract methods: " + m.getSignature());
             return;
-        }
-
-        // If we haven't analyzed the <clinit> method for the receiver class do
-        // it now
-        IClass declaringClass = m.getDeclaringClass();
-        if (addClassInit && !visitedClasses.contains(declaringClass)) {
-            visitedClasses.add(declaringClass);
-            if (declaringClass.getClassInitializer() != null) {
-                registrar.addClassInitializer(declaringClass.getClassInitializer());
-                addFromMethod(q, declaringClass.getClassInitializer(), true);
-            }
         }
 
         visitedMethods.add(m);
@@ -144,9 +145,145 @@ public class StatementRegistrationPass {
             }
         }
     }
+    
+    /**
+     * As defined in JLS 12.4.1, add class initializers for the given
+     * instruction if needed.
+     * 
+     * @param q
+     *            work queue for instructions
+     * @param i
+     *            current instruction
+     * @param ir
+     *            code for method containing instruction
+     * @return true if any class initializers were added
+     */
+    private boolean addClassInitForInstruction(WorkQueue<InstrAndCode> q, SSAInstruction i, IR ir){
+        IClass klass = null;
+        
+        // T is a class and an instance of T is created.
+        if (i instanceof SSAInvokeInstruction) {
+            SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
+            if (ins.isSpecial()) {
+                IMethod callee = util.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
+                if (callee.isInit()) {
+                    klass = callee.getDeclaringClass();
+                }
+            }
+        }
 
-    private void handleNative(WorkQueue<InstrAndCode> q, IMethod m, boolean addClassInit) {
+        // T is a class and a static method declared by T is invoked.
+        if (i instanceof SSAInvokeInstruction) {
+            SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
+            if (ins.isStatic()) {
+                IMethod callee = util.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
+                klass = callee.getDeclaringClass();
+            }
+        }
+
+        // A static field declared by T is assigned.
+        if (i instanceof SSAPutInstruction) {
+            SSAPutInstruction ins = (SSAPutInstruction) i;
+            if (ins.isStatic()) {
+                // TODO Is the declaring type concrete or could it be a subclass
+                // A reference to a static field (8.3.1.1) causes
+                // initialization of only the class or interface that actually
+                // declares it, even though it might be referred to through the
+                // name of a subclass, a subinterface, or a class that
+                // implements an interface.
+                TypeReference type = ins.getDeclaredField().getDeclaringClass();
+                klass = util.getClassHierarchy().lookupClass(type);
+            }
+        }
+
+        // A static field declared by T is used and the field is not a constant
+        // variable (4.12.4).
+        if (i instanceof SSAGetInstruction) {
+            SSAGetInstruction ins = (SSAGetInstruction) i;
+            if (ins.isStatic()) {
+                // TODO Is the declaring type concrete or could it be a subclass
+                // A reference to a static field (8.3.1.1) causes
+                // initialization of only the class or interface that actually
+                // declares it, even though it might be referred to through the
+                // name of a subclass, a subinterface, or a class that
+                // implements an interface.
+                TypeReference type = ins.getDeclaredField().getDeclaringClass();
+                if (type.isPrimitiveType() || type == TypeReference.JavaLangString) {
+                    // TODO How do we tell if this is constant/final?
+                    // 4.12.4: A variable of primitive type or type String, that is final
+                    // and initialized with a compile-time constant expression
+                    // (15.28), is called a constant variable.
+                    
+                    // return null;
+                }
+                klass = util.getClassHierarchy().lookupClass(type);
+            }
+        }
+
+        // T is a top level class (7.6), and an assert statement (14.10)
+        // lexically nested within T (8.1.3) is executed.
+        // TODO asserts in bytecode? maybe "throw AssertionError"?
+        // When would an assert execute with the class not already initialized 
+        
+        // Invocation of certain reflective methods in class Class and in package
+        // java.lang.reflect also causes class or interface initialization.
+        // TODO handle class initializers for reflection
+        
+        if (klass == null) {
+            return false;
+        }
+        if (VERBOSE >= 1 && !initializedClasses.contains(klass)) {
+            PrettyPrinter pp = PrettyPrinter.getPrinter(ir);
+            System.out.print("Adding: " + PrettyPrinter.parseType(klass.getReference()) + " initializer from ");
+            i.visit(pp);
+            System.out.println();
+        }
+        return addClassInit(q, klass);
+    }
+
+    /**
+     * Add a class initializers for the given class and its super classes to the
+     * work queue (if it has not already been added).
+     * 
+     * @param q
+     *            work queue of instructions
+     * @param klass
+     *            class to add the initializer for
+     * @return true if class init was added
+     */
+    private boolean addClassInit(WorkQueue<InstrAndCode> q, IClass klass) {
+        
+        if (!initializedClasses.contains(klass)) {
+            
+            if (!util.getClassHierarchy().isRootClass(klass)) {
+                // Need to initialize the super class before initializing klass
+                IClass superClass = klass.getSuperclass();
+                if (!superClass.isInterface()) {
+                    if (VERBOSE >= 1 && !initializedClasses.contains(superClass)) {
+                        System.out.println("Adding: " + PrettyPrinter.parseType(superClass.getReference())
+                                + " super class initializer from " + PrettyPrinter.parseType(klass.getReference()));
+                    }
+                    addClassInit(q, superClass);
+                }
+            }
+            
+            initializedClasses.add(klass);
+            if (klass.getClassInitializer() != null) {
+                registrar.addClassInitializer(klass.getClassInitializer());
+                addFromMethod(q, klass.getClassInitializer());
+            } else if ( VERBOSE >= 2) {
+                System.out.println("\tNo class initializer for " + PrettyPrinter.parseType(klass.getReference()));        
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void handleNative(WorkQueue<InstrAndCode> q, IMethod m) {
         // TODO Statement registration not handling native methods yet
+        if (VERBOSE >= 2) {
+            System.out.println("\tNot handling native method " + PrettyPrinter.parseMethod(m.getReference()));
+        }
     }
 
     /**
@@ -172,6 +309,9 @@ public class StatementRegistrationPass {
     private void handle(WorkQueue<InstrAndCode> q, InstrAndCode info) {
         SSAInstruction i = info.instruction;
         IR ir = info.ir;
+        
+        // Add any class initializers required before executing this instruction
+        addClassInitForInstruction(q, i, ir);
 
         if (i.getNumberOfDefs() > 2) {
             throw new RuntimeException("More than two defs in instruction: " + i.toString(ir.getSymbolTable()));
@@ -184,10 +324,10 @@ public class StatementRegistrationPass {
             Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util.getClassHierarchy());
             for (IMethod m : targets) {
                 if (VERBOSE >= 1) {
-                    System.err.println("Adding: " + PrettyPrinter.parseMethod(m.getReference()) + " from "
+                    System.out.println("Adding: " + PrettyPrinter.parseMethod(m.getReference()) + " from "
                             + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
                 }
-                addFromMethod(q, m, true);
+                addFromMethod(q, m);
             }
             registrar.registerInvoke(inv, ir, util.getClassHierarchy());
             return;
@@ -205,13 +345,13 @@ public class StatementRegistrationPass {
 
         // v = o.f
         if (i instanceof SSAGetInstruction) {
-            registrar.registerFieldAccess((SSAGetInstruction) i, ir);
+            registrar.registerFieldAccess((SSAGetInstruction) i, ir, util.getClassHierarchy());
             return;
         }
 
         // o.f = v
         if (i instanceof SSAPutInstruction) {
-            registrar.registerFieldAssign((SSAPutInstruction) i, ir);
+            registrar.registerFieldAssign((SSAPutInstruction) i, ir, util.getClassHierarchy());
             return;
         }
 
@@ -265,7 +405,7 @@ public class StatementRegistrationPass {
     private void checkUnhandledInstruction(SSAInstruction i, IR ir) {
         String className = i.getClass().isAnonymousClass() ? i.getClass().getSuperclass().getSimpleName() : i
                 .getClass().getSimpleName();
-        if (VERBOSE >= 2) {
+        if (VERBOSE >= 3) {
             i.visit(PrettyPrinter.getPrinter(ir));
             System.out.println(" not handled. " + "(" + className + ")");
         }

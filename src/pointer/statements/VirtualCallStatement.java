@@ -1,6 +1,8 @@
 package pointer.statements;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import pointer.analyses.HeapAbstractionFactory;
 import pointer.graph.LocalNode;
@@ -9,6 +11,7 @@ import pointer.graph.ReferenceVariableReplica;
 import util.PrettyPrinter;
 
 import com.ibm.wala.classLoader.CallSiteReference;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -84,6 +87,26 @@ public class VirtualCallStatement extends CallStatement {
         }
 
         return changed;
+    }
+    
+    /**
+     * Get all the targets of the callee in the given calling context
+     * 
+     * @param context
+     *            Caller context
+     * @param g
+     *            points-to graph
+     * @return Set of targets of this call
+     */
+    public Set<IClass> getTargets(Context context, PointsToGraph g) {
+        ReferenceVariableReplica receiverRep = getReplica(context, receiver);
+
+        Set<IClass> targets = new LinkedHashSet<>();
+        for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
+            IMethod resolvedCallee = cha.resolveMethod(recHeapContext.getConcreteType(), callee.getSelector());
+            targets.add(resolvedCallee.getDeclaringClass());
+        }
+        return targets;
     }
     
     @Override

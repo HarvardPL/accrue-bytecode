@@ -87,7 +87,6 @@ public abstract class CallStatement extends PointsToStatement {
             // TODO Pointer Analysis not handling native methods yet
             return false;          
         }
-        
         boolean changed = false;
 
         // Record the call

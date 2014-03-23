@@ -36,9 +36,9 @@ public class PointsToGraph {
     private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
     private final Set<InstanceKey> allHContexts = new LinkedHashSet<>();
 
-    private Set<PointsToGraphNode> changedNodes;
-    private Set<PointsToGraphNode> readNodes;
-    private Map<IMethod, Set<Context>> newContexts;
+    public Set<PointsToGraphNode> changedNodes;
+    public Set<PointsToGraphNode> readNodes;
+    public Map<IMethod, Set<Context>> newContexts;
     private final Map<IMethod, Set<Context>> contexts;
 
     private final ExplicitCallGraph callGraph;
@@ -53,6 +53,17 @@ public class PointsToGraph {
         callGraph = new ExplicitCallGraph(util.getClassHierarchy(), util.getOptions(), util.getCache());
     }
 
+    /**
+     * Get a map from method to the singleton set containing the initial context
+     * for all the given methods
+     * 
+     * @param haf
+     *            abstraction factory defining the initial context
+     * @param initialMethods
+     *            methods to be paired with the initial context
+     * @return mapping from each method in the given set to the singleton set
+     *         containing the initial context
+     */
     private Map<IMethod, Set<Context>> getInitialContexts(HeapAbstractionFactory haf, Set<IMethod> initialMethods) {
         Map<IMethod, Set<Context>> init = new LinkedHashMap<>();
         for (IMethod m : initialMethods) {
@@ -184,10 +195,11 @@ public class PointsToGraph {
             src = callGraph.findOrCreateNode(caller, callerContext);
             dst = callGraph.findOrCreateNode(callee, calleeContext);
         } catch (CancelException e) {
-            throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.parseMethod(caller.getReference())
-                    + " to " + PrettyPrinter.parseMethod(callee.getReference()));
+            throw new RuntimeException(e + " cannot add call graph edge from "
+                    + PrettyPrinter.parseMethod(caller.getReference()) + " to "
+                    + PrettyPrinter.parseMethod(callee.getReference()));
         }
-        
+
         if (callGraph.hasEdge(src, dst)) {
             return false;
         }
@@ -218,16 +230,16 @@ public class PointsToGraph {
     /**
      * Set of contexts for the given method
      * 
-     * @param reference
+     * @param m
      *            method reference to get contexts for
      * @return set of contexts for the given method
      */
-    public Set<Context> getContexts(IMethod reference) {
-        Set<Context> s = contexts.get(reference);
+    public Set<Context> getContexts(IMethod m) {
+        Set<Context> s = contexts.get(m);
         if (s == null) {
             return Collections.<Context> emptySet();
         }
-        return Collections.unmodifiableSet(contexts.get(reference));
+        return Collections.unmodifiableSet(contexts.get(m));
     }
 
     /**
@@ -332,13 +344,49 @@ public class PointsToGraph {
     public IClassHierarchy getClassHierarchy() {
         return util.getClassHierarchy();
     }
-    
+
     /**
      * Get the procedure call graph
-     *  
+     * 
      * @return call graph
      */
     public CallGraph getCallGraph() {
         return callGraph;
+    }
+
+    /**
+     * Get new contexts created since this was last called and clear the new
+     * context map
+     * 
+     * @return new context map
+     */
+    public Map<IMethod, Set<Context>> getAndClearNewContexts() {
+        Map<IMethod, Set<Context>> newC = newContexts;
+        newContexts = new LinkedHashMap<IMethod, Set<Context>>();
+        return newC;
+    }
+
+    /**
+     * Get the points-to graph nodes that have caused a change since this was
+     * last called and clear the set.
+     * 
+     * @return set of changed nodes
+     */
+    public Set<PointsToGraphNode> getAndClearChangedNodes() {
+        Set<PointsToGraphNode> c = changedNodes;
+        changedNodes = new LinkedHashSet<>();
+        return c;
+    }
+
+    /**
+     * Get the set of nodes that have been read since this was last called and
+     * clear the set.
+     * 
+     * @return set of nodes for which the points-to set was retrieved
+     */
+    public Set<PointsToGraphNode> getAndClearReadNodes() {
+        Set<PointsToGraphNode> c = readNodes;
+        readNodes = new LinkedHashSet<>();
+        return c;
     }
 }
