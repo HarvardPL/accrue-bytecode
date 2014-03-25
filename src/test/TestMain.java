@@ -3,16 +3,16 @@ package test;
 import java.io.File;
 import java.io.IOException;
 
-import pointer.analyses.CallSiteSensitive;
-import pointer.analyses.HeapAbstractionFactory;
-import pointer.engine.PointsToAnalysis;
-import pointer.engine.PointsToAnalysisSingleThreaded;
-import pointer.graph.PointsToGraph;
-import pointer.graph.PointsToGraphNode;
-import pointer.statements.PointsToStatement;
-import pointer.statements.StatementRegistrar;
-import pointer.statements.StatementRegistrationPass;
-import analysis.AnalysisUtil;
+import analysis.WalaAnalysisUtil;
+import analysis.pointer.analyses.CallSiteSensitive;
+import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
+import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.StatementRegistrar;
+import analysis.pointer.statements.StatementRegistrationPass;
 
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
@@ -55,7 +55,7 @@ public class TestMain {
          * End of WALA set up code
          ********************************/
         
-        AnalysisUtil util = new AnalysisUtil(cha, cache, options);
+        WalaAnalysisUtil util = new WalaAnalysisUtil(cha, cache, options);
         
         // Gather all the points-to statements
         StatementRegistrationPass pass = new StatementRegistrationPass(util);
