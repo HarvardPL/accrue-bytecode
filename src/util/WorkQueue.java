@@ -2,6 +2,7 @@ package util;
 
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
 
@@ -62,6 +63,21 @@ public class WorkQueue<T> {
         boolean changed = false;
         for (T n : ns) {
             changed |= add(n);
+        }
+        return changed;
+    }
+
+    /**
+     * Add all the T's in the collection <code>i</code> is an iterator for
+     * 
+     * @param i
+     *            iterator of T's
+     * @return true if the queue changed as a result of this call
+     */
+    public boolean addAll(Iterator<T> i) {
+        boolean changed = false;
+        while (i.hasNext()) {
+            changed |= add(i.next());
         }
         return changed;
     }

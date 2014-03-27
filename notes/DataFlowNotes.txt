@@ -1,0 +1,9 @@
+Any particular reason edges live in the nodes in the Flowgraph?
+A: not really
+
+Do I have to iterate through SCCs or can I use a single workqueue instead?
+A: Yes its better, do the simple way first
+
+I don't really like the WALA CFG for data-flow. It is over basic blocks so no generated exceptions from instructions
+A: It actual does the right thing apparently
+

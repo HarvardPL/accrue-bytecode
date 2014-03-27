@@ -135,8 +135,8 @@ public abstract class CallStatement extends PointsToStatement {
         /////////////////// Exceptions //////////////////
         
         // Get the basic block for the call 
-        // TODO why is this an array?
         ISSABasicBlock[] bbs = getCode().getBasicBlocksForCall(getCallSite());
+        // TODO why is this an array, maybe for duplicated finally blocks?
         if (bbs.length > 1) {
             throw new RuntimeException("More than one basic block for a call");
         }
@@ -148,7 +148,6 @@ public abstract class CallStatement extends PointsToStatement {
         // (caller) context
         Map<TypeReference, ReferenceVariableReplica> callerThrows = getExceptionReplicas(callerContext, registrar);
         
-        // TODO could have one replica per type for precision in the caller
         ReferenceVariableReplica exceptionRep = getReplica(callerContext, exceptionNode);
         for (TypeReference exType : calleeSummary.getExceptions().keySet()) {
             // Add edges from the exception in the callee to the exception in the caller

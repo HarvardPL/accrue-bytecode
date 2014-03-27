@@ -2,7 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.List;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;

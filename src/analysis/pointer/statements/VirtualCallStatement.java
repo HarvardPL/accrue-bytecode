@@ -4,7 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;

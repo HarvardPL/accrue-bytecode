@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.graph.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;

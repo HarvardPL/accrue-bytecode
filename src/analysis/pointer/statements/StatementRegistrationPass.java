@@ -1,15 +1,19 @@
 package analysis.pointer.statements;
 
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import util.PrettyPrinter;
 import util.WorkQueue;
+import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.MethodSummaryNodes;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
@@ -42,8 +46,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Collect pointer analysis constraints with a pass over the code TODO should
- * this implement IVisitor? I think not since we also need the IR
+ * Collect pointer analysis constraints with a pass over the code
  */
 public class StatementRegistrationPass {
 
@@ -136,18 +139,28 @@ public class StatementRegistrationPass {
                 .findOrCreateIR(m, Everywhere.EVERYWHERE, util.getOptions().getSSAOptions());
         registrar.recordMethod(m, new MethodSummaryNodes(registrar, ir));
 
+        if (VERBOSE >= 1) {
+            System.out.println(PrettyPrinter.parseMethod(m.getReference()) + " will be registered.");
+        }
         if (VERBOSE >= 2) {
-            PrettyPrinter.printIR("\t", ir);
+            Writer writer = new StringWriter();
+            PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+            System.out.print(writer.toString());
+            try {
+                writer.close();
+            } catch (IOException e) {
+                throw new RuntimeException();
+            }
+            // XXX PrettyPrinter.printCFG("", ir.getControlFlowGraph());
         }
 
-        // TODO make sure that catch instructions end up getting added
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
             for (SSAInstruction ins : bb) {
                 q.add(new InstrAndCode(ins, ir));
             }
         }
     }
-    
+
     /**
      * As defined in JLS 12.4.1, add class initializers for the given
      * instruction if needed.
@@ -160,9 +173,9 @@ public class StatementRegistrationPass {
      *            code for method containing instruction
      * @return true if any class initializers were added
      */
-    private boolean addClassInitForInstruction(WorkQueue<InstrAndCode> q, SSAInstruction i, IR ir){
+    private boolean addClassInitForInstruction(WorkQueue<InstrAndCode> q, SSAInstruction i, IR ir) {
         IClass klass = null;
-        
+
         // T is a class and an instance of T is created.
         if (i instanceof SSAInvokeInstruction) {
             SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
@@ -187,14 +200,13 @@ public class StatementRegistrationPass {
         if (i instanceof SSAPutInstruction) {
             SSAPutInstruction ins = (SSAPutInstruction) i;
             if (ins.isStatic()) {
-                // TODO Is the declaring type concrete or could it be a subclass
                 // A reference to a static field (8.3.1.1) causes
                 // initialization of only the class or interface that actually
                 // declares it, even though it might be referred to through the
                 // name of a subclass, a subinterface, or a class that
                 // implements an interface.
-                TypeReference type = ins.getDeclaredField().getDeclaringClass();
-                klass = util.getClassHierarchy().lookupClass(type);
+                IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
+                klass = f.getDeclaringClass();
             }
         }
 
@@ -203,42 +215,49 @@ public class StatementRegistrationPass {
         if (i instanceof SSAGetInstruction) {
             SSAGetInstruction ins = (SSAGetInstruction) i;
             if (ins.isStatic()) {
-                // TODO Is the declaring type concrete or could it be a subclass
                 // A reference to a static field (8.3.1.1) causes
                 // initialization of only the class or interface that actually
                 // declares it, even though it might be referred to through the
                 // name of a subclass, a subinterface, or a class that
                 // implements an interface.
-                TypeReference type = ins.getDeclaredField().getDeclaringClass();
-                if (type.isPrimitiveType() || type == TypeReference.JavaLangString) {
+                IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
+                TypeReference type = ins.getDeclaredField().getFieldType();
+                if ((type.isPrimitiveType() || type == TypeReference.JavaLangString) /*
+                                                                                      * &&
+                                                                                      * isFinalConstant
+                                                                                      * (
+                                                                                      * f
+                                                                                      * )
+                                                                                      */) {
                     // TODO How do we tell if this is constant/final?
-                    // 4.12.4: A variable of primitive type or type String, that is final
+                    // 4.12.4: A variable of primitive type or type String, that
+                    // is final
                     // and initialized with a compile-time constant expression
                     // (15.28), is called a constant variable.
-                    
+
                     // return null;
                 }
-                klass = util.getClassHierarchy().lookupClass(type);
+                klass = f.getDeclaringClass();
             }
         }
 
         // T is a top level class (7.6), and an assert statement (14.10)
         // lexically nested within T (8.1.3) is executed.
-        // TODO asserts in bytecode? maybe "throw AssertionError"?
-        // When would an assert execute with the class not already initialized 
-        
-        // Invocation of certain reflective methods in class Class and in package
+        // This happens with the static field get
+
+        // Invocation of certain reflective methods in class Class and in
+        // package
         // java.lang.reflect also causes class or interface initialization.
         // TODO handle class initializers for reflection
-        
+
         if (klass == null) {
             return false;
         }
         if (VERBOSE >= 1 && !initializedClasses.contains(klass)) {
-            PrettyPrinter pp = PrettyPrinter.getPrinter(ir);
-            System.out.print("Adding: " + PrettyPrinter.parseType(klass.getReference()) + " initializer from ");
-            i.visit(pp);
-            System.out.println();
+            StringBuilder s = new StringBuilder();
+            s.append("Adding: " + PrettyPrinter.parseType(klass.getReference()) + " initializer from ");
+            s.append(PrettyPrinter.instructionString(ir, i));
+            System.err.println(s.toString());
         }
         return addClassInit(q, klass);
     }
@@ -254,9 +273,9 @@ public class StatementRegistrationPass {
      * @return true if class init was added
      */
     private boolean addClassInit(WorkQueue<InstrAndCode> q, IClass klass) {
-        
+
         if (!initializedClasses.contains(klass)) {
-            
+
             if (!util.getClassHierarchy().isRootClass(klass)) {
                 // Need to initialize the super class before initializing klass
                 IClass superClass = klass.getSuperclass();
@@ -268,13 +287,13 @@ public class StatementRegistrationPass {
                     addClassInit(q, superClass);
                 }
             }
-            
+
             initializedClasses.add(klass);
             if (klass.getClassInitializer() != null) {
                 registrar.addClassInitializer(klass.getClassInitializer());
                 addFromMethod(q, klass.getClassInitializer());
-            } else if ( VERBOSE >= 2) {
-                System.out.println("\tNo class initializer for " + PrettyPrinter.parseType(klass.getReference()));        
+            } else if (VERBOSE >= 2) {
+                System.out.println("\tNo class initializer for " + PrettyPrinter.parseType(klass.getReference()));
             }
             return true;
         }
@@ -311,7 +330,7 @@ public class StatementRegistrationPass {
     private void handle(WorkQueue<InstrAndCode> q, InstrAndCode info) {
         SSAInstruction i = info.instruction;
         IR ir = info.ir;
-        
+
         // Add any class initializers required before executing this instruction
         addClassInitForInstruction(q, i, ir);
 
@@ -405,11 +424,12 @@ public class StatementRegistrationPass {
      * analysis results
      */
     private void checkUnhandledInstruction(SSAInstruction i, IR ir) {
-        String className = i.getClass().isAnonymousClass() ? i.getClass().getSuperclass().getSimpleName() : i
-                .getClass().getSimpleName();
+        String className = PrettyPrinter.getSimpleClassName(i);
         if (VERBOSE >= 3) {
-            i.visit(PrettyPrinter.getPrinter(ir));
-            System.out.println(" not handled. " + "(" + className + ")");
+            StringBuilder s = new StringBuilder();
+            s.append(PrettyPrinter.instructionString(ir, i));
+            s.append(" not handled. " + "(" + className + ")");
+            System.err.println(s.toString());
         }
         assert i instanceof SSAArrayLengthInstruction || i instanceof SSAGotoInstruction
                 || i instanceof SSAConditionalBranchInstruction || i instanceof SSABinaryOpInstruction

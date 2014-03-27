@@ -14,7 +14,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.statements.StatementRegistrar;
@@ -317,7 +317,6 @@ public class PointsToGraph {
         }
 
         for (PointsToGraphNode n : graph.keySet()) {
-            // TODO revert this to a loop over the keyset
             for (InstanceKey ik : graph.get(n)) {
                 writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
             }

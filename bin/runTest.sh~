@@ -6,7 +6,7 @@ dir=`dirname "$0"`/..
 classpath="$dir/classes"
 
 run() {
-    cmmd="-classpath '$classpath' -ea test.integration.TestMain"
+    cmmd="-classpath '$classpath' -ea test.TestMain"
     if [ "$verbose" = 1 ]; then
        echo java "$vmargs" "$cmmd" "$args"
     fi

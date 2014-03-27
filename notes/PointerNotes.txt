@@ -1,0 +1,65 @@
+StmtProcedureCall.checkThrown - maybeCaught not used
+A: Intended
+
+PointsToGraph line 133 subtype in both directions
+PointsToGraph.checkTypes not called
+A: Due to imprecision
+
+Whats the deal with ExtField, static seems strange, what are the assignments
+A: Intermediate local nodes for subexpressions
+
+How are exceptions handled? Specifically implicit ones like class cast.
+A: registrar.addGeneratedExceptionAssignments
+
+How should we take into account constructor context
+A: maybe don't need to
+
+ExtCall line 78, not dynamic dispatch, but not static either, seems like c.target points-to set matters
+A: Bug!
+
+Why are there some places where points to results are not filtered when they could be (e.g. return values, actual arguments)?
+A: Type safety provides everything you need, maybe
+
+Do we need both equals and equals semantic in Contexts? Probably a performance thing. 
+A: performance
+
+Why do we need memoization in HeapAbstractionFactory? 
+A: performance
+
+Are the wrappers correct in HeapAbstractionFactory? 
+- I'm guessing yes or it would be messed up
+- Couldn't two things be equal and have different hash codes? I think it works only because we are careful in our implementations of HContext etc. If we used IdentityHashCode it might screw up.
+A: its ok needs documentation
+
+What does "is precise type" do in HContext?
+A: handle native returns etc
+
+Unsupported operations in Context and InstanceKey implementations... may want to ditch these for CContext and HContext.
+A: Try it and see if you need it
+
+__________________________
+
+changed in checkThrown in StmtProcedureCall should be |= not =
+A: Yes
+
+Do exceptions have a precise type?
+A: except for native
+
+One value for exceptions in the IR, can/should we try to add types or do this later?
+A: this is better, should also do it for summary
+
+Check the implementation of StatementRegistrar.resolveMethodForInvocation
+A: Just use get possible targets
+
+Array dimensions each need their own contents?
+A: Do something
+
+TODO check the use of pointsToFiltered and remove where not necessary
+
+Is it worth it to just analyze needed class inits in the pointer analysis? (see solveSmarter)
+A: yes
+
+Does anyone throw null literals?
+
+Check the implementation of StatementRegistrationPass.addClassInitForInstruction
+A: test static fields

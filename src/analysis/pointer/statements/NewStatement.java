@@ -1,6 +1,6 @@
 package analysis.pointer.statements;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AllocSiteNode;
 import analysis.pointer.graph.LocalNode;

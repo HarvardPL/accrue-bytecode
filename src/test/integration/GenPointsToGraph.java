@@ -13,11 +13,6 @@ package test.integration;
 import java.io.File;
 
 import junit.framework.TestCase;
-
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -53,8 +48,7 @@ public class GenPointsToGraph extends TestCase {
     
     private static AnalysisOptions options;
 
-	@BeforeClass
-	public static void beforeClass() throws Exception {
+	public void setUp() throws Exception {
 
 		String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
 		File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
@@ -75,22 +69,7 @@ public class GenPointsToGraph extends TestCase {
 		cache = new AnalysisCache();
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see junit.framework.TestCase#tearDown()
-	 */
-	@AfterClass
-	public static void afterClass() throws Exception {
-		scope = null;
-		cha = null;
-		cache = null;
-		options = null;
-	}
-
-	@Test
 	public void testScratch() {
-	    
 		Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util
 				.makeMainEntrypoints(scope, cha, "Ltest/Scratch");
 		System.out.println("Made entry points");

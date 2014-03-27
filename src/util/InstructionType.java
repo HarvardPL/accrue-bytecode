@@ -1,0 +1,235 @@
+package util;
+
+import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
+import com.ibm.wala.shrikeBT.IInvokeInstruction;
+import com.ibm.wala.shrikeBT.IInvokeInstruction.Dispatch;
+import com.ibm.wala.ssa.SSAAddressOfInstruction;
+import com.ibm.wala.ssa.SSAArrayLengthInstruction;
+import com.ibm.wala.ssa.SSAArrayLoadInstruction;
+import com.ibm.wala.ssa.SSAArrayStoreInstruction;
+import com.ibm.wala.ssa.SSABinaryOpInstruction;
+import com.ibm.wala.ssa.SSACheckCastInstruction;
+import com.ibm.wala.ssa.SSAComparisonInstruction;
+import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
+import com.ibm.wala.ssa.SSAConversionInstruction;
+import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
+import com.ibm.wala.ssa.SSAGetInstruction;
+import com.ibm.wala.ssa.SSAGotoInstruction;
+import com.ibm.wala.ssa.SSAInstanceofInstruction;
+import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.ssa.SSALoadIndirectInstruction;
+import com.ibm.wala.ssa.SSALoadMetadataInstruction;
+import com.ibm.wala.ssa.SSAMonitorInstruction;
+import com.ibm.wala.ssa.SSANewInstruction;
+import com.ibm.wala.ssa.SSAPhiInstruction;
+import com.ibm.wala.ssa.SSAPiInstruction;
+import com.ibm.wala.ssa.SSAPutInstruction;
+import com.ibm.wala.ssa.SSAReturnInstruction;
+import com.ibm.wala.ssa.SSAStoreIndirectInstruction;
+import com.ibm.wala.ssa.SSASwitchInstruction;
+import com.ibm.wala.ssa.SSAThrowInstruction;
+import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+
+/**
+ * Enumeration of SSA instruction types
+ */
+public enum InstructionType {
+    /**
+     * @see SSAGotoInstruction
+     */
+    GOTO,
+    /**
+     * @see SSAArrayLoadInstruction
+     */
+    ARRAY_LOAD,
+    /**
+     * @see SSAArrayStoreInstruction
+     */
+    ARRAY_STORE,
+    /**
+     * Binary operator {@link IOperator}: ADD, SUB, MUL, DIV, REM, AND, OR, XOR
+     * 
+     * @see SSABinaryOpInstruction
+     */
+    BINARY_OP,
+    /**
+     * Unary negation.
+     * 
+     * @see SSAUnaryOpInstruction
+     */
+    UNARY_NEG_OP,
+    /**
+     * @see SSAConversionInstruction
+     */
+    CONVERSION,
+    /**
+     * @see SSAComparisonInstruction
+     */
+    COMPARISON,
+    /**
+     * Conditional branch with guard which tests two values according to an operator (EQ, NE, LT, GE, GT, or LE).
+     * 
+     * @see SSAConditionalBranchInstruction
+     */
+    CONDITIONAL_BRANCH,
+    /**
+     * @see SSASwitchInstruction
+     */
+    SWITCH,
+    /**
+     * @see SSAReturnInstruction
+     */
+    RETURN,
+    /**
+     * @see SSAGetInstruction
+     */
+    GET,
+    /**
+     * @see SSAPutInstruction
+     */
+    PUT,
+    /**
+     * @see SSANewInstruction
+     */
+    NEW,
+    /**
+     * @see SSAArrayLengthInstruction
+     */
+    ARRAY_LENGTH,
+    /**
+     * @see SSAThrowInstruction
+     */
+    THROW,
+    /**
+     * @see SSACheckCastInstruction
+     */
+    CHECK_CAST,
+    /**
+     * @see SSAInstanceofInstruction
+     */
+    INSTANCE_OF,
+    /**
+     * @see SSAPhiInstruction
+     */
+    PHI,
+    /**
+     * @see SSAGetCaughtExceptionInstruction
+     */
+    GET_CAUGHT_EXCEPTION,
+    /**
+     * @see SSALoadMetadataInstruction
+     */
+    LOAD_METADATA,
+    /**
+     * @see SSAPiInstruction
+     */
+    PI,
+    /**
+     * @see SSALoadIndirectInstruction
+     */
+    LOAD_INDIRECT,
+    /**
+     * @see SSAAddressOfInstruction
+     */
+    ADDRESS_OF,
+    /**
+     * @see SSAMonitorInstruction
+     */
+    MONITOR,
+    /**
+     * @see SSAStoreIndirectInstruction
+     */
+    STORE_INDIRECT,
+    /**
+     * Virtual method invocation.
+     * 
+     * @see SSAInvokeInstruction
+     */
+    INVOKE_VIRTUAL,
+    /**
+     * Invocation of an interface method.
+     * 
+     * @see {@link SSAInvokeInstruction}
+     */
+    INVOKE_INTERFACE,
+    /**
+     * Special method invocation.
+     * 
+     * @see {@link SSAInvokeInstruction}
+     */
+    INVOKE_SPECIAL,
+    /**
+     * Static method invocation.
+     * 
+     * @see {@link SSAInvokeInstruction}
+     */
+    INVOKE_STATIC;
+
+    public static InstructionType forInstruction(SSAInstruction i) {
+        if (i instanceof SSAGotoInstruction) return GOTO;
+        if (i instanceof SSAArrayLoadInstruction) return ARRAY_LOAD;
+        if (i instanceof SSAArrayStoreInstruction) return ARRAY_STORE;
+        if (i instanceof SSABinaryOpInstruction) return BINARY_OP;
+        if (i instanceof SSAPiInstruction) return PI;
+        if (i instanceof SSAUnaryOpInstruction) {
+            // Unary negation should be the only possibility here
+            assert ((SSAUnaryOpInstruction) i).getOpcode() == com.ibm.wala.shrikeBT.IUnaryOpInstruction.Operator.NEG : "Invalid unary operator: "
+                    + ((SSAUnaryOpInstruction) i).getOpcode();
+            return UNARY_NEG_OP;
+        }
+        if (i instanceof SSAConversionInstruction) return CONVERSION;
+        if (i instanceof SSAComparisonInstruction) return COMPARISON;
+        if (i instanceof SSAConditionalBranchInstruction) return CONDITIONAL_BRANCH;
+        if (i instanceof SSASwitchInstruction) return SWITCH;
+        if (i instanceof SSAReturnInstruction) return RETURN;
+        if (i instanceof SSAGetInstruction) return GET;
+        if (i instanceof SSAPutInstruction) return PUT;
+        if (i instanceof SSAInvokeInstruction) {
+            SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
+            IInvokeInstruction.Dispatch type = (Dispatch) inv.getCallSite().getInvocationCode();
+            switch (type) {
+            case VIRTUAL: return INVOKE_VIRTUAL;
+            case INTERFACE: return INVOKE_INTERFACE;
+            case SPECIAL: return INVOKE_SPECIAL;
+            case STATIC: return INVOKE_STATIC;
+            default: assert false : "Invalid invocation type: " + type;
+            }
+        }
+        if (i instanceof SSANewInstruction) return NEW;
+        if (i instanceof SSAArrayLengthInstruction) return ARRAY_LENGTH;
+        if (i instanceof SSAThrowInstruction) return THROW;
+        if (i instanceof SSACheckCastInstruction) return CHECK_CAST;
+        if (i instanceof SSAInstanceofInstruction) return INSTANCE_OF;
+        if (i instanceof SSAPhiInstruction) return PHI;
+        if (i instanceof SSAGetCaughtExceptionInstruction) return GET_CAUGHT_EXCEPTION;
+        if (i instanceof SSALoadMetadataInstruction) return LOAD_METADATA;
+        if (i instanceof SSALoadIndirectInstruction) return LOAD_INDIRECT;
+        if (i instanceof SSAAddressOfInstruction) return ADDRESS_OF;
+        if (i instanceof SSAMonitorInstruction) return MONITOR;
+        if (i instanceof SSAStoreIndirectInstruction) return STORE_INDIRECT;
+
+        String msg = "Invalid instruction type: " + i.getClass().getCanonicalName();
+        assert false : msg;
+        throw new RuntimeException(msg);
+    }
+    
+    /**
+     * True if this type of instruction is not supposed to be created for normal code.
+     * 
+     * @return true if this type is not expected to occur
+     */
+    public boolean isUnexpected() {
+        switch (this) {
+        // Unexpected cases
+        case STORE_INDIRECT:
+        case PI:
+        case MONITOR:
+        case LOAD_INDIRECT:
+        case ADDRESS_OF:
+            return true;
+        default:
+            return false;
+        }
+    }
+}

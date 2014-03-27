@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import types.TypeRepository;
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.statements.StatementRegistrar;
 
 import com.ibm.wala.shrikeCT.InvalidClassFileException;

@@ -1,6 +1,8 @@
 package test.integration;
 
-import java.util.Iterator;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
 
 import junit.framework.TestCase;
 
@@ -8,7 +10,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.JavaLanguage.JavaInstructionFactory;
@@ -135,20 +137,17 @@ public class ListClasses extends TestCase {
 
 			System.out.println(sb.toString());
 			
-			if (true || bb.toString().contains("main(")) {
-				if (bb.isEntryBlock()) {
-					System.out.println("IR");
-					IR ir = bb.getNode().getIR();
-					pp = PrettyPrinter.getPrinter(ir);
-					int j = 0;
-					Iterator<SSAInstruction> iter = ir.iterateAllInstructions();
-					while (iter.hasNext()) {
-						SSAInstruction i = iter.next();
-						System.out.print("\t" + j++ + " ");
-						i.visit(pp);
-						System.out.println(" " + " (" + getClassName(i) + ")");
-					}
-				}
+			if (bb.toString().contains("main(")) {
+			    System.out.println("IR for main");
+			    IR ir = bb.getNode().getIR();
+			    Writer writer = new StringWriter();
+			    PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+			    System.out.println(writer.toString());
+			    try {
+                    writer.close();
+                } catch (IOException e1) {
+                    throw new RuntimeException();
+                }
 			}
 		}
 	}

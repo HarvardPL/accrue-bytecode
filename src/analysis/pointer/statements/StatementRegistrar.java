@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.MethodSummaryNodes;
 
@@ -359,7 +359,7 @@ public class StatementRegistrar {
         LocalNode node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
-            node = freshLocal(PrettyPrinter.getPrinter(ir).stringForValue(local), type, false);
+            node = freshLocal(PrettyPrinter.valString(ir, local), type, false);
             locals.put(key, node);
         }
         return node;
@@ -544,12 +544,10 @@ public class StatementRegistrar {
     public static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IClassHierarchy cha) {
         Set<IMethod> targets = null;
         if (inv.isStatic()) {
-            // TODO is this right
             IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
             assert resolvedMethod != null : "No method found for " + inv.toString();
             targets = Collections.singleton(resolvedMethod);
         } else if (inv.isSpecial()) {
-            // TODO check that this is right
             IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
             assert resolvedMethod != null : "No method found for " + inv.toString();
             targets = Collections.singleton(resolvedMethod);
@@ -594,8 +592,6 @@ public class StatementRegistrar {
             return ret;
 
         }
-        // TODO Is it OK to return an empty set if the key is missing
-        // or could this indicate another issue
         return Collections.emptySet();
     }
 }

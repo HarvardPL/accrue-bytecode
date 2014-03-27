@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import util.PrettyPrinter;
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
@@ -96,7 +96,6 @@ public abstract class PointsToStatement {
                 } else if (cha.isSubclassOf(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught
-                    // TODO make exceptions more precise in a later pass
                     alreadyCaught.add(caught);
                     changed |= g.addEdges(cb.formalNode,
                             g.getPointsToSetFiltered(exceptionRep, caughtType, alreadyCaught));
@@ -176,8 +175,9 @@ public abstract class PointsToStatement {
         List<CatchBlock> catchBlocks = new LinkedList<>();
         for (ISSABasicBlock bb : catchBasicBlocks) {
             if (bb.isExitBlock()) {
-                // TODO the exit block considered a catch block, but we don't
-                // treat it that way
+                // the exit block considered a catch block, but we handle that
+                // differently in checkThrown by adding edges into summary
+                // exit nodes
                 break;
             }
             Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
