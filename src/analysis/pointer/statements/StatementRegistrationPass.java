@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import util.InstructionType;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
@@ -21,28 +22,18 @@ import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
-import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
-import com.ibm.wala.ssa.SSABinaryOpInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
-import com.ibm.wala.ssa.SSAComparisonInstruction;
-import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
-import com.ibm.wala.ssa.SSAConversionInstruction;
-import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
-import com.ibm.wala.ssa.SSAGotoInstruction;
-import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
-import com.ibm.wala.ssa.SSAPiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
-import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -151,7 +142,6 @@ public class StatementRegistrationPass {
             } catch (IOException e) {
                 throw new RuntimeException();
             }
-            // XXX PrettyPrinter.printCFG("", ir.getControlFlowGraph());
         }
 
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
@@ -338,8 +328,29 @@ public class StatementRegistrationPass {
             throw new RuntimeException("More than two defs in instruction: " + i.toString(ir.getSymbolTable()));
         }
 
-        // procedure calls, instance initializers, constructor invocation
-        if (i instanceof SSAInvokeInstruction) {
+        InstructionType type = InstructionType.forInstruction(i);
+        switch (type) {
+        case ARRAY_LOAD:
+            // x = v[i]
+            registrar.registerArrayLoad((SSAArrayLoadInstruction) i, ir);
+            return;
+        case ARRAY_STORE:
+            // v[i] = x
+            registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir);
+            return;
+        case CHECK_CAST:
+            // v = (Type) x
+            registrar.registerCheckCast((SSACheckCastInstruction) i, ir);
+            return;
+        case GET:
+            // v = o.f
+            registrar.registerFieldAccess((SSAGetInstruction) i, ir, util.getClassHierarchy());
+            return;
+        case INVOKE_INTERFACE:
+        case INVOKE_SPECIAL:
+        case INVOKE_STATIC:
+        case INVOKE_VIRTUAL:
+            // procedure calls, instance initializers, constructor invocation
             SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
 
             Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util.getClassHierarchy());
@@ -352,92 +363,52 @@ public class StatementRegistrationPass {
             }
             registrar.registerInvoke(inv, ir, util.getClassHierarchy());
             return;
-        }
-
-        if (i.getNumberOfDefs() > 1) {
-            throw new RuntimeException("More than one defs in instruction: " + i.toString(ir.getSymbolTable()));
-        }
-
-        // v = new Foo();
-        if (i instanceof SSANewInstruction) {
-            registrar.registerNew((SSANewInstruction) i, ir, util.getClassHierarchy());
-            return;
-        }
-
-        // v = o.f
-        if (i instanceof SSAGetInstruction) {
-            registrar.registerFieldAccess((SSAGetInstruction) i, ir, util.getClassHierarchy());
-            return;
-        }
-
-        // o.f = v
-        if (i instanceof SSAPutInstruction) {
-            registrar.registerFieldAssign((SSAPutInstruction) i, ir, util.getClassHierarchy());
-            return;
-        }
-
-        // v = phi(x_1,x_2)
-        if (i instanceof SSAPhiInstruction) {
-            registrar.registerPhiAssignment((SSAPhiInstruction) i, ir);
-            return;
-        }
-
-        // v = (Type) x
-        if (i instanceof SSACheckCastInstruction) {
-            registrar.registerCheckCast((SSACheckCastInstruction) i, ir);
-            return;
-        }
-
-        // v[i] = x
-        if (i instanceof SSAArrayStoreInstruction) {
-            registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir);
-            return;
-        }
-        // x = v[i]
-        if (i instanceof SSAArrayLoadInstruction) {
-            registrar.registerArrayLoad((SSAArrayLoadInstruction) i, ir);
-            return;
-        }
-
-        // return v
-        if (i instanceof SSAReturnInstruction) {
-            registrar.registerReturn((SSAReturnInstruction) i, ir);
-            return;
-        }
-
-        // throw e
-        if (i instanceof SSAThrowInstruction) {
-            registrar.registerThrow((SSAThrowInstruction) i, ir);
-            return;
-        }
-
-        // Reflection
-        if (i instanceof SSALoadMetadataInstruction) {
+        case LOAD_METADATA:
+            // Reflection
             registrar.registerReflection((SSALoadMetadataInstruction) i, ir);
             return;
+        case NEW:
+            // v = new Foo();
+            registrar.registerNew((SSANewInstruction) i, ir, util.getClassHierarchy());
+            return;
+        case PHI:
+            // v = phi(x_1,x_2)
+            registrar.registerPhiAssignment((SSAPhiInstruction) i, ir);
+            return;
+        case PUT:
+            // o.f = v
+            registrar.registerFieldAssign((SSAPutInstruction) i, ir, util.getClassHierarchy());
+            return;
+        case RETURN:
+            // return v
+            registrar.registerReturn((SSAReturnInstruction) i, ir);
+            return;
+        case THROW:
+            // throw e
+            registrar.registerThrow((SSAThrowInstruction) i, ir);
+            return;
+        case ARRAY_LENGTH: // primitive return
+        case BINARY_OP: // not creating nodes for intermediate results
+        case COMPARISON: // primitive op
+        case CONDITIONAL_BRANCH: // computes primitive and branches
+        case CONVERSION: // primitive op
+        case GET_CAUGHT_EXCEPTION: // handled in PointsToStatement#checkThrown
+        case GOTO: // control flow
+        case INSTANCE_OF: // results in a primitive
+        case SWITCH: // only switch on int
+        case UNARY_NEG_OP: // primitive op
+            break;
+        // the following are not normally used
+        case ADDRESS_OF:
+        case STORE_INDIRECT:
+        case PI:
+        case LOAD_INDIRECT:
+        case MONITOR:
+            assert false : "Unexpected instruction type: " + type;
+            break;
+        default:
+            assert false : "Bad instruction type: " + type;
         }
-        checkUnhandledInstruction(i, ir);
-    }
-
-    /**
-     * Check whether the given instruction is one that does not affect pointer
-     * analysis results
-     */
-    private void checkUnhandledInstruction(SSAInstruction i, IR ir) {
-        String className = PrettyPrinter.getSimpleClassName(i);
-        if (VERBOSE >= 3) {
-            StringBuilder s = new StringBuilder();
-            s.append(PrettyPrinter.instructionString(ir, i));
-            s.append(" not handled. " + "(" + className + ")");
-            System.err.println(s.toString());
-        }
-        assert i instanceof SSAArrayLengthInstruction || i instanceof SSAGotoInstruction
-                || i instanceof SSAConditionalBranchInstruction || i instanceof SSABinaryOpInstruction
-                || i instanceof SSAConversionInstruction || i instanceof SSAInstanceofInstruction
-                || i instanceof SSAGetCaughtExceptionInstruction
-                || (i instanceof SSAUnaryOpInstruction && !(i instanceof SSAPiInstruction))
-                || i instanceof SSAComparisonInstruction : "Instructions of type " + className
-                + " not handled in Statement registration pass.";
     }
 
     /**

@@ -4,6 +4,9 @@ import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 
+/**
+ * Global instances of WALA classes and global constants 
+ */
 public class WalaAnalysisUtil {
     /**
      * Cache containing and managing SSA IR we are analyzing
