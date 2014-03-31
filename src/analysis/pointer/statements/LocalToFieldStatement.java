@@ -12,6 +12,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.FieldReference;
 
 /**
@@ -32,7 +33,7 @@ public class LocalToFieldStatement extends PointsToStatement {
     private final LocalNode assigned;
 
     /**
-     * Statement for an assignment into a field
+     * Statement for an assignment into a field, o.f = v
      * 
      * @param f
      *            field assigned to
@@ -40,9 +41,14 @@ public class LocalToFieldStatement extends PointsToStatement {
      *            points-to graph node for receiver of field access
      * @param v
      *            points-to graph node for value assigned
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public LocalToFieldStatement(FieldReference f, LocalNode o, LocalNode v, IR ir) {
-        super(ir);
+    public LocalToFieldStatement(FieldReference f, LocalNode o, LocalNode v, IR ir,
+            SSAPutInstruction i) {
+        super(ir, i);
         this.field = f;
         this.receiver = o;
         this.assigned = v;
@@ -60,6 +66,10 @@ public class LocalToFieldStatement extends PointsToStatement {
             ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
             changed |= g.addEdges(f, localHeapContexts);
         }
+
+        // Otherwise, if objectref is null, the putfield instruction throws a
+        // NullPointerException.
+        changed |= checkAllThrown(context, g, registrar);
         return changed;
     }
 

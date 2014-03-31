@@ -12,6 +12,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -41,9 +42,14 @@ public class LocalToArrayStatement extends PointsToStatement {
      *            points-to graph node for assigned value
      * @param baseType
      *            type of the array elements
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public LocalToArrayStatement(LocalNode a, LocalNode v, TypeReference baseType, IR ir) {
-        super(ir);
+    public LocalToArrayStatement(LocalNode a, LocalNode v, TypeReference baseType, IR ir,
+            SSAArrayStoreInstruction i) {
+        super(ir, i);
         this.array = a;
         this.value = v;
         this.baseType = baseType;
@@ -61,6 +67,18 @@ public class LocalToArrayStatement extends PointsToStatement {
             ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
             changed |= g.addEdges(contents, valHeapContexts);
         }
+
+        // If arrayref is null, aastore throws a NullPointerException.
+
+        // Otherwise, if index is not within the bounds of the array referenced
+        // by arrayref, the aastore instruction throws an
+        // ArrayIndexOutOfBoundsException.
+
+        // Otherwise, if arrayref is not null and the actual type of value is
+        // not assignment compatible (JLS 5.2) with the actual type of the
+        // components of the array, aastore throws an ArrayStoreException.
+        changed |= checkAllThrown(context, g, registrar);
+
         return changed;
     }
 

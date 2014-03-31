@@ -8,6 +8,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAInstruction;
 
 /**
  * Points-to statement for a local assignment, left = right
@@ -21,8 +22,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     /**
      * assigned
      */
-    private final LocalNode right;    
-    
+    private final LocalNode right;
+
     /**
      * Statement for a local assignment, left = right
      * 
@@ -30,9 +31,13 @@ public class LocalToLocalStatement extends PointsToStatement {
      *            points-to graph node for assignee
      * @param right
      *            points-to graph node for the assigned value
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public LocalToLocalStatement(LocalNode left, LocalNode right, IR ir) {
-        super(ir);
+    public LocalToLocalStatement(LocalNode left, LocalNode right, IR ir, SSAInstruction i) {
+        super(ir, i);
         assert !left.isStatic() : left + " is static";
         assert !right.isStatic() : right + " is static";
         this.left = left;
@@ -44,9 +49,12 @@ public class LocalToLocalStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
 
-        return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
+        boolean changed = false;
+        changed |= checkAllThrown(context, g, registrar);
+
+        return changed || g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
     }
-    
+
     @Override
     public String toString() {
         return left + " = " + right;

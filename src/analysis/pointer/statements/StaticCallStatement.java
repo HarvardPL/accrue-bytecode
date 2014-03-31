@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
@@ -11,6 +12,7 @@ import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 
 /**
  * Points-to statement for a static method call
@@ -27,8 +29,6 @@ public class StaticCallStatement extends CallStatement {
      * 
      * @param callSite
      *            Method call site
-     * @param ir
-     *            IR for the caller method
      * @param callee
      *            Method being called
      * @param receiver
@@ -36,19 +36,37 @@ public class StaticCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if
+     *            there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public StaticCallStatement(CallSiteReference callSite, IR ir, IMethod callee, List<LocalNode> actuals,
-            LocalNode resultNode, LocalNode exceptionNode) {
-        super(callSite, ir, actuals, resultNode, exceptionNode);
+    public StaticCallStatement(CallSiteReference callSite, IMethod callee, List<LocalNode> actuals,
+            LocalNode resultNode, LocalNode exceptionNode, IR ir, SSAInvokeInstruction i) {
+        super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.callee = callee;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         Context calleeContext = haf.merge(getCallSite(), getCode(), null, context);
+
+        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
+            // Otherwise, if execution of this invokestatic instruction causes
+            // initialization of the referenced class, invokestatic may throw an
+            // Error as detailed in 5.5.
+
+            // Otherwise, if the resolved method is native and the code that
+            // implements the method cannot be bound, invokestatic throws an
+            // UnsatisfiedLinkError.
+
+            // TODO handle errors for static call        
+        }
+
         return processCall(context, null, callee, calleeContext, g, registrar);
     }
 

@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.List;
-
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
@@ -9,7 +7,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.ISSABasicBlock;
+import com.ibm.wala.ssa.SSAThrowInstruction;
 
 /**
  * Points-to statement for an exception throw instruction
@@ -20,11 +18,7 @@ public class ThrowStatement extends PointsToStatement {
      * Points-to graph node for the exception that is thrown
      */
     private final LocalNode exception;
-    /**
-     * Basic block the instruction occurs in
-     */
-    private final ISSABasicBlock bb;
-    
+
     /**
      * Points-to statement for an exception throw
      * 
@@ -35,19 +29,43 @@ public class ThrowStatement extends PointsToStatement {
      * @param bb
      *            basic block the instruction occurs in
      */
-    public ThrowStatement(LocalNode exception, IR ir, ISSABasicBlock bb) {
-        super(ir);
+    public ThrowStatement(LocalNode exception, IR ir, SSAThrowInstruction i) {
+        super(ir, i);
         this.exception = exception;
-        this.bb = bb;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        ReferenceVariableReplica thrown = new ReferenceVariableReplica(context, exception);     
-        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(bb, registrar, context);
-        return checkThrown(exception.getExpectedType(), thrown, g, getExceptionReplicas(context, registrar), catchBlocks);
+        
+        ReferenceVariableReplica thrown = new ReferenceVariableReplica(context, exception);
+        
+        // If objectref is null, athrow throws a NullPointerException instead of
+        // objectref.
+        boolean changed = checkAllThrown(context, g, registrar);
+
+        // Otherwise, if the Java Virtual Machine implementation does not
+        // enforce the rules on structured locking described in 2.11.10,
+        // then if the method of the current frame is a synchronized method
+        // and the current thread is not the owner of the monitor entered or
+        // reentered on invocation of the method, athrow throws an
+        // IllegalMonitorStateException instead of the object previously
+        // being thrown. This can happen, for example, if an abruptly
+        // completing synchronized method contains a monitorexit
+        // instruction, but no monitorenter instruction, on the object on
+        // which the method is synchronized.
+        
+        // Otherwise, if the Java Virtual Machine implementation enforces
+        // the rules on structured locking described in 2.11.10 and if the
+        // first of those rules is violated during invocation of the current
+        // method, then athrow throws an IllegalMonitorStateException
+        // instead of the object previously being thrown.
+        
+        // TODO handle IllegalMonitorStateException for throw
+       
+
+        return changed || checkThrown(exception.getExpectedType(), thrown, context, g, registrar);
     }
-    
+
     @Override
     public String toString() {
         return "throw " + exception;
@@ -57,7 +75,6 @@ public class ThrowStatement extends PointsToStatement {
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
-        result = prime * result + ((bb == null) ? 0 : bb.hashCode());
         result = prime * result + ((exception == null) ? 0 : exception.hashCode());
         return result;
     }
@@ -71,11 +88,6 @@ public class ThrowStatement extends PointsToStatement {
         if (getClass() != obj.getClass())
             return false;
         ThrowStatement other = (ThrowStatement) obj;
-        if (bb == null) {
-            if (other.bb != null)
-                return false;
-        } else if (!bb.equals(other.bb))
-            return false;
         if (exception == null) {
             if (other.exception != null)
                 return false;

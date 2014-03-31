@@ -17,6 +17,10 @@ public class WalaAnalysisUtil {
      * Class hierarchy for the code being analyzed
      */
     private final IClassHierarchy cha;
+    /**
+     * If true then implicit errors should be handled by all analyses
+     */
+    public static final boolean INCLUDE_IMPLICIT_ERRORS = false;
     
     /**
      * Create a pass which will generate points-to statements

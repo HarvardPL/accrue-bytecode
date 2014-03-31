@@ -2,9 +2,9 @@ package analysis.pointer.statements;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
@@ -15,7 +15,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.ISSABasicBlock;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -45,19 +45,25 @@ public abstract class CallStatement extends PointsToStatement {
      * 
      * @param callSite
      *            Method call site
-     * @param ir
-     *            IR for the caller method
      * @param callee
      *            Method being called
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if
+     *            there is none or if it is a primitive
      * @param exceptionNode
-     *            Node in the caller representing the exception thrown by this call (if any)
+     *            Node in the caller representing the exception thrown by this
+     *            call (if any) also exceptions implicitly thrown by this
+     *            statement
+     * @param ir
+     *            IR for the caller method
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public CallStatement(CallSiteReference callSite, IR callerIR, List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode) {
-        super(callerIR);
+    public CallStatement(CallSiteReference callSite, List<LocalNode> actuals, LocalNode resultNode,
+            LocalNode exceptionNode, IR callerIR, SSAInvokeInstruction i) {
+        super(callerIR, i);
         this.callSite = callSite;
         this.actuals = actuals;
         this.resultNode = resultNode;
@@ -82,10 +88,10 @@ public abstract class CallStatement extends PointsToStatement {
      * @return true if the points-to graph has changed
      */
     protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
-            Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {   
+            Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
         if (resolvedCallee.isNative()) {
             // TODO Pointer Analysis not handling native methods yet
-            return false;          
+            return false;
         }
         boolean changed = false;
 
@@ -128,40 +134,29 @@ public abstract class CallStatement extends PointsToStatement {
             ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
                     calleeSummary.getReturnNode());
 
-            changed |= g
-                    .addEdges(resultRep, g.getPointsToSetFiltered(returnValueFormal, resultRep.getExpectedType()));
+            changed |= g.addEdges(resultRep, g.getPointsToSetFiltered(returnValueFormal, resultRep.getExpectedType()));
         }
-        
-        /////////////////// Exceptions //////////////////
-        
-        // Get the basic block for the call 
-        ISSABasicBlock[] bbs = getCode().getBasicBlocksForCall(getCallSite());
-        // TODO why is this an array, maybe for duplicated finally blocks?
-        if (bbs.length > 1) {
-            throw new RuntimeException("More than one basic block for a call");
+
+        // ///////////////// Exceptions //////////////////
+
+        // Add edge from the exception in the callee to the exception in the
+        // caller
+        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
+        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
+        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
+
+        for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
+            // check if the exception is caught or re-thrown by this procedure
+            changed |= checkThrown(exType, callerEx, callerContext, g, registrar);
         }
-        
-        // Find successor catch blocks
-        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(bbs[0], registrar, callerContext);
-        
-        // Gather all the exceptions thrown by the caller in the current
-        // (caller) context
-        Map<TypeReference, ReferenceVariableReplica> callerThrows = getExceptionReplicas(callerContext, registrar);
-        
-        ReferenceVariableReplica exceptionRep = getReplica(callerContext, exceptionNode);
-        for (TypeReference exType : calleeSummary.getExceptions().keySet()) {
-            // Add edges from the exception in the callee to the exception in the caller
-            ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getExceptions().get(exType));
-            changed |= g.addEdges(exceptionRep, g.getPointsToSetFiltered(calleeEx, exType));
-            // check if the exception is caught or rethrown by this procedure
-            changed |= checkThrown(exType, exceptionRep, g, callerThrows, catchBlocks);
-        }
+
         return changed;
     }
 
     /**
      * Get reference variable replicas in the given context for each element of
      * the list of Reference variables
+     * 
      * @param context
      *            Context the replicas will be created in
      * @param actuals
@@ -204,7 +199,8 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     /**
-     * Result of the call if any, null if void or primitive return or if the return result is not assigned
+     * Result of the call if any, null if void or primitive return or if the
+     * return result is not assigned
      * 
      * @return return result node (in the caller)
      */

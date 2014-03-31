@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AllocSiteNode;
 import analysis.pointer.graph.LocalNode;
@@ -13,6 +14,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
  * Points-to graph node for a "new" statement, e.g. Object o = new Object()
@@ -31,8 +33,7 @@ public class NewStatement extends PointsToStatement {
      * Reference variable for this allocation site
      */
     private final AllocSiteNode alloc;
-    
-    
+
     /**
      * Points-to graph statement for a "new" instruction, e.g. Object o = new
      * Object()
@@ -41,11 +42,16 @@ public class NewStatement extends PointsToStatement {
      *            Points-to graph node for the assignee of the new
      * @param newSite
      *            Constructor call site
+     * @param cha
+     *            class hierarchy
      * @param ir
-     *            Code containing the new statement
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public NewStatement(LocalNode result, NewSiteReference newSite, IR ir, IClassHierarchy cha) {
-        super(ir);
+    public NewStatement(LocalNode result, NewSiteReference newSite, IClassHierarchy cha, IR ir,
+            SSANewInstruction i) {
+        super(ir, i);
         this.result = result;
         this.newSite = newSite;
         IClass instantiated = cha.lookupClass(newSite.getDeclaredType());
@@ -59,8 +65,22 @@ public class NewStatement extends PointsToStatement {
         InstanceKey k = haf.record(context, alloc, getCode());
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
 
+        boolean changed = false;
+        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
+            // During resolution of the symbolic reference to the class, array,
+            // or interface type, any of the exceptions documented in 5.4.3.1
+            // can be thrown.
+
+            // Otherwise, if the symbolic reference to the class, array, or
+            // interface type resolves to an interface or is an abstract class,
+            // new throws an InstantiationError.
+            // TODO implicit errors from new
+        }
+        
+        // TODO Handle array dimensions for new array
+
         // Add an edge from the assignee to the newly allocated object
-        return g.addEdge(r, k);
+        return changed || g.addEdge(r, k);
     }
 
     @Override

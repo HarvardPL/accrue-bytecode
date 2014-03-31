@@ -7,6 +7,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAReturnInstruction;
 
 /**
  * Points-to statement for a "return" instruction
@@ -21,7 +22,7 @@ public class ReturnStatement extends PointsToStatement {
      * Node summarizing all return values for the method
      */
     private final LocalNode returnSummary;
-    
+
     /**
      * Create a points-to statement for a return instruction
      * 
@@ -29,9 +30,13 @@ public class ReturnStatement extends PointsToStatement {
      *            Node for return result
      * @param returnSummary
      *            Node summarizing all return values for the method
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public ReturnStatement(LocalNode result, LocalNode returnSummary, IR ir) {
-        super(ir);
+    public ReturnStatement(LocalNode result, LocalNode returnSummary, IR ir, SSAReturnInstruction i) {
+        super(ir, i);
         this.result = result;
         this.returnSummary = returnSummary;
     }
@@ -41,12 +46,13 @@ public class ReturnStatement extends PointsToStatement {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
 
+        // TODO handle implicit IllegalMonitorStateException for return
         return g.addEdges(summaryRes, g.getPointsToSetFiltered(returnRes, summaryRes.getExpectedType()));
     }
 
     @Override
     public String toString() {
-        return("return " + result);
+        return ("return " + result);
     }
 
     @Override

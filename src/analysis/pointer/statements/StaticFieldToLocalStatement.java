@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
@@ -8,6 +9,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAGetInstruction;
 
 /**
  * Points-to statement for an assignment from a static field to a local variable, v = o.x
@@ -21,7 +23,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     /**
      * assigned
      */
-    private final LocalNode local;    
+    private final LocalNode local;
     
     /**
      * Statement for an assignment from a static field to a local, local =
@@ -31,9 +33,13 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
      *            points-to graph node for the assigned value
      * @param staticField
      *            points-to graph node for assignee
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public StaticFieldToLocalStatement(LocalNode local, LocalNode staticField, IR ir) {
-        super(ir);
+    public StaticFieldToLocalStatement(LocalNode local, LocalNode staticField, IR ir, SSAGetInstruction i) {
+        super(ir, i);
         assert staticField.isStatic() : staticField + " is not static";
         assert !local.isStatic() : local + " is static";
         this.staticField = staticField;
@@ -44,6 +50,18 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
+        
+        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
+            // During resolution of the symbolic reference to the class or
+            // interface field, any of the exceptions pertaining to field
+            // resolution (5.4.3.2) can be thrown.
+
+            // Otherwise, if the resolved field is not a static (class) field or
+            // an interface field, getstatic throws an
+            // IncompatibleClassChangeError.
+
+            // TODO handle implicit errors for static get
+        }
         
         return g.addEdges(l, g.getPointsToSetFiltered(r, local.getExpectedType()));
     }

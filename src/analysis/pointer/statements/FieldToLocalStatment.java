@@ -13,10 +13,12 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.types.FieldReference;
 
 /**
- * Points-to statement for an Access a field and assign the result to a local. l = o.f
+ * Points-to statement for an Access a field and assign the result to a local. l
+ * = o.f
  */
 public class FieldToLocalStatment extends PointsToStatement {
 
@@ -42,14 +44,19 @@ public class FieldToLocalStatment extends PointsToStatement {
      *            points-to graph node for receiver of field access
      * @param l
      *            points-to graph node for local assigned into
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public FieldToLocalStatment(FieldReference f, LocalNode o, LocalNode l, IR ir) {
-        super(ir);
+    public FieldToLocalStatment(FieldReference f, LocalNode o, LocalNode l, IR ir,
+            SSAGetInstruction i) {
+        super(ir, i);
         this.declaredField = f;
         this.receiver = o;
         this.assignee = l;
     }
-    
+
     @Override
     public String toString() {
         return assignee + " = " + receiver + "." + declaredField.getName();
@@ -62,13 +69,18 @@ public class FieldToLocalStatment extends PointsToStatement {
 
         Set<InstanceKey> fields = new LinkedHashSet<>();
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(), declaredField.getFieldType());
+            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
+                    declaredField.getFieldType());
             for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, assignee.getExpectedType())) {
                 fields.add(fieldHeapContext);
             }
         }
-        
-        return g.addEdges(left, fields);
+
+        // Otherwise, if objectref is null, the getfield instruction throws a
+        // NullPointerException.
+        boolean changed = checkAllThrown(context, g, registrar);
+
+        return changed || g.addEdges(left, fields);
     }
 
     @Override

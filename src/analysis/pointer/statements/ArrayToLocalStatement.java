@@ -10,6 +10,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -33,9 +34,12 @@ public class ArrayToLocalStatement extends PointsToStatement {
      *            base type of the array
      * @param ir
      *            Code this statement occurs in
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType, IR ir) {
-        super(ir);
+    public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType, IR ir,
+            SSAArrayLoadInstruction i) {
+        super(ir, i);
         this.value = v;
         this.array = a;
         this.baseType = baseType;
@@ -53,6 +57,14 @@ public class ArrayToLocalStatement extends PointsToStatement {
             ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
             changed |= g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
         }
+
+        // If arrayref is null, aaload throws a NullPointerException.
+
+        // Otherwise, if index is not within the bounds of the array referenced
+        // by arrayref, the aaload instruction throws an
+        // ArrayIndexOutOfBoundsException.
+        changed |= checkAllThrown(context, g, registrar);
+
         return changed;
     }
 

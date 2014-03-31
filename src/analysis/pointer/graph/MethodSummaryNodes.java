@@ -1,15 +1,12 @@
 package analysis.pointer.graph;
 
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.pointer.statements.StatementRegistrar;
 
-import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
 
@@ -36,7 +33,7 @@ public class MethodSummaryNodes {
     /**
      * Nodes for each type of exception that may be thrown
      */
-    private final Map<TypeReference, LocalNode> exceptions = new LinkedHashMap<>();
+    private final LocalNode exception;
     /**
      * String for method
      */
@@ -79,40 +76,15 @@ public class MethodSummaryNodes {
             }
         }
 
+        name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
+        
         TypeReference returnType = ir.getMethod().getReturnType();
         returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : 
             // TODO this and below are the only places this is called outside of the Registrar
-            new LocalNode(PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT", returnType, false);  
+            new LocalNode(name + "-EXIT", returnType, false);  
         
-        TypeReference[] exceptionTypes = null;
-        try {
-            exceptionTypes = ir.getMethod().getDeclaredExceptions();
-        } catch (UnsupportedOperationException | InvalidClassFileException e) {
-            throw new RuntimeException("Cannot find exception types for " + ir.getMethod().getSignature(), e);
-        }
-        if (exceptionTypes != null) {
-            for (TypeReference type : exceptionTypes) {
-                String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
-                        + PrettyPrinter.parseType(type);
-                LocalNode val = new LocalNode(str, type, false);
-                exceptions.put(type, val);
-            }
-        }
-        // All methods can throw RuntimException or Error
-        if (!exceptions.containsKey(TypeReference.JavaLangRuntimeException)) {
-            String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
-                    + PrettyPrinter.parseType(TypeReference.JavaLangRuntimeException);
-            LocalNode val = new LocalNode(str, TypeReference.JavaLangRuntimeException, false);
-            exceptions.put(TypeReference.JavaLangRuntimeException, val);
-        }
-        if (!exceptions.containsKey(TypeReference.JavaLangError)) {
-            String str = PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " EXIT-"
-                    + PrettyPrinter.parseType(TypeReference.JavaLangError);
-            LocalNode val = new LocalNode(str, TypeReference.JavaLangError, false);
-            exceptions.put(TypeReference.JavaLangError, val);
-        }
-        
-        name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
+        TypeReference throwable = TypeReference.JavaLangThrowable;
+        exception = new LocalNode(name + "-EXCEPTION", throwable, false);
     }
 
     private boolean isVoid(TypeReference type) {
@@ -131,8 +103,8 @@ public class MethodSummaryNodes {
         return returnNode;
     }
     
-    public Map<TypeReference, LocalNode> getExceptions() {
-        return exceptions;
+    public LocalNode getException() {
+        return exception;
     }
     
     @Override
@@ -144,8 +116,9 @@ public class MethodSummaryNodes {
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((exceptions == null) ? 0 : exceptions.hashCode());
+        result = prime * result + ((exception == null) ? 0 : exception.hashCode());
         result = prime * result + ((formals == null) ? 0 : formals.hashCode());
+        result = prime * result + ((name == null) ? 0 : name.hashCode());
         result = prime * result + ((returnNode == null) ? 0 : returnNode.hashCode());
         result = prime * result + ((thisNode == null) ? 0 : thisNode.hashCode());
         return result;
@@ -160,15 +133,20 @@ public class MethodSummaryNodes {
         if (getClass() != obj.getClass())
             return false;
         MethodSummaryNodes other = (MethodSummaryNodes) obj;
-        if (exceptions == null) {
-            if (other.exceptions != null)
+        if (exception == null) {
+            if (other.exception != null)
                 return false;
-        } else if (!exceptions.equals(other.exceptions))
+        } else if (!exception.equals(other.exception))
             return false;
         if (formals == null) {
             if (other.formals != null)
                 return false;
         } else if (!formals.equals(other.formals))
+            return false;
+        if (name == null) {
+            if (other.name != null)
+                return false;
+        } else if (!name.equals(other.name))
             return false;
         if (returnNode == null) {
             if (other.returnNode != null)

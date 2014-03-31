@@ -23,6 +23,7 @@ import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
@@ -43,6 +44,10 @@ public class StatementRegistrar {
      * Points-to graph nodes for local variables
      */
     private final Map<LocalKey, LocalNode> locals = new LinkedHashMap<>();
+    /**
+     * Points-to graph nodes for implicit exceptions and errors
+     */
+    private final Map<ImplicitThrowKey, LocalNode> implicitThrows = new LinkedHashMap<>();
     /**
      * Points-to graph nodes for static fields
      */
@@ -86,7 +91,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode local = getLocal(i.getDef(), ir);
-        addStatement(new ArrayToLocalStatement(local, array, i.getElementType(), ir));
+        addStatement(new ArrayToLocalStatement(local, array, i.getElementType(), ir, i));
     }
 
     /**
@@ -106,7 +111,7 @@ public class StatementRegistrar {
         }
         LocalNode array = getLocal(i.getArrayRef(), ir);
         LocalNode value = getLocal(i.getValue(), ir);
-        addStatement(new LocalToArrayStatement(array, value, i.getElementType(), ir));
+        addStatement(new LocalToArrayStatement(array, value, i.getElementType(), ir, i));
     }
 
     /**
@@ -127,7 +132,7 @@ public class StatementRegistrar {
         // TODO throws class cast exception
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode checkedVal = getLocal(i.getVal(), ir);
-        addStatement(new LocalToLocalStatement(result, checkedVal, ir));
+        addStatement(new LocalToLocalStatement(result, checkedVal, ir, i));
     }
 
     /**
@@ -146,12 +151,12 @@ public class StatementRegistrar {
         LocalNode assignee = getLocal(i.getDef(), ir);
         if (i.isStatic()) {
             LocalNode field = getNodeForStaticField(i.getDeclaredField(), cha);
-            addStatement(new StaticFieldToLocalStatement(assignee, field, ir));
+            addStatement(new StaticFieldToLocalStatement(assignee, field, ir, i));
             return;
         }
 
         LocalNode receiver = getLocal(i.getRef(), ir);
-        addStatement(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir));
+        addStatement(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir, i));
     }
 
     /**
@@ -173,10 +178,10 @@ public class StatementRegistrar {
 
         if (i.isStatic()) {
             LocalNode fieldNode = getNodeForStaticField(f, cha);
-            addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir));
+            addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir, i));
         } else {
             LocalNode receiver = getLocal(i.getRef(), ir);
-            addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir));
+            addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir, i));
         }
     }
 
@@ -231,17 +236,17 @@ public class StatementRegistrar {
         if (i.isStatic()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
-            addStatement(new StaticCallStatement(i.getCallSite(), ir, resolvedMethod, actuals, resultNode,
-                    exceptionNode));
+            addStatement(new StaticCallStatement(i.getCallSite(), resolvedMethod, actuals, resultNode, exceptionNode,
+                    ir, i));
         } else if (i.isSpecial()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
-            addStatement(new SpecialCallStatement(i.getCallSite(), ir, resolvedMethod, receiver, actuals, resultNode,
-                    exceptionNode));
+            addStatement(new SpecialCallStatement(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
+                    exceptionNode, ir, i));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
-            addStatement(new VirtualCallStatement(i.getCallSite(), ir, i.getDeclaredTarget(), receiver, actuals,
-                    resultNode, exceptionNode, cha));
+            addStatement(new VirtualCallStatement(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
+                    resultNode, exceptionNode, cha, ir, i));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
                     + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
@@ -259,8 +264,8 @@ public class StatementRegistrar {
     public void registerNew(SSANewInstruction i, IR ir, IClassHierarchy cha) {
         // all "new" instructions are assigned to a local
         LocalNode result = getLocal(i.getDef(), ir);
-        // TODO Do we need to do anything with array dimensions, probably do
-        addStatement(new NewStatement(result, i.getNewSite(), ir, cha));
+
+        addStatement(new NewStatement(result, i.getNewSite(), cha, ir, i));
     }
 
     /**
@@ -291,7 +296,7 @@ public class StatementRegistrar {
             // analysis
             return;
         }
-        addStatement(new PhiStatement(assignee, uses, ir));
+        addStatement(new PhiStatement(assignee, uses, ir, i));
     }
 
     /**
@@ -322,7 +327,7 @@ public class StatementRegistrar {
         }
         LocalNode result = getLocal(i.getResult(), ir);
         LocalNode summary = methods.get(ir.getMethod()).getReturnNode();
-        addStatement(new ReturnStatement(result, summary, ir));
+        addStatement(new ReturnStatement(result, summary, ir, i));
     }
 
     /**
@@ -334,11 +339,8 @@ public class StatementRegistrar {
      *            code for method containing the instruction
      */
     public void registerThrow(SSAThrowInstruction i, IR ir) {
-        // TODO technically you can throw "null" literals, but seems unlikely
-        assert TypeRepository.getType(i.getException(), ir) != TypeReference.Null;
-
         LocalNode exception = getLocal(i.getException(), ir);
-        addStatement(new ThrowStatement(exception, ir, ir.getBasicBlockForInstruction(i)));
+        addStatement(new ThrowStatement(exception, ir, i));
     }
 
     /**
@@ -361,6 +363,28 @@ public class StatementRegistrar {
             TypeReference type = TypeRepository.getType(local, ir);
             node = freshLocal(PrettyPrinter.valString(ir, local), type, false);
             locals.put(key, node);
+        }
+        return node;
+    }
+
+    /**
+     * Get a points-to graph node for an implicitly thrown exception/error
+     * 
+     * @param type
+     *            type of the exception
+     * @param ir
+     *            method containing the instruction that throws
+     * @param i
+     *            instruction that throws
+     * 
+     * @return local node for an implicit throwable
+     */
+    protected LocalNode getImplicitExceptionNode(TypeReference type, IR ir, SSAInstruction i) {
+        ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
+        LocalNode node = implicitThrows.get(key);
+        if (node == null) {
+            node = freshLocal("IMPLICIT-" + PrettyPrinter.parseType(type), type, false);
+            implicitThrows.put(key, node);
         }
         return node;
     }
@@ -430,17 +454,88 @@ public class StatementRegistrar {
     }
 
     /**
+     * Key uniquely identifying an implicitly thrown exception or error
+     */
+    private static class ImplicitThrowKey {
+        /**
+         * Containing method
+         */
+        private final IR ir;
+        /**
+         * Instruction that throws the exception/error
+         */
+        private final SSAInstruction i;
+        /**
+         * Type of exception/error
+         */
+        private final TypeReference type;
+
+        /**
+         * Create a new key
+         * 
+         * @param type
+         *            Type of exception/error
+         * @param ir
+         *            Containing method
+         * @param i
+         *            Instruction that throws the exception/error
+         */
+        public ImplicitThrowKey(TypeReference type, IR ir, SSAInstruction i) {
+            this.type = type;
+            this.ir = ir;
+            this.i = i;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((i == null) ? 0 : i.hashCode());
+            result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+            result = prime * result + ((type == null) ? 0 : type.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            ImplicitThrowKey other = (ImplicitThrowKey) obj;
+            if (i == null) {
+                if (other.i != null)
+                    return false;
+            } else if (!i.equals(other.i))
+                return false;
+            if (ir == null) {
+                if (other.ir != null)
+                    return false;
+            } else if (!ir.equals(other.ir))
+                return false;
+            if (type == null) {
+                if (other.type != null)
+                    return false;
+            } else if (!type.equals(other.type))
+                return false;
+            return true;
+        }
+    }
+
+    /**
      * Key uniquely identifying a local variable.
      */
     private static class LocalKey {
         /**
          * local ID
          */
-        public final int value;
+        private final int value;
         /**
          * Code
          */
-        public final IR ir;
+        private final IR ir;
 
         /**
          * Create a new key

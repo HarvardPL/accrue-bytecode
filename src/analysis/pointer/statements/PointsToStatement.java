@@ -1,17 +1,18 @@
 package analysis.pointer.statements;
 
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.IClass;
@@ -21,6 +22,7 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -31,9 +33,26 @@ public abstract class PointsToStatement {
      * Code for the method the points-to statement came from
      */
     private final IR ir;
+    /**
+     * Instruction that generated this points-to statement
+     */
+    private final SSAInstruction i;
+    /**
+     * Basic block this points-to statement was generated in
+     */
+    private ISSABasicBlock bb = null;
 
-    public PointsToStatement(IR ir) {
+    /**
+     * Create a new points-to statement
+     * 
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
+     */
+    public PointsToStatement(IR ir, SSAInstruction i) {
         this.ir = ir;
+        this.i = i;
     }
 
     /**
@@ -62,26 +81,73 @@ public abstract class PointsToStatement {
     }
 
     /**
-     * Check if an exception of type <code>et</code> is caught or rethrown, and
-     * modify the points-to graph accordingly
+     * Get the instruction that generated this points-to statement
      * 
-     * @param et
-     *            type of the exception
-     * @param exceptionRep
-     *            exception value
+     * @return SSA instruction
+     */
+    public final SSAInstruction getInstruction() {
+        return i;
+    }
+
+    /**
+     * Get the containing basic block
+     * 
+     * @return basic block this statement was generated in
+     */
+    public final ISSABasicBlock getBasicBlock() {
+        if (bb == null) {
+            bb = ir.getBasicBlockForInstruction(i);
+        }
+        return bb;
+    }
+
+    /**
+     * Check whether exceptions are caught or re-thrown, and modify the
+     * points-to graph accordingly. Does not include exceptions thrown by
+     * callees if this is a call statement.
+     * 
+     * @param currentContext
+     *            current code context
      * @param g
      *            points-to graph (may be modified)
-     * @param callerThrows
-     *            points-to graph nodes for exceptions thrown by the containing
-     *            method
-     * @param catchBlocks
-     *            reachable catch block listed in reachability order
+     * @param registrar
+     *            points-to statement registrar
      * @return true if the points-to graph changed
      */
-    protected static boolean checkThrown(TypeReference et, ReferenceVariableReplica exceptionRep, PointsToGraph g,
-            Map<TypeReference, ReferenceVariableReplica> callerThrows, List<CatchBlock> catchBlocks) {
+    protected final boolean checkAllThrown(Context currentContext, PointsToGraph g, StatementRegistrar registrar) {
+        boolean changed = false;
+
+        for (TypeReference tr : getInstruction().getExceptionTypes()) {
+            LocalNode exNode = registrar.getImplicitExceptionNode(tr, getCode(), getInstruction());
+            ReferenceVariableReplica e = new ReferenceVariableReplica(currentContext, exNode);
+            changed |= checkThrown(tr, e, currentContext, g, registrar);
+        }
+        return changed;
+    }
+
+    /**
+     * Check if an exception of type <code>currentExType</code> is caught or
+     * re-thrown, and modify the points-to graph accordingly
+     * 
+     * @param currentExType
+     *            type of the exception
+     * @param e
+     *            exception points-to graph node
+     * @param currentContext
+     *            current code context
+     * @param g
+     *            points-to graph (may be modified)
+     * @param registrar
+     *            points-to statement registrar
+     * @return true if the points-to graph changed
+     */
+    protected final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
+            PointsToGraph g, StatementRegistrar registrar) {
+        // Find successor catch blocks
+        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), registrar, currentContext);
+
         IClassHierarchy cha = g.getClassHierarchy();
-        IClass thrown = cha.lookupClass(et);
+        IClass thrown = cha.lookupClass(currentExType);
         Set<IClass> alreadyCaught = new LinkedHashSet<IClass>();
         boolean isRethrown = false;
         boolean changed = false;
@@ -92,35 +158,46 @@ public abstract class PointsToStatement {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
                 if (cha.isSubclassOf(thrown, caught)) {
-                    return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(exceptionRep, caughtType));
+                    return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
                 } else if (cha.isSubclassOf(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught
                     alreadyCaught.add(caught);
-                    changed |= g.addEdges(cb.formalNode,
-                            g.getPointsToSetFiltered(exceptionRep, caughtType, alreadyCaught));
+                    changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
                 }
             }
         }
 
         // There may not be a catch block so this exception may be re-thrown
-        for (TypeReference exType : callerThrows.keySet()) {
+        Set<TypeReference> throwTypes = TypeRepository.getThrowTypes(getCode().getMethod());
+        for (TypeReference exType : throwTypes) {
             IClass exClass = cha.lookupClass(exType);
-            if (cha.isSubclassOf(exClass, thrown) || cha.isSubclassOf(thrown, exClass)) {
-                // may fall under this throwtype.
-                ReferenceVariableReplica rethrown = callerThrows.get(exType);
-                changed |= g.addEdges(rethrown, g.getPointsToSetFiltered(exceptionRep, exType, alreadyCaught));
-            }
-            if (cha.isSubclassOf(thrown, exClass)
-                    || callerThrows.get(exType).toString().contains("com.ibm.wala.FakeRootClass.fakeRootMethod()")) {
+            if (cha.isSubclassOf(exClass, thrown)) {
+                // may fall under this throw type.
+                // exceptions are often not precisely typed
+                // TODO keep track of when they are not precise
+                // (e.g. implicit exceptions are not precise)
                 isRethrown = true;
+                break;
+            }
+            if (cha.isSubclassOf(thrown, exClass)) {
+                // does fall under this throw type.
+                isRethrown = true;
+                break;
             }
         }
 
         if (!isRethrown) {
-            throw new RuntimeException("Exception of type " + PrettyPrinter.parseType(et)
+            throw new RuntimeException("Exception of type " + PrettyPrinter.parseType(currentExType)
                     + " may not be handled or rethrown.");
         }
+
+        // add edge if this exception can be rethrown
+        MethodSummaryNodes callerSummary = registrar.getSummaryNodes(getCode().getMethod());
+        ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
+                callerSummary.getException());
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
+
         return changed;
     }
 
@@ -164,7 +241,7 @@ public abstract class PointsToStatement {
      * @return List of catch blocks in reachable order (i.e. the first element
      *         of the list is the first reached)
      */
-    protected List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, StatementRegistrar registrar,
+    protected final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, StatementRegistrar registrar,
             Context context) {
 
         // Find successor catch blocks in the CFG
@@ -191,31 +268,11 @@ public abstract class PointsToStatement {
         return catchBlocks;
     }
 
-    /**
-     * Get replicas for all the exceptions for the current method in the given
-     * context
-     * 
-     * @param context
-     *            context to get the replicas in
-     * @param registrar
-     *            points-to graph statement registrar
-     * @return Map from exception type to reference variable replica
-     */
-    protected Map<TypeReference, ReferenceVariableReplica> getExceptionReplicas(Context context,
-            StatementRegistrar registrar) {
-        Map<TypeReference, ReferenceVariableReplica> callerThrows = new LinkedHashMap<>();
-        Map<TypeReference, LocalNode> callerNodes = registrar.getSummaryNodes(getCode().getMethod()).getExceptions();
-        for (TypeReference type : callerNodes.keySet()) {
-            ReferenceVariableReplica callerExRep = new ReferenceVariableReplica(context, callerNodes.get(type));
-            callerThrows.put(type, callerExRep);
-        }
-        return callerThrows;
-    }
-
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
+        result = prime * result + ((i == null) ? 0 : i.hashCode());
         result = prime * result + ((ir == null) ? 0 : ir.hashCode());
         return result;
     }
@@ -229,7 +286,15 @@ public abstract class PointsToStatement {
         if (getClass() != obj.getClass())
             return false;
         PointsToStatement other = (PointsToStatement) obj;
-        if (ir != other.ir)
+        if (i == null) {
+            if (other.i != null)
+                return false;
+        } else if (!i.equals(other.i))
+            return false;
+        if (ir == null) {
+            if (other.ir != null)
+                return false;
+        } else if (!ir.equals(other.ir))
             return false;
         return true;
     }

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
@@ -16,7 +17,9 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.MethodReference;
 
 /**
@@ -44,8 +47,6 @@ public class VirtualCallStatement extends CallStatement {
      * 
      * @param callSite
      *            Method call site
-     * @param ir
-     *            IR for the caller method
      * @param callee
      *            Method being called
      * @param receiver
@@ -53,15 +54,21 @@ public class VirtualCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if
+     *            there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
      * @param cha
      *            Class hierarchy
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public VirtualCallStatement(CallSiteReference callSite, IR ir, MethodReference callee, LocalNode receiver,
-            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode, IClassHierarchy cha) {
-        super(callSite, ir, actuals, resultNode, exceptionNode);
+    public VirtualCallStatement(CallSiteReference callSite, MethodReference callee, LocalNode receiver,
+            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode, IClassHierarchy cha, IR ir,
+            SSAInvokeInstruction i) {
+        super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.callee = callee;
         this.cha = cha;
         this.receiver = receiver;
@@ -74,21 +81,85 @@ public class VirtualCallStatement extends CallStatement {
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             // find the callee.
-            // The receiver is recHeapContext, and we want to find a method that matches selector
-            // callee.getSelector() in class recHeapContext.getConcreteType() or a superclass.
+            // The receiver is recHeapContext, and we want to find a method that
+            // matches selector
+            // callee.getSelector() in class recHeapContext.getConcreteType() or
+            // a superclass.
             IMethod resolvedCallee = cha.resolveMethod(recHeapContext.getConcreteType(), callee.getSelector());
-            
-            // If we wanted to be very robust, check to make sure that resolvedCallee overrides
+
+            // If we wanted to be very robust, check to make sure that
+            // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
-            
+
             Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
-            changed |= processCall(context, recHeapContext, resolvedCallee,
-                    calleeContext, g, registrar);
+            changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
+        }
+
+        // Otherwise, if objectref is null, the invokevirtual instruction throws
+        // a NullPointerException.
+        changed |= checkAllThrown(context, g, registrar);
+
+        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
+            SSAInvokeInstruction i = (SSAInvokeInstruction) getInstruction();
+            if (i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+                // Otherwise, if the resolved method is not signature
+                // polymorphic:
+
+                // If no method matching the resolved name and descriptor is
+                // selected, invokevirtual throws an AbstractMethodError.
+
+                // Otherwise, if the selected method is abstract, invokevirtual
+                // throws an AbstractMethodError.
+
+                // Otherwise, if the selected method is native and the code that
+                // implements the method cannot be bound, invokevirtual throws
+                // an
+                // UnsatisfiedLinkError.
+                // TODO handle implicit errors for virtual calls
+            }
+            if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE) {
+                // Otherwise, if the class of objectref does not implement the
+                // resolved interface, invokeinterface throws an
+                // IncompatibleClassChangeError.
+
+                // Otherwise, if no method matching the resolved name and
+                // descriptor is selected, invokeinterface throws an
+                // AbstractMethodError.
+
+                // Otherwise, if the selected method is not public,
+                // invokeinterface throws an IllegalAccessError.
+
+                // Otherwise, if the selected method is abstract,
+                // invokeinterface throws an AbstractMethodError.
+
+                // Otherwise, if the selected method is native and the code that
+                // implements the method cannot be bound, invokeinterface throws
+                // an UnsatisfiedLinkError.
+                // TODO handle implicit exceptions for interface calls
+            }
+        }
+
+        SSAInvokeInstruction i = (SSAInvokeInstruction) getInstruction();
+        if (i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+            // Otherwise, if the resolved method is signature polymorphic, then:
+
+            // If the method name is invokeExact, and the obtained instance of
+            // java.lang.invoke.MethodType is not semantically equal to the type
+            // descriptor of the receiving method handle, the invokevirtual
+            // instruction throws a java.lang.invoke.WrongMethodTypeException.
+
+            // If the method name is invoke, and the obtained instance of
+            // java.lang.invoke.MethodType is not a valid argument to the
+            // java.lang.invoke.MethodHandle.asType method invoked on the
+            // receiving method handle, the invokevirtual instruction throws a
+            // java.lang.invoke.WrongMethodTypeException.
+
+            // TODO handle WrongMethodTypeException for virtual calls
         }
 
         return changed;
     }
-    
+
     /**
      * Get all the targets of the callee in the given calling context
      * 
@@ -108,15 +179,15 @@ public class VirtualCallStatement extends CallStatement {
         }
         return targets;
     }
-    
+
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
         if (getResultNode() != null) {
             s.append(getResultNode().toString() + " = ");
-        } 
+        }
         s.append("invokevirtual " + PrettyPrinter.parseMethod(getCallSite().getDeclaredTarget()));
-        
+
         return s.toString();
     }
 

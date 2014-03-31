@@ -10,6 +10,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -39,8 +40,8 @@ public class PhiStatement extends PointsToStatement {
      * @param xs
      *            list of arguments to the phi, v is a choice amongst these
      */
-    public PhiStatement(LocalNode v, List<LocalNode> xs, IR ir) {
-        super(ir);
+    public PhiStatement(LocalNode v, List<LocalNode> xs, IR ir, SSAPhiInstruction i) {
+        super(ir, i);
         assert !xs.isEmpty();
         this.assignee = v;
         this.uses = xs;

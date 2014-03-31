@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
@@ -13,6 +14,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 
 /**
  * Statement for a special invoke statement.
@@ -37,8 +39,6 @@ public class SpecialCallStatement extends CallStatement {
      * 
      * @param callSite
      *            Method call site
-     * @param ir
-     *            IR for the caller method
      * @param callee
      *            Method being called
      * @param receiver
@@ -46,13 +46,19 @@ public class SpecialCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if
+     *            there is none or if it is a primitive
      * @param exceptionNode
-     *            Node representing the exception thrown by this call
+     *            Node representing the exception thrown by the callee and
+     *            implicit exceptions
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
      */
-    public SpecialCallStatement(CallSiteReference callSite, IR ir, IMethod resolvedCallee, LocalNode receiver,
-            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode) {
-        super(callSite, ir, actuals, resultNode, exceptionNode);
+    public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, LocalNode receiver,
+            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode, IR ir, SSAInvokeInstruction i) {
+        super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;
         this.receiver = receiver;
@@ -66,6 +72,24 @@ public class SpecialCallStatement extends CallStatement {
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
+        }
+        
+        // Otherwise, if objectref is null, the invokespecial instruction throws
+        // a NullPointerException.     
+        changed |= checkAllThrown(context, g, registrar);
+        
+        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
+            // Otherwise, if no method matching the resolved name and descriptor
+            // is selected, invokespecial throws an AbstractMethodError.
+
+            // Otherwise, if the selected method is abstract, invokespecial
+            // throws an AbstractMethodError.
+
+            // Otherwise, if the selected method is native and the code that
+            // implements the method cannot be bound, invokespecial throws an
+            // UnsatisfiedLinkError.
+            
+            // TODO handle errors for special call
         }
 
         return changed;
