@@ -5,7 +5,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -45,8 +45,8 @@ public class StaticCallStatement extends CallStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public StaticCallStatement(CallSiteReference callSite, IMethod callee, List<LocalNode> actuals,
-            LocalNode resultNode, LocalNode exceptionNode, IR ir, SSAInvokeInstruction i) {
+    public StaticCallStatement(CallSiteReference callSite, IMethod callee, List<ReferenceVariable> actuals,
+            ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR ir, SSAInvokeInstruction i) {
         super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.callee = callee;
     }

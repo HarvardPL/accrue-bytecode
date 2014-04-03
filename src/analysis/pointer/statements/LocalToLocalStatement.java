@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -18,11 +18,11 @@ public class LocalToLocalStatement extends PointsToStatement {
     /**
      * assignee
      */
-    private final LocalNode left;
+    private final ReferenceVariable left;
     /**
      * assigned
      */
-    private final LocalNode right;
+    private final ReferenceVariable right;
 
     /**
      * Statement for a local assignment, left = right
@@ -36,10 +36,10 @@ public class LocalToLocalStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public LocalToLocalStatement(LocalNode left, LocalNode right, IR ir, SSAInstruction i) {
+    public LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IR ir, SSAInstruction i) {
         super(ir, i);
-        assert !left.isStatic() : left + " is static";
-        assert !right.isStatic() : right + " is static";
+        assert !left.isSingleton() : left + " is static";
+        assert !right.isSingleton() : right + " is static";
         this.left = left;
         this.right = right;
     }

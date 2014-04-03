@@ -19,21 +19,21 @@ public class MethodSummaryNodes {
     /**
      * Node for "this" or null if this is a static call
      */
-    private final LocalNode thisNode;
+    private final ReferenceVariable thisNode;
     /**
      * Node for the formal arguments (a formal will be null if it has a
      * primitive type)
      */
-    private final List<LocalNode> formals;
+    private final List<ReferenceVariable> formals;
     /**
      * node for the return value, will be null if void or if the return value
      * has a primitive type
      */
-    private final LocalNode returnNode;
+    private final ReferenceVariable returnNode;
     /**
      * Nodes for each type of exception that may be thrown
      */
-    private final LocalNode exception;
+    private final ReferenceVariable exception;
     /**
      * String for method
      */
@@ -51,7 +51,7 @@ public class MethodSummaryNodes {
         if (ir == null) {
             System.out.println("IR is null");
         }
-        
+
         boolean isStatic = ir.getMethod().isStatic();
         thisNode = isStatic ? null : registrar.getLocal(ir.getParameter(0), ir);
 
@@ -77,36 +77,37 @@ public class MethodSummaryNodes {
         }
 
         name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
-        
+
         TypeReference returnType = ir.getMethod().getReturnType();
-        returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : 
-            // TODO this and below are the only places this is called outside of the Registrar
-            new LocalNode(name + "-EXIT", returnType, false);  
-        
+        returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null :
+        // TODO this and below are the only places this is called outside of the
+        // Registrar
+                new ReferenceVariable(name + "-EXIT", returnType, false);
+
         TypeReference throwable = TypeReference.JavaLangThrowable;
-        exception = new LocalNode(name + "-EXCEPTION", throwable, false);
+        exception = new ReferenceVariable(name + "-EXCEPTION", throwable, false);
     }
 
     private boolean isVoid(TypeReference type) {
         return type == TypeReference.Void;
     }
 
-    public LocalNode getThisNode() {
+    public ReferenceVariable getThisNode() {
         return thisNode;
     }
 
-    public List<LocalNode> getFormals() {
+    public List<ReferenceVariable> getFormals() {
         return formals;
     }
 
-    public LocalNode getReturnNode() {
+    public ReferenceVariable getReturnNode() {
         return returnNode;
     }
-    
-    public LocalNode getException() {
+
+    public ReferenceVariable getException() {
         return exception;
     }
-    
+
     @Override
     public String toString() {
         return name;

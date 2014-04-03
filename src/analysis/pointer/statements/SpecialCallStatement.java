@@ -5,7 +5,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
@@ -24,7 +24,7 @@ public class SpecialCallStatement extends CallStatement {
     /**
      * Reference variable for the assignee (if any)
      */
-    private final LocalNode resultNode;
+    private final ReferenceVariable resultNode;
     /**
      * Method being called
      */
@@ -32,7 +32,7 @@ public class SpecialCallStatement extends CallStatement {
     /**
      * Receiver of the call
      */
-    private final LocalNode receiver;
+    private final ReferenceVariable receiver;
 
     /**
      * Points-to statement for a special method invocation.
@@ -56,8 +56,8 @@ public class SpecialCallStatement extends CallStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, LocalNode receiver,
-            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode, IR ir, SSAInvokeInstruction i) {
+    public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
+            List<ReferenceVariable> actuals, ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR ir, SSAInvokeInstruction i) {
         super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;

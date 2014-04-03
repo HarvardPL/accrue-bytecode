@@ -7,3 +7,7 @@ A: Yes its better, do the simple way first
 I don't really like the WALA CFG for data-flow. It is over basic blocks so no generated exceptions from instructions
 A: It actual does the right thing apparently
 
+For a data-flow analysis with side effects (e.g. printing) do I have to keep a set of visited nodes, this seems a bit hackish, but to avoid duplicates it might be unavoidable (we don't want to reanalyze).
+
+Should null data-flow items be allowed? Should they be propagated?
+Polyglot says yes, no

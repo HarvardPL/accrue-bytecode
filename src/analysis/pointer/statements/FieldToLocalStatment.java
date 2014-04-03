@@ -4,7 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -29,11 +29,11 @@ public class FieldToLocalStatment extends PointsToStatement {
     /**
      * receiver of field access
      */
-    private final LocalNode receiver;
+    private final ReferenceVariable receiver;
     /**
      * local assigned into
      */
-    private final LocalNode assignee;
+    private final ReferenceVariable assignee;
 
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
@@ -49,7 +49,7 @@ public class FieldToLocalStatment extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public FieldToLocalStatment(FieldReference f, LocalNode o, LocalNode l, IR ir,
+    public FieldToLocalStatment(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir,
             SSAGetInstruction i) {
         super(ir, i);
         this.declaredField = f;

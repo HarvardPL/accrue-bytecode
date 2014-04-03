@@ -3,7 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -26,11 +26,11 @@ public class LocalToFieldStatement extends PointsToStatement {
     /**
      * receiver for field access
      */
-    private final LocalNode receiver;
+    private final ReferenceVariable receiver;
     /**
      * Value assigned into field
      */
-    private final LocalNode assigned;
+    private final ReferenceVariable assigned;
 
     /**
      * Statement for an assignment into a field, o.f = v
@@ -46,7 +46,7 @@ public class LocalToFieldStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public LocalToFieldStatement(FieldReference f, LocalNode o, LocalNode v, IR ir,
+    public LocalToFieldStatement(FieldReference f, ReferenceVariable o, ReferenceVariable v, IR ir,
             SSAPutInstruction i) {
         super(ir, i);
         this.field = f;

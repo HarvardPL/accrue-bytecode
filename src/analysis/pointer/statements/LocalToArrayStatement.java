@@ -3,7 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -22,11 +22,11 @@ public class LocalToArrayStatement extends PointsToStatement {
     /**
      * Array assigned into
      */
-    private final LocalNode array;
+    private final ReferenceVariable array;
     /**
      * Value inserted into array
      */
-    private final LocalNode value;
+    private final ReferenceVariable value;
     /**
      * Type of array elements
      */
@@ -47,7 +47,7 @@ public class LocalToArrayStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public LocalToArrayStatement(LocalNode a, LocalNode v, TypeReference baseType, IR ir,
+    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IR ir,
             SSAArrayStoreInstruction i) {
         super(ir, i);
         this.array = a;

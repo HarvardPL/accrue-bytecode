@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -18,8 +18,8 @@ import com.ibm.wala.types.TypeReference;
  */
 public class ArrayToLocalStatement extends PointsToStatement {
 
-    private final LocalNode value;
-    private final LocalNode array;
+    private final ReferenceVariable value;
+    private final ReferenceVariable array;
     private final TypeReference baseType;
 
     /**
@@ -37,7 +37,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public ArrayToLocalStatement(LocalNode v, LocalNode a, TypeReference baseType, IR ir,
+    public ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, IR ir,
             SSAArrayLoadInstruction i) {
         super(ir, i);
         this.value = v;

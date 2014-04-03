@@ -9,10 +9,10 @@ import java.util.Set;
 import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.IClass;
@@ -118,7 +118,7 @@ public abstract class PointsToStatement {
         boolean changed = false;
 
         for (TypeReference tr : getInstruction().getExceptionTypes()) {
-            LocalNode exNode = registrar.getImplicitExceptionNode(tr, getCode(), getInstruction());
+            ReferenceVariable exNode = registrar.getImplicitExceptionNode(tr, getCode(), getInstruction());
             ReferenceVariableReplica e = new ReferenceVariableReplica(currentContext, exNode);
             changed |= checkThrown(tr, e, currentContext, g, registrar);
         }
@@ -260,7 +260,7 @@ public abstract class PointsToStatement {
             Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
             // The catch instruction is the first instruction in the basic block
             SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
-            LocalNode formalNode = registrar.getLocal(catchIns.getException(), getCode());
+            ReferenceVariable formalNode = registrar.getLocal(catchIns.getException(), getCode());
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(context, formalNode);
             CatchBlock cb = new CatchBlock(types, formalRep);
             catchBlocks.add(cb);

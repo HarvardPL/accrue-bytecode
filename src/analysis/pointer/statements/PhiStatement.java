@@ -3,7 +3,7 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -22,11 +22,11 @@ public class PhiStatement extends PointsToStatement {
     /**
      * Value assigned into
      */
-    private final LocalNode assignee;
+    private final ReferenceVariable assignee;
     /**
      * Arguments into the phi
      */
-    private final List<LocalNode> uses;
+    private final List<ReferenceVariable> uses;
     /**
      * Type of the value assigned into
      */
@@ -40,7 +40,7 @@ public class PhiStatement extends PointsToStatement {
      * @param xs
      *            list of arguments to the phi, v is a choice amongst these
      */
-    public PhiStatement(LocalNode v, List<LocalNode> xs, IR ir, SSAPhiInstruction i) {
+    public PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IR ir, SSAPhiInstruction i) {
         super(ir, i);
         assert !xs.isEmpty();
         this.assignee = v;
@@ -55,7 +55,7 @@ public class PhiStatement extends PointsToStatement {
         boolean changed = false;
 
         // For every possible branch add edges into assignee
-        for (LocalNode use : uses) {
+        for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
             changed |= g.addEdges(a, g.getPointsToSetFiltered(n, assignee.getExpectedType()));
         }

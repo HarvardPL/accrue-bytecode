@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -30,15 +30,15 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Actual arguments to the call
      */
-    private final List<LocalNode> actuals;
+    private final List<ReferenceVariable> actuals;
     /**
      * Node for the assignee if any (i.e. v in v = foo())
      */
-    private final LocalNode resultNode;
+    private final ReferenceVariable resultNode;
     /**
      * Node representing the exception thrown by this call (if any)
      */
-    private final LocalNode exceptionNode;
+    private final ReferenceVariable exceptionNode;
 
     /**
      * Points-to statement for a special method invocation.
@@ -61,8 +61,8 @@ public abstract class CallStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public CallStatement(CallSiteReference callSite, List<LocalNode> actuals, LocalNode resultNode,
-            LocalNode exceptionNode, IR callerIR, SSAInvokeInstruction i) {
+    public CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
+            ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i) {
         super(callerIR, i);
         this.callSite = callSite;
         this.actuals = actuals;
@@ -109,10 +109,10 @@ public abstract class CallStatement extends PointsToStatement {
 
         // add edges from the formal arguments to the actual arguments
         List<ReferenceVariableReplica> actualReps = getReplicas(callerContext, actuals);
-        List<LocalNode> formals = calleeSummary.getFormals();
+        List<ReferenceVariable> formals = calleeSummary.getFormals();
         for (int i = 0; i < actuals.size(); i++) {
             ReferenceVariableReplica actual = actualReps.get(i);
-            LocalNode formal = formals.get(i);
+            ReferenceVariable formal = formals.get(i);
             if (actual == null || formal == null) {
                 // Not a reference type or null actual
                 continue;
@@ -164,9 +164,9 @@ public abstract class CallStatement extends PointsToStatement {
      * 
      * @return list of replicas for the given reference variables
      */
-    protected List<ReferenceVariableReplica> getReplicas(Context context, List<LocalNode> actuals) {
+    protected List<ReferenceVariableReplica> getReplicas(Context context, List<ReferenceVariable> actuals) {
         List<ReferenceVariableReplica> actualReps = new LinkedList<>();
-        for (LocalNode actual : actuals) {
+        for (ReferenceVariable actual : actuals) {
             if (actual == null) {
                 // not a reference type
                 actualReps.add(null);
@@ -187,7 +187,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            reference variable to get replica for
      * @return replica for the given reference variable
      */
-    protected ReferenceVariableReplica getReplica(Context context, LocalNode r) {
+    protected ReferenceVariableReplica getReplica(Context context, ReferenceVariable r) {
         return new ReferenceVariableReplica(context, r);
     }
 
@@ -204,7 +204,7 @@ public abstract class CallStatement extends PointsToStatement {
      * 
      * @return return result node (in the caller)
      */
-    public LocalNode getResultNode() {
+    public ReferenceVariable getResultNode() {
         return resultNode;
     }
 }

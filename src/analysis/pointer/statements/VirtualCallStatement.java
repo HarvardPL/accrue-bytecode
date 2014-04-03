@@ -7,8 +7,8 @@ import java.util.Set;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -40,7 +40,7 @@ public class VirtualCallStatement extends CallStatement {
     /**
      * Reference variable for the receiver of the call
      */
-    private final LocalNode receiver;
+    private final ReferenceVariable receiver;
 
     /**
      * Points-to statement for a virtual method invocation.
@@ -65,8 +65,8 @@ public class VirtualCallStatement extends CallStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public VirtualCallStatement(CallSiteReference callSite, MethodReference callee, LocalNode receiver,
-            List<LocalNode> actuals, LocalNode resultNode, LocalNode exceptionNode, IClassHierarchy cha, IR ir,
+    public VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
+            List<ReferenceVariable> actuals, ReferenceVariable resultNode, ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir,
             SSAInvokeInstruction i) {
         super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.callee = callee;

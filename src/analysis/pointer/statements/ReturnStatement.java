@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
@@ -17,11 +17,11 @@ public class ReturnStatement extends PointsToStatement {
     /**
      * Node for return result
      */
-    private final LocalNode result;
+    private final ReferenceVariable result;
     /**
      * Node summarizing all return values for the method
      */
-    private final LocalNode returnSummary;
+    private final ReferenceVariable returnSummary;
 
     /**
      * Create a points-to statement for a return instruction
@@ -35,7 +35,7 @@ public class ReturnStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public ReturnStatement(LocalNode result, LocalNode returnSummary, IR ir, SSAReturnInstruction i) {
+    public ReturnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IR ir, SSAReturnInstruction i) {
         super(ir, i);
         this.result = result;
         this.returnSummary = returnSummary;

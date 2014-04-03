@@ -4,7 +4,7 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AllocSiteNode;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
@@ -24,7 +24,7 @@ public class NewStatement extends PointsToStatement {
     /**
      * Points-to graph node for the assignee of the new
      */
-    private final LocalNode result;
+    private final ReferenceVariable result;
     /**
      * Constructor call site
      */
@@ -49,8 +49,7 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public NewStatement(LocalNode result, NewSiteReference newSite, IClassHierarchy cha, IR ir,
-            SSANewInstruction i) {
+    public NewStatement(ReferenceVariable result, NewSiteReference newSite, IClassHierarchy cha, IR ir, SSANewInstruction i) {
         super(ir, i);
         this.result = result;
         this.newSite = newSite;
@@ -76,7 +75,7 @@ public class NewStatement extends PointsToStatement {
             // new throws an InstantiationError.
             // TODO implicit errors from new
         }
-        
+
         // TODO Handle array dimensions for new array
 
         // Add an edge from the assignee to the newly allocated object

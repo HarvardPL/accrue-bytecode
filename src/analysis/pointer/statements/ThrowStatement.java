@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
@@ -17,7 +17,7 @@ public class ThrowStatement extends PointsToStatement {
     /**
      * Points-to graph node for the exception that is thrown
      */
-    private final LocalNode exception;
+    private final ReferenceVariable exception;
 
     /**
      * Points-to statement for an exception throw
@@ -29,7 +29,7 @@ public class ThrowStatement extends PointsToStatement {
      * @param bb
      *            basic block the instruction occurs in
      */
-    public ThrowStatement(LocalNode exception, IR ir, SSAThrowInstruction i) {
+    public ThrowStatement(ReferenceVariable exception, IR ir, SSAThrowInstruction i) {
         super(ir, i);
         this.exception = exception;
     }

@@ -2,7 +2,7 @@ package analysis.pointer.statements;
 
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.LocalNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -19,11 +19,11 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     /**
      * assignee
      */
-    private final LocalNode staticField;
+    private final ReferenceVariable staticField;
     /**
      * assigned
      */
-    private final LocalNode local;
+    private final ReferenceVariable local;
     
     /**
      * Statement for an assignment from a static field to a local, local =
@@ -38,10 +38,10 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public StaticFieldToLocalStatement(LocalNode local, LocalNode staticField, IR ir, SSAGetInstruction i) {
+    public StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IR ir, SSAGetInstruction i) {
         super(ir, i);
-        assert staticField.isStatic() : staticField + " is not static";
-        assert !local.isStatic() : local + " is static";
+        assert staticField.isSingleton() : staticField + " is not static";
+        assert !local.isSingleton() : local + " is static";
         this.staticField = staticField;
         this.local = local;
     }

@@ -54,12 +54,16 @@ A: Just use get possible targets
 Array dimensions each need their own contents?
 A: Do something
 
-TODO check the use of pointsToFiltered and remove where not necessary
-
 Is it worth it to just analyze needed class inits in the pointer analysis? (see solveSmarter)
 A: yes
 
 Does anyone throw null literals?
+A: this changes to a NPE at run time
 
 Check the implementation of StatementRegistrationPass.addClassInitForInstruction
 A: test static fields
+
+_____________________________
+
+TODO: check the use of pointsToFiltered and remove where not necessary
+TODO: refactor Reference variable hierarchy
