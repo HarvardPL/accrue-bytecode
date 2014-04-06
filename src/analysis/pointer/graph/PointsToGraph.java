@@ -280,7 +280,7 @@ public class PointsToGraph {
     }
 
     private String escape(String s) {
-        return s.replace("\"", "").replace("\\", "\\\\");
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private Writer dumpPointsToGraph(Writer writer) throws IOException {

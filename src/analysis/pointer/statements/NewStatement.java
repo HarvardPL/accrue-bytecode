@@ -15,6 +15,7 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSANewInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to graph node for a "new" statement, e.g. Object o = new Object()
@@ -77,6 +78,11 @@ public class NewStatement extends PointsToStatement {
         }
 
         // TODO Handle array dimensions for new array
+        
+        if (alloc.getExpectedType().isArrayType()) {
+            // Arrays can throw negative array size exceptions
+            changed |= checkThrownImplicit(TypeReference.JavaLangNegativeArraySizeException, context, g, registrar);
+        }
 
         // Add an edge from the assignee to the newly allocated object
         return changed || g.addEdge(r, k);

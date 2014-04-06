@@ -57,8 +57,8 @@ public abstract class DataFlow<FlowItem> {
      *            Control flow graph this analysis is performed over
      * @param current
      *            current basic block
-     * @return map from target of successor edge to the data-flow fact after
-     *         handling the current instruction
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
      */
     protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current);
 
@@ -68,7 +68,7 @@ public abstract class DataFlow<FlowItem> {
      * @param ir
      *            code for the method to perform the dataflow for
      */
-    protected void dataflow(IR ir) {
+    protected final void dataflow(IR ir) {
         // TODO Polyglot computes SCCs and iterates through them
 
         SSACFG g = ir.getControlFlowGraph();
@@ -125,7 +125,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return iterator for data-flow successors of the given basic block
      */
-    protected Iterator<ISSABasicBlock> getSuccs(ISSABasicBlock bb, SSACFG cfg) {
+    protected final Iterator<ISSABasicBlock> getSuccs(ISSABasicBlock bb, SSACFG cfg) {
         return forward ? cfg.getSuccNodes(bb) : cfg.getPredNodes(bb);
     }
 
@@ -142,7 +142,7 @@ public abstract class DataFlow<FlowItem> {
      * @return the basic blocks which are data-flow successors of bb via normal
      *         control flow edges
      */
-    protected Collection<ISSABasicBlock> getNormalSuccs(ISSABasicBlock bb, SSACFG cfg) {
+    protected final Collection<ISSABasicBlock> getNormalSuccs(ISSABasicBlock bb, SSACFG cfg) {
         return forward ? cfg.getNormalSuccessors(bb) : cfg.getNormalPredecessors(bb);
     }
 
@@ -159,7 +159,7 @@ public abstract class DataFlow<FlowItem> {
      * @return the basic blocks which are data-flow successors of bb via
      *         exceptional control flow edges
      */
-    protected Collection<ISSABasicBlock> getExceptionalSuccs(ISSABasicBlock bb, SSACFG cfg) {
+    protected final Collection<ISSABasicBlock> getExceptionalSuccs(ISSABasicBlock bb, SSACFG cfg) {
         return forward ? cfg.getExceptionalSuccessors(bb) : cfg.getExceptionalPredecessors(bb);
     }
 
@@ -175,7 +175,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return iterator for data-flow successors of the given basic block
      */
-    protected IntIterator getSuccNodeNumbers(ISSABasicBlock bb, SSACFG cfg) {
+    protected final IntIterator getSuccNodeNumbers(ISSABasicBlock bb, SSACFG cfg) {
         return forward ? cfg.getSuccNodeNumbers(bb).intIterator() : cfg.getPredNodeNumbers(bb).intIterator();
     }
 
@@ -192,7 +192,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return mapping from each successor id to the single given value
      */
-    protected Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb, SSACFG cfg) {
+    protected final Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb, SSACFG cfg) {
         Set<Integer> succs = new LinkedHashSet<>();
         IntIterator iter = getSuccNodeNumbers(bb, cfg);
         while (iter.hasNext()) {
@@ -213,7 +213,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return data-flow predecessors for the given basic block.
      */
-    private Iterator<ISSABasicBlock> getPreds(ISSABasicBlock bb, SSACFG cfg) {
+    private final Iterator<ISSABasicBlock> getPreds(ISSABasicBlock bb, SSACFG cfg) {
         return forward ? cfg.getPredNodes(bb) : cfg.getSuccNodes(bb);
     }
 
@@ -229,7 +229,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return number of data-flow predecessors for the given basic block.
      */
-    private int getNumPreds(ISSABasicBlock bb, SSACFG cfg) {
+    private final int getNumPreds(ISSABasicBlock bb, SSACFG cfg) {
         return forward ? cfg.getPredNodeCount(bb) : cfg.getSuccNodeCount(bb);
     }
 
@@ -241,7 +241,7 @@ public abstract class DataFlow<FlowItem> {
      * @param outItems
      *            data-flow facts for targets of edges leaving the basic block
      */
-    private void putOutItems(ISSABasicBlock bb, Map<Integer, FlowItem> outItems) {
+    private final void putOutItems(ISSABasicBlock bb, Map<Integer, FlowItem> outItems) {
         bbToOutItems.put(bb, outItems);
     }
 
@@ -253,7 +253,7 @@ public abstract class DataFlow<FlowItem> {
      * 
      * @return data-flow fact for targets of edges leaving the basic block
      */
-    private Map<Integer, FlowItem> getOutItems(ISSABasicBlock bb) {
+    private final Map<Integer, FlowItem> getOutItems(ISSABasicBlock bb) {
         return bbToOutItems.get(bb);
     }
 }

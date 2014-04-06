@@ -226,12 +226,25 @@ public class PrettyPrinter {
                     + instruction);
         }
         sb.append(" " + opString + " ");
-        sb.append(valString(instruction.getUse(1)) + ")" + " then goto ...");
+        sb.append(valString(instruction.getUse(1)) + ")");
         return sb.toString();
     }
 
     private String switchString(SSASwitchInstruction instruction) {
-        return instruction.toString(st);
+        StringBuilder sb = new StringBuilder();
+        sb.append("switch(" + valString(instruction.getUse(0)) + ") \\{\n");
+        int[] cases = instruction.getCasesAndLabels();
+        for (int i = 0; i < cases.length; i += 2) {
+            int c = cases[i];
+            int jumpTarget = cases[i + 1];
+            // TODO do better than bytecode index which is meaningless
+            // Basic block number would be nice, but not sure how to associate
+            // successors with cases
+            sb.append("  case " + c + ":" + " " + "goto " + jumpTarget + "\n");
+        }
+        sb.append("  default: goto " + instruction.getDefault() + "\n");
+        sb.append("\\}");
+        return sb.toString();
     }
 
     private String returnString(SSAReturnInstruction instruction) {
@@ -302,14 +315,16 @@ public class PrettyPrinter {
         }
         sb.append("new ");
         sb.append(parseType(instruction.getConcreteType().getName().toString()));
-        sb.append("(");
+        
         if (instruction.getNumberOfUses() > 0) {
-            sb.append(valString(instruction.getUse(0)));
-            for (int i = 1; i < instruction.getNumberOfUses(); i++) {
-                sb.append(", " + valString(instruction.getUse(i)));
-            }
+            // Its an array that is initialized by passing in dimensions
+            // We don't need the array type indicator
+            sb.delete(sb.length() - 2, sb.length());
         }
-        sb.append(")");
+        for (int i = 0; i < instruction.getNumberOfUses(); i++) {
+            sb.append("[" + valString(instruction.getUse(i)) + "]");
+        }
+
         return sb.toString();
     }
 
@@ -332,7 +347,11 @@ public class PrettyPrinter {
     }
 
     private String instanceofString(SSAInstanceofInstruction instruction) {
-        return instruction.toString(st);
+        StringBuilder sb = new StringBuilder();
+        sb.append(valString(instruction.getDef()) + " = ");
+        sb.append(valString(instruction.getUse(0)) + " instanceof ");
+        sb.append(parseType(instruction.getCheckedType()));
+        return sb.toString();
     }
 
     private String phiString(SSAPhiInstruction instruction) {
@@ -464,8 +483,11 @@ public class PrettyPrinter {
                     // Put string literals in quotes
                     v = "\"" + v + "\"";
                 }
+                if (st.isBooleanConstant(valueNumber)) {
+                    // TODO the boolean case does not trigger, they are just integers
+                    assert false;
+                }
             }
-
             return v;
         }
     }

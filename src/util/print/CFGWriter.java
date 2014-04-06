@@ -74,8 +74,9 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
         this.postfix = postfix;
 
         double spread = 1.0;
-        writer.write("strict digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread
-                + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+        writer.write("strict digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep="
+                + spread + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]"
+                + ";\n");
 
         dataflow(ir);
 
@@ -110,13 +111,13 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
     protected Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems, SSACFG cfg,
             ISSABasicBlock current) {
         try (Writer sw = new StringWriter()) {
-            String exit = current.isExitBlock() ? "\\nEXIT" : "";
-            String entry = current.isEntryBlock() ? "\\nENTRY" : "";
-            sw.write("BB" + current.getNumber() + entry + exit + "\\n");
+            String exit = current.isExitBlock() ? "\\lEXIT" : "";
+            String entry = current.isEntryBlock() ? "\\lENTRY" : "";
+            sw.write("BB" + current.getNumber() + entry + exit + "\\l");
             if (verbose) {
                 PrettyPrinter.writeBasicBlock(ir, current, sw, prefix, postfix);
             }
-            String bbString = sw.toString();
+            String bbString = escapeDot(sw.toString());
             for (OrderedPair<String, String> predPair : inItems) {
                 String predNode = predPair.snd();
                 String predEdge = predPair.fst();
@@ -137,5 +138,16 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
         } catch (IOException e) {
             throw new RuntimeException();
         }
+    }
+
+    /**
+     * Properly escape the string so it will be properly formatted in dot
+     * 
+     * @param s
+     *            string to escape
+     * @return dot-safe string
+     */
+    private String escapeDot(String s) {
+        return s.replace("\"", "\\\"").replace("\n", "\\l");
     }
 }
