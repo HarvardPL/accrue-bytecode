@@ -621,7 +621,8 @@ public class PrettyPrinter {
             return conditionalBranchString((SSAConditionalBranchInstruction) instruction);
         case CONVERSION:
             return conversionString((SSAConversionInstruction) instruction);
-        case GET:
+        case GET_FIELD:
+        case GET_STATIC:
             return getString((SSAGetInstruction) instruction);
         case GET_CAUGHT_EXCEPTION:
             return getCaughtExceptionString((SSAGetCaughtExceptionInstruction) instruction);
@@ -639,11 +640,13 @@ public class PrettyPrinter {
             return invokeVirtualString((SSAInvokeInstruction) instruction);
         case LOAD_METADATA:
             return loadMetadataString((SSALoadMetadataInstruction) instruction);
-        case NEW:
+        case NEW_ARRAY:
+        case NEW_OBJECT:
             return newString((SSANewInstruction) instruction);
         case PHI:
             return phiString((SSAPhiInstruction) instruction);
-        case PUT:
+        case PUT_FIELD:
+        case PUT_STATIC:
             return putString((SSAPutInstruction) instruction);
         case RETURN:
             return returnString((SSAReturnInstruction) instruction);
@@ -653,52 +656,9 @@ public class PrettyPrinter {
             return throwString((SSAThrowInstruction) instruction);
         case UNARY_NEG_OP:
             return unaryOpString((SSAUnaryOpInstruction) instruction);
-        default:
-            // The rest are instructions we don't expect to show up in normal
-            // class files
-            String msg = "Unexpected instruction type: " + type + " for " + instruction;
-            assert false : msg;
-            throw new RuntimeException(msg);
         }
+        throw new RuntimeException("Unexpected instruction type: " + type + " for " + instruction);
     }
-
-    // public static void saveCFGToFile(String filename,
-    // ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-    // //
-    // }
-    //
-    // public Writer dumpFullCFG(IR ir, Writer writer) throws IOException {
-    //
-    // double spread = 1.0;
-    // writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" +
-    // spread + ";\n"
-    // + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" +
-    // "edge [fontsize=10]" + ";\n");
-    //
-    // SSACFG cfg = ir.getControlFlowGraph();
-    //
-    // // Print all the nodes
-    // Set<ISSABasicBlock> visited = new HashSet<>();
-    // WorkQueue<ISSABasicBlock>
-    // ISSABasicBlock current = cfg.entry();
-    //
-    // writer.write("\n};\n");
-    // return writer;
-    // }
-    //
-    // private String basicBlockString(ISSABasicBlock bb) {
-    // StringBuilder s = new StringBuilder("BB" + bb.getNumber() + ":");
-    // boolean first = true;
-    // for (SSAInstruction i : bb) {
-    // if (first) {
-    // s.append("\t");
-    // } else {
-    // s.append("\n\t");
-    // }
-    // s.append(Instruction(i));
-    // }
-    // return s.toString();
-    // }
 
     /**
      * Get a string for the parameters to a method

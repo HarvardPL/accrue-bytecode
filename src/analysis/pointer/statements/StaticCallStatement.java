@@ -3,10 +3,9 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
@@ -54,19 +53,6 @@ public class StaticCallStatement extends CallStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         Context calleeContext = haf.merge(getCallSite(), getCode(), null, context);
-
-        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
-            // Otherwise, if execution of this invokestatic instruction causes
-            // initialization of the referenced class, invokestatic may throw an
-            // Error as detailed in 5.5.
-
-            // Otherwise, if the resolved method is native and the code that
-            // implements the method cannot be bound, invokestatic throws an
-            // UnsatisfiedLinkError.
-
-            // TODO handle errors for static call        
-        }
-
         return processCall(context, null, callee, calleeContext, g, registrar);
     }
 

@@ -3,10 +3,9 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -73,24 +72,8 @@ public class SpecialCallStatement extends CallStatement {
             Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
         }
-        
-        // Otherwise, if objectref is null, the invokespecial instruction throws
-        // a NullPointerException.     
+
         changed |= checkAllThrown(context, g, registrar);
-        
-        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
-            // Otherwise, if no method matching the resolved name and descriptor
-            // is selected, invokespecial throws an AbstractMethodError.
-
-            // Otherwise, if the selected method is abstract, invokespecial
-            // throws an AbstractMethodError.
-
-            // Otherwise, if the selected method is native and the code that
-            // implements the method cannot be bound, invokespecial throws an
-            // UnsatisfiedLinkError.
-            
-            // TODO handle errors for special call
-        }
 
         return changed;
     }

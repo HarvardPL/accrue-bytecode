@@ -39,29 +39,8 @@ public class ThrowStatement extends PointsToStatement {
         
         ReferenceVariableReplica thrown = new ReferenceVariableReplica(context, exception);
         
-        // If objectref is null, athrow throws a NullPointerException instead of
-        // objectref.
+        // If ex is null throws a NullPointerException instead of ex
         boolean changed = checkAllThrown(context, g, registrar);
-
-        // Otherwise, if the Java Virtual Machine implementation does not
-        // enforce the rules on structured locking described in 2.11.10,
-        // then if the method of the current frame is a synchronized method
-        // and the current thread is not the owner of the monitor entered or
-        // reentered on invocation of the method, athrow throws an
-        // IllegalMonitorStateException instead of the object previously
-        // being thrown. This can happen, for example, if an abruptly
-        // completing synchronized method contains a monitorexit
-        // instruction, but no monitorenter instruction, on the object on
-        // which the method is synchronized.
-        
-        // Otherwise, if the Java Virtual Machine implementation enforces
-        // the rules on structured locking described in 2.11.10 and if the
-        // first of those rules is violated during invocation of the current
-        // method, then athrow throws an IllegalMonitorStateException
-        // instead of the object previously being thrown.
-        
-        // TODO handle IllegalMonitorStateException for throw
-       
 
         return changed || checkThrown(exception.getExpectedType(), thrown, context, g, registrar);
     }

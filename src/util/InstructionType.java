@@ -1,9 +1,14 @@
 package util;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
+import com.ibm.wala.shrikeBT.IBinaryOpInstruction.Operator;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.shrikeBT.IInvokeInstruction.Dispatch;
-import com.ibm.wala.ssa.SSAAddressOfInstruction;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
@@ -18,32 +23,35 @@ import com.ibm.wala.ssa.SSAGotoInstruction;
 import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
-import com.ibm.wala.ssa.SSALoadIndirectInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
-import com.ibm.wala.ssa.SSAMonitorInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
-import com.ibm.wala.ssa.SSAPiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
-import com.ibm.wala.ssa.SSAStoreIndirectInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Enumeration of SSA instruction types
  */
 public enum InstructionType {
     /**
+     * Unconditional jump, need the control flow graph to obtain the jump target
+     * 
      * @see SSAGotoInstruction
      */
     GOTO,
     /**
+     * v = a[i], jvm aaload
+     * 
      * @see SSAArrayLoadInstruction
      */
     ARRAY_LOAD,
     /**
+     * a[i] = v, jvm aastore
+     * 
      * @see SSAArrayStoreInstruction
      */
     ARRAY_STORE,
@@ -84,15 +92,27 @@ public enum InstructionType {
     /**
      * @see SSAGetInstruction
      */
-    GET,
+    GET_FIELD,
+    /**
+     * @see SSAGetInstruction
+     */
+    GET_STATIC,
     /**
      * @see SSAPutInstruction
      */
-    PUT,
+    PUT_FIELD,
+    /**
+     * @see SSAPutInstruction
+     */
+    PUT_STATIC,
     /**
      * @see SSANewInstruction
      */
-    NEW,
+    NEW_OBJECT,
+    /**
+     * @see SSANewInstruction
+     */
+    NEW_ARRAY,
     /**
      * @see SSAArrayLengthInstruction
      */
@@ -122,26 +142,6 @@ public enum InstructionType {
      */
     LOAD_METADATA,
     /**
-     * @see SSAPiInstruction
-     */
-    PI,
-    /**
-     * @see SSALoadIndirectInstruction
-     */
-    LOAD_INDIRECT,
-    /**
-     * @see SSAAddressOfInstruction
-     */
-    ADDRESS_OF,
-    /**
-     * @see SSAMonitorInstruction
-     */
-    MONITOR,
-    /**
-     * @see SSAStoreIndirectInstruction
-     */
-    STORE_INDIRECT,
-    /**
      * Virtual method invocation.
      * 
      * @see SSAInvokeInstruction
@@ -165,13 +165,33 @@ public enum InstructionType {
      * @see {@link SSAInvokeInstruction}
      */
     INVOKE_STATIC;
+    // Unexpected types
+//  /**
+//   * @see SSAPiInstruction
+//   */
+//  PI,
+//  /**
+//   * @see SSALoadIndirectInstruction
+//   */
+//  LOAD_INDIRECT,
+//  /**
+//   * @see SSAAddressOfInstruction
+//   */
+//  ADDRESS_OF,
+//  /**
+//   * @see SSAMonitorInstruction
+//   */
+//  MONITOR,
+//  /**
+//   * @see SSAStoreIndirectInstruction
+//   */
+//  STORE_INDIRECT,
 
     public static InstructionType forInstruction(SSAInstruction i) {
         if (i instanceof SSAGotoInstruction) return GOTO;
         if (i instanceof SSAArrayLoadInstruction) return ARRAY_LOAD;
         if (i instanceof SSAArrayStoreInstruction) return ARRAY_STORE;
         if (i instanceof SSABinaryOpInstruction) return BINARY_OP;
-        if (i instanceof SSAPiInstruction) return PI;
         if (i instanceof SSAUnaryOpInstruction) {
             // Unary negation should be the only possibility here
             assert ((SSAUnaryOpInstruction) i).getOpcode() == com.ibm.wala.shrikeBT.IUnaryOpInstruction.Operator.NEG : "Invalid unary operator: "
@@ -183,8 +203,18 @@ public enum InstructionType {
         if (i instanceof SSAConditionalBranchInstruction) return CONDITIONAL_BRANCH;
         if (i instanceof SSASwitchInstruction) return SWITCH;
         if (i instanceof SSAReturnInstruction) return RETURN;
-        if (i instanceof SSAGetInstruction) return GET;
-        if (i instanceof SSAPutInstruction) return PUT;
+        if (i instanceof SSAGetInstruction) {
+            if (((SSAGetInstruction) i).isStatic()) {
+                return GET_STATIC;
+            }
+            return GET_FIELD;
+        }
+        if (i instanceof SSAPutInstruction) {
+            if (((SSAPutInstruction) i).isStatic()) {
+                return PUT_STATIC;
+            }
+            return PUT_FIELD;
+        }
         if (i instanceof SSAInvokeInstruction) {
             SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
             IInvokeInstruction.Dispatch type = (Dispatch) inv.getCallSite().getInvocationCode();
@@ -196,7 +226,12 @@ public enum InstructionType {
             default: assert false : "Invalid invocation type: " + type;
             }
         }
-        if (i instanceof SSANewInstruction) return NEW;
+        if (i instanceof SSANewInstruction) {
+            if (((SSANewInstruction) i).getNewSite().getDeclaredType().isArrayType()) {
+                return NEW_ARRAY;
+            }
+            return NEW_OBJECT;
+        }
         if (i instanceof SSAArrayLengthInstruction) return ARRAY_LENGTH;
         if (i instanceof SSAThrowInstruction) return THROW;
         if (i instanceof SSACheckCastInstruction) return CHECK_CAST;
@@ -204,32 +239,111 @@ public enum InstructionType {
         if (i instanceof SSAPhiInstruction) return PHI;
         if (i instanceof SSAGetCaughtExceptionInstruction) return GET_CAUGHT_EXCEPTION;
         if (i instanceof SSALoadMetadataInstruction) return LOAD_METADATA;
-        if (i instanceof SSALoadIndirectInstruction) return LOAD_INDIRECT;
-        if (i instanceof SSAAddressOfInstruction) return ADDRESS_OF;
-        if (i instanceof SSAMonitorInstruction) return MONITOR;
-        if (i instanceof SSAStoreIndirectInstruction) return STORE_INDIRECT;
-
-        String msg = "Invalid instruction type: " + i.getClass().getCanonicalName();
+        String msg = "Invalid/unexpected instruction type: " + i.getClass().getCanonicalName();
         assert false : msg;
         throw new RuntimeException(msg);
     }
     
     /**
-     * True if this type of instruction is not supposed to be created for normal code.
-     * 
-     * @return true if this type is not expected to occur
+     * Exceptions that may be thrown by an array load
      */
-    public boolean isUnexpected() {
-        switch (this) {
-        // Unexpected cases
-        case STORE_INDIRECT:
-        case PI:
-        case MONITOR:
-        case LOAD_INDIRECT:
-        case ADDRESS_OF:
-            return true;
+    private static Collection<TypeReference> arrayLoadExeptions;
+    /**
+     * Exceptions that may be thrown by an array store
+     */
+    private static Collection<TypeReference> arrayStoreExeptions;
+    /**
+     * Singleton collection containing the null pointer exception type
+     */
+    private static final Collection<TypeReference> nullPointerException = Collections.singleton(TypeReference.JavaLangNullPointerException);
+    /**
+     * Singleton collection containing the arithmetic exception type
+     */
+    private static final Collection<TypeReference> arithmeticException = Collections.singleton(TypeReference.JavaLangArithmeticException);
+    /**
+     * Singleton collection containing the class cast exception type
+     */
+    private static final Collection<TypeReference> classCastException = Collections.singleton(TypeReference.JavaLangClassCastException);
+    /**
+     * Singleton collection containing the negative array index exception type
+     */
+    private static final Collection<TypeReference> negativeArraySizeException = Collections.singleton(TypeReference.JavaLangNegativeArraySizeException);
+    
+    /**
+     * Get the exceptions that may be implicitly thrown by this instruction
+     * 
+     * @param i
+     *            instruction
+     * 
+     * @return collection of implicit exception types
+     */
+    public static Collection<TypeReference> implicitExceptions(SSAInstruction i) {
+        InstructionType type = forInstruction(i);
+        switch(type) {
+
+        case ARRAY_LENGTH:
+        case GET_FIELD:
+        case INVOKE_INTERFACE:
+        case INVOKE_SPECIAL:
+        case INVOKE_VIRTUAL:
+            // TODO WrongMethodTypeException
+        case PUT_FIELD:
+        case THROW: // if the object thrown is null
+            return nullPointerException;
+            
+        case CHECK_CAST:
+            return classCastException;
+            
+        case NEW_ARRAY:
+            return negativeArraySizeException;
+            
+        case ARRAY_LOAD:
+            if (arrayLoadExeptions == null) {
+                Set<TypeReference> es = new LinkedHashSet<>();
+                es.add(TypeReference.JavaLangNullPointerException);
+                es.add(TypeReference.JavaLangArrayIndexOutOfBoundsException);
+                arrayLoadExeptions = Collections.unmodifiableCollection(es);
+            }
+            return arrayLoadExeptions;
+            
+        case ARRAY_STORE:
+            if (arrayStoreExeptions == null) {
+                Set<TypeReference> es = new LinkedHashSet<>();
+                es.add(TypeReference.JavaLangNullPointerException);
+                es.add(TypeReference.JavaLangArrayIndexOutOfBoundsException);
+                es.add(TypeReference.JavaLangArrayStoreException);
+                arrayStoreExeptions = Collections.unmodifiableCollection(es);
+            }
+            return arrayStoreExeptions;
+            
+        case BINARY_OP:
+            SSABinaryOpInstruction binop = (SSABinaryOpInstruction)i;
+            IOperator opType = binop.getOperator();
+            if (binop.mayBeIntegerOp() && (opType == Operator.DIV || opType == Operator.REM)) {
+                return arithmeticException;
+            }
+                    
+        // No implicit exceptions thrown by the following     
+        case COMPARISON:
+        case CONDITIONAL_BRANCH:
+        case CONVERSION:
+        case GET_STATIC:
+        case GET_CAUGHT_EXCEPTION:
+        case GOTO:
+        case INSTANCE_OF:
+        case INVOKE_STATIC:
+        case LOAD_METADATA:
+            // TODO Exceptions for reflection?
+        case NEW_OBJECT:
+        case PHI:
+        case PUT_STATIC:
+        case RETURN:
+            // TODO IllegalMonitorStateException
+        case SWITCH:
+        case UNARY_NEG_OP:
+            return Collections.emptySet();
         default:
-            return false;
+            throw new IllegalArgumentException("Undefined instruction type: " + type);
         }
     }
 }

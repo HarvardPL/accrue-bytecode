@@ -1,11 +1,10 @@
 package analysis.pointer.statements;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AllocSiteNode;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.IClass;
@@ -15,7 +14,6 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSANewInstruction;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to graph node for a "new" statement, e.g. Object o = new Object()
@@ -66,22 +64,11 @@ public class NewStatement extends PointsToStatement {
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
 
         boolean changed = false;
-        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
-            // During resolution of the symbolic reference to the class, array,
-            // or interface type, any of the exceptions documented in 5.4.3.1
-            // can be thrown.
-
-            // Otherwise, if the symbolic reference to the class, array, or
-            // interface type resolves to an interface or is an abstract class,
-            // new throws an InstantiationError.
-            // TODO implicit errors from new
-        }
-
-        // TODO Handle array dimensions for new array
-        
         if (alloc.getExpectedType().isArrayType()) {
+            // TODO Handle array dimensions for new array
+            
             // Arrays can throw negative array size exceptions
-            changed |= checkThrownImplicit(TypeReference.JavaLangNegativeArraySizeException, context, g, registrar);
+            changed |= checkAllThrown(context, g, registrar);
         }
 
         // Add an edge from the assignee to the newly allocated object

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.InstructionType;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.MethodSummaryNodes;
@@ -117,7 +118,7 @@ public abstract class PointsToStatement {
     protected final boolean checkAllThrown(Context currentContext, PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
 
-        for (TypeReference tr : getInstruction().getExceptionTypes()) {
+        for (TypeReference tr : InstructionType.implicitExceptions(i)) {
             ReferenceVariable exNode = registrar.getImplicitExceptionNode(tr, getCode(), getInstruction());
             ReferenceVariableReplica e = new ReferenceVariableReplica(currentContext, exNode);
             changed |= checkThrown(tr, e, currentContext, g, registrar);

@@ -67,9 +67,8 @@ public class LocalToFieldStatement extends PointsToStatement {
             changed |= g.addEdges(f, localHeapContexts);
         }
 
-        // Otherwise, if objectref is null, the putfield instruction throws a
-        // NullPointerException.
         changed |= checkAllThrown(context, g, registrar);
+
         return changed;
     }
 

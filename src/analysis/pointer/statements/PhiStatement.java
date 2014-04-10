@@ -3,9 +3,9 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;

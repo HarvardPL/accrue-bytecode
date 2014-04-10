@@ -76,8 +76,6 @@ public class FieldToLocalStatment extends PointsToStatement {
             }
         }
 
-        // Otherwise, if objectref is null, the getfield instruction throws a
-        // NullPointerException.
         boolean changed = checkAllThrown(context, g, registrar);
 
         return changed || g.addEdges(left, fields);

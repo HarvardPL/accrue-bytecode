@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 import util.InstructionType;
+import util.print.PrettyPrinter;
 
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -68,7 +69,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         assert false : "Something has to be the last instruction.";
         throw new RuntimeException("Something has to be the last instruction.");
     }
-    
+
     /**
      * Data-flow transfer function for an instruction with only one successor
      * 
@@ -82,7 +83,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected Map<Integer, FlowItem> flowInstruction(SSAInstruction i, Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current) {
+    protected Map<Integer, FlowItem> flowInstruction(SSAInstruction i, Set<FlowItem> inItems, SSACFG cfg,
+            ISSABasicBlock current) {
         SSAInstruction last = current.getLastInstruction();
         if (i == last) {
             // this is the last instruction of the block
@@ -121,14 +123,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             return flowCheckCast((SSACheckCastInstruction) i, inItems, cfg, current);
         case CONDITIONAL_BRANCH:
             return flowConditionalBranch((SSAConditionalBranchInstruction) i, inItems, cfg, current);
-        case GET:
-            SSAGetInstruction get = (SSAGetInstruction) i;
-            if (!get.isStatic()) {
-                return flowGet((SSAGetInstruction) i, inItems, cfg, current);
-            } else {
-                assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
-                return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
-            }
+        case GET_FIELD:
+            return flowGetField((SSAGetInstruction) i, inItems, cfg, current);
         case GOTO:
             return flowGoto((SSAGotoInstruction) i, inItems, cfg, current);
         case INVOKE_INTERFACE:
@@ -141,16 +137,12 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             return flowInvokeVirtual((SSAInvokeInstruction) i, inItems, cfg, current);
         case LOAD_METADATA:
             return flowLoadMetadata((SSALoadMetadataInstruction) i, inItems, cfg, current);
-        case NEW:
-            return flowNew((SSANewInstruction) i, inItems, cfg, current);
-        case PUT:
-            SSAPutInstruction put = (SSAPutInstruction) i;
-            if (!put.isStatic()) {
-                return flowPutField((SSAPutInstruction) i, inItems, cfg, current);
-            } else {
-                assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
-                return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
-            }
+        case NEW_OBJECT:
+            return flowNewObject((SSANewInstruction) i, inItems, cfg, current);
+        case NEW_ARRAY:
+            return flowNewArray((SSANewInstruction) i, inItems, cfg, current);
+        case PUT_FIELD:
+            return flowPutField((SSAPutInstruction) i, inItems, cfg, current);
         case RETURN:
             return flowReturn((SSAReturnInstruction) i, inItems, cfg, current);
         case SWITCH:
@@ -161,24 +153,15 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         case COMPARISON:
         case CONVERSION:
         case GET_CAUGHT_EXCEPTION:
+        case GET_STATIC:
         case INSTANCE_OF:
         case PHI:
+        case PUT_STATIC:
         case UNARY_NEG_OP:
             assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
             return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
-            // the following are not normally used
-        case ADDRESS_OF:
-        case STORE_INDIRECT:
-        case PI:
-        case LOAD_INDIRECT:
-        case MONITOR:
-            assert false : "Unexpected instruction type: " + type;
-            break;
-        default:
-            assert false : "Bad instruction type: " + type;
         }
-
-        return null;
+        throw new RuntimeException("Invalid instruction type: " + PrettyPrinter.getSimpleClassName(i));
     }
 
     /**
@@ -246,8 +229,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowPutField(SSAPutInstruction i, Set<FlowItem> previousItems, SSACFG cfg,
-            ISSABasicBlock current);
+    protected abstract Map<Integer, FlowItem> flowPutField(SSAPutInstruction i, Set<FlowItem> previousItems,
+            SSACFG cfg, ISSABasicBlock current);
 
     /**
      * Data-flow transfer function for an instruction
@@ -263,8 +246,25 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowNew(SSANewInstruction i, Set<FlowItem> previousItems, SSACFG cfg,
-            ISSABasicBlock current);
+    protected abstract Map<Integer, FlowItem> flowNewObject(SSANewInstruction i, Set<FlowItem> previousItems,
+            SSACFG cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow items
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, FlowItem> flowNewArray(SSANewInstruction i, Set<FlowItem> previousItems,
+            SSACFG cfg, ISSABasicBlock current);
 
     /**
      * Data-flow transfer function for an instruction
@@ -382,8 +382,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowGet(SSAGetInstruction i, Set<FlowItem> previousItems, SSACFG cfg,
-            ISSABasicBlock current);
+    protected abstract Map<Integer, FlowItem> flowGetField(SSAGetInstruction i, Set<FlowItem> previousItems,
+            SSACFG cfg, ISSABasicBlock current);
 
     /**
      * Data-flow transfer function for an instruction
@@ -441,28 +441,16 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             return flowComparison((SSAComparisonInstruction) i, inItems, cfg, current);
         case CONVERSION:
             return flowConversion((SSAConversionInstruction) i, inItems, cfg, current);
-        case GET:
-            SSAGetInstruction get = (SSAGetInstruction) i;
-            if (get.isStatic()) {
-                return flowGetStatic((SSAGetInstruction) i, inItems, cfg, current);
-            } else {
-                assert false : "Non-static \"get\" should occur last in a basic block: " + type;
-            }
-            break;
+        case GET_STATIC:
+            return flowGetStatic((SSAGetInstruction) i, inItems, cfg, current);
         case GET_CAUGHT_EXCEPTION:
             return flowGetCaughtException((SSAGetCaughtExceptionInstruction) i, inItems, cfg, current);
         case INSTANCE_OF:
             return flowInstanceOf((SSAInstanceofInstruction) i, inItems, cfg, current);
         case PHI:
             return flowPhi((SSAPhiInstruction) i, inItems, cfg, current);
-        case PUT:
-            SSAPutInstruction put = (SSAPutInstruction) i;
-            if (put.isStatic()) {
-                return flowPutStatic((SSAPutInstruction) i, inItems, cfg, current);
-            } else {
-                assert false : "Non-static \"put\" should occur last in a basic block: " + type;
-            }
-            break;
+        case PUT_STATIC:
+            return flowPutStatic((SSAPutInstruction) i, inItems, cfg, current);
         case UNARY_NEG_OP:
             return flowUnaryNegation((SSAUnaryOpInstruction) i, inItems, cfg, current);
             // These should be the last instruction in a block
@@ -471,26 +459,21 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         case ARRAY_STORE:
         case CHECK_CAST:
         case CONDITIONAL_BRANCH:
+        case GET_FIELD:
         case GOTO:
         case INVOKE_INTERFACE:
         case INVOKE_SPECIAL:
         case INVOKE_STATIC:
         case INVOKE_VIRTUAL:
         case LOAD_METADATA:
-        case NEW:
+        case NEW_OBJECT:
+        case NEW_ARRAY:
+        case PUT_FIELD:
         case RETURN:
         case SWITCH:
         case THROW:
-            assert false : "Instructions of this type should always occur last in a basic block: " + type;
-            // the following are not normally used
-        case ADDRESS_OF:
-        case STORE_INDIRECT:
-        case PI:
-        case LOAD_INDIRECT:
-        case MONITOR:
-            assert false : "Unexpected instruction type: " + type;
-        default:
-            assert false : "Bad instruction type: " + type;
+            // The above all branch and should be the last instruction in a basic block
+            break;
         }
         throw new RuntimeException("Incorrect handling of instruction type: " + type);
     }

@@ -1,10 +1,9 @@
 package analysis.pointer.statements;
 
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
@@ -50,18 +49,6 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
-        
-        if (WalaAnalysisUtil.INCLUDE_IMPLICIT_ERRORS) {
-            // During resolution of the symbolic reference to the class or
-            // interface field, any of the exceptions pertaining to field
-            // resolution (5.4.3.2) can be thrown.
-
-            // Otherwise, if the resolved field is not a static (class) field or
-            // an interface field, getstatic throws an
-            // IncompatibleClassChangeError.
-
-            // TODO handle implicit errors for static get
-        }
         
         return g.addEdges(l, g.getPointsToSetFiltered(r, local.getExpectedType()));
     }

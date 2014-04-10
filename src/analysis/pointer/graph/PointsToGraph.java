@@ -20,7 +20,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.statements.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;

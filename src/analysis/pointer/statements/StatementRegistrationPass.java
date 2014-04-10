@@ -342,9 +342,13 @@ public class StatementRegistrationPass {
             // v = (Type) x
             registrar.registerCheckCast((SSACheckCastInstruction) i, ir);
             return;
-        case GET:
+        case GET_FIELD:
             // v = o.f
-            registrar.registerFieldAccess((SSAGetInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerGetField((SSAGetInstruction) i, ir, util.getClassHierarchy());
+            return;
+        case GET_STATIC:
+            // v = ClassName.f
+            registrar.registerGetStatic((SSAGetInstruction) i, ir, util.getClassHierarchy());
             return;
         case INVOKE_INTERFACE:
         case INVOKE_SPECIAL:
@@ -367,7 +371,8 @@ public class StatementRegistrationPass {
             // Reflection
             registrar.registerReflection((SSALoadMetadataInstruction) i, ir);
             return;
-        case NEW:
+        case NEW_ARRAY:
+        case NEW_OBJECT:
             // v = new Foo();
             registrar.registerNew((SSANewInstruction) i, ir, util.getClassHierarchy());
             return;
@@ -375,9 +380,13 @@ public class StatementRegistrationPass {
             // v = phi(x_1,x_2)
             registrar.registerPhiAssignment((SSAPhiInstruction) i, ir);
             return;
-        case PUT:
+        case PUT_FIELD:
             // o.f = v
-            registrar.registerFieldAssign((SSAPutInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerPutField((SSAPutInstruction) i, ir, util.getClassHierarchy());
+            return;
+        case PUT_STATIC:
+            // ClassName.f = v
+            registrar.registerPutStatic((SSAPutInstruction) i, ir, util.getClassHierarchy());
             return;
         case RETURN:
             // return v
@@ -398,16 +407,6 @@ public class StatementRegistrationPass {
         case SWITCH: // only switch on int
         case UNARY_NEG_OP: // primitive op
             break;
-        // the following are not normally used
-        case ADDRESS_OF:
-        case STORE_INDIRECT:
-        case PI:
-        case LOAD_INDIRECT:
-        case MONITOR:
-            assert false : "Unexpected instruction type: " + type;
-            break;
-        default:
-            assert false : "Bad instruction type: " + type;
         }
     }
 

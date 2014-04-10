@@ -4,7 +4,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import util.SingletonValueMap;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
@@ -18,7 +17,6 @@ import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.util.intset.IntIterator;
 
 /**
  * Inter-procedural extension of a data-flow analysis
@@ -65,8 +63,8 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      *            basic block containing the call
      * @return Data-flow fact for each successor after processing the call
      */
-    protected abstract Map<Integer, FlowItem> call(Set<FlowItem> inItems, SSAInvokeInstruction instruction, IR ir,
-            SSACFG cfg, ISSABasicBlock bb);
+    protected abstract Map<Integer, FlowItem> call(Set<FlowItem> inItems, SSAInvokeInstruction instruction, SSACFG cfg,
+            ISSABasicBlock bb);
 
     /**
      * Perform the data-flow

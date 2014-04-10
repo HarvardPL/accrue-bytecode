@@ -143,20 +143,32 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerFieldAccess(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
+    public void registerGetField(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
         }
         ReferenceVariable assignee = getLocal(i.getDef(), ir);
-        if (i.isStatic()) {
-            ReferenceVariable field = getNodeForStaticField(i.getDeclaredField(), cha);
-            addStatement(new StaticFieldToLocalStatement(assignee, field, ir, i));
-            return;
-        }
-
         ReferenceVariable receiver = getLocal(i.getRef(), ir);
         addStatement(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir, i));
+    }
+    
+    /**
+     * v = ClassName.f
+     * 
+     * @param i
+     *            instruction getting the field
+     * @param ir
+     *            code for method containing the instruction
+     */
+    public void registerGetStatic(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
+        if (i.getDeclaredFieldType().isPrimitiveType()) {
+            // No pointers here
+            return;
+        }
+        ReferenceVariable assignee = getLocal(i.getDef(), ir);
+        ReferenceVariable field = getNodeForStaticField(i.getDeclaredField(), cha);
+        addStatement(new StaticFieldToLocalStatement(assignee, field, ir, i));
     }
 
     /**
@@ -167,7 +179,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void registerFieldAssign(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
+    public void registerPutField(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // Assigning into a primitive field, or assigning null
             return;
@@ -175,14 +187,29 @@ public class StatementRegistrar {
 
         FieldReference f = i.getDeclaredField();
         ReferenceVariable assignedValue = getLocal(i.getVal(), ir);
+        ReferenceVariable receiver = getLocal(i.getRef(), ir);
+        addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir, i));
+    }
 
-        if (i.isStatic()) {
-            ReferenceVariable fieldNode = getNodeForStaticField(f, cha);
-            addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir, i));
-        } else {
-            ReferenceVariable receiver = getLocal(i.getRef(), ir);
-            addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir, i));
+    /**
+     * Handle an assignment into a static field, ClassName.f = v
+     * 
+     * @param i
+     *            instruction for the assignment
+     * @param ir
+     *            code for the method containing the instruction
+     */
+    public void registerPutStatic(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
+        if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
+            // Assigning into a primitive field, or assigning null
+            return;
         }
+
+        FieldReference f = i.getDeclaredField();
+        ReferenceVariable assignedValue = getLocal(i.getVal(), ir);
+        ReferenceVariable fieldNode = getNodeForStaticField(f, cha);
+        addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir, i));
+
     }
 
     /**

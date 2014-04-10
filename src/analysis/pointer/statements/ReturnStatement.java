@@ -46,8 +46,8 @@ public class ReturnStatement extends PointsToStatement {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
 
-        // TODO handle implicit IllegalMonitorStateException for return
-        return g.addEdges(summaryRes, g.getPointsToSetFiltered(returnRes, summaryRes.getExpectedType()));
+        // could throw IllegalMonitorStateException
+        return checkAllThrown(context, g, registrar) || g.addEdges(summaryRes, g.getPointsToSetFiltered(returnRes, summaryRes.getExpectedType()));
     }
 
     @Override

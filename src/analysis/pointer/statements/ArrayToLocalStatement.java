@@ -58,11 +58,6 @@ public class ArrayToLocalStatement extends PointsToStatement {
             changed |= g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
         }
 
-        // If arrayref is null, aaload throws a NullPointerException.
-
-        // Otherwise, if index is not within the bounds of the array referenced
-        // by arrayref, the aaload instruction throws an
-        // ArrayIndexOutOfBoundsException.
         changed |= checkAllThrown(context, g, registrar);
 
         return changed;
