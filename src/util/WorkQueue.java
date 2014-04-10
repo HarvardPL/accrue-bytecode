@@ -1,5 +1,6 @@
 package util;
 
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -7,7 +8,7 @@ import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /**
- * Workqueue where duplicate elements are not added
+ * Work queue where duplicate elements are not added
  * 
  * @param <T>
  *            type of queue elements
@@ -53,15 +54,15 @@ public class WorkQueue<T> {
     }
 
     /**
-     * Add a set of nodes to the back of the queue.
+     * Add a collection of nodes to the back of the queue.
      * 
-     * @param ns
+     * @param collection
      *            nodes to add
      * @return true if the queue changed as a result of this call
      */
-    public boolean addAll(Set<T> ns) {
+    public boolean addAll(Collection<T> collection) {
         boolean changed = false;
-        for (T n : ns) {
+        for (T n : collection) {
             changed |= add(n);
         }
         return changed;
@@ -94,5 +95,16 @@ public class WorkQueue<T> {
     @Override
     public String toString() {
         return q.toString();
+    }
+    
+    /**
+     * Check if the queue already contains the given element
+     * 
+     * @param element
+     *            element to check
+     * @return true if the element is in the queue
+     */
+    public boolean contains(T element) {
+        return qSet.contains(element);
     }
 }

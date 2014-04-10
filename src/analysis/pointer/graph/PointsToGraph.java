@@ -20,6 +20,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.statements.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -27,6 +28,8 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.ssa.IR;
+import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
@@ -43,11 +46,13 @@ public class PointsToGraph {
 
     private final ExplicitCallGraph callGraph;
     private final WalaAnalysisUtil util;
+    private final StatementRegistrar registrar;
 
     public PointsToGraph(WalaAnalysisUtil util, StatementRegistrar registrar, HeapAbstractionFactory haf) {
         changedNodes = new LinkedHashSet<>();
         readNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
+        this.registrar = registrar;
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
         this.util = util;
         callGraph = new ExplicitCallGraph(util.getClassHierarchy(), util.getOptions(), util.getCache());
@@ -387,5 +392,30 @@ public class PointsToGraph {
         Set<PointsToGraphNode> c = readNodes;
         readNodes = new LinkedHashSet<>();
         return c;
+    }
+    
+    /**
+     * Get the reference variable for the local variable with the given value
+     * number in the given method
+     * 
+     * @param local
+     *            value number for the local variable
+     * @param ir
+     *            method the value is defined in
+     * @return Unique reference variable for the local
+     */
+    public ReferenceVariable getLocal(int local, IR ir) {
+        return registrar.getLocal(local, ir);
+    }
+    
+    /**
+     * Get the reference variable for the static field
+     * 
+     * @param field
+     *            static field
+     * @return Unique reference variable for the local
+     */
+    public ReferenceVariable getStaticField(FieldReference field) {
+        return registrar.getNodeForStaticField(field, util.getClassHierarchy());
     }
 }

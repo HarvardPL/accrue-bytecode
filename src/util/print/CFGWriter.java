@@ -20,6 +20,8 @@ import com.ibm.wala.util.intset.IntIterator;
  * Write out a control flow graph for a specific method
  */
 public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
+    private static final String NORM_TERM = "NT";
+    private static final String EXCEPTION = "EX";
     /**
      * Output will be written to this writer
      */
@@ -110,13 +112,15 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
     @Override
     protected Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems, SSACFG cfg,
             ISSABasicBlock current) {
-        try (Writer sw = new StringWriter()) {
+        try (StringWriter sw = new StringWriter()) {
             String exit = current.isExitBlock() ? "\\lEXIT" : "";
             String entry = current.isEntryBlock() ? "\\lENTRY" : "";
             sw.write("BB" + current.getNumber() + entry + exit + "\\l");
+            
             if (verbose) {
                 PrettyPrinter.writeBasicBlock(ir, current, sw, prefix, postfix);
             }
+
             String bbString = escapeDot(sw.toString());
             for (OrderedPair<String, String> predPair : inItems) {
                 String predNode = predPair.snd();
@@ -130,7 +134,7 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
             IntIterator iter = getSuccNodeNumbers(current, cfg);
             while (iter.hasNext()) {
                 Integer bbNum = iter.next();
-                String edge = normalSuccs.contains(cfg.getBasicBlock(bbNum)) ? "NT" : "EX";
+                String edge = normalSuccs.contains(cfg.getBasicBlock(bbNum)) ? NORM_TERM : EXCEPTION;
                 OrderedPair<String, String> item = new OrderedPair<>(edge, bbString);
                 result.put(bbNum, item);
             }
@@ -149,5 +153,10 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      */
     private String escapeDot(String s) {
         return s.replace("\"", "\\\"").replace("\n", "\\l");
+    }
+    
+    @Override
+    protected void post(IR ir) {
+        // Intentionally left blank
     }
 }

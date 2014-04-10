@@ -10,4 +10,12 @@ A: It actual does the right thing apparently
 For a data-flow analysis with side effects (e.g. printing) do I have to keep a set of visited nodes, this seems a bit hackish, but to avoid duplicates it might be unavoidable (we don't want to reanalyze).
 
 Should null data-flow items be allowed? Should they be propagated?
-Polyglot says yes, no
+Polyglot says yes for the first and no for the second
+
+Do I actually need a lattice and confluence or should I let the individual analysis decide how to compute the meet of the incoming edges (if they even need to).
+
+Do we actually need to hashcons the varcontexts?
+
+Widen is never not the same as upperbound.
+
+

@@ -1,6 +1,6 @@
 package analysis.dataflow;
 
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,19 +53,44 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      */
     @Override
     protected final Map<Integer, FlowItem> flow(Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current) {
+        // TODO basic blocks should be analyzed on SCC at a time
         Set<FlowItem> previousItems = inItems;
         SSAInstruction last = current.getLastInstruction();
         for (SSAInstruction i : current) {
             if (i == last) {
                 // this is the last instruction of the block
-                return flowLastInstruction(i, previousItems, cfg, current);
+                return flowInstruction(i, previousItems, cfg, current);
             } else {
                 // Pass the results of this "flow" into the next
-                previousItems = Collections.singleton(flowInstruction(i, previousItems, cfg, current));
+                previousItems = new HashSet<>(flowInstruction(i, inItems, cfg, current).values());
             }
         }
         assert false : "Something has to be the last instruction.";
         throw new RuntimeException("Something has to be the last instruction.");
+    }
+    
+    /**
+     * Data-flow transfer function for an instruction with only one successor
+     * 
+     * @param i
+     *            instruction
+     * @param inItems
+     *            input data-flow items
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return data-flow fact after analyzing this instruction
+     */
+    protected Map<Integer, FlowItem> flowInstruction(SSAInstruction i, Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current) {
+        SSAInstruction last = current.getLastInstruction();
+        if (i == last) {
+            // this is the last instruction of the block
+            return flowLastInstruction(i, inItems, cfg, current);
+        } else {
+            // Pass the results of this "flow" into the next
+            return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
+        }
     }
 
     /**
@@ -102,7 +127,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
                 return flowGet((SSAGetInstruction) i, inItems, cfg, current);
             } else {
                 assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
-                return itemToMap(flowInstruction(i, inItems, cfg, current), current, cfg);
+                return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
             }
         case GOTO:
             return flowGoto((SSAGotoInstruction) i, inItems, cfg, current);
@@ -121,10 +146,10 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         case PUT:
             SSAPutInstruction put = (SSAPutInstruction) i;
             if (!put.isStatic()) {
-                return flowPut((SSAPutInstruction) i, inItems, cfg, current);
+                return flowPutField((SSAPutInstruction) i, inItems, cfg, current);
             } else {
                 assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
-                return itemToMap(flowInstruction(i, inItems, cfg, current), current, cfg);
+                return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
             }
         case RETURN:
             return flowReturn((SSAReturnInstruction) i, inItems, cfg, current);
@@ -140,7 +165,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         case PHI:
         case UNARY_NEG_OP:
             assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
-            return itemToMap(flowInstruction(i, inItems, cfg, current), current, cfg);
+            return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
             // the following are not normally used
         case ADDRESS_OF:
         case STORE_INDIRECT:
@@ -208,7 +233,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             SSACFG cfg, ISSABasicBlock current);
 
     /**
-     * Data-flow transfer function for an instruction
+     * Data-flow transfer function for a non-static put instruction o.f = x
      * 
      * @param i
      *            instruction
@@ -221,7 +246,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowPut(SSAPutInstruction i, Set<FlowItem> previousItems, SSACFG cfg,
+    protected abstract Map<Integer, FlowItem> flowPutField(SSAPutInstruction i, Set<FlowItem> previousItems, SSACFG cfg,
             ISSABasicBlock current);
 
     /**
@@ -407,7 +432,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    private FlowItem flowInstruction(SSAInstruction i, Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current) {
+    private FlowItem flowOtherInstruction(SSAInstruction i, Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current) {
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
         case BINARY_OP:

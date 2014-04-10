@@ -76,4 +76,9 @@ public class IRWriter extends DataFlow<Unit> {
         }
         return itemToMap(Unit.VALUE, current, cfg);
     }
+    
+    @Override
+    protected void post(IR ir) {
+        // Intentionally left blank
+    }
 }

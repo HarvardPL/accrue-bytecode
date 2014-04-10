@@ -396,7 +396,7 @@ public class StatementRegistrar {
      *            field to get the node for
      * @return points-to graph node for the static field
      */
-    private ReferenceVariable getNodeForStaticField(FieldReference field, IClassHierarchy cha) {
+    public ReferenceVariable getNodeForStaticField(FieldReference field, IClassHierarchy cha) {
         IField f = cha.resolveField(field);
         ReferenceVariable node = staticFields.get(f);
         if (node == null) {

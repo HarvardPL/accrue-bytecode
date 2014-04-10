@@ -3,6 +3,7 @@ package analysis.dataflow;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -47,22 +48,6 @@ public abstract class DataFlow<FlowItem> {
     }
 
     /**
-     * Transfer function for the data-flow, takes a list of facts and produces a
-     * new fact (possibly different for each successor) after analyzing the
-     * given basic block.
-     * 
-     * @param inItems
-     *            data-flow items on input edges
-     * @param cfg
-     *            Control flow graph this analysis is performed over
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems, SSACFG cfg, ISSABasicBlock current);
-
-    /**
      * Perform the dataflow on the given IR
      * 
      * @param ir
@@ -74,8 +59,8 @@ public abstract class DataFlow<FlowItem> {
         SSACFG g = ir.getControlFlowGraph();
 
         WorkQueue<ISSABasicBlock> q = new WorkQueue<>();
-        q.add(g.entry());
 
+        q.add(getInitialBlock(g));
         while (!q.isEmpty()) {
             ISSABasicBlock current = q.poll();
             Set<FlowItem> inItems = new LinkedHashSet<>(getNumPreds(current, g));
@@ -111,7 +96,35 @@ public abstract class DataFlow<FlowItem> {
                 putOutItems(current, outItems);
             }
         }
+        
+        post(ir);
     }
+
+    /**
+     * Perform any data-flow specific operations after analyzing the procedure
+     * 
+     * @param ir
+     *            procedure being analyzed
+     */
+    protected abstract void post(IR ir);
+
+    /**
+     * Transfer function for the data-flow, takes a list of facts and produces a
+     * new fact (possibly different for each successor) after analyzing the
+     * given basic block.
+     * 
+     * @param inItems
+     *            data-flow items on input edges
+     * @param cfg
+     *            Control flow graph this analysis is performed over
+     * @param i
+     *            current instruction
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current basic block
+     */
+    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems, SSACFG g, ISSABasicBlock current);
 
     /**
      * Get all successors of the given basic block. If this is a forward
@@ -200,6 +213,34 @@ public abstract class DataFlow<FlowItem> {
         }
         return new SingletonValueMap<>(succs, item);
     }
+    
+    /**
+     * Get a mapping from the ID for each successor of the given basic block to
+     * data-flow facts. There will be a single fact for all normal successors
+     * and another (possibly different) fact for exceptional successors.
+     * 
+     * @param normalItem
+     *            item to associate with each normal successor
+     * @param exceptionalItem
+     *            item to associate with each exceptional successor
+     * @param bb
+     *            basic block to get the successors ids for
+     * @param cfg
+     *            control flow graph
+     * @return mapping from each successor id to the corresponding data-flow
+     *         item
+     */
+    protected final Map<Integer, FlowItem> itemToMapWithExceptions(FlowItem normalItem, FlowItem exceptionItem,
+            ISSABasicBlock bb, SSACFG cfg) {
+        Map<Integer, FlowItem> ret = new LinkedHashMap<>();
+        for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
+            ret.put(succ.getGraphNodeId(), normalItem);
+        }
+        for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
+            ret.put(succ.getGraphNodeId(), exceptionItem);
+        }
+        return ret;
+    }
 
     /**
      * Get all predecessors for the given basic block. If this is a forward
@@ -253,7 +294,20 @@ public abstract class DataFlow<FlowItem> {
      * 
      * @return data-flow fact for targets of edges leaving the basic block
      */
-    private final Map<Integer, FlowItem> getOutItems(ISSABasicBlock bb) {
+    protected final Map<Integer, FlowItem> getOutItems(ISSABasicBlock bb) {
         return bbToOutItems.get(bb);
+    }
+
+    /**
+     * Get the first block to be analyzed in the data-flow. For a forward
+     * analysis this is the entry block and for a backward analysis this is the
+     * exit block.
+     * 
+     * @param cfg
+     *            control flow graph the data-flow is performed over
+     * @return the initial node to analyze
+     */
+    private final ISSABasicBlock getInitialBlock(SSACFG cfg) {
+        return forward ? cfg.entry() : cfg.exit();
     }
 }
