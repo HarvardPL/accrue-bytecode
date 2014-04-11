@@ -399,14 +399,13 @@ public class StatementRegistrar {
      * 
      * @param type
      *            type of the exception
-     * @param ir
-     *            method containing the instruction that throws
      * @param i
      *            instruction that throws
-     * 
+     * @param ir
+     *            method containing the instruction that throws
      * @return local node for an implicit throwable
      */
-    protected ReferenceVariable getImplicitExceptionNode(TypeReference type, IR ir, SSAInstruction i) {
+    public ReferenceVariable getImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
         ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
         ReferenceVariable node = implicitThrows.get(key);
         if (node == null) {

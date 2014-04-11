@@ -32,5 +32,5 @@ public interface AbstractValue<T> {
      *            value to take the upper bound with
      * @return the upper bound of this and that
      */
-    public T upperBound(T that);
+    public T join(T that);
 }

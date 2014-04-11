@@ -119,7 +119,7 @@ public abstract class PointsToStatement {
         boolean changed = false;
 
         for (TypeReference tr : InstructionType.implicitExceptions(i)) {
-            ReferenceVariable exNode = registrar.getImplicitExceptionNode(tr, getCode(), getInstruction());
+            ReferenceVariable exNode = registrar.getImplicitExceptionNode(tr, getInstruction(), getCode());
             ReferenceVariableReplica e = new ReferenceVariableReplica(currentContext, exNode);
             changed |= checkThrown(tr, e, currentContext, g, registrar);
         }
@@ -218,7 +218,7 @@ public abstract class PointsToStatement {
      */
     protected boolean checkThrownImplicit(TypeReference exType, Context context, PointsToGraph g,
             StatementRegistrar registrar) {
-        ReferenceVariable exNode = registrar.getImplicitExceptionNode(exType, getCode(), getInstruction());
+        ReferenceVariable exNode = registrar.getImplicitExceptionNode(exType, getInstruction(), getCode());
         ReferenceVariableReplica e = new ReferenceVariableReplica(context, exNode);
         return checkThrown(exType, e, context, g, registrar);
     }

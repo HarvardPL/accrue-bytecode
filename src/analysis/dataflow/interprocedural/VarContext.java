@@ -45,23 +45,47 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     public T getReturnResult() {
         return returnResult;
     }
-
-    public VarContext<T> recordLocal(Integer s, T val) {
+    
+    /**
+     * Replaces the current
+     * @param i
+     * @param val
+     * @return
+     */
+    public VarContext<T> setLocal(int i, T val) {
         // TODO record Local
         return null;
     }
 
+    /**
+     * Joins with the current
+     * @param loc
+     * @param val
+     * @return
+     */
     public VarContext<T> recordLocation(AbstractLocation loc, T val) {
         // TODO record Location
         return null;
     }
     
+    /**
+     * Joins with the current
+     * @param locs
+     * @param val
+     * @return
+     */
     public VarContext<T> recordLocations(Set<AbstractLocation> locs, T val) {
         // TODO record Location
         return null;
     }
 
-    public VarContext<T> setReturnResult(T returnAbsVal) {
+    /**
+     * Joins with the current
+     * 
+     * @param returnAbsVal
+     * @return
+     */
+    public VarContext<T> joinReturnResult(T returnAbsVal) {
         // TODO update return val
         return null;
     }
@@ -79,7 +103,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     }
 
     @Override
-    public VarContext<T> upperBound(VarContext<T> that) {
+    public VarContext<T> join(VarContext<T> that) {
         // TODO Auto-generated method stub
         return null;
     }

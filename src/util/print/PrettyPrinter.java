@@ -551,7 +551,7 @@ public class PrettyPrinter {
         PrettyPrinter pp = getPrinter(ir);
         for (SSAInstruction i : bb) {
             try {
-                writer.write(prefix + pp.instructionString(i) + postfix);
+                writer.write(prefix + pp.instructionString(i) + " (" + getSimpleClassName(i) + ") " + postfix);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -603,7 +603,7 @@ public class PrettyPrinter {
 
     private String instructionString(SSAInstruction instruction) {
         InstructionType type = InstructionType.forInstruction(instruction);
-
+        
         switch (type) {
         case ARRAY_LENGTH:
             return arrayLengthString((SSAArrayLengthInstruction) instruction);

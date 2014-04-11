@@ -9,12 +9,13 @@ import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
+import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.FieldReference;
 
@@ -63,7 +64,7 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      *            basic block containing the call
      * @return Data-flow fact for each successor after processing the call
      */
-    protected abstract Map<Integer, FlowItem> call(Set<FlowItem> inItems, SSAInvokeInstruction instruction, SSACFG cfg,
+    protected abstract Map<Integer, FlowItem> call(SSAInvokeInstruction instruction, Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock bb);
 
     /**
@@ -94,7 +95,7 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      *            current basic block
      * @return map with the same merged value for each key
      */
-    protected Map<Integer, FlowItem> mergeAndCreateMap(Set<FlowItem> items, SSACFG cfg, ISSABasicBlock bb) {
+    protected Map<Integer, FlowItem> mergeAndCreateMap(Set<FlowItem> items, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
         FlowItem item = confluence(items);
         return itemToMap(item, bb, cfg);
     }
@@ -102,21 +103,34 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
     /**
      * Get the abstract locations for a field access
      * 
-     * @param reciever
+     * @param receiver
      *            value number for the local variable for the receiver of a
      *            field access
      * @param field
      *            field being accessed
      * @return set of abstract locations for the field
      */
-    protected Set<AbstractLocation> LocationsForField(int reciever, FieldReference field) {
-        ReferenceVariable rv = ptg.getLocal(reciever, currentNode.getIR());
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(new ReferenceVariableReplica(currentNode.getContext(), rv));
+    protected Set<AbstractLocation> LocationsForField(int receiver, FieldReference field) {
+        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver));
         Set<AbstractLocation> ret = new LinkedHashSet<>();
         for (InstanceKey o : pointsTo) {
             AbstractLocation loc = new AbstractLocation(o, field);
             ret.add(loc);
         }
         return ret;
+    }
+    
+    /**
+     * Get the reference variable replica for the given local variable in the
+     * current context
+     * 
+     * @param local
+     *            value number of the local variable
+     * 
+     * @return Reference variable replica in the current context for the local
+     */
+    protected ReferenceVariableReplica getReplica(int local) {
+        ReferenceVariable rv = ptg.getLocal(local, currentNode.getIR());
+        return new ReferenceVariableReplica(currentNode.getContext(), rv);
     }
 }

@@ -11,9 +11,10 @@ import java.util.Set;
 import util.OrderedPair;
 import analysis.dataflow.DataFlow;
 
+import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
@@ -110,7 +111,7 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      * {@inheritDoc}
      */
     @Override
-    protected Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems, SSACFG cfg,
+    protected Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current) {
         try (StringWriter sw = new StringWriter()) {
             String exit = current.isExitBlock() ? "\\lEXIT" : "";
@@ -131,10 +132,10 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
             Map<Integer, OrderedPair<String, String>> result = new LinkedHashMap<>();
 
             Collection<ISSABasicBlock> normalSuccs = getNormalSuccs(current, cfg);
-            IntIterator iter = getSuccNodeNumbers(current, cfg);
+            IntIterator iter = getSuccNodeNumbers(current, cfg).intIterator();
             while (iter.hasNext()) {
                 Integer bbNum = iter.next();
-                String edge = normalSuccs.contains(cfg.getBasicBlock(bbNum)) ? NORM_TERM : EXCEPTION;
+                String edge = normalSuccs.contains(cfg.getNode(bbNum)) ? NORM_TERM : EXCEPTION;
                 OrderedPair<String, String> item = new OrderedPair<>(edge, bbString);
                 result.put(bbNum, item);
             }

@@ -8,14 +8,17 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.OrderedPair;
 import util.SingletonValueMap;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 
+import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.IntSet;
 
 /**
  * Base class for a context-sensitive, flow-sensitive, path-sensitive
@@ -56,7 +59,7 @@ public abstract class DataFlow<FlowItem> {
     protected final void dataflow(IR ir) {
         // TODO Polyglot computes SCCs and iterates through them
 
-        SSACFG g = ir.getControlFlowGraph();
+        ControlFlowGraph<SSAInstruction, ISSABasicBlock> g = ir.getControlFlowGraph();
 
         WorkQueue<ISSABasicBlock> q = new WorkQueue<>();
 
@@ -96,7 +99,7 @@ public abstract class DataFlow<FlowItem> {
                 putOutItems(current, outItems);
             }
         }
-        
+
         post(ir);
     }
 
@@ -124,7 +127,7 @@ public abstract class DataFlow<FlowItem> {
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current basic block
      */
-    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems, SSACFG g, ISSABasicBlock current);
+    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> g, ISSABasicBlock current);
 
     /**
      * Get all successors of the given basic block. If this is a forward
@@ -138,7 +141,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return iterator for data-flow successors of the given basic block
      */
-    protected final Iterator<ISSABasicBlock> getSuccs(ISSABasicBlock bb, SSACFG cfg) {
+    protected final Iterator<ISSABasicBlock> getSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getSuccNodes(bb) : cfg.getPredNodes(bb);
     }
 
@@ -155,7 +158,7 @@ public abstract class DataFlow<FlowItem> {
      * @return the basic blocks which are data-flow successors of bb via normal
      *         control flow edges
      */
-    protected final Collection<ISSABasicBlock> getNormalSuccs(ISSABasicBlock bb, SSACFG cfg) {
+    protected final Collection<ISSABasicBlock> getNormalSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getNormalSuccessors(bb) : cfg.getNormalPredecessors(bb);
     }
 
@@ -172,7 +175,7 @@ public abstract class DataFlow<FlowItem> {
      * @return the basic blocks which are data-flow successors of bb via
      *         exceptional control flow edges
      */
-    protected final Collection<ISSABasicBlock> getExceptionalSuccs(ISSABasicBlock bb, SSACFG cfg) {
+    protected final Collection<ISSABasicBlock> getExceptionalSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getExceptionalSuccessors(bb) : cfg.getExceptionalPredecessors(bb);
     }
 
@@ -188,14 +191,14 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return iterator for data-flow successors of the given basic block
      */
-    protected final IntIterator getSuccNodeNumbers(ISSABasicBlock bb, SSACFG cfg) {
-        return forward ? cfg.getSuccNodeNumbers(bb).intIterator() : cfg.getPredNodeNumbers(bb).intIterator();
+    protected final IntSet getSuccNodeNumbers(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        return forward ? cfg.getSuccNodeNumbers(bb) : cfg.getPredNodeNumbers(bb);
     }
 
     /**
-     * Get a mapping from the ID for each successor of the given basic block to
-     * a single data-flow fact. This is used when analyzing a basic block that
-     * sends the same item to each of its successors.
+     * Get an unmodifiable mapping from the ID for each successor of the given
+     * basic block to a single data-flow fact. This is used when analyzing a
+     * basic block that sends the same item to each of its successors.
      * 
      * @param item
      *            item to associate with each successor
@@ -203,17 +206,41 @@ public abstract class DataFlow<FlowItem> {
      *            basic block to get the successors ids for
      * @param cfg
      *            control flow graph
-     * @return mapping from each successor id to the single given value
+     * @return unmodifiable mapping from each successor id to the single given
+     *         value
      */
-    protected final Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb, SSACFG cfg) {
+    protected final Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Set<Integer> succs = new LinkedHashSet<>();
-        IntIterator iter = getSuccNodeNumbers(bb, cfg);
+        IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
         while (iter.hasNext()) {
             succs.add(iter.next());
         }
         return new SingletonValueMap<>(succs, item);
     }
-    
+
+    /**
+     * Get a modifiable mapping from the ID for each successor of the given
+     * basic block to a single data-flow fact. This is used when analyzing a
+     * basic block that sends the same item to each of its successors.
+     * 
+     * @param item
+     *            item to associate with each successor
+     * @param bb
+     *            basic block to get the successors ids for
+     * @param cfg
+     *            control flow graph
+     * @return modifiable mapping from each successor id to the single given
+     *         value
+     */
+    protected final Map<Integer, FlowItem> itemToModifiableMap(FlowItem item, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        Map<Integer, FlowItem> res = new LinkedHashMap<>();
+        IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
+        while (iter.hasNext()) {
+            res.put(iter.next(), item);
+        }
+        return res;
+    }
+
     /**
      * Get a mapping from the ID for each successor of the given basic block to
      * data-flow facts. There will be a single fact for all normal successors
@@ -231,7 +258,7 @@ public abstract class DataFlow<FlowItem> {
      *         item
      */
     protected final Map<Integer, FlowItem> itemToMapWithExceptions(FlowItem normalItem, FlowItem exceptionItem,
-            ISSABasicBlock bb, SSACFG cfg) {
+            ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<Integer, FlowItem> ret = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
             ret.put(succ.getGraphNodeId(), normalItem);
@@ -254,7 +281,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return data-flow predecessors for the given basic block.
      */
-    private final Iterator<ISSABasicBlock> getPreds(ISSABasicBlock bb, SSACFG cfg) {
+    private final Iterator<ISSABasicBlock> getPreds(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getPredNodes(bb) : cfg.getSuccNodes(bb);
     }
 
@@ -270,8 +297,24 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return number of data-flow predecessors for the given basic block.
      */
-    private final int getNumPreds(ISSABasicBlock bb, SSACFG cfg) {
+    protected final int getNumPreds(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getPredNodeCount(bb) : cfg.getSuccNodeCount(bb);
+    }
+
+    /**
+     * Get number of successors for the given basic block. If this is a forward
+     * analysis this will be the successors in the control flow graph. If this
+     * is a backward analysis then this will be the predecessors in the control
+     * flow graph.
+     * 
+     * @param bb
+     *            basic block to get the number of successors for
+     * @param cfg
+     *            control flow graph
+     * @return number of data-flow successors for the given basic block.
+     */
+    protected final int getNumSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        return forward ? cfg.getSuccNodeCount(bb) : cfg.getPredNodeCount(bb);
     }
 
     /**
@@ -307,7 +350,64 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph the data-flow is performed over
      * @return the initial node to analyze
      */
-    private final ISSABasicBlock getInitialBlock(SSACFG cfg) {
+    private final ISSABasicBlock getInitialBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.entry() : cfg.exit();
+    }
+
+    /**
+     * Get the control-flow successor on the "true" edge leaving a branch
+     * 
+     * @param bb
+     *            branching basic block
+     * @param cfg
+     *            control-flow graph
+     * @return ID for basic block on the outgoing "true" edge
+     */
+    protected final int getTrueSuccessor(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        return getTrueFalseSuccessors(bb, cfg).fst();
+    }
+
+    /**
+     * Get the control-flow successor on the "false" edge leaving a branch
+     * 
+     * @param bb
+     *            branching basic block
+     * @param cfg
+     *            control-flow graph
+     * @return ID for basic block on the outgoing "false" edge
+     */
+    protected final int getFalseSuccessor(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        return getTrueFalseSuccessors(bb, cfg).snd();
+    }
+
+    /**
+     * Get the control-flow successors on the "true" and "false" edges leaving a
+     * branch
+     * 
+     * @param bb
+     *            branching basic block
+     * @param cfg
+     *            control-flow graph
+     * @return pair of basic block number for "true" successor and "false"
+     *         successor in that order
+     */
+    private final OrderedPair<Integer, Integer> getTrueFalseSuccessors(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        if (cfg.getSuccNodeCount(bb) != 2) {
+            throw new RuntimeException("Branches have exactly 2 successors. This has " + cfg.getSuccNodeCount(bb));
+        }
+        int trueBranch = -1;
+        int falseBranch = bb.getGraphNodeId() + 1;
+        IntSet set = cfg.getSuccNodeNumbers(bb);
+        assert set.contains(falseBranch) : "False branch should be the next block number.";
+
+        IntIterator iter = set.intIterator();
+        while (iter.hasNext()) {
+            int branch = iter.next();
+            if (branch != falseBranch) {
+                assert trueBranch == -1 : "No false branch?";
+                trueBranch = branch;
+            }
+        }
+        return new OrderedPair<Integer, Integer>(trueBranch, falseBranch);
     }
 }

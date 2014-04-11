@@ -8,9 +8,10 @@ import java.util.Set;
 import analysis.dataflow.DataFlow;
 import analysis.dataflow.Unit;
 
+import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAInstruction;
 
 /**
  * Print the code for a given method
@@ -19,7 +20,7 @@ public class IRWriter extends DataFlow<Unit> {
     /**
      * Set of visited basic blocks to prevent revisiting
      */
-    Set<ISSABasicBlock> visited = new HashSet<>();
+    private final Set<ISSABasicBlock> visited = new HashSet<>();
     /**
      * Output will be written to this writer
      */
@@ -69,10 +70,10 @@ public class IRWriter extends DataFlow<Unit> {
     }
 
     @Override
-    protected Map<Integer, Unit> flow(Set<Unit> inItems, SSACFG cfg, ISSABasicBlock current) {
+    protected Map<Integer, Unit> flow(Set<Unit> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         if (!visited.contains(current)) {
-            // TODO prevent reprinting in the presence of back edges
             PrettyPrinter.writeBasicBlock(ir, current, writer, prefix, postfix);
+            visited.add(current);
         }
         return itemToMap(Unit.VALUE, current, cfg);
     }
