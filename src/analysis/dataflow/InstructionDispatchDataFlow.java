@@ -66,9 +66,13 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
                 previousItems = new HashSet<>(flowInstruction(i, inItems, cfg, current).values());
             }
         }
+        
+        postBasicBlock();
         assert false : "Something has to be the last instruction.";
         throw new RuntimeException("Something has to be the last instruction.");
     }
+
+    protected abstract void postBasicBlock();
 
     /**
      * Data-flow transfer function for an instruction with only one successor

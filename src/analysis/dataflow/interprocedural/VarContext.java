@@ -10,11 +10,13 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     private final Map<Integer, T> locals;
     private final Map<AbstractLocation, T> locations;
     private final T returnResult;
+    private final T exceptionValue;
 
-    public VarContext(Map<Integer, T> locals, Map<AbstractLocation, T> locations, T returnResult) {
+    public VarContext(Map<Integer, T> locals, Map<AbstractLocation, T> locations, T returnResult, T exceptionValue) {
         this.locals = locals;
         this.locations = locations;
         this.returnResult = returnResult;
+        this.exceptionValue = exceptionValue;
     }
 
     /**
@@ -38,16 +40,26 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     }
 
     /**
-     * Get the abstract value for the return result (if any)
+     * Get the abstract value for the return result, null if there is none.
      * 
-     * @return
+     * @return abstract return value
      */
     public T getReturnResult() {
         return returnResult;
     }
-    
+
+    /**
+     * Get the abstract value for the exception, null if there is none.
+     * 
+     * @return abstract exception value
+     */
+    public T getExceptionValue() {
+        return exceptionValue;
+    }
+
     /**
      * Replaces the current
+     * 
      * @param i
      * @param val
      * @return
@@ -59,22 +71,12 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Joins with the current
+     * 
      * @param loc
      * @param val
      * @return
      */
-    public VarContext<T> recordLocation(AbstractLocation loc, T val) {
-        // TODO record Location
-        return null;
-    }
-    
-    /**
-     * Joins with the current
-     * @param locs
-     * @param val
-     * @return
-     */
-    public VarContext<T> recordLocations(Set<AbstractLocation> locs, T val) {
+    public VarContext<T> joinLocation(AbstractLocation loc, T val) {
         // TODO record Location
         return null;
     }
@@ -82,12 +84,35 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     /**
      * Joins with the current
      * 
-     * @param returnAbsVal
+     * @param locs
+     * @param val
      * @return
      */
-    public VarContext<T> joinReturnResult(T returnAbsVal) {
-        // TODO update return val
+    public VarContext<T> joinLocations(Set<AbstractLocation> locs, T val) {
+        // TODO record Location
         return null;
+    }
+
+    /**
+     * Replace the current return result with the given abstract value
+     * 
+     * @param returnAbsVal
+     *            new abstract value for the return item
+     * @return copy of the variable context with the new return value
+     */
+    public VarContext<T> setReturnResult(T returnAbsVal) {
+        return new VarContext<T>(locals, locations, returnAbsVal, exceptionValue);
+    }
+    
+    /**
+     * Replace the current value for the exception with the given abstract value
+     * 
+     * @param exceptionAbsVal
+     *            new abstract value for the exception
+     * @return copy of the variable context with the new exception value
+     */
+    public VarContext<T> setExceptionValue(T exceptionAbsVal) {
+        return new VarContext<T>(locals, locations, returnResult, exceptionValue);
     }
 
     @Override

@@ -1,12 +1,6 @@
 package util;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
-
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
-import com.ibm.wala.shrikeBT.IBinaryOpInstruction.Operator;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.shrikeBT.IInvokeInstruction.Dispatch;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -31,7 +25,6 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Enumeration of SSA instruction types
@@ -242,108 +235,5 @@ public enum InstructionType {
         String msg = "Invalid/unexpected instruction type: " + i.getClass().getCanonicalName();
         assert false : msg;
         throw new RuntimeException(msg);
-    }
-    
-    /**
-     * Exceptions that may be thrown by an array load
-     */
-    private static Collection<TypeReference> arrayLoadExeptions;
-    /**
-     * Exceptions that may be thrown by an array store
-     */
-    private static Collection<TypeReference> arrayStoreExeptions;
-    /**
-     * Singleton collection containing the null pointer exception type
-     */
-    private static final Collection<TypeReference> nullPointerException = Collections.singleton(TypeReference.JavaLangNullPointerException);
-    /**
-     * Singleton collection containing the arithmetic exception type
-     */
-    private static final Collection<TypeReference> arithmeticException = Collections.singleton(TypeReference.JavaLangArithmeticException);
-    /**
-     * Singleton collection containing the class cast exception type
-     */
-    private static final Collection<TypeReference> classCastException = Collections.singleton(TypeReference.JavaLangClassCastException);
-    /**
-     * Singleton collection containing the negative array index exception type
-     */
-    private static final Collection<TypeReference> negativeArraySizeException = Collections.singleton(TypeReference.JavaLangNegativeArraySizeException);
-    
-    /**
-     * Get the exceptions that may be implicitly thrown by this instruction
-     * 
-     * @param i
-     *            instruction
-     * 
-     * @return collection of implicit exception types
-     */
-    public static Collection<TypeReference> implicitExceptions(SSAInstruction i) {
-        InstructionType type = forInstruction(i);
-        switch(type) {
-
-        case ARRAY_LENGTH:
-        case GET_FIELD:
-        case INVOKE_INTERFACE:
-        case INVOKE_SPECIAL:
-        case INVOKE_VIRTUAL:
-            // TODO WrongMethodTypeException
-        case PUT_FIELD:
-        case THROW: // if the object thrown is null
-            return nullPointerException;
-            
-        case CHECK_CAST:
-            return classCastException;
-            
-        case NEW_ARRAY:
-            return negativeArraySizeException;
-            
-        case ARRAY_LOAD:
-            if (arrayLoadExeptions == null) {
-                Set<TypeReference> es = new LinkedHashSet<>();
-                es.add(TypeReference.JavaLangNullPointerException);
-                es.add(TypeReference.JavaLangArrayIndexOutOfBoundsException);
-                arrayLoadExeptions = Collections.unmodifiableCollection(es);
-            }
-            return arrayLoadExeptions;
-            
-        case ARRAY_STORE:
-            if (arrayStoreExeptions == null) {
-                Set<TypeReference> es = new LinkedHashSet<>();
-                es.add(TypeReference.JavaLangNullPointerException);
-                es.add(TypeReference.JavaLangArrayIndexOutOfBoundsException);
-                es.add(TypeReference.JavaLangArrayStoreException);
-                arrayStoreExeptions = Collections.unmodifiableCollection(es);
-            }
-            return arrayStoreExeptions;
-            
-        case BINARY_OP:
-            SSABinaryOpInstruction binop = (SSABinaryOpInstruction)i;
-            IOperator opType = binop.getOperator();
-            if (binop.mayBeIntegerOp() && (opType == Operator.DIV || opType == Operator.REM)) {
-                return arithmeticException;
-            }
-                    
-        // No implicit exceptions thrown by the following     
-        case COMPARISON:
-        case CONDITIONAL_BRANCH:
-        case CONVERSION:
-        case GET_STATIC:
-        case GET_CAUGHT_EXCEPTION:
-        case GOTO:
-        case INSTANCE_OF:
-        case INVOKE_STATIC:
-        case LOAD_METADATA:
-            // TODO Exceptions for reflection?
-        case NEW_OBJECT:
-        case PHI:
-        case PUT_STATIC:
-        case RETURN:
-            // TODO IllegalMonitorStateException
-        case SWITCH:
-        case UNARY_NEG_OP:
-            return Collections.emptySet();
-        default:
-            throw new IllegalArgumentException("Undefined instruction type: " + type);
-        }
     }
 }

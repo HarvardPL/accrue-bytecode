@@ -3,6 +3,9 @@ package analysis.dataflow.interprocedural.exceptions;
 import java.util.Map;
 import java.util.Set;
 
+import analysis.dataflow.interprocedural.InterproceduralDataFlow;
+import analysis.pointer.graph.PointsToGraph;
+
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -29,9 +32,6 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
-
-import analysis.dataflow.interprocedural.InterproceduralDataFlow;
-import analysis.pointer.graph.PointsToGraph;
 
 public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExceptionAbsVal> {
 
@@ -89,6 +89,7 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
             Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current) {
         // TODO Auto-generated method stub
+        // By default this throws errors, but we are not tracking errors
         return null;
     }
 
@@ -97,6 +98,9 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
             Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current) {
         // TODO Auto-generated method stub
+        // By default this throws errors, but we are not tracking errors
+        
+        // Also throws NegativeArraySizeException, check if the size (for all dimensions) is a constant and positive
         return null;
     }
 
@@ -163,91 +167,7 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
         // TODO Auto-generated method stub
         return null;
     }
-
-    @Override
-    protected Map<Integer, PreciseExceptionAbsVal> flowCheckCast(SSACheckCastInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowUnaryNegation(SSAUnaryOpInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowPutStatic(SSAPutInstruction i, Set<PreciseExceptionAbsVal> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowPhi(SSAPhiInstruction i, Set<PreciseExceptionAbsVal> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowInstanceOf(SSAInstanceofInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowGetStatic(SSAGetInstruction i, Set<PreciseExceptionAbsVal> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowConversion(SSAConversionInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowComparison(SSAComparisonInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal flowBinaryOp(SSABinaryOpInstruction i, Set<PreciseExceptionAbsVal> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    protected Map<Integer, PreciseExceptionAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
-            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
+    
     @Override
     protected Map<Integer, PreciseExceptionAbsVal> flowArrayLoad(SSAArrayLoadInstruction i,
             Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
@@ -264,4 +184,84 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
         return null;
     }
 
+    @Override
+    protected Map<Integer, PreciseExceptionAbsVal> flowCheckCast(SSACheckCastInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowUnaryNegation(SSAUnaryOpInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowPutStatic(SSAPutInstruction i, Set<PreciseExceptionAbsVal> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowPhi(SSAPhiInstruction i, Set<PreciseExceptionAbsVal> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowInstanceOf(SSAInstanceofInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowGetStatic(SSAGetInstruction i, Set<PreciseExceptionAbsVal> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowConversion(SSAConversionInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowComparison(SSAComparisonInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected PreciseExceptionAbsVal flowBinaryOp(SSABinaryOpInstruction i, Set<PreciseExceptionAbsVal> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return PreciseExceptionAbsVal.EMPTY;
+    }
+
+    @Override
+    protected Map<Integer, PreciseExceptionAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
+            Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    protected void postBasicBlock() {
+        // TODO Auto-generated method stub
+        
+    }
 }

@@ -158,6 +158,6 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
     
     @Override
     protected void post(IR ir) {
-        // Intentionally left blank
+        System.out.println(ir);
     }
 }

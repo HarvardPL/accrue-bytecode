@@ -11,6 +11,7 @@ import java.util.Set;
 import util.OrderedPair;
 import util.SingletonValueMap;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionDataFlow;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
@@ -266,21 +267,27 @@ public abstract class DataFlow<FlowItem> {
      *            item to associate with each normal successor
      * @param exceptionalItem
      *            item to associate with each exceptional successor
+     * @param impossibleExceptions
+     *            exceptional successors that cannot be reached, determined by a
+     *            separate analysis (e.g. {@link PreciseExceptionDataFlow})
      * @param bb
      *            basic block to get the successors ids for
      * @param cfg
      *            control flow graph
+     * @param impossibleExceptions
      * @return mapping from each successor id to the corresponding data-flow
      *         item
      */
     protected final Map<Integer, FlowItem> itemToMapWithExceptions(FlowItem normalItem, FlowItem exceptionItem,
-            ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+            Set<ISSABasicBlock> impossibleExceptions, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<Integer, FlowItem> ret = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
             ret.put(succ.getGraphNodeId(), normalItem);
         }
         for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
-            ret.put(succ.getGraphNodeId(), exceptionItem);
+            if (!impossibleExceptions.contains(succ)) {
+                ret.put(succ.getGraphNodeId(), exceptionItem);
+            }
         }
         return ret;
     }
