@@ -10,13 +10,15 @@ import java.util.Set;
 
 import util.OrderedPair;
 import util.SingletonValueMap;
-import util.WorkQueue;
 import util.print.PrettyPrinter;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.util.graph.Graph;
+import com.ibm.wala.util.graph.impl.InvertedGraph;
+import com.ibm.wala.util.graph.traverse.SCCIterator;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 
@@ -57,46 +59,60 @@ public abstract class DataFlow<FlowItem> {
      *            code for the method to perform the dataflow for
      */
     protected final void dataflow(IR ir) {
-        // TODO Polyglot computes SCCs and iterates through them
-
         ControlFlowGraph<SSAInstruction, ISSABasicBlock> g = ir.getControlFlowGraph();
+        Graph<ISSABasicBlock> flowGraph = g;
+        if (!forward) {
+            flowGraph = new InvertedGraph<ISSABasicBlock>(flowGraph);
+        }
+        
+        // Compute SCCs and iterate through them
+        SCCIterator<ISSABasicBlock> sccs = new SCCIterator<>(flowGraph);
+        
+        
+        while (sccs.hasNext()) {
+            Set<ISSABasicBlock> scc = sccs.next();
+            boolean changed = true;
+            int iterations = 0;
+            
+            // Loop over the strongly connected component until a fixed point is reached
+            while (changed) {
+                changed = false;
+                for (ISSABasicBlock current : scc) {
+                    Set<FlowItem> inItems = new LinkedHashSet<>(getNumPreds(current, g));
+                    Map<Integer, FlowItem> oldOutItems = getOutItems(current);
+                    
+                    // Get all out items for predecessors
+                    Iterator<ISSABasicBlock> preds = getPreds(current, g);
+                    while (preds.hasNext()) {
+                        ISSABasicBlock pred = preds.next();
+                        Map<Integer, FlowItem> items = getOutItems(pred);
+                        if (items != null) {
+                            FlowItem item = items.get(current.getNumber());
+                            // TODO should we allow item == null?
+                            if (item != null) {
+                                inItems.add(item);
+                            } else {
+                                String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional" : "normal";
+                                System.err.println("null data-flow item in "
+                                        + PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " from BB"
+                                        + g.getNumber(pred) + " to BB" + g.getNumber(current) + " on " + edgeType + " edge");
+                            }
+                        }
+                    }
 
-        WorkQueue<ISSABasicBlock> q = new WorkQueue<>();
+                    Map<Integer, FlowItem> outItems = flow(inItems, g, current);
+                    assert outItems != null : "Null out items for " + PrettyPrinter.basicBlockString(ir, current, "", "\n")
+                            + " with inputs: " + inItems;
 
-        q.add(getInitialBlock(g));
-        while (!q.isEmpty()) {
-            ISSABasicBlock current = q.poll();
-            Set<FlowItem> inItems = new LinkedHashSet<>(getNumPreds(current, g));
-            Map<Integer, FlowItem> oldOutItems = getOutItems(current);
-
-            // Get all out items for predecessors
-            Iterator<ISSABasicBlock> preds = getPreds(current, g);
-            while (preds.hasNext()) {
-                ISSABasicBlock pred = preds.next();
-                Map<Integer, FlowItem> items = getOutItems(pred);
-                if (items != null) {
-                    FlowItem item = items.get(current.getNumber());
-                    // TODO should we allow item == null?
-                    if (item != null) {
-                        inItems.add(item);
-                    } else {
-                        String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional" : "normal";
-                        System.err.println("null data-flow item for "
-                                + PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " from " + "BB"
-                                + g.getNumber(pred) + " to BB" + g.getNumber(current) + " on " + edgeType + " edge");
+                    if (oldOutItems != outItems && (oldOutItems == null || !oldOutItems.equals(outItems))) {
+                        changed = true;
+                        putOutItems(current, outItems);
                     }
                 }
-            }
-
-            Map<Integer, FlowItem> outItems = flow(inItems, g, current);
-            assert outItems != null : "Null out items for " + PrettyPrinter.basicBlockString(ir, current, "", "\n")
-                    + " with inputs: " + inItems;
-
-            if (oldOutItems != outItems && (oldOutItems == null || !oldOutItems.equals(outItems))) {
-                // The data-flow computed a new item for this peer
-                // add all successors to the queue
-                q.addAll(getSuccs(current, g));
-                putOutItems(current, outItems);
+                iterations++;
+                if (iterations >= 100) {
+                    throw new RuntimeException("Analyzed the same SCC 100 times for method: " + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
+                }
             }
         }
 
@@ -350,7 +366,7 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph the data-flow is performed over
      * @return the initial node to analyze
      */
-    private final ISSABasicBlock getInitialBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected final ISSABasicBlock getInitialBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.entry() : cfg.exit();
     }
 
