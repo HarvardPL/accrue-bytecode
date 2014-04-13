@@ -236,4 +236,16 @@ public enum InstructionType {
         assert false : msg;
         throw new RuntimeException(msg);
     }
+
+    public boolean isInvoke() {
+        switch (this) {
+        case INVOKE_INTERFACE:
+        case INVOKE_SPECIAL:
+        case INVOKE_STATIC:
+        case INVOKE_VIRTUAL:
+            return true;
+        default:
+            return false;
+        }
+    }
 }

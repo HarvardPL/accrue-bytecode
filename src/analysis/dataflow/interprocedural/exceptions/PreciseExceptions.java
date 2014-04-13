@@ -56,7 +56,7 @@ public class PreciseExceptions {
      */
     public Set<TypeReference> getExceptions(SSAInstruction i, CGNode containingNode) {
         Set<TypeReference> exceptions = thrownExceptions.get(new InstructionKey(i, containingNode));
-        if (exceptions == null) {
+        if (exceptions == null && implicitExceptions(i).isEmpty()) {
             exceptions = Collections.emptySet();
         }
         return exceptions;

@@ -24,17 +24,17 @@ public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
 
     @Override
     public boolean leq(NonNullAbsVal that) {
-        return this.notnull || !that.notnull;
+        return this.isNotnull() || !that.isNotnull();
     }
 
     @Override
     public boolean isBottom() {
-        return notnull;
+        return this == NOT_NULL;
     }
 
     @Override
     public NonNullAbsVal join(NonNullAbsVal that) {
-        if (this.notnull) return that;
+        if (this.isNotnull()) return that;
         return this;
     }
 }

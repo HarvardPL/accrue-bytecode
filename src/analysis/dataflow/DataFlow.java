@@ -5,18 +5,24 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import util.InstructionType;
 import util.OrderedPair;
 import util.SingletonValueMap;
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionDataFlow;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.graph.Graph;
 import com.ibm.wala.util.graph.impl.InvertedGraph;
 import com.ibm.wala.util.graph.traverse.SCCIterator;
@@ -432,5 +438,66 @@ public abstract class DataFlow<FlowItem> {
             }
         }
         return new OrderedPair<Integer, Integer>(trueBranch, falseBranch);
+    }
+    
+    /**
+     * Get the successor basic blocks that may be able to be reached by throwing
+     * a particular type of exception.
+     * <p>
+     * This set is computed conservatively (i.e. this may report reachable
+     * successors that are not actually reachable at run-time).
+     * 
+     * @param exType
+     *            exception type
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            basic bloc that throws the exception
+     * @param cha
+     *            class hierarchy
+     * @return set of basic blocks that may
+     */
+    protected Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current, IClassHierarchy cha) {
+        Set<ISSABasicBlock> result = new LinkedHashSet<>();
+
+        IClass thrown = cha.lookupClass(exType);
+        InstructionType throwerType = InstructionType.forInstruction(current.getLastInstruction());
+        boolean isCaught = false;
+
+        // Find successor catch blocks
+        List<ISSABasicBlock> catchBlocks = cfg.getExceptionalSuccessors(current);
+
+        
+        // See if there is a catch block that catches this exception
+        for (ISSABasicBlock cb : catchBlocks) {
+            if (cb.isExitBlock()) {
+                // handle exit blocks after this loop
+                continue;
+            }
+            Iterator<TypeReference> caughtTypes = cb.getCaughtExceptionTypes();
+            while (caughtTypes.hasNext()) {
+                TypeReference caughtType = caughtTypes.next();
+                IClass caught = cha.lookupClass(caughtType);
+                if (cha.isSubclassOf(thrown, caught)) {
+                    result.add(cb);
+                    isCaught = true;
+                    break;
+                } else if (throwerType.isInvoke() && cha.isSubclassOf(caught, thrown)) {
+                    // The catch type is a subtype of the exception being thrown
+                    // so it could be caught (due to imprecision for exceptions thrown by native calls)
+                    
+                    // TODO keep track of imprecise exception types
+                    result.add(cb);
+                }
+            }
+        }
+
+        if (!isCaught) {
+            // might not be caught so it might flow to the exit node
+            result.add(cfg.exit());
+        }
+        
+        return result;
     }
 }
