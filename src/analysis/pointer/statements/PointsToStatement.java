@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.InstructionType;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
@@ -118,7 +118,7 @@ public abstract class PointsToStatement {
     protected final boolean checkAllThrown(Context currentContext, PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
 
-        for (TypeReference tr : InstructionType.implicitExceptions(i)) {
+        for (TypeReference tr : PreciseExceptions.implicitExceptions(i)) {
             ReferenceVariable exNode = registrar.getImplicitExceptionNode(tr, getInstruction(), getCode());
             ReferenceVariableReplica e = new ReferenceVariableReplica(currentContext, exNode);
             changed |= checkThrown(tr, e, currentContext, g, registrar);
@@ -162,7 +162,11 @@ public abstract class PointsToStatement {
                     return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
                 } else if (cha.isSubclassOf(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
-                    // so it could be caught
+                    // so it could be caught (due to imprecision (due to
+                    // imprecision for exceptions thrown by native calls))
+
+                    // TODO keep track of imprecise exception types
+                    
                     alreadyCaught.add(caught);
                     changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
                 }
@@ -226,7 +230,7 @@ public abstract class PointsToStatement {
     /**
      * Information about a catch block
      */
-    protected static class CatchBlock {
+    private static class CatchBlock {
         /**
          * Types of exceptions caught by this catch block
          */
@@ -248,6 +252,37 @@ public abstract class PointsToStatement {
         public CatchBlock(Iterator<TypeReference> caughtTypes, ReferenceVariableReplica formalNode) {
             this.caughtTypes = caughtTypes;
             this.formalNode = formalNode;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((caughtTypes == null) ? 0 : caughtTypes.hashCode());
+            result = prime * result + ((formalNode == null) ? 0 : formalNode.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            CatchBlock other = (CatchBlock) obj;
+            if (caughtTypes == null) {
+                if (other.caughtTypes != null)
+                    return false;
+            } else if (!caughtTypes.equals(other.caughtTypes))
+                return false;
+            if (formalNode == null) {
+                if (other.formalNode != null)
+                    return false;
+            } else if (!formalNode.equals(other.formalNode))
+                return false;
+            return true;
         }
     }
 
@@ -277,7 +312,7 @@ public abstract class PointsToStatement {
                 // the exit block considered a catch block, but we handle that
                 // differently in checkThrown by adding edges into summary
                 // exit nodes
-                break;
+                continue;
             }
             Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
             // The catch instruction is the first instruction in the basic block

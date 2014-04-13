@@ -65,5 +65,13 @@ A: test static fields
 
 _____________________________
 
+Why would exceptions be caught if the catch is a subclass of the thrown?
+A: ??? native methods        
+		try {
+            foo();
+        } catch (ArrayIndexOutOfBoundsException e) {
+            y = 888;
+        }
+where: foo() throws RuntimeException;
+
 TODO: check the use of pointsToFiltered and remove where not necessary
-TODO: refactor Reference variable hierarchy
