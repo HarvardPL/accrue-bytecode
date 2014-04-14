@@ -1,9 +1,12 @@
 package analysis.dataflow.interprocedural;
 
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import analysis.dataflow.AbstractValue;
+import analysis.dataflow.interprocedural.nonnull.NonNullAbsVal;
 
 public class VarContext<T extends AbstractValue<T>> implements AbstractValue<VarContext<T>> {
 
@@ -22,11 +25,11 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     /**
      * Get the abstract value for a local variable with the given value number
      * 
-     * @param s
+     * @param i
      * @return
      */
-    public T getLocal(Integer s) {
-        return locals.get(s);
+    public T getLocal(Integer i) {
+        return locals.get(i);
     }
 
     /**
@@ -53,7 +56,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * 
      * @return abstract exception value
      */
-    public T getExceptionValue() {
+    public T getException() {
         return exceptionValue;
     }
 
@@ -131,5 +134,14 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     public VarContext<T> join(VarContext<T> that) {
         // TODO Auto-generated method stub
         return null;
+    }
+
+    /**
+     * Get a copy of the variable context with an empty set of locals and null return and exception abstract values
+     * 
+     * @return variable context with no locals and no exits
+     */
+    public VarContext<T> clearLocalsAndExits() {
+        return new VarContext<T>(new LinkedHashMap<Integer, T>(), locations, null, null);
     }
 }

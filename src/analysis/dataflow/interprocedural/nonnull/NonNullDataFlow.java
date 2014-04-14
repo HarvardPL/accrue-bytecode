@@ -42,6 +42,9 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 
+/**
+ * Inter-procedural analysis that determines which local variable can be null at a particular program point
+ */
 public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
     /**
@@ -61,15 +64,70 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
     }
 
     @Override
-    protected Map<Integer, VarContext<NonNullAbsVal>> call(SSAInvokeInstruction instruction,
+    protected Map<Integer, VarContext<NonNullAbsVal>> call(SSAInvokeInstruction i,
             Set<VarContext<NonNullAbsVal>> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock bb) {
-        // TODO Auto-generated method stub
+        // TODO handle recursive calls
+        boolean isVoid = i.getNumberOfReturnValues() == 0;
+        
+        VarContext<NonNullAbsVal> in = confluence(inItems);
 
         // If receiver could be null
-
+        VarContext<NonNullAbsVal> npe = in.setLocal(i.getReceiver(), NonNullAbsVal.MAY_BE_NULL);
+        npe = npe.setExceptionValue(NonNullAbsVal.NOT_NULL);
+        
         // Receiver is not null
-        return null;
+        VarContext<NonNullAbsVal> nonNull = in.setLocal(i.getReceiver(), NonNullAbsVal.NOT_NULL);
+        VarContext<NonNullAbsVal> result = null;
+        for (CGNode n : cg.getPossibleTargets(currentNode, i.getCallSite())) {
+            NonNullDataFlow df = new NonNullDataFlow(n, cg, ptg, preciseEx, util);
+            VarContext<NonNullAbsVal> initial = nonNull.clearLocalsAndExits();
+            int[] formals = n.getIR().getParameterValueNumbers();
+            if (!i.isStatic()) {
+                // Receiver is not null
+                // for non-static calls the first formal is "this"
+                initial.setLocal(formals[0], NonNullAbsVal.NOT_NULL);
+            } else if (formals.length > 0) {
+                // for static calls the first formal is a parameter
+                initial.setLocal(formals[0], nonNull.getLocal(i.getUse(0)));
+            }
+            for (int j = 1; j < formals.length; j++) {
+                initial.setLocal(formals[j], nonNull.getLocal(i.getUse(j)));
+            }
+            
+            VarContext<NonNullAbsVal> out = df.dataflow(initial);
+            result = confluence(result, out);
+        }
+        
+        NonNullAbsVal returnResult = result.getReturnResult();
+        NonNullAbsVal exception = result.getException();
+        
+        Map<Integer, VarContext<NonNullAbsVal>> ret = new LinkedHashMap<>();
+        
+        // Normal return
+        VarContext<NonNullAbsVal> normal;
+        if (!isVoid) {
+            normal = nonNull.setLocal(i.getReturnValue(0), returnResult);
+        } else {
+            normal = nonNull;
+        }
+        
+        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(bb)) {
+            ret.put(normalSucc.getGraphNodeId(), normal);
+        }
+        
+        // Exceptional return
+        Set<ISSABasicBlock> npeSuccs = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException, cfg, bb, util.getClassHierarchy());
+        for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
+            if (npeSuccs.contains(exSucc)) {
+                ret.put(exSucc.getGraphNodeId(), npe.setLocal(i.getException(), exception));
+            } else {
+                ret.put(exSucc.getGraphNodeId(), nonNull.setExceptionValue(exception)).setLocal(i.getException(), exception);
+            }
+            
+        }
+        
+        return ret;
     }
 
     @Override

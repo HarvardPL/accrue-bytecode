@@ -53,7 +53,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * {@inheritDoc}
      */
     @Override
-    protected final Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+    protected Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO basic blocks should be analyzed on SCC at a time
         Set<FlowItem> previousItems = inItems;
         Map<Integer, FlowItem> outItems = null;
