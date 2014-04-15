@@ -13,9 +13,6 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
     
     
     public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
-        if (rv == null) {
-            System.out.println("");
-        }
         assert (rv != null);
         assert (context != null);
     	this.l = rv;

@@ -1,5 +1,7 @@
 package util;
 
+import util.print.PrettyPrinter;
+
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.shrikeBT.IInvokeInstruction.Dispatch;
@@ -18,6 +20,7 @@ import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
+import com.ibm.wala.ssa.SSAMonitorInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
@@ -157,7 +160,11 @@ public enum InstructionType {
      * 
      * @see {@link SSAInvokeInstruction}
      */
-    INVOKE_STATIC;
+    INVOKE_STATIC,
+    /**
+     * @see {@link SSAMonitorInstruction}
+     */
+    MONITOR;
     // Unexpected types
 //  /**
 //   * @see SSAPiInstruction
@@ -171,10 +178,6 @@ public enum InstructionType {
 //   * @see SSAAddressOfInstruction
 //   */
 //  ADDRESS_OF,
-//  /**
-//   * @see SSAMonitorInstruction
-//   */
-//  MONITOR,
 //  /**
 //   * @see SSAStoreIndirectInstruction
 //   */
@@ -232,7 +235,8 @@ public enum InstructionType {
         if (i instanceof SSAPhiInstruction) return PHI;
         if (i instanceof SSAGetCaughtExceptionInstruction) return GET_CAUGHT_EXCEPTION;
         if (i instanceof SSALoadMetadataInstruction) return LOAD_METADATA;
-        String msg = "Invalid/unexpected instruction type: " + i.getClass().getCanonicalName();
+        if (i instanceof SSAMonitorInstruction) return MONITOR;
+        String msg = "Invalid/unexpected instruction type: " + PrettyPrinter.getSimpleClassName(i);
         assert false : msg;
         throw new RuntimeException(msg);
     }

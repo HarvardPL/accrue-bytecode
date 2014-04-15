@@ -13,7 +13,6 @@ import util.InstructionType;
 import util.OrderedPair;
 import util.SingletonValueMap;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionDataFlow;
 
 import com.ibm.wala.cfg.ControlFlowGraph;

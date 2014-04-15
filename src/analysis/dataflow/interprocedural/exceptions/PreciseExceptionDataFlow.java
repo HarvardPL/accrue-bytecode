@@ -25,6 +25,7 @@ import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
+import com.ibm.wala.ssa.SSAMonitorInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
@@ -57,7 +58,7 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
             Map<Integer, PreciseExceptionAbsVal> outItems) {
         // TODO Auto-generated method stub
-        
+
     }
 
     @Override
@@ -225,16 +226,25 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
     }
 
     @Override
+    protected Map<Integer, PreciseExceptionAbsVal> flowMonitor(SSAMonitorInstruction i,
+            Set<PreciseExceptionAbsVal> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
     protected Map<Integer, PreciseExceptionAbsVal> flowNewArray(SSANewInstruction i,
             Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current) {
         // TODO Auto-generated method stub
         // By default this throws errors, but we are not tracking errors
-        
-        // Also throws NegativeArraySizeException, check if the size (for all dimensions) is a constant and positive
+
+        // Also throws NegativeArraySizeException, check if the size (for all
+        // dimensions) is a constant and positive
         return null;
     }
-    
+
     @Override
     protected Map<Integer, PreciseExceptionAbsVal> flowNewObject(SSANewInstruction i,
             Set<PreciseExceptionAbsVal> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,

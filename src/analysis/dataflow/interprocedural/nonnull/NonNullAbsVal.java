@@ -18,13 +18,13 @@ public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
      * 
      * @return true if definitely not null, false if may be null
      */
-    public boolean isNotnull() {
+    public boolean isNonnull() {
         return notnull;
     }
 
     @Override
     public boolean leq(NonNullAbsVal that) {
-        return this.isNotnull() || !that.isNotnull();
+        return this.isNonnull() || !that.isNonnull();
     }
 
     @Override
@@ -34,7 +34,7 @@ public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
 
     @Override
     public NonNullAbsVal join(NonNullAbsVal that) {
-        if (this.isNotnull()) return that;
+        if (this.isNonnull()) return that;
         return this;
     }
 }

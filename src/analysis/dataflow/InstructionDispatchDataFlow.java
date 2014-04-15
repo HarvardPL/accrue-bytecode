@@ -24,6 +24,7 @@ import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
+import com.ibm.wala.ssa.SSAMonitorInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
@@ -36,7 +37,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
  * Data-flow that dispatched based on the type of instruction being processed
  */
 public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<FlowItem> {
-
+    
     /**
      * Data-flow that dispatches based on instruction type
      * 
@@ -45,6 +46,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
     public InstructionDispatchDataFlow(boolean forward) {
         super(forward);
     }
+    
+
 
     /**
      * Compute data-flow facts for each instruction in the basic block. The
@@ -54,7 +57,6 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      */
     @Override
     protected Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO basic blocks should be analyzed on SCC at a time
         Set<FlowItem> previousItems = inItems;
         Map<Integer, FlowItem> outItems = null;
         SSAInstruction last = current.getLastInstruction();
@@ -145,6 +147,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         case INVOKE_STATIC:
         case INVOKE_VIRTUAL:
         case LOAD_METADATA:
+        case MONITOR:
         case NEW_OBJECT:
         case NEW_ARRAY:
         case PUT_FIELD:
@@ -199,6 +202,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             return flowInvokeVirtual((SSAInvokeInstruction) i, inItems, cfg, current);
         case LOAD_METADATA:
             return flowLoadMetadata((SSALoadMetadataInstruction) i, inItems, cfg, current);
+        case MONITOR:
+            return flowMonitor((SSAMonitorInstruction) i, inItems, cfg, current);
         case NEW_OBJECT:
             return flowNewObject((SSANewInstruction) i, inItems, cfg, current);
         case NEW_ARRAY:
@@ -586,6 +591,23 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
     protected abstract Map<Integer, FlowItem> flowLoadMetadata(SSALoadMetadataInstruction i,
             Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow items
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, FlowItem> flowMonitor(SSAMonitorInstruction i, Set<FlowItem> inItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+    
     /**
      * Data-flow transfer function for an instruction
      * 

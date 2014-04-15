@@ -135,7 +135,6 @@ public class PointsToGraph {
         while (i.hasNext()) {
             InstanceKey k = i.next();
             IClass klass = k.getConcreteType();
-            // TODO isAssignableFrom instead of isSubclassOf ?
             IClassHierarchy cha = util.getClassHierarchy();
             if (!cha.isSubclassOf(klass, cha.lookupClass(type))) {
                 i.remove();

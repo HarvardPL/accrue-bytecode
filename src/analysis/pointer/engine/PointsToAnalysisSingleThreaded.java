@@ -87,9 +87,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         WorkQueue<StmtAndContext> q = new WorkQueue<>();
 
         // Add initial contexts
-        // TODO Just add class inits that are needed
-        // maybe keep a list of class inits for each statement and add them as
-        // they come up?
         for (PointsToStatement s : registrar.getAllStatements()) {
             for (Context c : g.getContexts(s.getCode().getMethod())) {
                 q.add(new StmtAndContext(s, c));

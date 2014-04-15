@@ -10,6 +10,7 @@ import java.util.Set;
 
 import util.OrderedPair;
 import analysis.dataflow.DataFlow;
+import analysis.dataflow.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
@@ -20,9 +21,8 @@ import com.ibm.wala.util.intset.IntIterator;
 /**
  * Write out a control flow graph for a specific method
  */
-public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
-    private static final String NORM_TERM = "NT";
-    private static final String EXCEPTION = "EX";
+public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
+
     /**
      * Output will be written to this writer
      */
@@ -111,32 +111,32 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      * {@inheritDoc}
      */
     @Override
-    protected Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current) {
+    protected Map<Integer, OrderedPair<ExitType, String>> flow(Set<OrderedPair<ExitType, String>> inItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         try (StringWriter sw = new StringWriter()) {
             String exit = current.isExitBlock() ? "\\lEXIT" : "";
             String entry = current.isEntryBlock() ? "\\lENTRY" : "";
             sw.write("BB" + current.getNumber() + entry + exit + "\\l");
-            
+
             if (verbose) {
                 PrettyPrinter.writeBasicBlock(ir, current, sw, prefix, postfix);
             }
 
             String bbString = escapeDot(sw.toString());
-            for (OrderedPair<String, String> predPair : inItems) {
+            for (OrderedPair<ExitType, String> predPair : inItems) {
                 String predNode = predPair.snd();
-                String predEdge = predPair.fst();
+                String predEdge = predPair.fst().toString();
                 String edgeLabel = "[label=\"" + predEdge + "\"]";
                 writer.write("\t\"" + predNode + "\" -> \"" + bbString + "\" " + edgeLabel + ";\n");
             }
-            Map<Integer, OrderedPair<String, String>> result = new LinkedHashMap<>();
+            Map<Integer, OrderedPair<ExitType, String>> result = new LinkedHashMap<>();
 
             Collection<ISSABasicBlock> normalSuccs = getNormalSuccs(current, cfg);
             IntIterator iter = getSuccNodeNumbers(current, cfg).intIterator();
             while (iter.hasNext()) {
                 Integer bbNum = iter.next();
-                String edge = normalSuccs.contains(cfg.getNode(bbNum)) ? NORM_TERM : EXCEPTION;
-                OrderedPair<String, String> item = new OrderedPair<>(edge, bbString);
+                ExitType edge = normalSuccs.contains(cfg.getNode(bbNum)) ? ExitType.NORM_TERM : ExitType.EXCEPTION;
+                OrderedPair<ExitType, String> item = new OrderedPair<>(edge, bbString);
                 result.put(bbNum, item);
             }
             return result;
@@ -155,7 +155,7 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
     private String escapeDot(String s) {
         return s.replace("\"", "\\\"").replace("\n", "\\l");
     }
-    
+
     @Override
     protected void post(IR ir) {
         System.out.println(ir);

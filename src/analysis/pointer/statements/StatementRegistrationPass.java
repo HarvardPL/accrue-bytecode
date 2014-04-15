@@ -182,6 +182,10 @@ public class StatementRegistrationPass {
             SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
             if (ins.isStatic()) {
                 IMethod callee = util.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
+                if (callee == null) {
+                    throw new RuntimeException("Trying to add class initializer and could not resolve "
+                            + PrettyPrinter.parseMethod(ins.getDeclaredTarget()));
+                }
                 klass = callee.getDeclaringClass();
             }
         }
@@ -190,50 +194,27 @@ public class StatementRegistrationPass {
         if (i instanceof SSAPutInstruction) {
             SSAPutInstruction ins = (SSAPutInstruction) i;
             if (ins.isStatic()) {
-                // A reference to a static field (8.3.1.1) causes
-                // initialization of only the class or interface that actually
-                // declares it, even though it might be referred to through the
-                // name of a subclass, a subinterface, or a class that
-                // implements an interface.
                 IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
-                klass = f.getDeclaringClass();
-            }
-        }
-
-        // A static field declared by T is used and the field is not a constant
-        // variable (4.12.4).
-        if (i instanceof SSAGetInstruction) {
-            SSAGetInstruction ins = (SSAGetInstruction) i;
-            if (ins.isStatic()) {
-                // A reference to a static field (8.3.1.1) causes
-                // initialization of only the class or interface that actually
-                // declares it, even though it might be referred to through the
-                // name of a subclass, a subinterface, or a class that
-                // implements an interface.
-                IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
-                TypeReference type = ins.getDeclaredField().getFieldType();
-                if ((type.isPrimitiveType() || type == TypeReference.JavaLangString) /*
-                                                                                      * &&
-                                                                                      * isFinalConstant
-                                                                                      * (
-                                                                                      * f
-                                                                                      * )
-                                                                                      */) {
-                    // TODO How do we tell if this is constant/final?
-                    // 4.12.4: A variable of primitive type or type String, that
-                    // is final
-                    // and initialized with a compile-time constant expression
-                    // (15.28), is called a constant variable.
-
-                    // return null;
+                if (f == null) {
+                    throw new RuntimeException("Trying to add class initializer and could not resolve "
+                            + PrettyPrinter.parseType(ins.getDeclaredField().getDeclaringClass()) + "." + ins.getDeclaredField().getName());
                 }
                 klass = f.getDeclaringClass();
             }
         }
 
-        // T is a top level class (7.6), and an assert statement (14.10)
-        // lexically nested within T (8.1.3) is executed.
-        // This happens with the static field get
+        // A static field declared by T is used
+        if (i instanceof SSAGetInstruction) {
+            SSAGetInstruction ins = (SSAGetInstruction) i;
+            if (ins.isStatic()) {
+                IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
+                if (f == null) {
+                    throw new RuntimeException("Trying to add class initializer and could not resolve "
+                            + PrettyPrinter.parseType(ins.getDeclaredField().getDeclaringClass()) + "." + ins.getDeclaredField().getName());
+                }
+                klass = f.getDeclaringClass();
+            }
+        }
 
         // Invocation of certain reflective methods in class Class and in
         // package
@@ -372,9 +353,11 @@ public class StatementRegistrationPass {
             registrar.registerReflection((SSALoadMetadataInstruction) i, ir);
             return;
         case NEW_ARRAY:
+            registrar.registerNewArray((SSANewInstruction) i, ir, util.getClassHierarchy());
+            return;
         case NEW_OBJECT:
             // v = new Foo();
-            registrar.registerNew((SSANewInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerNewObject((SSANewInstruction) i, ir, util.getClassHierarchy());
             return;
         case PHI:
             // v = phi(x_1,x_2)
@@ -404,6 +387,7 @@ public class StatementRegistrationPass {
         case GET_CAUGHT_EXCEPTION: // handled in PointsToStatement#checkThrown
         case GOTO: // control flow
         case INSTANCE_OF: // results in a primitive
+        case MONITOR: // no effect on pointers
         case SWITCH: // only switch on int
         case UNARY_NEG_OP: // primitive op
             break;

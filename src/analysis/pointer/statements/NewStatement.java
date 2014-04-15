@@ -40,7 +40,7 @@ public class NewStatement extends PointsToStatement {
      * @param result
      *            Points-to graph node for the assignee of the new
      * @param newSite
-     *            Constructor call site
+     *            allocation site
      * @param cha
      *            class hierarchy
      * @param ir
@@ -57,6 +57,30 @@ public class NewStatement extends PointsToStatement {
         alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newSite.getDeclaredType()), instantiated, ir
                 .getMethod().getDeclaringClass());
     }
+    
+    /**
+     * Points-to graph statement for the (fake) allocation of the contents (inner array) of a multi-dimensional array
+     * 
+     * @param result
+     *            Points-to graph node for the assignee of the new
+     * @param newSite
+     *            allocation site for the entire multi-dimensional array
+     * @param arrayContentsClass
+     *            class for the array contents
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
+     */
+    public NewStatement(ReferenceVariable result, NewSiteReference newSite, IClass arrayContentsClass, IR ir, SSANewInstruction i) {
+        super(ir, i);
+        this.result = result;
+        this.newSite = newSite;
+        IClass instantiated = arrayContentsClass;
+        assert (instantiated != null) : "No class found for " + PrettyPrinter.parseType(newSite.getDeclaredType());
+        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(arrayContentsClass.getReference()), instantiated, ir
+                .getMethod().getDeclaringClass());
+    }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
@@ -65,8 +89,6 @@ public class NewStatement extends PointsToStatement {
 
         boolean changed = false;
         if (alloc.getExpectedType().isArrayType()) {
-            // TODO Handle array dimensions for new array
-            
             // Arrays can throw negative array size exceptions
             changed |= checkAllThrown(context, g, registrar);
         }
@@ -79,7 +101,7 @@ public class NewStatement extends PointsToStatement {
     public String toString() {
         StringBuilder s = new StringBuilder();
         s.append(result.toString() + " = new ");
-        s.append(PrettyPrinter.parseType(newSite.getDeclaredType()));
+        s.append(PrettyPrinter.parseType(alloc.getExpectedType()));
         return s.toString();
     }
 

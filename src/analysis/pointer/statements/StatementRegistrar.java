@@ -12,6 +12,7 @@ import java.util.Set;
 import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.pointer.graph.MethodSummaryNodes;
+import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IField;
@@ -44,6 +45,11 @@ public class StatementRegistrar {
      * Points-to graph nodes for local variables
      */
     private final Map<LocalKey, ReferenceVariable> locals = new LinkedHashMap<>();
+    /**
+     * Points-to graph nodes for local variables representing the contents of
+     * the inner dimensions of multi-dimensional arrays
+     */
+    private final Map<ArrayContentsKey, ReferenceVariable> arrayContentsTemps = new LinkedHashMap<>();
     /**
      * Points-to graph nodes for implicit exceptions and errors
      */
@@ -84,14 +90,14 @@ public class StatementRegistrar {
      *            code for method containing the instruction
      */
     public void registerArrayLoad(SSAArrayLoadInstruction i, IR ir) {
-        TypeReference t = i.getElementType();
-        if (t.isPrimitiveType()) {
+        TypeReference baseType = TypeRepository.getType(i.getArrayRef(), ir).getArrayElementType();
+        if (baseType.isPrimitiveType()) {
             // Assigning from a primitive array so result is not a pointer
             return;
         }
         ReferenceVariable array = getLocal(i.getArrayRef(), ir);
         ReferenceVariable local = getLocal(i.getDef(), ir);
-        addStatement(new ArrayToLocalStatement(local, array, i.getElementType(), ir, i));
+        addStatement(new ArrayToLocalStatement(local, array, baseType, ir, i));
     }
 
     /**
@@ -128,8 +134,8 @@ public class StatementRegistrar {
             return;
         }
 
-        // This has the same effect as a copy, v = x
-        // TODO throws class cast exception
+        // This has the same effect as a copy, v = x (except for the exception
+        // it could throw)
         ReferenceVariable result = getLocal(i.getResult(), ir);
         ReferenceVariable checkedVal = getLocal(i.getVal(), ir);
         addStatement(new LocalToLocalStatement(result, checkedVal, ir, i));
@@ -252,8 +258,6 @@ public class StatementRegistrar {
             }
         }
 
-        // TODO can we do better than one value for the exception
-        // could create one on each type
         ReferenceVariable exceptionNode = getLocal(i.getException(), ir);
 
         // Get the receiver if it is not static
@@ -279,16 +283,51 @@ public class StatementRegistrar {
                     + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
         }
     }
-
+    
     /**
-     * Handle an allocation of the form: "new Foo(...)"
+     * Register a new array allocation, note that this is only the allocation
+     * not the initialization if there is any.
      * 
      * @param i
      *            new instruction
      * @param ir
      *            code for the method containing the instruction
+     * @param cha
+     *            WALA class hierarchy
      */
-    public void registerNew(SSANewInstruction i, IR ir, IClassHierarchy cha) {
+    public void registerNewArray(SSANewInstruction i, IR ir, IClassHierarchy cha) {
+        // all "new" instructions are assigned to a local
+        ReferenceVariable result = getLocal(i.getDef(), ir);
+
+        addStatement(new NewStatement(result, i.getNewSite(), cha, ir, i));
+        
+        // Handle arrays with multiple dimensions
+        ReferenceVariable array = result;
+        for (int dim = 1; dim < i.getNumberOfUses(); dim++) {
+            // Create local for array contents
+            ReferenceVariable contents = getLocalForArrayContents(dim, array.getExpectedType().getArrayElementType(), i, ir);
+            // Add an allocation for the contents
+            addStatement(new NewStatement(contents, i.getNewSite(), cha.lookupClass(contents.getExpectedType()), ir, i));
+
+            // Add field assign from the field of the outer array to the array contents
+            addStatement(new LocalToFieldStatement(array, contents, ir, i));
+            
+            // The array on the next iteration will be contents of this one
+            array = contents;
+        }
+    }
+
+    /**
+     * Handle an allocation of the form: "new Foo". Note that this is only the allocation not the constructor call.
+     * 
+     * @param i
+     *            new instruction
+     * @param ir
+     *            code for the method containing the instruction
+     * @param classHierarchy
+     *            WALA class hierarchy
+     */
+    public void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha) {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = getLocal(i.getDef(), ir);
 
@@ -393,6 +432,16 @@ public class StatementRegistrar {
         }
         return node;
     }
+    
+    private ReferenceVariable getLocalForArrayContents(int dim, TypeReference type, SSANewInstruction i, IR ir) {
+        ArrayContentsKey key = new ArrayContentsKey(dim, i, ir);
+        ReferenceVariable local = arrayContentsTemps.get(key);
+        if (local == null) {
+            local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim, type, false);
+            arrayContentsTemps.put(key, local);
+        }
+        return local;
+    }
 
     /**
      * Get a points-to graph node for an implicitly thrown exception/error
@@ -475,6 +524,116 @@ public class StatementRegistrar {
         MethodSummaryNodes msn = methods.get(resolvedCallee);
         assert (msn != null) : "Missing method summary " + resolvedCallee;
         return msn;
+    }
+
+    /**
+     * Get all points-to statements
+     * 
+     * @return set of all statements
+     */
+    public Set<PointsToStatement> getAllStatements() {
+        return new LinkedHashSet<PointsToStatement>(statements);
+    }
+
+    /**
+     * Set the entry point for the code being analyzed
+     * 
+     * @param entryPoint
+     *            entry point for the analyzed code
+     */
+    public void setEntryPoint(IMethod entryPoint) {
+        this.entryPoint = entryPoint;
+    }
+
+    /**
+     * Get the entry point for the code being analyzed
+     * 
+     * @return entry point for the analyzed code
+     */
+    public IMethod getEntryPoint() {
+        return entryPoint;
+    }
+
+    /**
+     * Get all methods that should be analyzed in the initial empty context
+     * 
+     * @return set of methods
+     */
+    public Set<IMethod> getInitialContextMethods() {
+        Set<IMethod> ret = new LinkedHashSet<>(classInitializers);
+        ret.add(getEntryPoint());
+        return ret;
+    }
+
+    public void addClassInitializer(IMethod classInitializer) {
+        classInitializers.add(classInitializer);
+    }
+
+    /**
+     * If this is a static or special call then we know statically what the
+     * target of the call is and can therefore resolve the method statically. If
+     * it is virtual then we need to add statements for all possible run time
+     * method resolutions but may only analyze some of these depending on what
+     * the pointer analysis gives for the receiver type.
+     * 
+     * @param inv
+     *            method invocation to resolve methods for
+     * @param cha
+     *            class hierarchy to use for method resolution
+     * @return Set of methods the invocation could call
+     */
+    public static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IClassHierarchy cha) {
+        Set<IMethod> targets = null;
+        if (inv.isStatic()) {
+            IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
+            assert resolvedMethod != null : "No method found for " + PrettyPrinter.parseMethod(inv.getDeclaredTarget());
+            targets = Collections.singleton(resolvedMethod);
+        } else if (inv.isSpecial()) {
+            IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
+            assert resolvedMethod != null : "No method found for " + inv.toString();
+            targets = Collections.singleton(resolvedMethod);
+        } else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
+                || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+            targets = cha.getPossibleTargets(inv.getDeclaredTarget());
+            assert targets != null : "No methods found for " + inv.toString();
+        } else {
+            throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
+                    + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
+        }
+        return targets;
+    }
+
+    /**
+     * Add a new statement to the registrar
+     * 
+     * @param s
+     *            statement to add
+     */
+    private void addStatement(PointsToStatement s) {
+        statements.add(s);
+        IMethod m = s.getCode().getMethod();
+        Set<PointsToStatement> ss = statementsForMethod.get(m);
+        if (ss == null) {
+            ss = new LinkedHashSet<>();
+            statementsForMethod.put(m, ss);
+        }
+        ss.add(s);
+    }
+
+    /**
+     * Get all the statements for a particular method
+     * 
+     * @param m
+     *            method to get the statements for
+     * @return set of points-to statements for <code>m</code>
+     */
+    public Set<PointsToStatement> getStatementsForMethod(IMethod m) {
+        Set<PointsToStatement> ret = statementsForMethod.get(m);
+        if (ret != null) {
+            return ret;
+
+        }
+        return Collections.emptySet();
     }
 
     /**
@@ -603,114 +762,75 @@ public class StatementRegistrar {
         }
 
     }
-
+    
     /**
-     * Get all points-to statements
-     * 
-     * @return set of all statements
+     * Key into the array containing temporary local variables created to represent the contents of the inner dimensions of multi-dimensional arrays 
      */
-    public Set<PointsToStatement> getAllStatements() {
-        return new LinkedHashSet<PointsToStatement>(statements);
-    }
+    private static class ArrayContentsKey {
+        /**
+         * Dimension (counted from the outside in) e.g. 1 is the contents of the
+         * actual declared multi-dimensional array
+         */
+        private final int dim;
+        /**
+         * instruction for new array
+         */
+        private final SSANewInstruction i;
+        /**
+         * Code containing the instruction
+         */
+        private final IR ir;
 
-    /**
-     * Set the entry point for the code being analyzed
-     * 
-     * @param entryPoint
-     *            entry point for the analyzed code
-     */
-    public void setEntryPoint(IMethod entryPoint) {
-        this.entryPoint = entryPoint;
-    }
-
-    /**
-     * Get the entry point for the code being analyzed
-     * 
-     * @return entry point for the analyzed code
-     */
-    public IMethod getEntryPoint() {
-        return entryPoint;
-    }
-
-    /**
-     * Get all methods that should be analyzed in the initial empty context
-     * 
-     * @return set of methods
-     */
-    public Set<IMethod> getInitialContextMethods() {
-        Set<IMethod> ret = new LinkedHashSet<>(classInitializers);
-        ret.add(getEntryPoint());
-        return ret;
-    }
-
-    public void addClassInitializer(IMethod classInitializer) {
-        classInitializers.add(classInitializer);
-    }
-
-    /**
-     * If this is a static or special call then we know statically what the
-     * target of the call is and can therefore resolve the method statically. If
-     * it is virtual then we need to add statements for all possible run time
-     * method resolutions but may only analyze some of these depending on what
-     * the pointer analysis gives for the receiver type.
-     * 
-     * @param inv
-     *            method invocation to resolve methods for
-     * @param cha
-     *            class hierarchy to use for method resolution
-     * @return Set of methods the invocation could call
-     */
-    public static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IClassHierarchy cha) {
-        Set<IMethod> targets = null;
-        if (inv.isStatic()) {
-            IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
-            assert resolvedMethod != null : "No method found for " + inv.toString();
-            targets = Collections.singleton(resolvedMethod);
-        } else if (inv.isSpecial()) {
-            IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
-            assert resolvedMethod != null : "No method found for " + inv.toString();
-            targets = Collections.singleton(resolvedMethod);
-        } else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
-                || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
-            targets = cha.getPossibleTargets(inv.getDeclaredTarget());
-            assert targets != null : "No methods found for " + inv.toString();
-        } else {
-            throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
-                    + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
+        /**
+         * Create a new key for the contents of the inner dimensions of
+         * multi-dimensional arrays
+         * 
+         * @param dim
+         *            Dimension (counted from the outside in) e.g. 1 is the
+         *            contents of the actual declared multi-dimensional array
+         * @param i
+         *            instruction for new array
+         * @param ir
+         *            Code containing the instruction
+         */
+        public ArrayContentsKey(int dim, SSANewInstruction i, IR ir) {
+            this.dim = dim;
+            this.i = i;
+            this.ir = ir;
         }
-        return targets;
-    }
 
-    /**
-     * Add a new statement to the registrar
-     * 
-     * @param s
-     *            statement to add
-     */
-    private void addStatement(PointsToStatement s) {
-        statements.add(s);
-        IMethod m = s.getCode().getMethod();
-        Set<PointsToStatement> ss = statementsForMethod.get(m);
-        if (ss == null) {
-            ss = new LinkedHashSet<>();
-            statementsForMethod.put(m, ss);
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + dim;
+            result = prime * result + ((i == null) ? 0 : i.hashCode());
+            result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+            return result;
         }
-        ss.add(s);
-    }
 
-    /**
-     * Get all the statements for a particular method
-     * 
-     * @param m
-     *            method to get the statements for
-     * @return set of points-to statements for <code>m</code>
-     */
-    public Set<PointsToStatement> getStatementsForMethod(IMethod m) {
-        Set<PointsToStatement> ret = statementsForMethod.get(m);
-        if (ret != null) {
-            return ret;
-
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            ArrayContentsKey other = (ArrayContentsKey) obj;
+            if (dim != other.dim)
+                return false;
+            if (i == null) {
+                if (other.i != null)
+                    return false;
+            } else if (!i.equals(other.i))
+                return false;
+            if (ir == null) {
+                if (other.ir != null)
+                    return false;
+            } else if (!ir.equals(other.ir))
+                return false;
+            return true;
         }
-        return Collections.emptySet();
     }
 }

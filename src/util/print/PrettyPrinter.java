@@ -29,6 +29,7 @@ import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSALoadMetadataInstruction;
+import com.ibm.wala.ssa.SSAMonitorInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
@@ -307,6 +308,10 @@ public class PrettyPrinter {
         sb.append(" throws " + valString(instruction.getException()));
         return sb.toString();
     }
+    
+    private String monitorString(SSAMonitorInstruction instruction) {
+        return instruction.toString(st);
+    }
 
     private String newString(SSANewInstruction instruction) {
         StringBuilder sb = new StringBuilder();
@@ -484,7 +489,7 @@ public class PrettyPrinter {
                     v = "\"" + v + "\"";
                 }
                 if (st.isBooleanConstant(valueNumber)) {
-                    // TODO the boolean case does not trigger, they are just integers
+                    // the boolean case does not trigger, they are just integers
                     assert false;
                 }
             }
@@ -640,6 +645,8 @@ public class PrettyPrinter {
             return invokeVirtualString((SSAInvokeInstruction) instruction);
         case LOAD_METADATA:
             return loadMetadataString((SSALoadMetadataInstruction) instruction);
+        case MONITOR:
+            return monitorString((SSAMonitorInstruction) instruction);
         case NEW_ARRAY:
         case NEW_OBJECT:
             return newString((SSANewInstruction) instruction);
@@ -779,8 +786,10 @@ public class PrettyPrinter {
 
     /**
      * Get the line number for the first instruction in the basic block
-     * containing <code>i</code>. TODO this seems to be the best we can do
-     * without an instruction index
+     * containing <code>i</code>.
+     * <p>
+     * TODO this seems to be the best we can do for line numbers without an
+     * instruction index
      * 
      * @param ir
      *            IR for method containing the instruction

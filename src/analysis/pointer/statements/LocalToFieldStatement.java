@@ -12,6 +12,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.FieldReference;
 
@@ -31,6 +32,11 @@ public class LocalToFieldStatement extends PointsToStatement {
      * Value assigned into field
      */
     private final ReferenceVariable assigned;
+    /**
+     * True if this is an assignment to a temporary used to represent array
+     * contents
+     */
+    private final boolean isArrayContents;
 
     /**
      * Statement for an assignment into a field, o.f = v
@@ -46,10 +52,31 @@ public class LocalToFieldStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public LocalToFieldStatement(FieldReference f, ReferenceVariable o, ReferenceVariable v, IR ir,
-            SSAPutInstruction i) {
+    public LocalToFieldStatement(FieldReference f, ReferenceVariable o, ReferenceVariable v, IR ir, SSAPutInstruction i) {
         super(ir, i);
+        this.isArrayContents = false;
         this.field = f;
+        this.receiver = o;
+        this.assigned = v;
+    }
+
+    /**
+     * Statement for array contents assigned to a local, a.[contents] = l
+     * 
+     * @param o
+     *            points-to graph node for receiver of field access
+     * @param v
+     *            points-to graph node for value assigned
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            New Array instruction that generated this points-to statement
+     */
+    public LocalToFieldStatement(ReferenceVariable o, ReferenceVariable v, IR ir, SSANewInstruction i) {
+        super(ir, i);
+        // no field reference as this is a made up field
+        this.field = null;
+        this.isArrayContents = true;
         this.receiver = o;
         this.assigned = v;
     }
@@ -59,11 +86,17 @@ public class LocalToFieldStatement extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
 
-        Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, field.getFieldType());
+        Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, assigned.getExpectedType());
 
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
-            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
+            ObjectField f;
+            if (isArrayContents) {
+                f = new ObjectField(recHeapContext, PointsToGraph.ARRAY_CONTENTS, assigned.getExpectedType());
+                System.err.println("LocalToField: " + f + " " + f.getExpectedType());
+            } else {
+                f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
+            }
             changed |= g.addEdges(f, localHeapContexts);
         }
 
@@ -74,7 +107,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return receiver + "." + field.getName() + " = " + assigned;
+        return receiver + "." + (field != null ? field.getName() : PointsToGraph.ARRAY_CONTENTS) + " = " + assigned;
     }
 
     @Override

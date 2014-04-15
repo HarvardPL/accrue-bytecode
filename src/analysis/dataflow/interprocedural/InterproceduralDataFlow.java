@@ -1,10 +1,12 @@
 package analysis.dataflow.interprocedural;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import analysis.dataflow.ExitType;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
@@ -29,6 +31,14 @@ import com.ibm.wala.types.FieldReference;
 public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispatchDataFlow<FlowItem> {
 
     /**
+     * Input item for each instruction analyzed
+     */
+    protected final Map<SSAInstruction, FlowItem> inputItems = new LinkedHashMap<>();
+    /**
+     * Output item for each basic block analyzed
+     */
+    protected final Map<ISSABasicBlock, Map<Integer, FlowItem>> outputItems = new LinkedHashMap<>();
+    /**
      * Procedure call graph
      */
     protected final CallGraph cg;
@@ -46,9 +56,9 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      */
     private FlowItem input;
     /**
-     * Data-flow facts upon exit, TODO map from something to something else
+     * Data-flow facts upon exit, one for normal termination and one for exception
      */
-    private FlowItem output;
+    private Map<ExitType, FlowItem> output;
 
     /**
      * Create a new Inter-procedural data-flow
@@ -71,10 +81,17 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      * @param initial
      *            initial data-flow item
      */
-    public FlowItem dataflow(FlowItem initial) {
+    public Map<ExitType, FlowItem> dataflow(FlowItem initial) {
         this.input = initial;
         dataflow(currentNode.getIR());
         return this.output;
+    }
+    
+    @Override
+    protected Map<Integer, FlowItem> flowInstruction(SSAInstruction i, Set<FlowItem> inItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        inputItems.put(i, confluence(inItems));
+        return super.flowInstruction(i, inItems, cfg, current);
     }
 
     @Override
@@ -104,13 +121,6 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      */
     protected abstract Map<Integer, FlowItem> call(SSAInvokeInstruction instruction, Set<FlowItem> inItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
-
-    @Override
-    protected void post(IR ir) {
-        // TODO collect the results from the entries to the exit block put them
-        // in out items
-        // might need confluence here?
-    }
 
     /**
      * Join the given set of data-flow items to get a new item
@@ -142,6 +152,33 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
         items.add(item1);
         items.add(item2);
         return confluence(items);
+    }
+    
+    @Override
+    protected void postBasicBlock(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock justProcessed, Map<Integer, FlowItem> outItems) {
+        outputItems.put(justProcessed, outItems);
+    }
+    
+    @Override
+    protected void post(IR ir) {
+        
+        output = new LinkedHashMap<>();
+        
+        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg = ir.getControlFlowGraph();
+        ISSABasicBlock exit = cfg.exit();
+        Integer exitNum = exit.getGraphNodeId();
+        Set<FlowItem> normals = new LinkedHashSet<>();
+        for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
+            normals.add(outputItems.get(bb).get(exitNum));
+        }
+        output.put(ExitType.NORM_TERM, confluence(normals));
+        
+        Set<FlowItem> exceptions = new LinkedHashSet<>();
+        for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
+            exceptions.add(outputItems.get(bb).get(exitNum));
+        }
+        output.put(ExitType.EXCEPTION, confluence(exceptions));
     }
 
     /**

@@ -79,10 +79,8 @@ public class MethodSummaryNodes {
         name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
 
         TypeReference returnType = ir.getMethod().getReturnType();
-        returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null :
-        // TODO this and below are the only places this is called outside of the
-        // Registrar
-                new ReferenceVariable(name + "-EXIT", returnType, false);
+        returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : new ReferenceVariable(
+                name + "-EXIT", returnType, false);
 
         TypeReference throwable = TypeReference.JavaLangThrowable;
         exception = new ReferenceVariable(name + "-EXCEPTION", throwable, false);
