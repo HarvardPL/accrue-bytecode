@@ -9,6 +9,9 @@ import java.util.Arrays;
 
 import util.print.CFGWriter;
 import analysis.WalaAnalysisUtil;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
+import analysis.dataflow.interprocedural.nonnull.NonNullManager;
+import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -19,6 +22,7 @@ import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementRegistrar;
 import analysis.pointer.statements.StatementRegistrationPass;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
@@ -67,6 +71,8 @@ public class TestMain {
             String testName = args[2];
 
             WalaAnalysisUtil util;
+            Entrypoint entry;
+            IR ir;
             switch (testName) {
             case "pointsto":
                 util = setUpWala(entryPoint);
@@ -74,10 +80,15 @@ public class TestMain {
                 break;
             case "maincfg":
                 util = setUpWala(entryPoint);
-                Entrypoint entry = util.getOptions().getEntrypoints().iterator().next();
-                IR ir = util.getCache().getIR(entry.getMethod());
+                entry = util.getOptions().getEntrypoints().iterator().next();
+                ir = util.getCache().getIR(entry.getMethod());
                 cfgSingleTest(util, ir, entryPoint + "_main");
                 break;
+            case "nonnull":
+                util = setUpWala(entryPoint);
+                entry = util.getOptions().getEntrypoints().iterator().next();
+                ir = util.getCache().getIR(entry.getMethod());
+                nonNullTest(util, outputLevel, ir.getMethod(), entryPoint + "_main");
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
             }
@@ -112,13 +123,13 @@ public class TestMain {
         long start = System.currentTimeMillis();
         IClassHierarchy cha = ClassHierarchy.make(scope);
         System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
-                + (System.currentTimeMillis() - start) + "ms");
+                                        + (System.currentTimeMillis() - start) + "ms");
 
         AnalysisCache cache = new AnalysisCache();
 
         // Add L to the name to indicate that this is a class name
         Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
-                + entryPoint.replace(".", "/"));
+                                        + entryPoint.replace(".", "/"));
         AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
         /********************************
          * End of WALA set up code
@@ -214,5 +225,53 @@ public class TestMain {
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
+    }
+
+    /**
+     * Run the non-null analysis without any precise exceptions results, print
+     * the results for the given method.
+     * 
+     * @param util
+     *            WALA utility classes
+     * @param method
+     *            method to print the results for
+     * @param fileName
+     *            file to save the results to (appended with _nonNull.dot)
+     */
+    private static void nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName) {
+        // Gather all the points-to statements
+        StatementRegistrationPass pass = new StatementRegistrationPass(util);
+        // Don't print anything
+        StatementRegistrationPass.VERBOSE = outputLevel;
+        pass.run();
+        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        if (outputLevel >= 2) {
+            for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
+                System.out.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+            }
+        }
+        StatementRegistrar registrar = pass.getRegistrar();
+
+        HeapAbstractionFactory context = new CallSiteSensitive();
+        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
+        PointsToGraph g = analysis.solve(registrar);
+        g.dumpCallGraphToFile(fileName + "_callGraph", false);
+
+        NonNullManager manager = new NonNullManager(g.getCallGraph(), g, new PreciseExceptions(), util);
+        manager.runAnalysis();
+        NonNullResults results = manager.getNonNullResults();
+
+        String dir = "tests";
+        String file = fileName + "_nonNull";
+        String fullFilename = dir + "/" + file + ".dot";
+        try {
+            Writer out = new BufferedWriter(new FileWriter(fullFilename));
+            results.writeResultsForMethod(out, method);
+            out.close();
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+
     }
 }

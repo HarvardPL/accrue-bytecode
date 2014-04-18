@@ -71,7 +71,7 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
      * @throws IOException
      *             writer issues
      */
-    public void write(Writer writer, String prefix, String postfix) throws IOException {
+    public final void write(Writer writer, String prefix, String postfix) throws IOException {
         this.writer = writer;
         this.prefix = prefix;
         this.postfix = postfix;
@@ -100,7 +100,7 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
      * @throws IOException
      *             writer issues
      */
-    public void writeVerbose(Writer writer, String prefix, String postfix) throws IOException {
+    public final void writeVerbose(Writer writer, String prefix, String postfix) throws IOException {
         this.verbose = true;
         write(writer, prefix, postfix);
     }
@@ -111,7 +111,7 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
      * {@inheritDoc}
      */
     @Override
-    protected Map<Integer, OrderedPair<ExitType, String>> flow(Set<OrderedPair<ExitType, String>> inItems,
+    protected final Map<Integer, OrderedPair<ExitType, String>> flow(Set<OrderedPair<ExitType, String>> inItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         try (StringWriter sw = new StringWriter()) {
             String exit = current.isExitBlock() ? "\\lEXIT" : "";
@@ -119,7 +119,9 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
             sw.write("BB" + current.getNumber() + entry + exit + "\\l");
 
             if (verbose) {
-                PrettyPrinter.writeBasicBlock(ir, current, sw, prefix, postfix);
+                for (SSAInstruction i : current) {
+                    sw.write(getPrefix(i) + PrettyPrinter.instructionString(ir, i) + getPostfix(i));
+                }
             }
 
             String bbString = escapeDot(sw.toString());
@@ -159,5 +161,18 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
     @Override
     protected void post(IR ir) {
         System.out.println(ir);
+    }
+    
+    /**
+     * Can be overridden by subclass
+     * @param i
+     * @return
+     */
+    public String getPostfix(SSAInstruction i) {
+        return postfix;
+    }
+    
+    public String getPrefix(SSAInstruction i) {
+        return prefix;
     }
 }

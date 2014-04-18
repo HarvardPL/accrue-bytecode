@@ -1,12 +1,16 @@
 package analysis.dataflow.interprocedural.nonnull;
 
+import java.io.IOException;
+import java.io.Writer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -114,6 +118,17 @@ public class NonNullResults {
             }
             return nonNulls.contains(valNum);
         }
+        
+        /**
+         * Get value numbers for all non-null variables right before executing i
+         * 
+         * @param i
+         *            instruction
+         * @return set of non-null value numbers
+         */
+        private Set<Integer> getAllNonNull(SSAInstruction i) {
+            return results.get(i);
+        }
 
         /**
          * Record that the variable with the given value number is non-null just
@@ -153,5 +168,33 @@ public class NonNullResults {
                 return false;
             return true;
         }
+    }
+    
+    public void writeResultsForMethod(Writer writer, IMethod m) throws IOException {
+        for (CGNode n : allResults.keySet()) {
+            if (n.getMethod().equals(m)) {
+                writeResultsForNode(writer, n);
+            }
+        }
+    }
+
+    private void writeResultsForNode(Writer writer, final CGNode n) throws IOException {
+        final ResultsForNode results = allResults.get(n);
+        
+        CFGWriter w = new CFGWriter(n.getIR()) {
+            @Override
+            public String getPrefix(SSAInstruction i) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("{");
+                for (Integer val : results.getAllNonNull(i)) {
+                    sb.append(PrettyPrinter.valString(n.getIR(), val));
+                    sb.append(", ");
+                }
+                sb.append("}\\l");
+                return sb.toString();
+            }
+        };
+        
+        w.writeVerbose(writer, "", "\\l");
     }
 }

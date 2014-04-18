@@ -1,4 +1,4 @@
-package analysis.dataflow.interprocedural;
+package analysis.dataflow.util;
 
 import util.print.PrettyPrinter;
 

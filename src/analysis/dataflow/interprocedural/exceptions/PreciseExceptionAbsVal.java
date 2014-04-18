@@ -4,7 +4,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import analysis.dataflow.AbstractValue;
+import analysis.dataflow.util.AbstractValue;
 
 import com.ibm.wala.types.TypeReference;
 

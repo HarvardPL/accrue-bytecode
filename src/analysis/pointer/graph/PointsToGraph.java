@@ -26,6 +26,7 @@ import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.callgraph.propagation.cfa.ContextInsensitiveSSAInterpreter;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -56,6 +57,12 @@ public class PointsToGraph {
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
         this.util = util;
         callGraph = new ExplicitCallGraph(util.getClassHierarchy(), util.getOptions(), util.getCache());
+        try {
+            callGraph.init();
+            callGraph.setInterpreter(new ContextInsensitiveSSAInterpreter(util.getOptions(), util.getCache()));
+        } catch (CancelException e) {
+            throw new RuntimeException("WALA CancelException initializing call graph. " + e.getMessage());
+        }
     }
 
     /**
@@ -323,6 +330,69 @@ public class PointsToGraph {
         for (PointsToGraphNode n : graph.keySet()) {
             for (InstanceKey ik : graph.get(n)) {
                 writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
+            }
+        }
+
+        writer.write("\n};\n");
+        return writer;
+    }
+    
+    /**
+     * Print the call graph in graphviz dot format to a file
+     * 
+     * @param filename
+     *            name of the file, the file is put in tests/filename.dot
+     * @param addDate
+     *            if true then the date will be added to the filename
+     */
+    public void dumpCallGraphToFile(String filename, boolean addDate) {
+        String dir = "tests";
+        String file = filename;
+        if (addDate) {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
+            Date dateNow = new Date();
+            String now = dateFormat.format(dateNow);
+            file += now;
+        }
+        String fullFilename = dir + "/" + file + ".dot";
+        try {
+            Writer out = new BufferedWriter(new FileWriter(fullFilename));
+            out = dumpCallGraph(out);
+            out.close();
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+    
+    private Writer dumpCallGraph(Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        CallGraph cg = getCallGraph();
+        
+        Map<String, Integer> dotToCount = new HashMap<>();
+        Map<CGNode, String> n2s = new HashMap<>();
+
+        // Need to differentiate between different nodes with the same string
+        for (CGNode n : cg){
+            String nStr = escape(PrettyPrinter.parseMethod(n.getMethod().getReference()) + " in " + n.getContext());
+            Integer count = dotToCount.get(nStr);
+            if (count == null) {
+                dotToCount.put(nStr, 1);
+            } else {
+                nStr += " (" + count + ")";
+                dotToCount.put(nStr, count + 1);
+            }
+            n2s.put(n, nStr);
+        }
+        
+        for (CGNode source : cg) {
+            Iterator<CGNode> iter = cg.getSuccNodes(source); 
+            while (iter.hasNext()) {
+                CGNode target = iter.next();
+                writer.write("\t\"" + n2s.get(source) + "\" -> \"" + n2s.get(target) + "\";\n");
             }
         }
 

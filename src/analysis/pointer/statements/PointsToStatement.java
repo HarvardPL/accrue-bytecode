@@ -207,27 +207,6 @@ public abstract class PointsToStatement {
     }
 
     /**
-     * Check if an implicitly thrown exception of type <code>exType</code> is
-     * caught or re-thrown, and modify the points-to graph accordingly
-     * 
-     * @param exType
-     *            type of the exception
-     * @param currentContext
-     *            current code context
-     * @param g
-     *            points-to graph (may be modified)
-     * @param registrar
-     *            points-to statement registrar
-     * @return true if the points-to graph changed
-     */
-    protected boolean checkThrownImplicit(TypeReference exType, Context context, PointsToGraph g,
-            StatementRegistrar registrar) {
-        ReferenceVariable exNode = registrar.getImplicitExceptionNode(exType, getInstruction(), getCode());
-        ReferenceVariableReplica e = new ReferenceVariableReplica(context, exNode);
-        return checkThrown(exType, e, context, g, registrar);
-    }
-
-    /**
      * Information about a catch block
      */
     private static class CatchBlock {

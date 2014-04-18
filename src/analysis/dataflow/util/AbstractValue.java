@@ -1,4 +1,4 @@
-package analysis.dataflow;
+package analysis.dataflow.util;
 
 /**
  * Abstract value used for data-flow analysis

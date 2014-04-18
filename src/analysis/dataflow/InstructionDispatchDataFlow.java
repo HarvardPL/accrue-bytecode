@@ -1,6 +1,7 @@
 package analysis.dataflow;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,7 +48,37 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         super(forward);
     }
     
+    /**
+     * Join the given set of data-flow items to get a new item
+     * 
+     * @param items
+     *            items to merge
+     * @return new data-flow item computed by merging the items in the given set
+     */
+    protected abstract FlowItem confluence(Set<FlowItem> items);
 
+    /**
+     * Join the two given data-flow items to produce a new item
+     * 
+     * @param item1
+     *            first data-flow item
+     * @param item2
+     *            second data-flow item
+     * @return item computed by merging item1 and item2
+     */
+    protected final FlowItem confluence(FlowItem item1, FlowItem item2) {
+        if (item1 == null) {
+            return item2;
+        }
+        if (item2 == null) {
+            return item1;
+        }
+
+        Set<FlowItem> items = new LinkedHashSet<>();
+        items.add(item1);
+        items.add(item2);
+        return confluence(items);
+    }
 
     /**
      * Compute data-flow facts for each instruction in the basic block. The
@@ -59,8 +90,15 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
     protected Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Set<FlowItem> previousItems = inItems;
         Map<Integer, FlowItem> outItems = null;
-        SSAInstruction last = current.getLastInstruction();
+        SSAInstruction last = null;
+        if (current.getLastInstructionIndex() >= 0) {
+            last = current.getLastInstruction();
+        } else {
+            // empty block, just pass through the input
+            outItems = itemToMap(confluence(inItems), current, cfg);
+        }
         for (SSAInstruction i : current) {
+            assert last != null : "last instruction is null";
             if (i == last) {
                 // this is the last instruction of the block
                 outItems = flowInstruction(i, previousItems, cfg, current);
@@ -70,7 +108,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             }
         }
         
-        assert outItems != null : "Something has to be the last instruction.";
+        assert outItems != null : "Null output for " + current;
         postBasicBlock(inItems, cfg, current, outItems);
         return outItems;
     }

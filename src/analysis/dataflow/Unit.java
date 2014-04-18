@@ -1,5 +1,6 @@
 package analysis.dataflow;
 
+import analysis.dataflow.util.AbstractValue;
 import util.print.IRWriter;
 
 /**

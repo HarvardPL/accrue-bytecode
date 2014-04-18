@@ -4,11 +4,10 @@ import java.util.Map;
 import java.util.Set;
 
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
-import analysis.pointer.graph.PointsToGraph;
+import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
@@ -36,8 +35,8 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 
 public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExceptionAbsVal> {
 
-    public PreciseExceptionDataFlow(CGNode currentNode, CallGraph cg, PointsToGraph ptg) {
-        super(currentNode, cg, ptg);
+    public PreciseExceptionDataFlow(CGNode currentNode, InterproceduralDataFlowManager<PreciseExceptionAbsVal> manager) {
+        super(currentNode, manager);
     }
 
     @Override

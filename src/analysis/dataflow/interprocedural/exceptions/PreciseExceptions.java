@@ -33,7 +33,7 @@ public class PreciseExceptions {
      * Map of instruction/call graph node to the set of successors that can
      * never be reached
      */
-    private final Map<InstructionKey, Set<ISSABasicBlock>> impossibleSuccessors;
+    private final Map<ISSABasicBlock, Set<ISSABasicBlock>> impossibleSuccessors;
 
     /**
      * Initialize the precise exceptions where every instruction key is mapped
@@ -76,17 +76,17 @@ public class PreciseExceptions {
      * @return set of basic block numbers for successors that can never be
      *         reached
      */
-    public Set<ISSABasicBlock> getImpossibleSuccessors(SSAInstruction i, ISSABasicBlock containingBB,
+    public Set<ISSABasicBlock> getImpossibleSuccessors(ISSABasicBlock bb,
             CGNode containingNode) {
-        if (InstructionType.forInstruction(i) == InstructionType.NEW_OBJECT) {
+        if (bb.getLastInstructionIndex() >= 0
+                                        && InstructionType.forInstruction(bb.getLastInstruction()) == InstructionType.NEW_OBJECT) {
             // This instruction can only throw errors, which we are not handling
-            List<ISSABasicBlock> bbs = containingNode.getIR().getControlFlowGraph()
-                    .getExceptionalSuccessors(containingBB);
+            List<ISSABasicBlock> bbs = containingNode.getIR().getControlFlowGraph().getExceptionalSuccessors(bb);
             assert bbs.size() == 1;
             return Collections.singleton(bbs.get(0));
         }
 
-        Set<ISSABasicBlock> succs = impossibleSuccessors.get(new InstructionKey(i, containingNode));
+        Set<ISSABasicBlock> succs = impossibleSuccessors.get(bb);
         if (succs == null) {
             succs = Collections.emptySet();
         }
@@ -244,7 +244,7 @@ public class PreciseExceptions {
         case PHI:
         case PUT_STATIC:
         case RETURN:
-            // TODO IllegalMonitorStateException
+            // Not handling IllegalMonitorStateException
         case SWITCH:
         case UNARY_NEG_OP:
             return Collections.emptySet();

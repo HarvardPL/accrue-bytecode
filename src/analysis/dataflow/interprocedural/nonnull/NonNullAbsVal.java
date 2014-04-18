@@ -1,10 +1,10 @@
 package analysis.dataflow.interprocedural.nonnull;
 
-import analysis.dataflow.AbstractValue;
+import analysis.dataflow.util.AbstractValue;
 
 
 public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
-    static NonNullAbsVal NOT_NULL = new NonNullAbsVal(true);
+    static NonNullAbsVal NON_NULL = new NonNullAbsVal(true);
     static NonNullAbsVal MAY_BE_NULL = new NonNullAbsVal(false);
 
     private final boolean notnull;
@@ -29,7 +29,7 @@ public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
 
     @Override
     public boolean isBottom() {
-        return this == NOT_NULL;
+        return this == NON_NULL;
     }
 
     @Override
@@ -37,4 +37,9 @@ public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
         if (this.isNonnull()) return that;
         return this;
     }
+    
+    @Override
+    public String toString() {
+        return this == NON_NULL ? "NON_NULL" : "MAY_BE_NULL";
+    } 
 }

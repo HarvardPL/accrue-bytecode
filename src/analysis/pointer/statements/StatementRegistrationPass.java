@@ -34,7 +34,6 @@ import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Collect pointer analysis constraints with a pass over the code
@@ -42,7 +41,7 @@ import com.ibm.wala.types.TypeReference;
 public class StatementRegistrationPass {
 
     /**
-     * Output level, 2 prints all method bodies
+     * Output level
      */
     public static int VERBOSE = 2;
     /**
