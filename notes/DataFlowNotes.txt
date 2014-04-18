@@ -8,14 +8,31 @@ I don't really like the WALA CFG for data-flow. It is over basic blocks so no ge
 A: It actual does the right thing apparently
 
 For a data-flow analysis with side effects (e.g. printing) do I have to keep a set of visited nodes, this seems a bit hackish, but to avoid duplicates it might be unavoidable (we don't want to reanalyze).
+A: its not really a data-flow
 
 Should null data-flow items be allowed? Should they be propagated?
 Polyglot says yes for the first and no for the second
+A: decide and go with it, could create default item, createInitialItem(Edge)
 
 Do I actually need a lattice and confluence or should I let the individual analysis decide how to compute the meet of the incoming edges (if they even need to).
+A: Add back in predecessor to Set of input flow items, look at book
 
 Do we actually need to hashcons the varcontexts?
+A: Performance
 
 Widen is never not the same as upperbound.
+A: Widen
 
+Do I need to handle IllegalMonitorStateExceptions for return statements
+A: Skip it
+
+How about WrongMethodTypeException for virtual methods
+A: check the method name and add it
+
+Priority Queue on SCCs
+DONE: Need overview interprocedural manager
+Is sound result
+Reasoning about read and write sets
+
+Need to rework exceptions in statement registrar. instead of check thrown add a statement localToLocal for each catch block and the exit with filtered results.
 

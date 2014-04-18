@@ -72,6 +72,6 @@ A: ??? native methods
         } catch (ArrayIndexOutOfBoundsException e) {
             y = 888;
         }
-where: foo() throws RuntimeException;
+where: native foo() throws RuntimeException;
 
 TODO: check the use of pointsToFiltered and remove where not necessary
