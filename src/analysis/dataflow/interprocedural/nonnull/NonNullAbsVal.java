@@ -34,7 +34,7 @@ public class NonNullAbsVal implements AbstractValue<NonNullAbsVal> {
 
     @Override
     public NonNullAbsVal join(NonNullAbsVal that) {
-        if (this.isNonnull()) return that;
+        if (this.isNonnull() && that != null) return that;
         return this;
     }
     

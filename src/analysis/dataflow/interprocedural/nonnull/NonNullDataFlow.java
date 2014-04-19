@@ -6,8 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
@@ -97,13 +97,13 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
             if (!i.isStatic()) {
                 // Receiver is not null
                 // for non-static calls the first formal is "this"
-                initial.setLocal(formals[0], NonNullAbsVal.NON_NULL);
+                initial = initial.setLocal(formals[0], NonNullAbsVal.NON_NULL);
             } else if (formals.length > 0) {
                 // for static calls the first formal is a parameter
-                initial.setLocal(formals[0], nonNull.getLocal(actuals[0]));
+                initial = initial.setLocal(formals[0], nonNull.getLocal(actuals[0]));
             }
             for (int j = 1; j < formals.length; j++) {
-                initial.setLocal(formals[j], nonNull.getLocal(actuals[j]));
+                initial = initial.setLocal(formals[j], nonNull.getLocal(actuals[j]));
             }
             out = manager.getResults(currentNode, callee, initial);
 
@@ -129,20 +129,24 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         }
 
         // Exceptional return
-        assert exceptionResult != null;
-        VarContext<NonNullAbsVal> callerExContext = nonNull.setLocal(i.getException(), exceptionResult.getException())
-                                        .setExceptionValue(exceptionResult.getException());
-        callerExContext = copyBackFormals(formals, actuals, exceptionResult, callerExContext, i.isStatic());
-
+        VarContext<NonNullAbsVal> callerExContext = null;
+        if (exceptionResult != null) {
+            // If the exception result is null then there are no exception edges into the exit 
+            // So the procedure cannot throw any exceptions
+            callerExContext = nonNull.setLocal(i.getException(), exceptionResult.getException()).setExceptionValue(
+                                            exceptionResult.getException());
+            callerExContext = copyBackFormals(formals, actuals, exceptionResult, callerExContext, i.isStatic());
+        }
         Set<ISSABasicBlock> npeSuccs = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException, cfg,
                                         bb, util.getClassHierarchy());
+        
         for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
-            if (npeSuccs.contains(exSucc)) {
+            if (!i.isStatic() && npeSuccs.contains(exSucc)) {
                 // TODO check whether any callee can throw an NPE and only join
                 // if needed
-                ret.put(exSucc.getGraphNodeId(), callerExContext.join(npe));
+                ret.put(exSucc.getGraphNodeId(), npe.join(callerExContext));
             } else {
-                ret.put(exSucc.getGraphNodeId(), callerExContext.join(nonNull));
+                ret.put(exSucc.getGraphNodeId(), nonNull.join(callerExContext));
             }
         }
 
@@ -200,6 +204,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
                                                 + justProcessed.getGraphNodeId() + " to BB" + next.getGraphNodeId());
             }
         }
+        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
     }
 
     @Override

@@ -96,7 +96,7 @@ public abstract class CallStatement extends PointsToStatement {
         boolean changed = false;
 
         // Record the call
-        changed |= g.addCall(getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
+        changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
 
         MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
 

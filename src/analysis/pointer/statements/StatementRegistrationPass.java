@@ -3,25 +3,21 @@ package analysis.pointer.statements;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 import util.InstructionType;
+import util.WalaAnalysisUtil;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.MethodSummaryNodes;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
-import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
@@ -76,20 +72,8 @@ public class StatementRegistrationPass {
      * Initialize the queue using the defined entry points
      */
     private void init(WorkQueue<InstrAndCode> q) {
-
-        // Set up the entry points
-        FakeRootMethod fakeRoot = new FakeRootMethod(util.getClassHierarchy(), util.getOptions(), util.getCache());
-        for (Iterator<? extends Entrypoint> it = util.getOptions().getEntrypoints().iterator(); it.hasNext();) {
-            Entrypoint e = (Entrypoint) it.next();
-            // Add in the fake root method that sets up the call to main
-            SSAAbstractInvokeInstruction call = e.addCall(fakeRoot);
-
-            if (call == null) {
-                throw new RuntimeException("Missing entry point " + e);
-            }
-        }
-        registrar.setEntryPoint(fakeRoot);
-        addFromMethod(q, fakeRoot);
+        registrar.setEntryPoint(util.getFakeRoot());
+        addFromMethod(q, util.getFakeRoot());
     }
 
     /**
@@ -110,7 +94,7 @@ public class StatementRegistrationPass {
 
         if (visitedMethods.contains(m)) {
             if (VERBOSE >= 2) {
-                System.out.println("\tAlready added " + PrettyPrinter.parseMethod(m.getReference()));
+                System.err.println("\tAlready added " + PrettyPrinter.parseMethod(m.getReference()));
             }
             return;
         }
@@ -130,12 +114,12 @@ public class StatementRegistrationPass {
         registrar.recordMethod(m, new MethodSummaryNodes(registrar, ir));
 
         if (VERBOSE >= 1) {
-            System.out.println(PrettyPrinter.parseMethod(m.getReference()) + " will be registered.");
+            System.err.println(PrettyPrinter.parseMethod(m.getReference()) + " will be registered.");
         }
         if (VERBOSE >= 2) {
             Writer writer = new StringWriter();
             PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-            System.out.print(writer.toString());
+            System.err.print(writer.toString());
             try {
                 writer.close();
             } catch (IOException e) {
@@ -251,7 +235,7 @@ public class StatementRegistrationPass {
                 IClass superClass = klass.getSuperclass();
                 if (!superClass.isInterface()) {
                     if (VERBOSE >= 1 && !initializedClasses.contains(superClass)) {
-                        System.out.println("Adding: " + PrettyPrinter.parseType(superClass.getReference())
+                        System.err.println("Adding: " + PrettyPrinter.parseType(superClass.getReference())
                                 + " super class initializer from " + PrettyPrinter.parseType(klass.getReference()));
                     }
                     addClassInit(q, superClass);
@@ -263,7 +247,7 @@ public class StatementRegistrationPass {
                 registrar.addClassInitializer(klass.getClassInitializer());
                 addFromMethod(q, klass.getClassInitializer());
             } else if (VERBOSE >= 2) {
-                System.out.println("\tNo class initializer for " + PrettyPrinter.parseType(klass.getReference()));
+                System.err.println("\tNo class initializer for " + PrettyPrinter.parseType(klass.getReference()));
             }
             return true;
         }
@@ -273,7 +257,7 @@ public class StatementRegistrationPass {
     private void handleNative(WorkQueue<InstrAndCode> q, IMethod m) {
         // TODO Statement registration not handling native methods yet
         if (VERBOSE >= 2) {
-            System.out.println("\tNot handling native method " + PrettyPrinter.parseMethod(m.getReference()));
+            System.err.println("\tNot handling native method " + PrettyPrinter.parseMethod(m.getReference()));
         }
     }
 
@@ -340,7 +324,7 @@ public class StatementRegistrationPass {
             Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util.getClassHierarchy());
             for (IMethod m : targets) {
                 if (VERBOSE >= 1) {
-                    System.out.println("Adding: " + PrettyPrinter.parseMethod(m.getReference()) + " from "
+                    System.err.println("Adding: " + PrettyPrinter.parseMethod(m.getReference()) + " from "
                             + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
                 }
                 addFromMethod(q, m);

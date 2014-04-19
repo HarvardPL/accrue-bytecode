@@ -35,7 +35,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
     /**
      * Computed results for each call graph node analyzed
      */
-    protected final Map<CGNode, AnalysisResults<FlowItem>> recordedResults = new LinkedHashMap<>();
+    protected final Map<CGNode, InterProcAnalysisRecord<FlowItem>> recordedResults = new LinkedHashMap<>();
     /**
      * Nodes that are currently being processed, used to detect recursive calls
      */
@@ -43,7 +43,11 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
     /**
      * Record of which CG nodes need to be re-analyzed if a given node changes
      */
-    private Map<CGNode, Set<CGNode>> dependencyMap;
+    private final Map<CGNode, Set<CGNode>> dependencyMap = new HashMap<>();
+    /**
+     * Specifies the logging level
+     */
+    private int outputLevel = 0;
     
     public InterproceduralDataFlowManager(CallGraph cg, PointsToGraph ptg) {
         this.cg = cg;
@@ -71,15 +75,15 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
                 input = recordedResults.get(current).getInput();
             }
             
-            AnalysisResults<FlowItem> results = getLatestResults(current);
+            InterProcAnalysisRecord<FlowItem> results = getLatestResults(current);
             if (!existingResultSuitable(input, results)) {
                 // trigger processing of this node with the given input
                 Map<ExitType, FlowItem> output = analyze(current, input);
 
-                if (outputChanged(results.getOutput(), output)) {
+                if (results == null || outputChanged(results.getOutput(), output)) {
                     // the output changed so add any dependencies to the queue
                     q.addAll(getDependencies(current));
-                    results = new AnalysisResults<>(input, output, true);
+                    results = new InterProcAnalysisRecord<>(input, output, true);
                 }
             }
             
@@ -154,27 +158,50 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      * @return
      */
     public Map<ExitType, FlowItem> getResults(CGNode caller, CGNode callee, FlowItem input) {
+        if (getOutputLevel() > 2) {
+            System.err.println("GETTING:\n\t" + PrettyPrinter.parseMethod(callee.getMethod().getReference()) + " in "
+                                            + callee.getContext());
+            System.err.println("\tFROM: " + PrettyPrinter.parseMethod(caller.getMethod().getReference()) + " in "
+                                            + caller.getContext());
+            System.err.println("\tINPUT: " + input);
+        }
         if (currentlyProcessing.contains(callee)) {
             // This is a recursive call get the most recent results and add it
             // to the queue for later processing
             q.add(callee);
             
-            AnalysisResults<FlowItem> latest = getLatestResults(callee);
-            AnalysisResults<FlowItem> newResults = new AnalysisResults<>(join(input, latest.getInput()), latest.getOutput(), true);
+            InterProcAnalysisRecord<FlowItem> latest = getLatestResults(callee);
+            InterProcAnalysisRecord<FlowItem> newResults = new InterProcAnalysisRecord<>(join(input, latest.getInput()), latest.getOutput(), true);
             recordedResults.put(callee, newResults);
                                             
             // Make sure the caller gets recomputed if the callee changes
             addDependency(callee, caller);
+            System.err.println("\tLATEST: " + latest.getOutput());
             return newResults.getOutput();
         }
         
         Map<ExitType, FlowItem> output = analyze(callee, input);
-        AnalysisResults<FlowItem> results = new AnalysisResults<>(input, output, false);
+        InterProcAnalysisRecord<FlowItem> results = new InterProcAnalysisRecord<>(input, output, false);
         recordedResults.put(callee, results);
+        if (getOutputLevel() >= 2) {
+            System.err.println("RESULTS:\n\t" + PrettyPrinter.parseMethod(callee.getMethod().getReference()) + " in "
+                                            + callee.getContext());
+            System.err.println("\tFROM: " + PrettyPrinter.parseMethod(caller.getMethod().getReference()) + " in "
+                                            + caller.getContext());
+            System.err.println("\tNEW_OUTPUT: " + output);
+        }
         return output;
     }
     
-    private final AnalysisResults<FlowItem> getLatestResults(CGNode n) {
+    public int getOutputLevel() {
+        return outputLevel;
+    }
+    
+    public void setOutputLevel(int outputLevel) {
+        this.outputLevel = outputLevel;
+    }
+    
+    private final InterProcAnalysisRecord<FlowItem> getLatestResults(CGNode n) {
         return recordedResults.get(n);
     }
 
@@ -183,9 +210,9 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
     protected abstract Map<ExitType, FlowItem> getDefaultOutput();
     protected abstract FlowItem getInputForRoot();
     protected abstract boolean outputChanged(Map<ExitType, FlowItem> previousOutput, Map<ExitType, FlowItem> currentOutput);
-    protected abstract boolean existingResultSuitable(FlowItem input, AnalysisResults<FlowItem> rec);
+    protected abstract boolean existingResultSuitable(FlowItem input, InterProcAnalysisRecord<FlowItem> rec);
     
-    protected static class AnalysisResults<FlowItem> {
+    protected static class InterProcAnalysisRecord<FlowItem> {
 
         private final Map<ExitType, FlowItem> output;
         private final FlowItem input;
@@ -204,7 +231,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
          *            True if there are back edges and this result could be
          *            unsound
          */
-        public AnalysisResults(FlowItem input, Map<ExitType, FlowItem> output, boolean unsoundResult) {
+        public InterProcAnalysisRecord(FlowItem input, Map<ExitType, FlowItem> output, boolean unsoundResult) {
             this.input = input;
             this.output = output;
             this.unsoundResult = unsoundResult;

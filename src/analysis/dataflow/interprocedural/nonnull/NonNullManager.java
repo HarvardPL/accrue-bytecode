@@ -4,11 +4,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import util.WalaAnalysisUtil;
+
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ssa.SSAInstruction;
 
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
@@ -43,6 +44,7 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
     @Override
     protected Map<ExitType, VarContext<NonNullAbsVal>> analyze(CGNode n, VarContext<NonNullAbsVal> input) {
         NonNullDataFlow df = new NonNullDataFlow(n, this, preciseEx, util);
+        df.setOutputLevel(getOutputLevel());
         return df.dataflow(input);
     }
 
@@ -74,7 +76,7 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
     @Override
     protected boolean existingResultSuitable(
                                     VarContext<NonNullAbsVal> input,
-                                    AnalysisResults<VarContext<NonNullAbsVal>> rec) {
+                                    InterProcAnalysisRecord<VarContext<NonNullAbsVal>> rec) {
         return rec != null && input.leq(rec.getInput());
     }
 

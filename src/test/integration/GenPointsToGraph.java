@@ -12,8 +12,8 @@ package test.integration;
 
 import java.io.File;
 
+import util.WalaAnalysisUtil;
 import junit.framework.TestCase;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;

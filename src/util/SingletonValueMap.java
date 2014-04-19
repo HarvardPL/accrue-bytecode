@@ -139,4 +139,9 @@ public final class SingletonValueMap<K, V> implements Map<K, V> {
             return false;
         return true;
     }
+    
+    @Override
+    public String toString() {
+        return "{KEYS:" + keySet + "=" + value + "}";
+    }
 }

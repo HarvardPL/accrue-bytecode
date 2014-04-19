@@ -3,6 +3,7 @@ package analysis.dataflow.interprocedural.nonnull;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -184,14 +185,11 @@ public class NonNullResults {
         CFGWriter w = new CFGWriter(n.getIR()) {
             @Override
             public String getPrefix(SSAInstruction i) {
-                StringBuilder sb = new StringBuilder();
-                sb.append("{");
+                Set<String> strings = new HashSet<>();
                 for (Integer val : results.getAllNonNull(i)) {
-                    sb.append(PrettyPrinter.valString(n.getIR(), val));
-                    sb.append(", ");
+                    strings.add(PrettyPrinter.valString(n.getIR(), val));
                 }
-                sb.append("}\\l");
-                return sb.toString();
+                return strings + "\\l";
             }
         };
         

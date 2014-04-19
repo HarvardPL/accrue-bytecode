@@ -103,7 +103,7 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
             inItems = Collections.singleton(input);
         }
         assert inItems != null && !inItems.isEmpty();
-        
+
         // TODO make sure static initializers get analyzed
         return super.flow(inItems, cfg, current);
     }
@@ -142,13 +142,23 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
         Integer exitNum = exit.getGraphNodeId();
         Set<FlowItem> normals = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
+            if (outputItems.get(bb) == null || outputItems.get(bb).get(exitNum) == null) {
+                throw new RuntimeException("Null results for exit predecessor");
+            }
             normals.add(outputItems.get(bb).get(exitNum));
         }
         output.put(ExitType.NORM_TERM, confluence(normals));
 
         Set<FlowItem> exceptions = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
-            exceptions.add(outputItems.get(bb).get(exitNum));
+            if (outputItems.get(bb) == null) {
+                throw new RuntimeException("Null results for exit predecessor");
+            }
+            if (outputItems.get(bb).get(exitNum) != null) {
+                // Null data-flow fact might be ok if the exception can't be
+                // thrown
+                exceptions.add(outputItems.get(bb).get(exitNum));
+            }
         }
         output.put(ExitType.EXCEPTION, confluence(exceptions));
     }

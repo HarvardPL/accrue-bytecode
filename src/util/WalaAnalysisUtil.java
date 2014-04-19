@@ -1,8 +1,13 @@
-package analysis;
+package util;
+
+import java.util.Iterator;
 
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
+import com.ibm.wala.ipa.callgraph.Entrypoint;
+import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 
 /**
  * Global instances of WALA classes and global constants 
@@ -20,6 +25,10 @@ public class WalaAnalysisUtil {
      * Class hierarchy for the code being analyzed
      */
     private final IClassHierarchy cha;
+    /**
+     * WALA's fake root method (calls the entry points)
+     */
+    private final FakeRootMethod fakeRoot;
     /**
      * If true then implicit errors should be handled by all analyses
      */
@@ -39,6 +48,17 @@ public class WalaAnalysisUtil {
         this.options = options;
         this.cache = cache;
         this.cha = cha;
+        // Set up the entry points
+        fakeRoot = new FakeRootMethod(cha, options, cache);
+        for (Iterator<? extends Entrypoint> it = options.getEntrypoints().iterator(); it.hasNext();) {
+            Entrypoint e = (Entrypoint) it.next();
+            // Add in the fake root method that sets up the call to main
+            SSAAbstractInvokeInstruction call = e.addCall(fakeRoot);
+
+            if (call == null) {
+                throw new RuntimeException("Missing entry point " + e);
+            }
+        }
     }
 
     /**
@@ -63,5 +83,13 @@ public class WalaAnalysisUtil {
      */
     public IClassHierarchy getClassHierarchy() {
         return cha;
+    }
+    
+    /**
+     * 
+     * @return WALA fake root method (sets up and calls actual entry points)
+     */
+    public FakeRootMethod getFakeRoot() {
+        return fakeRoot;
     }
 }

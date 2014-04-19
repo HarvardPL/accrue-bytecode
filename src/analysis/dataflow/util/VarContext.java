@@ -326,4 +326,57 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     public String toString() {
         return "LOCALS: " + locals + " LOCATIONS: " + locations + " RET: " + returnResult + " EX: " + exceptionValue;
     }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((exceptionValue == null) ? 0 : exceptionValue.hashCode());
+        result = prime * result + ((locals == null) ? 0 : locals.hashCode());
+        result = prime * result + ((locations == null) ? 0 : locations.hashCode());
+        result = prime * result + ((returnResult == null) ? 0 : returnResult.hashCode());
+        result = prime * result + (trackHeapLocations ? 1231 : 1237);
+        result = prime * result + ((untrackedHeapLocationValue == null) ? 0 : untrackedHeapLocationValue.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        @SuppressWarnings("rawtypes")
+        VarContext other = (VarContext) obj;
+        if (exceptionValue == null) {
+            if (other.exceptionValue != null)
+                return false;
+        } else if (!exceptionValue.equals(other.exceptionValue))
+            return false;
+        if (locals == null) {
+            if (other.locals != null)
+                return false;
+        } else if (!locals.equals(other.locals))
+            return false;
+        if (locations == null) {
+            if (other.locations != null)
+                return false;
+        } else if (!locations.equals(other.locations))
+            return false;
+        if (returnResult == null) {
+            if (other.returnResult != null)
+                return false;
+        } else if (!returnResult.equals(other.returnResult))
+            return false;
+        if (trackHeapLocations != other.trackHeapLocations)
+            return false;
+        if (untrackedHeapLocationValue == null) {
+            if (other.untrackedHeapLocationValue != null)
+                return false;
+        } else if (!untrackedHeapLocationValue.equals(other.untrackedHeapLocationValue))
+            return false;
+        return true;
+    }
 }

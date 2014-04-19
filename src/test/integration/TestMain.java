@@ -7,8 +7,8 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
+import util.WalaAnalysisUtil;
 import util.print.CFGWriter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
 import analysis.dataflow.interprocedural.nonnull.NonNullManager;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
@@ -57,7 +57,7 @@ public class TestMain {
      * @throws ClassHierarchyException
      *             WALA set up issues
      */
-    public static void main(String[] args) throws IOException, ClassHierarchyException {
+    public static void main(String[] args) {
         try {
             if (args.length != 3) {
                 throw new IllegalArgumentException("The test harness takes three arguments, see usage for details.");
@@ -89,13 +89,14 @@ public class TestMain {
                 entry = util.getOptions().getEntrypoints().iterator().next();
                 ir = util.getCache().getIR(entry.getMethod());
                 nonNullTest(util, outputLevel, ir.getMethod(), entryPoint + "_main");
+                break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
             }
         } catch (Exception e) {
             System.err.println(usage());
             System.err.println("Actual parameters: " + Arrays.toString(args));
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 
@@ -131,6 +132,7 @@ public class TestMain {
         Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
                                         + entryPoint.replace(".", "/"));
         AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
+        
         /********************************
          * End of WALA set up code
          ********************************/
@@ -176,7 +178,7 @@ public class TestMain {
         System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
         if (outputLevel >= 2) {
             for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-                System.out.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
             }
         }
         StatementRegistrar registrar = pass.getRegistrar();
@@ -244,10 +246,10 @@ public class TestMain {
         // Don't print anything
         StatementRegistrationPass.VERBOSE = outputLevel;
         pass.run();
-        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        System.err.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
         if (outputLevel >= 2) {
             for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-                System.out.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
             }
         }
         StatementRegistrar registrar = pass.getRegistrar();
@@ -258,6 +260,7 @@ public class TestMain {
         g.dumpCallGraphToFile(fileName + "_callGraph", false);
 
         NonNullManager manager = new NonNullManager(g.getCallGraph(), g, new PreciseExceptions(), util);
+        manager.setOutputLevel(outputLevel);
         manager.runAnalysis();
         NonNullResults results = manager.getNonNullResults();
 

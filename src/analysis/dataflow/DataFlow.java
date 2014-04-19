@@ -45,7 +45,11 @@ public abstract class DataFlow<FlowItem> {
     /**
      * Map from basic block to output data-flow item map
      */
-    private final Map<ISSABasicBlock, Map<Integer, FlowItem>> bbToOutItems;
+    private final Map<ISSABasicBlock, AnalysisRecord<FlowItem>> bbToOutItems;
+    /**
+     * determines printing volume
+     */
+    private int verbose = 0;
 
     /**
      * Create a new dataflow
@@ -70,61 +74,91 @@ public abstract class DataFlow<FlowItem> {
         if (!forward) {
             flowGraph = new InvertedGraph<ISSABasicBlock>(flowGraph);
         }
-        
+
         // Compute SCCs and iterate through them
         SCCIterator<ISSABasicBlock> sccs = new SCCIterator<>(flowGraph);
-        
-        
+
         while (sccs.hasNext()) {
             Set<ISSABasicBlock> scc = sccs.next();
             boolean changed = true;
             int iterations = 0;
-            
-            // Loop over the strongly connected component until a fixed point is reached
+
+            // Loop over the strongly connected component until a fixed point is
+            // reached
             while (changed) {
                 changed = false;
                 for (ISSABasicBlock current : scc) {
+
                     Set<FlowItem> inItems = new LinkedHashSet<>(getNumPreds(current, g));
-                    Map<Integer, FlowItem> oldOutItems = getOutItems(current);
-                    
+                    AnalysisRecord<FlowItem> previousResults = getOutItems(current);
+                    Map<Integer, FlowItem> oldOutItems = previousResults == null ? null : previousResults.getOutput();
+
                     // Get all out items for predecessors
                     Iterator<ISSABasicBlock> preds = getPreds(current, g);
                     while (preds.hasNext()) {
                         ISSABasicBlock pred = preds.next();
-                        Map<Integer, FlowItem> items = getOutItems(pred);
+                        Map<Integer, FlowItem> items = getOutItems(pred).output;
                         if (items != null) {
                             FlowItem item = items.get(current.getNumber());
                             // TODO should we allow item == null?
                             if (item != null) {
                                 inItems.add(item);
                             } else {
-                                String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional" : "normal";
+                                String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional"
+                                                                : "normal";
                                 System.err.println("null data-flow item in "
-                                        + PrettyPrinter.parseMethod(ir.getMethod().getReference()) + " from BB"
-                                        + g.getNumber(pred) + " to BB" + g.getNumber(current) + " on " + edgeType + " edge");
+                                                                + PrettyPrinter.parseMethod(ir.getMethod()
+                                                                                                .getReference())
+                                                                + " from BB" + g.getNumber(pred) + " to BB"
+                                                                + g.getNumber(current) + " on " + edgeType + " edge");
                             }
                         }
                     }
 
-                    Map<Integer, FlowItem> outItems = flow(inItems, g, current);
-                    assert outItems != null : "Null out items for " + PrettyPrinter.basicBlockString(ir, current, "", "\n")
-                            + " with inputs: " + inItems;
+                    if (previousResults != null && previousResults.getInput().equals(inItems)) {
+                        // the input is the same no need to reanalyze
+                        continue;
+                    }
 
-                    if (oldOutItems != outItems && (oldOutItems == null || !oldOutItems.equals(outItems))) {
+                    if (verbose >= 2) {
+                        System.err.print("FLOWING" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
+                        if (current.getLastInstructionIndex() < 0) {
+                            System.err.println();
+                        }
+                        System.err.println("\t" + inItems);
+                    }
+
+                    Map<Integer, FlowItem> outItems = flow(inItems, g, current);
+
+                    assert outItems != null : "Null out items for "
+                                                    + PrettyPrinter.basicBlockString(ir, current, "", "\n")
+                                                    + " with inputs: " + inItems;
+                    
+                    AnalysisRecord<FlowItem> newResults = new AnalysisRecord<>(inItems, outItems);
+                    putRecord(current, newResults);
+
+                    if (oldOutItems == null || !oldOutItems.equals(outItems)) {
+                        if (verbose >= 2) {
+                            System.err.print("FLOWED" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
+                            if (current.getLastInstructionIndex() < 0) {
+                                System.err.println();
+                            }
+                            System.err.println("\t" + outItems);
+                        }
                         changed = true;
-                        putOutItems(current, outItems);
                     }
                 }
                 iterations++;
                 if (iterations >= 100) {
-                    throw new RuntimeException("Analyzed the same SCC 100 times for method: " + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
+                    throw new RuntimeException("Analyzed the same SCC 100 times for method: "
+                                                    + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
                 }
             }
         }
 
         post(ir);
     }
-
+    
     /**
      * Perform any data-flow specific operations after analyzing the procedure
      * 
@@ -149,7 +183,8 @@ public abstract class DataFlow<FlowItem> {
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current basic block
      */
-    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> g, ISSABasicBlock current);
+    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> g, ISSABasicBlock current);
 
     /**
      * Get all successors of the given basic block. If this is a forward
@@ -163,7 +198,8 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return iterator for data-flow successors of the given basic block
      */
-    protected final Iterator<ISSABasicBlock> getSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected final Iterator<ISSABasicBlock> getSuccs(ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getSuccNodes(bb) : cfg.getPredNodes(bb);
     }
 
@@ -180,7 +216,8 @@ public abstract class DataFlow<FlowItem> {
      * @return the basic blocks which are data-flow successors of bb via normal
      *         control flow edges
      */
-    protected final Collection<ISSABasicBlock> getNormalSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected final Collection<ISSABasicBlock> getNormalSuccs(ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getNormalSuccessors(bb) : cfg.getNormalPredecessors(bb);
     }
 
@@ -197,7 +234,8 @@ public abstract class DataFlow<FlowItem> {
      * @return the basic blocks which are data-flow successors of bb via
      *         exceptional control flow edges
      */
-    protected final Collection<ISSABasicBlock> getExceptionalSuccs(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected final Collection<ISSABasicBlock> getExceptionalSuccs(ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getExceptionalSuccessors(bb) : cfg.getExceptionalPredecessors(bb);
     }
 
@@ -231,7 +269,8 @@ public abstract class DataFlow<FlowItem> {
      * @return unmodifiable mapping from each successor id to the single given
      *         value
      */
-    protected final Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected final Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Set<Integer> succs = new LinkedHashSet<>();
         IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
         while (iter.hasNext()) {
@@ -254,7 +293,8 @@ public abstract class DataFlow<FlowItem> {
      * @return modifiable mapping from each successor id to the single given
      *         value
      */
-    protected final Map<Integer, FlowItem> itemToModifiableMap(FlowItem item, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected final Map<Integer, FlowItem> itemToModifiableMap(FlowItem item, ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<Integer, FlowItem> res = new LinkedHashMap<>();
         IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
         while (iter.hasNext()) {
@@ -284,7 +324,8 @@ public abstract class DataFlow<FlowItem> {
      *         item
      */
     protected final Map<Integer, FlowItem> itemToMapWithExceptions(FlowItem normalItem, FlowItem exceptionItem,
-            Set<ISSABasicBlock> impossibleExceptions, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+                                    Set<ISSABasicBlock> impossibleExceptions, ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<Integer, FlowItem> ret = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
             ret.put(succ.getGraphNodeId(), normalItem);
@@ -309,7 +350,8 @@ public abstract class DataFlow<FlowItem> {
      *            control flow graph
      * @return data-flow predecessors for the given basic block.
      */
-    private final Iterator<ISSABasicBlock> getPreds(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    private final Iterator<ISSABasicBlock> getPreds(ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return forward ? cfg.getPredNodes(bb) : cfg.getSuccNodes(bb);
     }
 
@@ -350,11 +392,11 @@ public abstract class DataFlow<FlowItem> {
      * 
      * @param basic
      *            basic block
-     * @param outItems
-     *            data-flow facts for targets of edges leaving the basic block
+     * @param record
+     *            input and output data-flow facts for the basic block
      */
-    private final void putOutItems(ISSABasicBlock bb, Map<Integer, FlowItem> outItems) {
-        bbToOutItems.put(bb, outItems);
+    private final void putRecord(ISSABasicBlock bb, AnalysisRecord<FlowItem> record) {
+        bbToOutItems.put(bb, record);
     }
 
     /**
@@ -365,7 +407,7 @@ public abstract class DataFlow<FlowItem> {
      * 
      * @return data-flow fact for targets of edges leaving the basic block
      */
-    protected final Map<Integer, FlowItem> getOutItems(ISSABasicBlock bb) {
+    protected final AnalysisRecord<FlowItem> getOutItems(ISSABasicBlock bb) {
         return bbToOutItems.get(bb);
     }
 
@@ -419,7 +461,8 @@ public abstract class DataFlow<FlowItem> {
      * @return pair of basic block number for "true" successor and "false"
      *         successor in that order
      */
-    private final OrderedPair<Integer, Integer> getTrueFalseSuccessors(ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    private final OrderedPair<Integer, Integer> getTrueFalseSuccessors(ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         if (cfg.getSuccNodeCount(bb) != 2) {
             throw new RuntimeException("Branches have exactly 2 successors. This has " + cfg.getSuccNodeCount(bb));
         }
@@ -438,7 +481,7 @@ public abstract class DataFlow<FlowItem> {
         }
         return new OrderedPair<Integer, Integer>(trueBranch, falseBranch);
     }
-    
+
     /**
      * Get the successor basic blocks that may be able to be reached by throwing
      * a particular type of exception.
@@ -457,7 +500,8 @@ public abstract class DataFlow<FlowItem> {
      * @return set of basic blocks that may
      */
     protected Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current, IClassHierarchy cha) {
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current,
+                                    IClassHierarchy cha) {
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
 
         IClass thrown = cha.lookupClass(exType);
@@ -467,7 +511,6 @@ public abstract class DataFlow<FlowItem> {
         // Find successor catch blocks
         List<ISSABasicBlock> catchBlocks = cfg.getExceptionalSuccessors(current);
 
-        
         // See if there is a catch block that catches this exception
         for (ISSABasicBlock cb : catchBlocks) {
             if (cb.isExitBlock()) {
@@ -484,8 +527,9 @@ public abstract class DataFlow<FlowItem> {
                     break;
                 } else if (throwerType.isInvoke() && cha.isSubclassOf(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
-                    // so it could be caught (due to imprecision for exceptions thrown by native calls)
-                    
+                    // so it could be caught (due to imprecision for exceptions
+                    // thrown by native calls)
+
                     // TODO keep track of imprecise exception types
                     result.add(cb);
                 }
@@ -496,7 +540,48 @@ public abstract class DataFlow<FlowItem> {
             // might not be caught so it might flow to the exit node
             result.add(cfg.exit());
         }
-        
+
         return result;
+    }
+
+    /**
+     * Set the level of output
+     * 
+     * @param level
+     *            level of the output, higher means more output
+     */
+    public void setOutputLevel(int level) {
+        this.verbose = level;
+    }
+    
+    /**
+     * Get the output level
+     * 
+     * @return integer verbosity level
+     */
+    protected int getOutputLevel() {
+        return verbose;
+    }
+
+    /**
+     * Analysis input and output, used to determine if re-analysis is necessary
+     */
+    protected static class AnalysisRecord<FlowItem> {
+
+        private final Set<FlowItem> input;
+        private final Map<Integer, FlowItem> output;
+
+        public AnalysisRecord(Set<FlowItem> input, Map<Integer, FlowItem> output) {
+            this.input = input;
+            this.output = output;
+        }
+        
+        public Set<FlowItem> getInput() {
+            return input;
+        }
+        
+        public Map<Integer, FlowItem> getOutput() {
+            return output;
+        }
     }
 }

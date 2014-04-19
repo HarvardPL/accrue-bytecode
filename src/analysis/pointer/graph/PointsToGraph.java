@@ -14,19 +14,19 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.statements.StatementRegistrar;
+import analysis.pointer.util.HafCallGraph;
 
+import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ipa.callgraph.propagation.cfa.ContextInsensitiveSSAInterpreter;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -45,9 +45,10 @@ public class PointsToGraph {
     public Map<IMethod, Set<Context>> newContexts;
     private final Map<IMethod, Set<Context>> contexts;
 
-    private final ExplicitCallGraph callGraph;
+    private final HafCallGraph callGraph;
     private final WalaAnalysisUtil util;
     private final StatementRegistrar registrar;
+    private int outputLevel = 0;
 
     public PointsToGraph(WalaAnalysisUtil util, StatementRegistrar registrar, HeapAbstractionFactory haf) {
         changedNodes = new LinkedHashSet<>();
@@ -56,13 +57,7 @@ public class PointsToGraph {
         this.registrar = registrar;
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
         this.util = util;
-        callGraph = new ExplicitCallGraph(util.getClassHierarchy(), util.getOptions(), util.getCache());
-        try {
-            callGraph.init();
-            callGraph.setInterpreter(new ContextInsensitiveSSAInterpreter(util.getOptions(), util.getCache()));
-        } catch (CancelException e) {
-            throw new RuntimeException("WALA CancelException initializing call graph. " + e.getMessage());
-        }
+        callGraph = new HafCallGraph(util, haf);
     }
 
     /**
@@ -198,24 +193,32 @@ public class PointsToGraph {
         return s;
     }
 
-    public boolean addCall(IMethod caller, Context callerContext, IMethod callee, Context calleeContext) {
+    @SuppressWarnings("deprecation")
+    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext, IMethod callee, Context calleeContext) {
 
         CGNode src;
         CGNode dst;
+
         try {
             src = callGraph.findOrCreateNode(caller, callerContext);
             dst = callGraph.findOrCreateNode(callee, calleeContext);
         } catch (CancelException e) {
             throw new RuntimeException(e + " cannot add call graph edge from "
-                    + PrettyPrinter.parseMethod(caller.getReference()) + " to "
-                    + PrettyPrinter.parseMethod(callee.getReference()));
+                                            + PrettyPrinter.parseMethod(caller.getReference()) + " to "
+                                            + PrettyPrinter.parseMethod(callee.getReference()));
         }
 
-        if (callGraph.hasEdge(src, dst)) {
+        
+        // We are building a call graph so it is safe to call this "deprecated" method
+        if(!src.addTarget(callSite, dst)) {
+            // not a new target
             return false;
         }
-
-        callGraph.addEdge(src, dst);
+        if (outputLevel >= 2) {
+            System.err.println("ADDED\n\t" + PrettyPrinter.parseMethod(caller.getReference()) + " in " + callerContext
+                                            + " to\n\t" + PrettyPrinter.parseMethod(callee.getReference()) + " in "
+                                            + calleeContext);
+        }
 
         Set<Context> s = contexts.get(callee);
         if (s == null) {
@@ -234,7 +237,6 @@ public class PointsToGraph {
             }
             n.add(calleeContext);
         }
-
         return true;
     }
 
@@ -297,7 +299,8 @@ public class PointsToGraph {
     private Writer dumpPointsToGraph(Writer writer) throws IOException {
         double spread = 1.0;
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
-                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+                                        + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+                                        + "edge [fontsize=10]" + ";\n");
 
         Map<String, Integer> dotToCount = new HashMap<>();
         Map<PointsToGraphNode, String> n2s = new HashMap<>();
@@ -336,7 +339,7 @@ public class PointsToGraph {
         writer.write("\n};\n");
         return writer;
     }
-    
+
     /**
      * Print the call graph in graphviz dot format to a file
      * 
@@ -364,19 +367,20 @@ public class PointsToGraph {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
     }
-    
+
     private Writer dumpCallGraph(Writer writer) throws IOException {
         double spread = 1.0;
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
-                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+                                        + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+                                        + "edge [fontsize=10]" + ";\n");
 
         CallGraph cg = getCallGraph();
-        
+
         Map<String, Integer> dotToCount = new HashMap<>();
         Map<CGNode, String> n2s = new HashMap<>();
 
         // Need to differentiate between different nodes with the same string
-        for (CGNode n : cg){
+        for (CGNode n : cg) {
             String nStr = escape(PrettyPrinter.parseMethod(n.getMethod().getReference()) + " in " + n.getContext());
             Integer count = dotToCount.get(nStr);
             if (count == null) {
@@ -387,9 +391,9 @@ public class PointsToGraph {
             }
             n2s.put(n, nStr);
         }
-        
+
         for (CGNode source : cg) {
-            Iterator<CGNode> iter = cg.getSuccNodes(source); 
+            Iterator<CGNode> iter = cg.getSuccNodes(source);
             while (iter.hasNext()) {
                 CGNode target = iter.next();
                 writer.write("\t\"" + n2s.get(source) + "\" -> \"" + n2s.get(target) + "\";\n");
@@ -462,7 +466,7 @@ public class PointsToGraph {
         readNodes = new LinkedHashSet<>();
         return c;
     }
-    
+
     /**
      * Get the reference variable for the local variable with the given value
      * number in the given method
@@ -476,7 +480,7 @@ public class PointsToGraph {
     public ReferenceVariable getLocal(int local, IR ir) {
         return registrar.getLocal(local, ir);
     }
-    
+
     /**
      * Get the reference variable for the static field
      * 
@@ -487,16 +491,23 @@ public class PointsToGraph {
     public ReferenceVariable getStaticField(FieldReference field) {
         return registrar.getNodeForStaticField(field, util.getClassHierarchy());
     }
-    
+
     /**
      * Get the reference variable for the implicitly thrown exception
      * 
-     * @param exType type of exception thrown 
-     * @param ir method containing the instruction that throws the exception 
-     * @param i instruction that throws the exception
+     * @param exType
+     *            type of exception thrown
+     * @param ir
+     *            method containing the instruction that throws the exception
+     * @param i
+     *            instruction that throws the exception
      * @return Unique reference variable for the implicit exception
      */
     public ReferenceVariable getImplicitException(TypeReference exType, IR ir, SSAInstruction i) {
         return registrar.getImplicitExceptionNode(exType, i, ir);
+    }
+    
+    public void setOutputLevel(int outputLevel) {
+        this.outputLevel = outputLevel;
     }
 }
