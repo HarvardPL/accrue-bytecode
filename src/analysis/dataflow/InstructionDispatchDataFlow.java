@@ -36,9 +36,11 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 
 /**
  * Data-flow that dispatched based on the type of instruction being processed
+ * 
+ * <F> Type of data-flow facts this analysis computes
  */
-public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<FlowItem> {
-    
+public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
+
     /**
      * Data-flow that dispatches based on instruction type
      * 
@@ -49,35 +51,35 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
     }
     
     /**
-     * Join the given set of data-flow items to get a new item
+     * Join the given set of data-flow facts to get a new item
      * 
-     * @param items
-     *            items to merge
-     * @return new data-flow item computed by merging the items in the given set
+     * @param facts
+     *            data-flow facts to merge
+     * @return new data-flow item computed by merging the facts in the given set
      */
-    protected abstract FlowItem confluence(Set<FlowItem> items);
+    protected abstract F confluence(Set<F> facts);
 
     /**
-     * Join the two given data-flow items to produce a new item
+     * Join the two given data-flow facts to produce a new fact
      * 
-     * @param item1
-     *            first data-flow item
-     * @param item2
-     *            second data-flow item
-     * @return item computed by merging item1 and item2
+     * @param fact1
+     *            first data-flow fact
+     * @param fact2
+     *            second data-flow fact
+     * @return item computed by merging fact1 and fact2
      */
-    protected final FlowItem confluence(FlowItem item1, FlowItem item2) {
-        if (item1 == null) {
-            return item2;
+    protected final F confluence(F fact1, F fact2) {
+        if (fact1 == null) {
+            return fact2;
         }
-        if (item2 == null) {
-            return item1;
+        if (fact2 == null) {
+            return fact1;
         }
 
-        Set<FlowItem> items = new LinkedHashSet<>();
-        items.add(item1);
-        items.add(item2);
-        return confluence(items);
+        Set<F> facts = new LinkedHashSet<>();
+        facts.add(fact1);
+        facts.add(fact2);
+        return confluence(facts);
     }
 
     /**
@@ -87,15 +89,15 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * {@inheritDoc}
      */
     @Override
-    protected Map<Integer, FlowItem> flow(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        Set<FlowItem> previousItems = inItems;
-        Map<Integer, FlowItem> outItems = null;
+    protected Map<Integer, F> flow(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        Set<F> previousItems = inItems;
+        Map<Integer, F> outItems = null;
         SSAInstruction last = null;
         if (current.getLastInstructionIndex() >= 0) {
             last = current.getLastInstruction();
         } else {
             // empty block, just pass through the input
-            outItems = itemToMap(confluence(inItems), current, cfg);
+            outItems = factToMap(confluence(inItems), current, cfg);
         }
         for (SSAInstruction i : current) {
             assert last != null : "last instruction is null";
@@ -114,19 +116,19 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
     }
     
     /**
-     * Data-flow transfer function for an instruction with only one successor
+     * Data-flow transfer function for an instruction
      * 
      * @param i
      *            instruction
      * @param inItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
-     * @return data-flow fact after analyzing this instruction
+     * @return data-flow facts after analyzing this instruction
      */
-    protected Map<Integer, FlowItem> flowInstruction(SSAInstruction i, Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected Map<Integer, F> flowInstruction(SSAInstruction i, Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current) {
         SSAInstruction last = current.getLastInstruction();
         if (i == last) {
@@ -134,7 +136,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
             return flowLastInstruction(i, inItems, cfg, current);
         } else {
             // Pass the results of this "flow" into the next
-            return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
+            return factToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
         }
     }
     
@@ -144,14 +146,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param inItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    private FlowItem flowOtherInstruction(SSAInstruction i, Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+    private F flowOtherInstruction(SSAInstruction i, Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
         case BINARY_OP:
@@ -199,12 +201,13 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
     }
     
     /**
-     * Data-flow transfer function for the last instruction of a basic block
+     * Data-flow transfer function for the last, possibly branching, instruction
+     * of a basic block
      * 
      * @param i
      *            instruction
      * @param inItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -212,7 +215,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    private Map<Integer, FlowItem> flowLastInstruction(SSAInstruction i, Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    private Map<Integer, F> flowLastInstruction(SSAInstruction i, Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current) {
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
@@ -264,7 +267,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
         case PUT_STATIC:
         case UNARY_NEG_OP:
             assert cfg.getSuccNodeCount(current) == 1 : "Instructions of this type should never branch: " + type;
-            return itemToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
+            return factToMap(flowOtherInstruction(i, inItems, cfg, current), current, cfg);
         }
         throw new RuntimeException("Invalid instruction type: " + PrettyPrinter.getSimpleClassName(i));
     }
@@ -273,7 +276,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * Method called after processing a basic block
      * 
      * @param inItems
-     *            data-flow items before processing basic block
+     *            data-flow facts before processing basic block
      * @param cfg
      *            control flow graph
      * @param justProcessed
@@ -281,8 +284,8 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param outItems
      *            data-flow item for each edge
      */
-    protected abstract void postBasicBlock(Set<FlowItem> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock justProcessed, Map<Integer, FlowItem> outItems);
+    protected abstract void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock justProcessed, Map<Integer, F> outItems);
 
     /**
      * Data-flow transfer function for an instruction with only one successor
@@ -290,14 +293,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowBinaryOp(SSABinaryOpInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowBinaryOp(SSABinaryOpInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
 
     /**
@@ -306,14 +309,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowComparison(SSAComparisonInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowComparison(SSAComparisonInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
 
     /**
@@ -322,14 +325,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowConversion(SSAConversionInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowConversion(SSAConversionInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
 
     /**
@@ -338,14 +341,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<FlowItem> previousItems,
+    protected abstract F flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<F> previousItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
     
     /**
@@ -354,14 +357,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowGetStatic(SSAGetInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowGetStatic(SSAGetInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
 
     /**
@@ -370,30 +373,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowInstanceOf(SSAInstanceofInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-            ISSABasicBlock current);
-    
-    /**
-     * Data-flow transfer function for an instruction with only one successor
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return data-flow fact after analyzing this instruction
-     */
-    protected abstract FlowItem flowPhi(SSAPhiInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowInstanceOf(SSAInstanceofInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
     
     /**
@@ -402,14 +389,14 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowPutStatic(SSAPutInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowPhi(SSAPhiInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
     
     /**
@@ -418,198 +405,30 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract FlowItem flowUnaryNegation(SSAUnaryOpInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowPutStatic(SSAPutInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
-
+    
     /**
      * Data-flow transfer function for an instruction with only one successor
      * 
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
      * @return data-flow fact after analyzing this instruction
      */
-    protected abstract Map<Integer, FlowItem> flowArrayLength(SSAArrayLengthInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction with only one successor
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return data-flow fact after analyzing this instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowArrayLoad(SSAArrayLoadInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction with only one successor
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return data-flow fact after analyzing this instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowArrayStore(SSAArrayStoreInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowCheckCast(SSACheckCastInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowConditionalBranch(SSAConditionalBranchInstruction i,
-            Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowGetField(SSAGetInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowInvokeInterface(SSAInvokeInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowInvokeSpecial(SSAInvokeInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowInvokeStatic(SSAInvokeInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowInvokeVirtual(SSAInvokeInstruction i, Set<FlowItem> previousItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
-    /**
-     * Data-flow transfer function for an instruction
-     * 
-     * @param i
-     *            instruction
-     * @param previousItems
-     *            input data-flow items
-     * @param cfg
-     *            control flow graph
-     * @param current
-     *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
-     */
-    protected abstract Map<Integer, FlowItem> flowGoto(SSAGotoInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract F flowUnaryNegation(SSAUnaryOpInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
 
     /**
@@ -618,16 +437,15 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
      *            current basic block
-     * @return map from target of successor edge to the data-flow fact on that
-     *         edge after handling the current instruction
+     * @return data-flow facts after analyzing this instruction
      */
-    protected abstract Map<Integer, FlowItem> flowLoadMetadata(SSALoadMetadataInstruction i,
-            Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+    protected abstract Map<Integer, F> flowArrayLength(SSAArrayLengthInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
      * Data-flow transfer function for an instruction
@@ -635,7 +453,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -643,7 +461,194 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowMonitor(SSAMonitorInstruction i, Set<FlowItem> inItems,
+    protected abstract Map<Integer, F> flowArrayLoad(SSAArrayLoadInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowArrayStore(SSAArrayStoreInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowCheckCast(SSACheckCastInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowConditionalBranch(SSAConditionalBranchInstruction i,
+            Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowGetField(SSAGetInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowInvokeInterface(SSAInvokeInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowInvokeSpecial(SSAInvokeInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowInvokeStatic(SSAInvokeInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowInvokeVirtual(SSAInvokeInstruction i, Set<F> previousItems,
+            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowGoto(SSAGotoInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+            ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowLoadMetadata(SSALoadMetadataInstruction i,
+            Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * Data-flow transfer function for an instruction
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<Integer, F> flowMonitor(SSAMonitorInstruction i, Set<F> inItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
     
     /**
@@ -652,7 +657,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -660,7 +665,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowNewArray(SSANewInstruction i, Set<FlowItem> previousItems,
+    protected abstract Map<Integer, F> flowNewArray(SSANewInstruction i, Set<F> previousItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
@@ -669,7 +674,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -677,7 +682,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowNewObject(SSANewInstruction i, Set<FlowItem> previousItems,
+    protected abstract Map<Integer, F> flowNewObject(SSANewInstruction i, Set<F> previousItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
@@ -686,7 +691,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -694,7 +699,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowPutField(SSAPutInstruction i, Set<FlowItem> previousItems,
+    protected abstract Map<Integer, F> flowPutField(SSAPutInstruction i, Set<F> previousItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
@@ -703,7 +708,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -711,7 +716,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowReturn(SSAReturnInstruction i, Set<FlowItem> previousItems,
+    protected abstract Map<Integer, F> flowReturn(SSAReturnInstruction i, Set<F> previousItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
@@ -720,7 +725,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -728,7 +733,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowSwitch(SSASwitchInstruction i, Set<FlowItem> previousItems,
+    protected abstract Map<Integer, F> flowSwitch(SSASwitchInstruction i, Set<F> previousItems,
             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
@@ -737,7 +742,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @param i
      *            instruction
      * @param previousItems
-     *            input data-flow items
+     *            input data-flow facts
      * @param cfg
      *            control flow graph
      * @param current
@@ -745,7 +750,7 @@ public abstract class InstructionDispatchDataFlow<FlowItem> extends DataFlow<Flo
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current instruction
      */
-    protected abstract Map<Integer, FlowItem> flowThrow(SSAThrowInstruction i, Set<FlowItem> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+    protected abstract Map<Integer, F> flowThrow(SSAThrowInstruction i, Set<F> previousItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
             ISSABasicBlock current);
 
 }

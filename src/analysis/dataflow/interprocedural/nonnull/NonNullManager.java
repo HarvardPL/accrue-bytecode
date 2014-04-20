@@ -11,9 +11,9 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ssa.SSAInstruction;
 
-import analysis.dataflow.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
+import analysis.dataflow.util.ExitType;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
 

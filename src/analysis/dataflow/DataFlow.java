@@ -32,27 +32,27 @@ import com.ibm.wala.util.intset.IntSet;
  * Base class for a context-sensitive, flow-sensitive, path-sensitive
  * intra-procedural data-flow analysis
  * 
- * @param FlowItem
+ * @param <F>
  *            type for the data-flow facts propagated by this analysis, must
  *            have hashCode and equals defined
  */
-public abstract class DataFlow<FlowItem> {
+public abstract class DataFlow<F> {
 
     /**
      * True if this is a forward analysis false if this is a backward analysis
      */
     private final boolean forward;
     /**
-     * Map from basic block to output data-flow item map
+     * Map from basic block to record containing analysis results
      */
-    private final Map<ISSABasicBlock, AnalysisRecord<FlowItem>> bbToOutItems;
+    private final Map<ISSABasicBlock, AnalysisRecord<F>> bbToOutItems;
     /**
      * determines printing volume
      */
     private int verbose = 0;
 
     /**
-     * Create a new dataflow
+     * Create a new intra-procedural data-flow
      * 
      * @param ir
      *            Code for the method the data-flow is performed over
@@ -77,7 +77,6 @@ public abstract class DataFlow<FlowItem> {
 
         // Compute SCCs and iterate through them
         SCCIterator<ISSABasicBlock> sccs = new SCCIterator<>(flowGraph);
-
         while (sccs.hasNext()) {
             Set<ISSABasicBlock> scc = sccs.next();
             boolean changed = true;
@@ -89,17 +88,17 @@ public abstract class DataFlow<FlowItem> {
                 changed = false;
                 for (ISSABasicBlock current : scc) {
 
-                    Set<FlowItem> inItems = new LinkedHashSet<>(getNumPreds(current, g));
-                    AnalysisRecord<FlowItem> previousResults = getOutItems(current);
-                    Map<Integer, FlowItem> oldOutItems = previousResults == null ? null : previousResults.getOutput();
+                    Set<F> inItems = new LinkedHashSet<>(getNumPreds(current, g));
+                    AnalysisRecord<F> previousResults = getOutItems(current);
+                    Map<Integer, F> oldOutItems = previousResults == null ? null : previousResults.getOutput();
 
                     // Get all out items for predecessors
                     Iterator<ISSABasicBlock> preds = getPreds(current, g);
                     while (preds.hasNext()) {
                         ISSABasicBlock pred = preds.next();
-                        Map<Integer, FlowItem> items = getOutItems(pred).output;
+                        Map<Integer, F> items = getOutItems(pred).output;
                         if (items != null) {
-                            FlowItem item = items.get(current.getNumber());
+                            F item = items.get(current.getNumber());
                             // TODO should we allow item == null?
                             if (item != null) {
                                 inItems.add(item);
@@ -127,13 +126,13 @@ public abstract class DataFlow<FlowItem> {
                         System.err.println("\t" + inItems);
                     }
 
-                    Map<Integer, FlowItem> outItems = flow(inItems, g, current);
+                    Map<Integer, F> outItems = flow(inItems, g, current);
 
                     assert outItems != null : "Null out items for "
                                                     + PrettyPrinter.basicBlockString(ir, current, "", "\n")
                                                     + " with inputs: " + inItems;
-                    
-                    AnalysisRecord<FlowItem> newResults = new AnalysisRecord<>(inItems, outItems);
+
+                    AnalysisRecord<F> newResults = new AnalysisRecord<>(inItems, outItems);
                     putRecord(current, newResults);
 
                     if (oldOutItems == null || !oldOutItems.equals(outItems)) {
@@ -157,7 +156,7 @@ public abstract class DataFlow<FlowItem> {
 
         post(ir);
     }
-    
+
     /**
      * Determine whether existing analysis results can be reused.
      * 
@@ -167,7 +166,7 @@ public abstract class DataFlow<FlowItem> {
      *            non-null results that have been already computed
      * @return whether the existing results can be re-used
      */
-    protected boolean existingResultsSuitable(Set<FlowItem> newInput, AnalysisRecord<FlowItem> previousResults) {
+    protected boolean existingResultsSuitable(Set<F> newInput, AnalysisRecord<F> previousResults) {
         assert previousResults != null;
         // Currently insists that the input was identical, but could be
         // overridden in a subclass
@@ -183,12 +182,12 @@ public abstract class DataFlow<FlowItem> {
     protected abstract void post(IR ir);
 
     /**
-     * Transfer function for the data-flow, takes a list of facts and produces a
+     * Transfer function for the data-flow, takes a set of facts and produces a
      * new fact (possibly different for each successor) after analyzing the
      * given basic block.
      * 
      * @param inItems
-     *            data-flow items on input edges
+     *            data-flow facts on input edges
      * @param cfg
      *            Control flow graph this analysis is performed over
      * @param i
@@ -198,8 +197,8 @@ public abstract class DataFlow<FlowItem> {
      * @return map from target of successor edge to the data-flow fact on that
      *         edge after handling the current basic block
      */
-    protected abstract Map<Integer, FlowItem> flow(Set<FlowItem> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> g, ISSABasicBlock current);
+    protected abstract Map<Integer, F> flow(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> g,
+                                    ISSABasicBlock current);
 
     /**
      * Get all successors of the given basic block. If this is a forward
@@ -275,8 +274,8 @@ public abstract class DataFlow<FlowItem> {
      * basic block to a single data-flow fact. This is used when analyzing a
      * basic block that sends the same item to each of its successors.
      * 
-     * @param item
-     *            item to associate with each successor
+     * @param fact
+     *            data-flow fact to associate with each successor
      * @param bb
      *            basic block to get the successors ids for
      * @param cfg
@@ -284,23 +283,22 @@ public abstract class DataFlow<FlowItem> {
      * @return unmodifiable mapping from each successor id to the single given
      *         value
      */
-    protected final Map<Integer, FlowItem> itemToMap(FlowItem item, ISSABasicBlock bb,
+    protected final Map<Integer, F> factToMap(F fact, ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Set<Integer> succs = new LinkedHashSet<>();
         IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
         while (iter.hasNext()) {
             succs.add(iter.next());
         }
-        return new SingletonValueMap<>(succs, item);
+        return new SingletonValueMap<>(succs, fact);
     }
 
     /**
      * Get a modifiable mapping from the ID for each successor of the given
-     * basic block to a single data-flow fact. This is used when analyzing a
-     * basic block that sends the same item to each of its successors.
+     * basic block to a single data-flow fact.
      * 
-     * @param item
-     *            item to associate with each successor
+     * @param fact
+     *            fact to associate with each successor
      * @param bb
      *            basic block to get the successors ids for
      * @param cfg
@@ -308,12 +306,12 @@ public abstract class DataFlow<FlowItem> {
      * @return modifiable mapping from each successor id to the single given
      *         value
      */
-    protected final Map<Integer, FlowItem> itemToModifiableMap(FlowItem item, ISSABasicBlock bb,
+    protected final Map<Integer, F> itemToModifiableMap(F fact, ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        Map<Integer, FlowItem> res = new LinkedHashMap<>();
+        Map<Integer, F> res = new LinkedHashMap<>();
         IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
         while (iter.hasNext()) {
-            res.put(iter.next(), item);
+            res.put(iter.next(), fact);
         }
         return res;
     }
@@ -324,24 +322,23 @@ public abstract class DataFlow<FlowItem> {
      * and another (possibly different) fact for exceptional successors.
      * 
      * @param normalItem
-     *            item to associate with each normal successor
+     *            fact to associate with each normal successor
      * @param exceptionalItem
-     *            item to associate with each exceptional successor
+     *            fact to associate with each exceptional successor
      * @param impossibleExceptions
      *            exceptional successors that cannot be reached, determined by a
      *            separate analysis (e.g. {@link PreciseExceptionDataFlow})
      * @param bb
-     *            basic block to get the successors ids for
+     *            basic block this computes the output for
      * @param cfg
      *            control flow graph
-     * @param impossibleExceptions
      * @return mapping from each successor id to the corresponding data-flow
-     *         item
+     *         fact
      */
-    protected final Map<Integer, FlowItem> itemToMapWithExceptions(FlowItem normalItem, FlowItem exceptionItem,
+    protected final Map<Integer, F> factsToMapWithExceptions(F normalItem, F exceptionItem,
                                     Set<ISSABasicBlock> impossibleExceptions, ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        Map<Integer, FlowItem> ret = new LinkedHashMap<>();
+        Map<Integer, F> ret = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
             ret.put(succ.getGraphNodeId(), normalItem);
         }
@@ -403,26 +400,27 @@ public abstract class DataFlow<FlowItem> {
     }
 
     /**
-     * Associate a basic block with a data-flow item
+     * Associate a basic block with a record of analysis results
      * 
      * @param basic
      *            basic block
      * @param record
      *            input and output data-flow facts for the basic block
      */
-    private final void putRecord(ISSABasicBlock bb, AnalysisRecord<FlowItem> record) {
+    private final void putRecord(ISSABasicBlock bb, AnalysisRecord<F> record) {
         bbToOutItems.put(bb, record);
     }
 
     /**
-     * Get the data-flow item produced when exiting the given basic block
+     * Get a record for a previously run analysis for the given basic block,
+     * returns null if the block has never been analyzed
      * 
      * @param bb
-     *            basic block to get the exit item for
+     *            basic block to get the record for
      * 
-     * @return data-flow fact for targets of edges leaving the basic block
+     * @return input and output data-flow facts for the basic block
      */
-    protected final AnalysisRecord<FlowItem> getOutItems(ISSABasicBlock bb) {
+    protected final AnalysisRecord<F> getOutItems(ISSABasicBlock bb) {
         return bbToOutItems.get(bb);
     }
 
@@ -440,7 +438,8 @@ public abstract class DataFlow<FlowItem> {
     }
 
     /**
-     * Get the control-flow successor on the "true" edge leaving a branch
+     * Get the control-flow successor on the "true" edge leaving a branch. Note
+     * that for a backward analysis this is a data-flow predecessor.
      * 
      * @param bb
      *            branching basic block
@@ -453,7 +452,8 @@ public abstract class DataFlow<FlowItem> {
     }
 
     /**
-     * Get the control-flow successor on the "false" edge leaving a branch
+     * Get the control-flow successor on the "false" edge leaving a branch. Note
+     * that for a backward analysis this is a data-flow predecessor.
      * 
      * @param bb
      *            branching basic block
@@ -517,6 +517,8 @@ public abstract class DataFlow<FlowItem> {
     protected Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current,
                                     IClassHierarchy cha) {
+        // TODO redo exception successors in a cleaner way
+
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
 
         IClass thrown = cha.lookupClass(exType);
@@ -539,7 +541,6 @@ public abstract class DataFlow<FlowItem> {
                 if (cha.isSubclassOf(thrown, caught)) {
                     result.add(cb);
                     isCaught = true;
-                    break;
                 } else if (throwerType.isInvoke() && cha.isSubclassOf(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision for exceptions
@@ -568,7 +569,7 @@ public abstract class DataFlow<FlowItem> {
     public void setOutputLevel(int level) {
         this.verbose = level;
     }
-    
+
     /**
      * Get the output level
      * 
@@ -579,23 +580,48 @@ public abstract class DataFlow<FlowItem> {
     }
 
     /**
-     * Analysis input and output, used to determine if re-analysis is necessary
+     * Analysis input and output for a particular basic block, used to determine
+     * if re-analysis is necessary
      */
-    protected static class AnalysisRecord<FlowItem> {
+    protected static class AnalysisRecord<Fact> {
 
-        private final Set<FlowItem> input;
-        private final Map<Integer, FlowItem> output;
+        /**
+         * Input facts
+         */
+        private final Set<Fact> input;
+        /**
+         * Output facts, one for each successor
+         */
+        private final Map<Integer, Fact> output;
 
-        public AnalysisRecord(Set<FlowItem> input, Map<Integer, FlowItem> output) {
+        /**
+         * Create a new record of analysis results for a particular basic block
+         * 
+         * @param input
+         *            Input facts
+         * @param output
+         *            Output facts, one for each successor
+         */
+        public AnalysisRecord(Set<Fact> input, Map<Integer, Fact> output) {
             this.input = input;
             this.output = output;
         }
-        
-        public Set<FlowItem> getInput() {
+
+        /**
+         * Input facts
+         * 
+         * @return Set of data-flow input facts
+         */
+        public Set<Fact> getInput() {
             return input;
         }
-        
-        public Map<Integer, FlowItem> getOutput() {
+
+        /**
+         * Output facts, one for each successor
+         * 
+         * @return Output facts, one for each successor
+         */
+        public Map<Integer, Fact> getOutput() {
             return output;
         }
     }

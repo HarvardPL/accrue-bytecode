@@ -1,14 +1,13 @@
-package analysis.dataflow;
+package analysis.dataflow.util;
 
-import analysis.dataflow.util.AbstractValue;
 import util.print.IRWriter;
 
 /**
  * Singleton data-flow fact used for an analysis that does not need to compute a
- * result on each edge, but still ensures that a fact is computed for each node
- * of the data-flow graph (a still node may be computed on more than once if
- * there are back edges). For an example @see {@link IRWriter} which accumulates
- * a global String.
+ * result on each edge, but still ensures that output is computed for each node
+ * of the data-flow graph (a node still may be analyzed more than once if there
+ * are back edges). For an example @see {@link IRWriter} which accumulates a
+ * global String.
  */
 public class Unit implements AbstractValue<Unit> {
 

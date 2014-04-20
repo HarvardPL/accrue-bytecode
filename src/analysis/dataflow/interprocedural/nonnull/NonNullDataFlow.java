@@ -9,10 +9,10 @@ import java.util.Set;
 import types.TypeRepository;
 import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
-import analysis.dataflow.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
 import analysis.dataflow.util.AbstractLocation;
+import analysis.dataflow.util.ExitType;
 import analysis.dataflow.util.VarContext;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -337,7 +337,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getArrayRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return itemToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
+        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
                                         cfg);
     }
 
@@ -426,7 +426,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         // we know the casted object was not null
         exception = exception.setLocal(i.getUse(0), NonNullAbsVal.NON_NULL);
 
-        return itemToMapWithExceptions(in, exception, preciseEx.getImpossibleSuccessors(current, currentNode), current,
+        return factsToMapWithExceptions(in, exception, preciseEx.getImpossibleSuccessors(current, currentNode), current,
                                         cfg);
     }
 
@@ -501,7 +501,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         // Not flow-sensitive for fields, so we cannot determine whether they
         // are null or not
 
-        return itemToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
+        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
                                         cfg);
     }
 
@@ -548,7 +548,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return itemToMapWithExceptions(normalOut, exception, preciseEx.getImpossibleSuccessors(current, currentNode),
+        return factsToMapWithExceptions(normalOut, exception, preciseEx.getImpossibleSuccessors(current, currentNode),
                                         current, cfg);
     }
 
@@ -561,7 +561,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return itemToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
+        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
                                         cfg);
     }
 
@@ -573,7 +573,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return itemToMapWithExceptions(normalOut, exception, preciseEx.getImpossibleSuccessors(current, currentNode),
+        return factsToMapWithExceptions(normalOut, exception, preciseEx.getImpossibleSuccessors(current, currentNode),
                                         current, cfg);
     }
 
@@ -586,7 +586,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
 
         // The exception edge is actually for errors so no value needs to be
         // passed on that edge (it will always be impossible)
-        return itemToMapWithExceptions(normalOut, null, preciseEx.getImpossibleSuccessors(current, currentNode),
+        return factsToMapWithExceptions(normalOut, null, preciseEx.getImpossibleSuccessors(current, currentNode),
                                         current, cfg);
     }
 
@@ -602,7 +602,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         // Not flow-sensitive for fields, so we cannot determine whether they
         // are null or not
 
-        return itemToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
+        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
                                         cfg);
     }
 
@@ -613,7 +613,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> in = confluence(previousItems);
         VarContext<NonNullAbsVal> out = in.setReturnResult(in.getLocal(i.getResult()));
 
-        return itemToMap(out, current, cfg);
+        return factToMap(out, current, cfg);
     }
 
     @Override
@@ -637,7 +637,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setReturnResult(null);
         npe = normal.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return itemToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
+        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleSuccessors(current, currentNode), current,
                                         cfg);
     }
 }

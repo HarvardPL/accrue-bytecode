@@ -10,7 +10,7 @@ import java.util.Set;
 
 import util.OrderedPair;
 import analysis.dataflow.DataFlow;
-import analysis.dataflow.ExitType;
+import analysis.dataflow.util.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;

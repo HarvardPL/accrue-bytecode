@@ -1,4 +1,4 @@
-package analysis.dataflow;
+package analysis.dataflow.util;
 
 /**
  * Key indicating the type of procedure termination

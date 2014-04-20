@@ -9,7 +9,7 @@ import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
-import analysis.dataflow.ExitType;
+import analysis.dataflow.util.ExitType;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -17,8 +17,10 @@ import com.ibm.wala.ipa.callgraph.CallGraph;
 
 /**
  * Manages the running of an inter-procedural data-flow analysis
+ * 
+ * <F> Type of data-flow facts propagated by this analysis
  */
-public abstract class InterproceduralDataFlowManager<FlowItem> {
+public abstract class InterproceduralDataFlowManager<F> {
 
     /**
      * Procedure call graph
@@ -35,7 +37,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
     /**
      * Computed results for each call graph node analyzed
      */
-    protected final Map<CGNode, AnalysisRecord<FlowItem>> recordedResults = new LinkedHashMap<>();
+    protected final Map<CGNode, AnalysisRecord<F>> recordedResults = new LinkedHashMap<>();
     /**
      * Nodes that are currently being processed, used to detect recursive calls
      */
@@ -84,9 +86,9 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
             if (getOutputLevel() >=2) {
                 System.err.println("QUEUE_POLL: " + PrettyPrinter.parseCGNode(current));
             }
-            AnalysisRecord<FlowItem> results = getLatestResults(current);
+            AnalysisRecord<F> results = getLatestResults(current);
 
-            FlowItem input;
+            F input;
             if (current.equals(cg.getFakeRootNode())) {
                 // This is the root node get the root input
                 input = getInputForRoot();
@@ -178,29 +180,30 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      *            caller's call graph node
      * @param callee
      *            calee's call graph node
-     * @param FlowItem
-     *            inputValue; initial data-flow facts
-     * @return
+     * @param newInput
+     *            initial data-flow fact
+     * @return map from exit type (normal or exceptional) to data-flow fact
+     * 
      */
-    public Map<ExitType, FlowItem> getResults(CGNode caller, CGNode callee, FlowItem newInput) {
+    public Map<ExitType, F> getResults(CGNode caller, CGNode callee, F newInput) {
         if (getOutputLevel() >= 2) {
             System.err.println("GETTING:\n\t" + PrettyPrinter.parseCGNode(callee));
             System.err.println("\tFROM: " + PrettyPrinter.parseCGNode(caller));
             System.err.println("\tINPUT: " + newInput);
         }
 
-        AnalysisRecord<FlowItem> previous = getLatestResults(callee);
+        AnalysisRecord<F> previous = getLatestResults(callee);
 
-        AnalysisRecord<FlowItem> results;
+        AnalysisRecord<F> results;
         if (previous != null && existingResultSuitable(newInput, previous)) {
             results = previous;
             printResults(callee, "PREVIOUS", results.output);
         } else {
             if (previous == null) {
-                results = new AnalysisRecord<FlowItem>(newInput, getDefaultOutput(newInput), false);
+                results = new AnalysisRecord<F>(newInput, getDefaultOutput(newInput), false);
             } else {
                 // TODO use widen for back edges
-                results = new AnalysisRecord<FlowItem>(join(newInput, previous.getInput()), previous.output, false);
+                results = new AnalysisRecord<F>(join(newInput, previous.getInput()), previous.output, false);
             }
 
             if (currentlyProcessing.contains(callee)) {
@@ -235,7 +238,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      * @param output
      *            output of analysis
      */
-    private void printResults(CGNode n, String typeLabel, Map<ExitType, FlowItem> output) {
+    private void printResults(CGNode n, String typeLabel, Map<ExitType, F> output) {
         if (getOutputLevel() >= 2) {
             System.err.println("RESULTS:\n\t" + PrettyPrinter.parseCGNode(n));
             System.err.println("\t" + typeLabel + ": " + output);
@@ -269,11 +272,11 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      *            changed
      * @return output after analyzing the given node with the given input
      */
-    private AnalysisRecord<FlowItem> process(CGNode n, FlowItem input, Map<ExitType, FlowItem> previousOutput) {
+    private AnalysisRecord<F> process(CGNode n, F input, Map<ExitType, F> previousOutput) {
         incrementCounter(n);
         currentlyProcessing.add(n);
-        Map<ExitType, FlowItem> output = analyze(n, input);
-        AnalysisRecord<FlowItem> results = new AnalysisRecord<FlowItem>(input, output, isSoundResultsSoFar(n));
+        Map<ExitType, F> output = analyze(n, input);
+        AnalysisRecord<F> results = new AnalysisRecord<F>(input, output, isSoundResultsSoFar(n));
         recordedResults.put(n, results);
         currentlyProcessing.remove(n);
 
@@ -311,7 +314,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      *            node to get results for
      * @return latest results for the given node or null if there are none
      */
-    private final AnalysisRecord<FlowItem> getLatestResults(CGNode n) {
+    private final AnalysisRecord<F> getLatestResults(CGNode n) {
         return recordedResults.get(n);
     }
 
@@ -324,7 +327,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      *            initial data-flow fact
      * @return output facts resulting from analyzing <code>n</code>
      */
-    protected abstract Map<ExitType, FlowItem> analyze(CGNode n, FlowItem input);
+    protected abstract Map<ExitType, F> analyze(CGNode n, F input);
 
     /**
      * Get the default output data-flow facts (given an input fact), this is
@@ -335,7 +338,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      * @return output to be returned to callers when the callee is already in
      *         the middle of being analyzed
      */
-    protected abstract Map<ExitType, FlowItem> getDefaultOutput(FlowItem input);
+    protected abstract Map<ExitType, F> getDefaultOutput(F input);
 
     /**
      * Get the input for the root node of the call graph. This is the initial
@@ -343,20 +346,20 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      * 
      * @return initial data-flow fact
      */
-    protected abstract FlowItem getInputForRoot();
+    protected abstract F getInputForRoot();
 
     /**
      * Compute a single data-flow fact from two facts. This is used to compute
      * (intra-procedural) analysis input when there are for merges in the call
      * graph.
      * 
-     * @param item1
+     * @param fact1
      *            first data-flow fact
-     * @param item2
+     * @param fact2
      *            second data-flow fact
      * @return least upper bound of item1 and item2
      */
-    protected abstract FlowItem join(FlowItem item1, FlowItem item2);
+    protected abstract F join(F fact1, F fact2);
 
     /**
      * Check whether the output changed after analysis, and dependencies need to
@@ -369,8 +372,8 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      * @return true if the output results have changed (and dependencies have to
      *         be computed)
      */
-    protected abstract boolean outputChanged(Map<ExitType, FlowItem> previousOutput,
-                                    Map<ExitType, FlowItem> currentOutput);
+    protected abstract boolean outputChanged(Map<ExitType, F> previousOutput,
+                                    Map<ExitType, F> currentOutput);
 
     /**
      * Check whether existing output results are suitable, given a new input
@@ -382,24 +385,24 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      * @return true if the existing results can be reused, false if they must be
      *         recomputed using the new input
      */
-    protected abstract boolean existingResultSuitable(FlowItem newInput, AnalysisRecord<FlowItem> existingResults);
+    protected abstract boolean existingResultSuitable(F newInput, AnalysisRecord<F> existingResults);
 
     /**
      * Class holding the input and output values for a specific call graph node
      * 
-     * @param <FlowItem>
+     * @param <F>
      *            type of the data-flow facts
      */
-    protected static class AnalysisRecord<FlowItem> {
+    protected static class AnalysisRecord<F> {
 
         /**
          * output of the analysis
          */
-        private final Map<ExitType, FlowItem> output;
+        private final Map<ExitType, F> output;
         /**
          * input to the analysis
          */
-        private final FlowItem input;
+        private final F input;
         /**
          * False if there are back edges and this result could be unsound
          */
@@ -416,7 +419,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
          *            False if there are back edges and this result could be
          *            unsound
          */
-        public AnalysisRecord(FlowItem input, Map<ExitType, FlowItem> output, boolean isSoundResult) {
+        public AnalysisRecord(F input, Map<ExitType, F> output, boolean isSoundResult) {
             this.input = input;
             this.output = output;
             this.isSoundResult = isSoundResult;
@@ -427,7 +430,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
          * 
          * @return the input
          */
-        public FlowItem getInput() {
+        public F getInput() {
             return input;
         }
 
@@ -436,7 +439,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
          * 
          * @return the output
          */
-        public Map<ExitType, FlowItem> getOutput() {
+        public Map<ExitType, F> getOutput() {
             return output;
         }
 

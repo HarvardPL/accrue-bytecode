@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import analysis.dataflow.DataFlow;
-import analysis.dataflow.Unit;
+import analysis.dataflow.util.Unit;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
@@ -75,7 +75,7 @@ public class IRWriter extends DataFlow<Unit> {
             PrettyPrinter.writeBasicBlock(ir, current, writer, prefix, postfix);
             visited.add(current);
         }
-        return itemToMap(Unit.VALUE, current, cfg);
+        return factToMap(Unit.VALUE, current, cfg);
     }
     
     @Override
