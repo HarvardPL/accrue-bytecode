@@ -62,7 +62,7 @@ public class StaticCallStatement extends CallStatement {
         if (getResultNode() != null) {
             s.append(getResultNode().toString() + " = ");
         }
-        s.append("invokestatic " + PrettyPrinter.parseMethod(callee.getReference()));
+        s.append("invokestatic " + PrettyPrinter.parseMethod(callee));
 
         return s.toString();
     }

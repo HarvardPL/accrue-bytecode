@@ -10,7 +10,7 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 
 /**
- * Global instances of WALA classes and global constants 
+ * Global instances of WALA classes and global constants
  */
 public class WalaAnalysisUtil {
     /**
@@ -29,11 +29,7 @@ public class WalaAnalysisUtil {
      * WALA's fake root method (calls the entry points)
      */
     private final FakeRootMethod fakeRoot;
-    /**
-     * If true then implicit errors should be handled by all analyses
-     */
-    public static final boolean INCLUDE_IMPLICIT_ERRORS = false;
-    
+
     /**
      * Create a pass which will generate points-to statements
      * 
@@ -62,30 +58,34 @@ public class WalaAnalysisUtil {
     }
 
     /**
+     * Cache of various analysis artifacts, contains the SSA IR
      * 
-     * @return contains the SSA IR
+     * @return WALA analysis cache
      */
     public AnalysisCache getCache() {
         return cache;
     }
 
     /**
+     * WALA analysis options, contains the entry-point
      * 
-     * @return entry points and other WALA options
+     * @return WALA analysis options
      */
     public AnalysisOptions getOptions() {
         return options;
     }
 
     /**
+     * WALA's class hierarchy
      * 
      * @return class hierarchy
      */
     public IClassHierarchy getClassHierarchy() {
         return cha;
     }
-    
+
     /**
+     * The root method that calls the entry-points
      * 
      * @return WALA fake root method (sets up and calls actual entry points)
      */

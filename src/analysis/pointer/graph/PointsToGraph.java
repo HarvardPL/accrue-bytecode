@@ -203,11 +203,9 @@ public class PointsToGraph {
             src = callGraph.findOrCreateNode(caller, callerContext);
             dst = callGraph.findOrCreateNode(callee, calleeContext);
         } catch (CancelException e) {
-            throw new RuntimeException(e + " cannot add call graph edge from "
-                                            + PrettyPrinter.parseMethod(caller.getReference()) + " to "
-                                            + PrettyPrinter.parseMethod(callee.getReference()));
+            throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.parseMethod(caller)
+                                            + " to " + PrettyPrinter.parseMethod(callee));
         }
-
         
         // We are building a call graph so it is safe to call this "deprecated" method
         if(!src.addTarget(callSite, dst)) {
@@ -215,9 +213,8 @@ public class PointsToGraph {
             return false;
         }
         if (outputLevel >= 2) {
-            System.err.println("ADDED\n\t" + PrettyPrinter.parseMethod(caller.getReference()) + " in " + callerContext
-                                            + " to\n\t" + PrettyPrinter.parseMethod(callee.getReference()) + " in "
-                                            + calleeContext);
+            System.err.println("ADDED\n\t" + PrettyPrinter.parseMethod(caller) + " in " + callerContext + " to\n\t"
+                                            + PrettyPrinter.parseMethod(callee) + " in " + calleeContext);
         }
 
         Set<Context> s = contexts.get(callee);
@@ -381,7 +378,7 @@ public class PointsToGraph {
 
         // Need to differentiate between different nodes with the same string
         for (CGNode n : cg) {
-            String nStr = escape(PrettyPrinter.parseMethod(n.getMethod().getReference()) + " in " + n.getContext());
+            String nStr = escape(PrettyPrinter.parseCGNode(n));
             Integer count = dotToCount.get(nStr);
             if (count == null) {
                 dotToCount.put(nStr, 1);

@@ -10,6 +10,8 @@ import java.util.Map;
 import util.InstructionType;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
+import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.shrikeBT.IUnaryOpInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
@@ -173,7 +175,7 @@ public class PrettyPrinter {
             break;
         default:
             throw new IllegalArgumentException("Urecognized binary operator " + instruction.getOperator() + " in "
-                    + instruction.toString(st));
+                                            + instruction.toString(st));
         }
         StringBuilder s = new StringBuilder(valString(instruction.getDef()) + " = ");
         s.append(valString(instruction.getUse(0)) + " " + opString + " ");
@@ -196,7 +198,7 @@ public class PrettyPrinter {
 
     private String comparisonString(SSAComparisonInstruction instruction) {
         return valString(instruction.getDef()) + " = " + valString(instruction.getUse(0)) + " == "
-                + valString(instruction.getUse(1));
+                                        + valString(instruction.getUse(1));
     }
 
     private String conditionalBranchString(SSAConditionalBranchInstruction instruction) {
@@ -224,7 +226,7 @@ public class PrettyPrinter {
             break;
         default:
             throw new IllegalArgumentException("operator not found " + instruction.getOperator().toString() + " for "
-                    + instruction);
+                                            + instruction);
         }
         sb.append(" " + opString + " ");
         sb.append(valString(instruction.getUse(1)) + ")");
@@ -308,7 +310,7 @@ public class PrettyPrinter {
         sb.append(" throws " + valString(instruction.getException()));
         return sb.toString();
     }
-    
+
     private String monitorString(SSAMonitorInstruction instruction) {
         return instruction.toString(st);
     }
@@ -320,7 +322,7 @@ public class PrettyPrinter {
         }
         sb.append("new ");
         sb.append(parseType(instruction.getConcreteType().getName().toString()));
-        
+
         if (instruction.getNumberOfUses() > 0) {
             // Its an array that is initialized by passing in dimensions
             // We don't need the array type indicator
@@ -470,6 +472,23 @@ public class PrettyPrinter {
      * @return String for the given value
      */
     private String valString(int valueNumber) {
+        if (st.isConstant(valueNumber)) {
+            String c = st.getValue(valueNumber).toString();
+            assert c.startsWith("#") : "All constant strings should start with #: " + c + " didn't";
+            // The value is a constant trim off the leading #
+            c = c.substring(1);
+
+            if (st.isStringConstant(valueNumber)) {
+                // Put string literals in quotes
+                c = "\"" + c + "\"";
+            }
+            if (st.isBooleanConstant(valueNumber)) {
+                // the boolean case does not trigger, they are just integers
+                assert false;
+            }
+            return c;
+        }
+
         String ret = getActualName(valueNumber);
         if (ret != null) {
             return ret;
@@ -478,22 +497,7 @@ public class PrettyPrinter {
         if (st.getValue(valueNumber) == null) {
             return "v" + valueNumber;
         } else {
-            String v = st.getValue(valueNumber).toString();
-            if (st.isConstant(valueNumber)) {
-                assert v.startsWith("#") : "All constant strings should start with #: " + v + " didn't";
-                // The value is a constant trim off the leading #
-                v = v.substring(1);
-
-                if (st.isStringConstant(valueNumber)) {
-                    // Put string literals in quotes
-                    v = "\"" + v + "\"";
-                }
-                if (st.isBooleanConstant(valueNumber)) {
-                    // the boolean case does not trigger, they are just integers
-                    assert false;
-                }
-            }
-            return v;
+            return st.getValue(valueNumber).toString();
         }
     }
 
@@ -608,7 +612,7 @@ public class PrettyPrinter {
 
     private String instructionString(SSAInstruction instruction) {
         InstructionType type = InstructionType.forInstruction(instruction);
-        
+
         switch (type) {
         case ARRAY_LENGTH:
             return arrayLengthString((SSAArrayLengthInstruction) instruction);
@@ -731,8 +735,8 @@ public class PrettyPrinter {
             return null;
         }
         if (justForDebug.length > 1) {
-            System.err.println("multiple names for " + valNum + " in " + parseMethod(ir.getMethod().getReference())
-                    + ": " + Arrays.toString(justForDebug));
+            System.err.println("multiple names for " + valNum + " in " + parseMethod(ir.getMethod()) + ": "
+                                            + Arrays.toString(justForDebug));
         }
         return justForDebug[0];
     }
@@ -785,6 +789,17 @@ public class PrettyPrinter {
     }
 
     /**
+     * Get a pretty String for the given method
+     * 
+     * @param m
+     *            method to get a string for
+     * @return String for "m"
+     */
+    public static String parseMethod(IMethod m) {
+        return parseMethod(m.getReference());
+    }
+
+    /**
      * Get the line number for the first instruction in the basic block
      * containing <code>i</code>.
      * <p>
@@ -812,5 +827,17 @@ public class PrettyPrinter {
             return sourceLineNum;
         }
         return -1;
+    }
+
+    /**
+     * Get the string representation of the given call graph node, this prints
+     * the method and context that define the node
+     * 
+     * @param n
+     *            node to get a string for
+     * @return string for <code>n</code>
+     */
+    public static String parseCGNode(CGNode n) {
+        return PrettyPrinter.parseMethod(n.getMethod()) + " in " + n.getContext();
     }
 }

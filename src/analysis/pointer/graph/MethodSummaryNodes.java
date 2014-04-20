@@ -76,7 +76,7 @@ public class MethodSummaryNodes {
             }
         }
 
-        name = PrettyPrinter.parseMethod(ir.getMethod().getReference());
+        name = PrettyPrinter.parseMethod(ir.getMethod());
 
         TypeReference returnType = ir.getMethod().getReturnType();
         returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : new ReferenceVariable(

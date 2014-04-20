@@ -95,7 +95,7 @@ public class TestMain {
             }
         } catch (Exception e) {
             System.err.println(usage());
-            System.err.println("Actual parameters: " + Arrays.toString(args));
+            System.err.println("Actual parameters: " + Arrays.toString(args) + "\n");
             throw new RuntimeException(e);
         }
     }
@@ -152,8 +152,8 @@ public class TestMain {
         sb.append("Param 1: Level of output (higher means more console output)\n");
         sb.append("Param 2: Test name\n");
         sb.append("\t\"pointsto\" runs the points-to analysis test, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
-
         sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"");
+        sb.append("\t\"nonnull\" prints the results of a n interprocedural non-null analysis for the main method to the tests folder with the name: \"entryClassName_nonnull.dot\"");
         return sb.toString();
     }
 
@@ -254,7 +254,7 @@ public class TestMain {
         }
         StatementRegistrar registrar = pass.getRegistrar();
 
-        HeapAbstractionFactory context = new CallSiteSensitive();
+        HeapAbstractionFactory context = new CallSiteSensitive(1);
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
         PointsToGraph g = analysis.solve(registrar);
         g.dumpCallGraphToFile(fileName + "_callGraph", false);
@@ -267,14 +267,20 @@ public class TestMain {
         String dir = "tests";
         String file = fileName + "_nonNull";
         String fullFilename = dir + "/" + file + ".dot";
-        try {
-            Writer out = new BufferedWriter(new FileWriter(fullFilename));
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))){
             results.writeResultsForMethod(out, method);
-            out.close();
             System.err.println("\nDOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
-
+        
+        file = fileName + "_fakeroot_nonNull";
+        fullFilename = dir + "/" + file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))){
+            results.writeResultsForMethod(out, util.getFakeRoot());
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
     }
 }

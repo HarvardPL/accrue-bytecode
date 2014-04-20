@@ -42,7 +42,7 @@ public class NonNullResults {
             return true;
         }
         if (containingNode.getIR().getSymbolTable().isConstant(valNum)
-                && !containingNode.getIR().getSymbolTable().isNullConstant(valNum)) {
+                                        && !containingNode.getIR().getSymbolTable().isNullConstant(valNum)) {
             // Constants are non-null unless they are the "null" constant
             return true;
         }
@@ -56,9 +56,7 @@ public class NonNullResults {
 
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
-            System.err.println("WARNING: empty non-null results for "
-                    + PrettyPrinter.parseMethod(containingNode.getMethod().getReference()) + " in "
-                    + containingNode.getContext());
+            System.err.println("WARNING: empty non-null results for " + PrettyPrinter.parseCGNode(containingNode));
             return false;
         }
 
@@ -113,13 +111,13 @@ public class NonNullResults {
             Set<Integer> nonNulls = results.get(i);
             if (nonNulls == null) {
                 System.err.println("WARNING: empty non-null results for instruction "
-                        + PrettyPrinter.instructionString(ir, i) + " in "
-                        + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
+                                                + PrettyPrinter.instructionString(ir, i) + " in "
+                                                + PrettyPrinter.parseMethod(ir.getMethod()));
                 return false;
             }
             return nonNulls.contains(valNum);
         }
-        
+
         /**
          * Get value numbers for all non-null variables right before executing i
          * 
@@ -170,7 +168,20 @@ public class NonNullResults {
             return true;
         }
     }
-    
+
+    /**
+     * Will write the results for all contexts for the given method
+     * <p>
+     * TODO not sure what this looks like in dot
+     * 
+     * @param writer
+     *            writer to write to
+     * @param m
+     *            method to write the results for
+     * 
+     * @throws IOException
+     *             issues with the writer
+     */
     public void writeResultsForMethod(Writer writer, IMethod m) throws IOException {
         for (CGNode n : allResults.keySet()) {
             if (n.getMethod().equals(m)) {
@@ -181,7 +192,7 @@ public class NonNullResults {
 
     private void writeResultsForNode(Writer writer, final CGNode n) throws IOException {
         final ResultsForNode results = allResults.get(n);
-        
+
         CFGWriter w = new CFGWriter(n.getIR()) {
             @Override
             public String getPrefix(SSAInstruction i) {
@@ -192,7 +203,7 @@ public class NonNullResults {
                 return strings + "\\l";
             }
         };
-        
+
         w.writeVerbose(writer, "", "\\l");
     }
 }

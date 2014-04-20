@@ -84,7 +84,7 @@ public class SpecialCallStatement extends CallStatement {
         if (resultNode != null) {
             s.append(resultNode.toString() + " = ");
         }
-        s.append("invokespecial " + PrettyPrinter.parseMethod(resolvedCallee.getReference()));
+        s.append("invokespecial " + PrettyPrinter.parseMethod(resolvedCallee));
 
         return s.toString();
     }

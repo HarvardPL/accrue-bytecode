@@ -6,11 +6,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
 import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
 import analysis.dataflow.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
+import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -41,6 +43,7 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.ssa.Value;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -94,19 +97,36 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
             Map<ExitType, VarContext<NonNullAbsVal>> out;
             VarContext<NonNullAbsVal> initial = nonNull.clearLocalsAndExits();
             formals = callee.getIR().getParameterValueNumbers();
-            if (!i.isStatic()) {
+            int j;
+            if (i.isStatic()) {
+                // for static calls the first formal is a parameter
+                j = 0;
+            } else {
                 // Receiver is not null
                 // for non-static calls the first formal is "this"
                 initial = initial.setLocal(formals[0], NonNullAbsVal.NON_NULL);
-            } else if (formals.length > 0) {
-                // for static calls the first formal is a parameter
-                initial = initial.setLocal(formals[0], nonNull.getLocal(actuals[0]));
+                j = 1;
             }
-            for (int j = 1; j < formals.length; j++) {
-                initial = initial.setLocal(formals[j], nonNull.getLocal(actuals[j]));
+            for (; j < formals.length; j++) {
+                NonNullAbsVal actualVal = nonNull.getLocal(actuals[j]);
+                if (actualVal == null) {
+                    if (TypeRepository.getType(actuals[0], currentNode.getIR()).isPrimitiveType()) {
+                        actualVal = NonNullAbsVal.NON_NULL;
+                    } else if (currentNode.getIR().getSymbolTable().isConstant(actuals[0])) {
+                        if (currentNode.getIR().getSymbolTable().isNullConstant(actuals[0])) {
+                            actualVal = NonNullAbsVal.MAY_BE_NULL;
+                        } else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals[0])) {
+                            actualVal = NonNullAbsVal.NON_NULL;
+                        }
+                    } else {
+                        throw new RuntimeException("Null NonNullAbsValue for non-primitive non-constant.");
+                    }
+                }
+                initial = initial.setLocal(formals[j], actualVal);
             }
             out = manager.getResults(currentNode, callee, initial);
-
+            assert out != null : "Null data-flow results for: " + PrettyPrinter.parseCGNode(callee) + "\nFrom "
+                                            + PrettyPrinter.parseCGNode(currentNode);
             normalResult = confluence(normalResult, out.get(ExitType.NORM_TERM));
             exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTION));
 
@@ -133,8 +153,8 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         if (exceptionResult != null) {
             // If the exception result is null then there are no exception edges into the exit 
             // So the procedure cannot throw any exceptions
-            callerExContext = nonNull.setLocal(i.getException(), exceptionResult.getException()).setExceptionValue(
-                                            exceptionResult.getException());
+            callerExContext = nonNull.setLocal(i.getException(), NonNullAbsVal.NON_NULL).setExceptionValue(
+                                            NonNullAbsVal.NON_NULL);
             callerExContext = copyBackFormals(formals, actuals, exceptionResult, callerExContext, i.isStatic());
         }
         Set<ISSABasicBlock> npeSuccs = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException, cfg,
@@ -425,8 +445,10 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
 
         // Check if the comparison is an comparison against the null literal
         IR ir = currentNode.getIR();
-        boolean fstNull = ir.getSymbolTable().getValue(i.getUse(0)).isNullConstant();
-        boolean sndNull = ir.getSymbolTable().getValue(i.getUse(1)).isNullConstant();
+        Value fst = ir.getSymbolTable().getValue(i.getUse(0));
+        Value snd = ir.getSymbolTable().getValue(i.getUse(1));
+        boolean fstNull = fst != null && fst.isNullConstant();
+        boolean sndNull = snd != null && snd.isNullConstant();
         if (fstNull || sndNull) {
             VarContext<NonNullAbsVal> trueContext = in;
             VarContext<NonNullAbsVal> falseContext = in;
@@ -467,6 +489,12 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         VarContext<NonNullAbsVal> in = confluence(previousItems);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
+        
+        NonNullAbsVal newValue = null;
+        for (AbstractLocation loc : locationsForField(i.getRef(), i.getDeclaredField())) {
+            newValue = VarContext.safeJoinValues(newValue, in.getLocation(loc));
+        }
+        normal = normal.setLocal(i.getDef(), newValue);
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 

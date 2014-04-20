@@ -19,7 +19,7 @@ import com.ibm.wala.ipa.callgraph.CallGraph;
  * Manages the running of an inter-procedural data-flow analysis
  */
 public abstract class InterproceduralDataFlowManager<FlowItem> {
-    
+
     /**
      * Procedure call graph
      */
@@ -35,7 +35,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
     /**
      * Computed results for each call graph node analyzed
      */
-    protected final Map<CGNode, InterProcAnalysisRecord<FlowItem>> recordedResults = new LinkedHashMap<>();
+    protected final Map<CGNode, AnalysisRecord<FlowItem>> recordedResults = new LinkedHashMap<>();
     /**
      * Nodes that are currently being processed, used to detect recursive calls
      */
@@ -45,67 +45,88 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      */
     private final Map<CGNode, Set<CGNode>> dependencyMap = new HashMap<>();
     /**
+     * Whether the analysis results for the given CGNode were soundly computed
+     * i.e. they did not use unsound results for a recursive call
+     */
+    private final Map<CGNode, Boolean> soundResultsSoFar = new HashMap<>();
+    /**
      * Specifies the logging level
      */
     private int outputLevel = 0;
-    
+    /**
+     * debugging map to make sure there are infinite loops
+     */
+    private Map<CGNode, Integer> iterations = new HashMap<>();
+
+    /**
+     * Construct a new inter-procedural analysis over the given call graph
+     * 
+     * @param cg
+     *            call graph this analysis will be over
+     * @param ptg
+     *            points-to graph
+     */
     public InterproceduralDataFlowManager(CallGraph cg, PointsToGraph ptg) {
         this.cg = cg;
         this.ptg = ptg;
-        // TODO does not allow duplicates, do I need something that does?
         this.q = new WorkQueue<>();
     }
-    
+
+    /**
+     * Run the inter-procedural analysis starting with the root node
+     */
     public void runAnalysis() {
         // Get the entry point add it to the queue
         q.add(cg.getFakeRootNode());
-        
-        // debugging map to make sure there are infinite loops
-        Map<CGNode, Integer> iterations = new HashMap<>();
-        
+
         while (!q.isEmpty()) {
             CGNode current = q.poll();
+            if (getOutputLevel() >=2) {
+                System.err.println("QUEUE_POLL: " + PrettyPrinter.parseCGNode(current));
+            }
+            AnalysisRecord<FlowItem> results = getLatestResults(current);
 
             FlowItem input;
             if (current.equals(cg.getFakeRootNode())) {
                 // This is the root node get the root input
                 input = getInputForRoot();
             } else {
-                // TODO why is this never null?
-                input = recordedResults.get(current).getInput();
+                input = results.getInput();
             }
-            
-            InterProcAnalysisRecord<FlowItem> results = getLatestResults(current);
-            if (!existingResultSuitable(input, results)) {
-                // trigger processing of this node with the given input
-                Map<ExitType, FlowItem> output = analyze(current, input);
 
-                if (results == null || outputChanged(results.getOutput(), output)) {
-                    // the output changed so add any dependencies to the queue
-                    q.addAll(getDependencies(current));
-                    results = new InterProcAnalysisRecord<>(input, output, true);
-                }
-            }
-            
-            Integer iterationsForCurrent = iterations.get(current);
-            if (iterationsForCurrent == null) {
-                iterationsForCurrent = 0;
-            }
-            iterationsForCurrent++;
-            if (iterationsForCurrent >= 100) {
-                throw new RuntimeException("Analyzed the same CG node 100 times for method: "
-                                                + PrettyPrinter.parseMethod(current.getIR().getMethod().getReference())
-                                                + " in " + current.getContext());
-            }
-            iterations.put(current, iterationsForCurrent);
+            process(current, input, results == null ? null : results.getOutput());
         }
     }
-    
+
     /**
-     * Get any nodes that have to be reanalyzed if the result of analyzing n changes
+     * Increment the counter giving the number of times the given node has been
+     * analyzed
      * 
-     * @param n call graph node to get the dependencies for
-     * @return set of nodes that need to be reanalyzed if the result of analyzing n changes
+     * @param n
+     *            node to increment for
+     * @return incremented counter
+     */
+    private int incrementCounter(CGNode n) {
+        Integer i = iterations.get(n);
+        if (i == null) {
+            i = 0;
+        }
+        i++;
+        if (i >= 5) {
+            throw new RuntimeException("Analyzed the same CG node " + i + " times for method: "
+                                            + PrettyPrinter.parseCGNode(n));
+        }
+        return i;
+    }
+
+    /**
+     * Get any nodes that have to be reanalyzed if the result of analyzing n
+     * changes
+     * 
+     * @param n
+     *            call graph node to get the dependencies for
+     * @return set of nodes that need to be reanalyzed if the result of
+     *         analyzing n changes
      */
     private Set<CGNode> getDependencies(CGNode n) {
         Set<CGNode> deps = dependencyMap.get(n);
@@ -114,7 +135,7 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
         }
         return deps;
     }
-    
+
     /**
      * Ensure that n2 will be reanalyzed if the result of analyzing n1 changes
      * 
@@ -132,18 +153,24 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
         deps.add(n2);
     }
 
+    /**
+     * Get the call graph this is an analysis over
+     * 
+     * @return call graph
+     */
     public CallGraph getCallGraph() {
         return cg;
     }
-    
+
+    /**
+     * Get the previously computed points-to graph
+     * 
+     * @return points-to graph
+     */
     public PointsToGraph getPointsToGraph() {
         return ptg;
     }
-    
-    public WorkQueue<CGNode> getWorkQueue() {
-        return q;
-    }
-    
+
     /**
      * Get the results of analyzing the callee
      * 
@@ -151,103 +178,277 @@ public abstract class InterproceduralDataFlowManager<FlowItem> {
      *            caller's call graph node
      * @param callee
      *            calee's call graph node
-     * @param initial
-     *            initial data-flow facts
-     * @param isInputSound
-     *            true if the input was soundly computed
+     * @param FlowItem
+     *            inputValue; initial data-flow facts
      * @return
      */
-    public Map<ExitType, FlowItem> getResults(CGNode caller, CGNode callee, FlowItem input) {
-        if (getOutputLevel() > 2) {
-            System.err.println("GETTING:\n\t" + PrettyPrinter.parseMethod(callee.getMethod().getReference()) + " in "
-                                            + callee.getContext());
-            System.err.println("\tFROM: " + PrettyPrinter.parseMethod(caller.getMethod().getReference()) + " in "
-                                            + caller.getContext());
-            System.err.println("\tINPUT: " + input);
-        }
-        if (currentlyProcessing.contains(callee)) {
-            // This is a recursive call get the most recent results and add it
-            // to the queue for later processing
-            q.add(callee);
-            
-            InterProcAnalysisRecord<FlowItem> latest = getLatestResults(callee);
-            InterProcAnalysisRecord<FlowItem> newResults = new InterProcAnalysisRecord<>(join(input, latest.getInput()), latest.getOutput(), true);
-            recordedResults.put(callee, newResults);
-                                            
-            // Make sure the caller gets recomputed if the callee changes
-            addDependency(callee, caller);
-            System.err.println("\tLATEST: " + latest.getOutput());
-            return newResults.getOutput();
-        }
-        
-        Map<ExitType, FlowItem> output = analyze(callee, input);
-        InterProcAnalysisRecord<FlowItem> results = new InterProcAnalysisRecord<>(input, output, false);
-        recordedResults.put(callee, results);
+    public Map<ExitType, FlowItem> getResults(CGNode caller, CGNode callee, FlowItem newInput) {
         if (getOutputLevel() >= 2) {
-            System.err.println("RESULTS:\n\t" + PrettyPrinter.parseMethod(callee.getMethod().getReference()) + " in "
-                                            + callee.getContext());
-            System.err.println("\tFROM: " + PrettyPrinter.parseMethod(caller.getMethod().getReference()) + " in "
-                                            + caller.getContext());
-            System.err.println("\tNEW_OUTPUT: " + output);
+            System.err.println("GETTING:\n\t" + PrettyPrinter.parseCGNode(callee));
+            System.err.println("\tFROM: " + PrettyPrinter.parseCGNode(caller));
+            System.err.println("\tINPUT: " + newInput);
         }
-        return output;
+
+        AnalysisRecord<FlowItem> previous = getLatestResults(callee);
+
+        AnalysisRecord<FlowItem> results;
+        if (previous != null && existingResultSuitable(newInput, previous)) {
+            results = previous;
+            printResults(callee, "PREVIOUS", results.output);
+        } else {
+            if (previous == null) {
+                results = new AnalysisRecord<FlowItem>(newInput, getDefaultOutput(newInput), false);
+            } else {
+                // TODO use widen for back edges
+                results = new AnalysisRecord<FlowItem>(join(newInput, previous.getInput()), previous.output, false);
+            }
+
+            if (currentlyProcessing.contains(callee)) {
+                // Already processing the callee, this is a recursive call, just
+                // use latest results and process this later with the new input
+                q.add(callee);
+                recordedResults.put(callee, results);
+                printResults(callee, "LATEST", results.getOutput());
+            } else {
+                results = process(callee, results.input, previous == null ? null : previous.getOutput());
+            }
+        }
+
+        if (!results.isSoundResult()) {
+            // Ensure that the caller will be re-analyzed if the results for the
+            // callee change
+            addDependency(callee, caller);
+        }
+
+        // Record whether sound results will be returned to the caller
+        soundResultsSoFar.put(caller, isSoundResultsSoFar(caller) && results.isSoundResult());
+        return results.output;
     }
-    
+
+    /**
+     * Print the results to the screen if the logging level is high enough
+     * 
+     * @param n
+     *            node the results are for
+     * @param label
+     *            label for type of output (e.g. "PREVIOUS", "NEW", "LATEST")
+     * @param output
+     *            output of analysis
+     */
+    private void printResults(CGNode n, String typeLabel, Map<ExitType, FlowItem> output) {
+        if (getOutputLevel() >= 2) {
+            System.err.println("RESULTS:\n\t" + PrettyPrinter.parseCGNode(n));
+            System.err.println("\t" + typeLabel + ": " + output);
+        }
+    }
+
+    /**
+     * Check if the results computed for the given node have only used sound
+     * results so far. This could be false if there are recursive calls for
+     * which we had to use unsound results.
+     * 
+     * @param n
+     *            node to check
+     * @return true if the results for <code>n</code> are sound
+     */
+    private boolean isSoundResultsSoFar(CGNode n) {
+        Boolean b = soundResultsSoFar.get(n);
+        return b == null ? true : b;
+    }
+
+    /**
+     * Process the given node using the given input, record the results. If the
+     * output changes then add dependencies to the work-queue.
+     * 
+     * @param n
+     *            node to process
+     * @param input
+     *            input to the data-flow for the node
+     * @param previousOutput
+     *            previous analysis results, used to determine if the output
+     *            changed
+     * @return output after analyzing the given node with the given input
+     */
+    private AnalysisRecord<FlowItem> process(CGNode n, FlowItem input, Map<ExitType, FlowItem> previousOutput) {
+        incrementCounter(n);
+        currentlyProcessing.add(n);
+        Map<ExitType, FlowItem> output = analyze(n, input);
+        AnalysisRecord<FlowItem> results = new AnalysisRecord<FlowItem>(input, output, isSoundResultsSoFar(n));
+        recordedResults.put(n, results);
+        currentlyProcessing.remove(n);
+
+        if (previousOutput == null || outputChanged(previousOutput, output)) {
+            // The output changed add dependencies to the queue
+            q.addAll(getDependencies(n));
+        }
+        printResults(n, "NEW", output);
+        return results;
+    }
+
+    /**
+     * Get the logging level for this class
+     * 
+     * @return logging level (higher is more)
+     */
     public int getOutputLevel() {
         return outputLevel;
     }
-    
+
+    /**
+     * Set the logging level for this class
+     * 
+     * @param outputLevel
+     *            logging level (higher is more)
+     */
     public void setOutputLevel(int outputLevel) {
         this.outputLevel = outputLevel;
     }
-    
-    private final InterProcAnalysisRecord<FlowItem> getLatestResults(CGNode n) {
+
+    /**
+     * Get the latest results, may return null if none have been computed yet
+     * 
+     * @param n
+     *            node to get results for
+     * @return latest results for the given node or null if there are none
+     */
+    private final AnalysisRecord<FlowItem> getLatestResults(CGNode n) {
         return recordedResults.get(n);
     }
 
-    protected abstract FlowItem join(FlowItem item1, FlowItem item2);
+    /**
+     * Analyze the given node with the given input data-flow fact
+     * 
+     * @param n
+     *            node to analyze
+     * @param input
+     *            initial data-flow fact
+     * @return output facts resulting from analyzing <code>n</code>
+     */
     protected abstract Map<ExitType, FlowItem> analyze(CGNode n, FlowItem input);
-    protected abstract Map<ExitType, FlowItem> getDefaultOutput();
-    protected abstract FlowItem getInputForRoot();
-    protected abstract boolean outputChanged(Map<ExitType, FlowItem> previousOutput, Map<ExitType, FlowItem> currentOutput);
-    protected abstract boolean existingResultSuitable(FlowItem input, InterProcAnalysisRecord<FlowItem> rec);
-    
-    protected static class InterProcAnalysisRecord<FlowItem> {
 
+    /**
+     * Get the default output data-flow facts (given an input fact), this is
+     * used as the output for a recursive call before a fixed point is reached.
+     * 
+     * @param input
+     *            input data-flow fact
+     * @return output to be returned to callers when the callee is already in
+     *         the middle of being analyzed
+     */
+    protected abstract Map<ExitType, FlowItem> getDefaultOutput(FlowItem input);
+
+    /**
+     * Get the input for the root node of the call graph. This is the initial
+     * input to the inter-procedural analysis
+     * 
+     * @return initial data-flow fact
+     */
+    protected abstract FlowItem getInputForRoot();
+
+    /**
+     * Compute a single data-flow fact from two facts. This is used to compute
+     * (intra-procedural) analysis input when there are for merges in the call
+     * graph.
+     * 
+     * @param item1
+     *            first data-flow fact
+     * @param item2
+     *            second data-flow fact
+     * @return least upper bound of item1 and item2
+     */
+    protected abstract FlowItem join(FlowItem item1, FlowItem item2);
+
+    /**
+     * Check whether the output changed after analysis, and dependencies need to
+     * be reanalyzed.
+     * 
+     * @param previousOutput
+     *            previous output results
+     * @param currentOutput
+     *            current output results
+     * @return true if the output results have changed (and dependencies have to
+     *         be computed)
+     */
+    protected abstract boolean outputChanged(Map<ExitType, FlowItem> previousOutput,
+                                    Map<ExitType, FlowItem> currentOutput);
+
+    /**
+     * Check whether existing output results are suitable, given a new input
+     * 
+     * @param newInput
+     *            new input to the analysis
+     * @param existingResults
+     *            previous results
+     * @return true if the existing results can be reused, false if they must be
+     *         recomputed using the new input
+     */
+    protected abstract boolean existingResultSuitable(FlowItem newInput, AnalysisRecord<FlowItem> existingResults);
+
+    /**
+     * Class holding the input and output values for a specific call graph node
+     * 
+     * @param <FlowItem>
+     *            type of the data-flow facts
+     */
+    protected static class AnalysisRecord<FlowItem> {
+
+        /**
+         * output of the analysis
+         */
         private final Map<ExitType, FlowItem> output;
+        /**
+         * input to the analysis
+         */
         private final FlowItem input;
         /**
-         * True if there are back edges and this result could be unsound
-         * TODO unsoundResult never used
+         * False if there are back edges and this result could be unsound
          */
-        private final boolean unsoundResult;
-        
+        private final boolean isSoundResult;
+
         /**
-         * 
+         * Create a record for the analysis of a specific call graph node
          * 
          * @param input
+         *            input for the analysis
          * @param output
-         * @param unsoundResult
-         *            True if there are back edges and this result could be
+         *            output of the analysis
+         * @param isSoundResult
+         *            False if there are back edges and this result could be
          *            unsound
          */
-        public InterProcAnalysisRecord(FlowItem input, Map<ExitType, FlowItem> output, boolean unsoundResult) {
+        public AnalysisRecord(FlowItem input, Map<ExitType, FlowItem> output, boolean isSoundResult) {
             this.input = input;
             this.output = output;
-            this.unsoundResult = unsoundResult;
+            this.isSoundResult = isSoundResult;
         }
-        
+
+        /**
+         * Get the input used for this analysis
+         * 
+         * @return the input
+         */
         public FlowItem getInput() {
             return input;
         }
-        
+
+        /**
+         * Get the output returned by this analysis
+         * 
+         * @return the output
+         */
         public Map<ExitType, FlowItem> getOutput() {
             return output;
         }
-        
-        public boolean isUnsoundResult() {
-            return unsoundResult;
+
+        /**
+         * Check whether this record contains sound results. This will be false
+         * if there were back edges in the call graph due to recursive calls,
+         * and temporary unsound results were used to compute the output.
+         * 
+         * @return whether the results are sound
+         */
+        public boolean isSoundResult() {
+            return isSoundResult;
         }
-        
     }
 }

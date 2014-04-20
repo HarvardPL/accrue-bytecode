@@ -107,20 +107,19 @@ public abstract class DataFlow<FlowItem> {
                                 String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional"
                                                                 : "normal";
                                 System.err.println("null data-flow item in "
-                                                                + PrettyPrinter.parseMethod(ir.getMethod()
-                                                                                                .getReference())
+                                                                + PrettyPrinter.parseMethod(ir.getMethod())
                                                                 + " from BB" + g.getNumber(pred) + " to BB"
                                                                 + g.getNumber(current) + " on " + edgeType + " edge");
                             }
                         }
                     }
 
-                    if (previousResults != null && previousResults.getInput().equals(inItems)) {
-                        // the input is the same no need to reanalyze
+                    if (previousResults != null && existingResultsSuitable(inItems, previousResults)) {
+                        // no need to reanalyze we can re-use the results
                         continue;
                     }
 
-                    if (verbose >= 2) {
+                    if (verbose >= 3) {
                         System.err.print("FLOWING" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
                         if (current.getLastInstructionIndex() < 0) {
                             System.err.println();
@@ -138,7 +137,7 @@ public abstract class DataFlow<FlowItem> {
                     putRecord(current, newResults);
 
                     if (oldOutItems == null || !oldOutItems.equals(outItems)) {
-                        if (verbose >= 2) {
+                        if (verbose >= 3) {
                             System.err.print("FLOWED" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
                             if (current.getLastInstructionIndex() < 0) {
                                 System.err.println();
@@ -151,7 +150,7 @@ public abstract class DataFlow<FlowItem> {
                 iterations++;
                 if (iterations >= 100) {
                     throw new RuntimeException("Analyzed the same SCC 100 times for method: "
-                                                    + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
+                                                    + PrettyPrinter.parseMethod(ir.getMethod()));
                 }
             }
         }
@@ -159,6 +158,22 @@ public abstract class DataFlow<FlowItem> {
         post(ir);
     }
     
+    /**
+     * Determine whether existing analysis results can be reused.
+     * 
+     * @param newInput
+     *            new input items
+     * @param previousResults
+     *            non-null results that have been already computed
+     * @return whether the existing results can be re-used
+     */
+    protected boolean existingResultsSuitable(Set<FlowItem> newInput, AnalysisRecord<FlowItem> previousResults) {
+        assert previousResults != null;
+        // Currently insists that the input was identical, but could be
+        // overridden in a subclass
+        return previousResults.getInput().equals(newInput);
+    }
+
     /**
      * Perform any data-flow specific operations after analyzing the procedure
      * 

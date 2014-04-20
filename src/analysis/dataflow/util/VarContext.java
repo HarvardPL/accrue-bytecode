@@ -137,6 +137,9 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return new variable context with the value for the variable replaced
      */
     public VarContext<T> setLocal(int valueNumber, T val) {
+        if (val == null) {
+            throw new RuntimeException("Null vallues are not allowed for locals in a VarContext.");
+        }
         if (val.equals(getLocal(valueNumber))) {
             return this;
         }
@@ -157,6 +160,9 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return new variable context with the value for the location replaced
      */
     public VarContext<T> setLocation(AbstractLocation loc, T val) {
+        if (val == null) {
+            throw new RuntimeException("Null vallues are not allowed for locations in a VarContext.");
+        }
         if (!trackHeapLocations || val.equals(getLocation(loc))) {
             return this;
         }
@@ -276,7 +282,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
         Set<Integer> allLocals = new LinkedHashSet<>(c1.getLocals());
         allLocals.addAll(c2.getLocals());
         for (Integer i : allLocals) {
-            T joined = c1.getLocal(i).join(c2.getLocal(i));
+            T joined = safeJoinValues(c1.getLocal(i), c2.getLocal(i));
             if (joined == null) {
                 throw new RuntimeException("Null AbsVal when joining: " + c1.getLocal(i) + " and " + c2.getLocal(i));
             }
@@ -294,7 +300,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
             Set<AbstractLocation> allLocations = new LinkedHashSet<>(c1.getLocations());
             allLocations.addAll(c2.getLocations());
             for (AbstractLocation loc : allLocations) {
-                T joined = c1.getLocation(loc).join(c2.getLocation(loc));
+                T joined = safeJoinValues(c1.getLocation(loc), c2.getLocation(loc));
                 if (joined == null) {
                     throw new RuntimeException("Null AbsVal when joining: " + c1.getLocation(loc) + " and "
                                                     + c2.getLocation(loc));
@@ -312,6 +318,26 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     }
 
     /**
+     * Join two abstract values where one (but not both) may be null, in which
+     * case the other is returned
+     * 
+     * @param val1
+     *            first value
+     * 
+     * @param val2
+     *            second value
+     */
+    public static <T extends AbstractValue<T>> T safeJoinValues(T val1, T val2) {
+        if (val1 == null) {
+            if (val2 == null) {
+                throw new RuntimeException("Joining two null abstract values.");
+            }
+            return val2.join(val1);
+        }
+        return val1.join(val2);
+    }
+
+    /**
      * Get a copy of the variable context with an empty set of locals and null
      * return and exception abstract values
      * 
@@ -321,7 +347,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
         return new VarContext<T>(new LinkedHashMap<Integer, T>(), locations, null, null, trackHeapLocations,
                                         untrackedHeapLocationValue);
     }
-    
+
     @Override
     public String toString() {
         return "LOCALS: " + locals + " LOCATIONS: " + locations + " RET: " + returnResult + " EX: " + exceptionValue;

@@ -29,9 +29,14 @@ public class NonNullVarContext extends VarContext<NonNullAbsVal> {
 
     /**
      * Create an empty variable context
+     * 
+     * @param returnResult
+     *            abstract value for the return result
+     * @param exceptionValue
+     *            abstract value for the exception thrown by the procedure
      */
-    public NonNullVarContext() {
-        this(Collections.<Integer, NonNullAbsVal> emptyMap(), null, null);
+    public NonNullVarContext(NonNullAbsVal returnResult, NonNullAbsVal exceptionValue) {
+        this(Collections.<Integer, NonNullAbsVal> emptyMap(), returnResult, exceptionValue);
     }
 
 }

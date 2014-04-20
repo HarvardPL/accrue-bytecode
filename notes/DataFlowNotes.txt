@@ -29,10 +29,11 @@ A: Skip it
 How about WrongMethodTypeException for virtual methods
 A: check the method name and add it
 
-Priority Queue on SCCs
+TODO Priority Queue for interproc?
 DONE: Need overview interprocedural manager
-Is sound result
-Reasoning about read and write sets
+DONE: Is sound result
+TODO Reasoning about read and write sets
 
-Need to rework exceptions in statement registrar. instead of check thrown add a statement localToLocal for each catch block and the exit with filtered results.
+TODO Need to rework exceptions in statement registrar. instead of check thrown add a statement localToLocal for each catch block and the exit with filtered results.
 
+TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process"

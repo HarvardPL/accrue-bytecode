@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.dataflow.ExitType;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.util.AbstractLocation;
@@ -193,6 +194,12 @@ public abstract class InterproceduralDataFlow<FlowItem> extends InstructionDispa
      */
     protected Set<AbstractLocation> locationsForField(int receiver, FieldReference field) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver));
+        if (pointsTo.isEmpty()) {
+            throw new RuntimeException("Field target doesn't point to anything. "
+                                            + PrettyPrinter.parseType(field.getDeclaringClass()) + "."
+                                            + field.getName());
+        }
+        
         Set<AbstractLocation> ret = new LinkedHashSet<>();
         for (InstanceKey o : pointsTo) {
             AbstractLocation loc = new AbstractLocation(o, field);

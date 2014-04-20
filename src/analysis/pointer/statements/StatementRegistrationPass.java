@@ -94,7 +94,7 @@ public class StatementRegistrationPass {
 
         if (visitedMethods.contains(m)) {
             if (VERBOSE >= 2) {
-                System.err.println("\tAlready added " + PrettyPrinter.parseMethod(m.getReference()));
+                System.err.println("\tAlready added " + PrettyPrinter.parseMethod(m));
             }
             return;
         }
@@ -110,11 +110,11 @@ public class StatementRegistrationPass {
         visitedMethods.add(m);
 
         IR ir = util.getCache().getSSACache()
-                .findOrCreateIR(m, Everywhere.EVERYWHERE, util.getOptions().getSSAOptions());
+                                        .findOrCreateIR(m, Everywhere.EVERYWHERE, util.getOptions().getSSAOptions());
         registrar.recordMethod(m, new MethodSummaryNodes(registrar, ir));
 
         if (VERBOSE >= 1) {
-            System.err.println(PrettyPrinter.parseMethod(m.getReference()) + " will be registered.");
+            System.err.println(PrettyPrinter.parseMethod(m) + " will be registered.");
         }
         if (VERBOSE >= 2) {
             Writer writer = new StringWriter();
@@ -167,7 +167,7 @@ public class StatementRegistrationPass {
                 IMethod callee = util.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
                     throw new RuntimeException("Trying to add class initializer and could not resolve "
-                            + PrettyPrinter.parseMethod(ins.getDeclaredTarget()));
+                                                    + PrettyPrinter.parseMethod(ins.getDeclaredTarget()));
                 }
                 klass = callee.getDeclaringClass();
             }
@@ -180,7 +180,9 @@ public class StatementRegistrationPass {
                 IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to add class initializer and could not resolve "
-                            + PrettyPrinter.parseType(ins.getDeclaredField().getDeclaringClass()) + "." + ins.getDeclaredField().getName());
+                                                    + PrettyPrinter.parseType(ins.getDeclaredField()
+                                                                                    .getDeclaringClass()) + "."
+                                                    + ins.getDeclaredField().getName());
                 }
                 klass = f.getDeclaringClass();
             }
@@ -193,7 +195,9 @@ public class StatementRegistrationPass {
                 IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to add class initializer and could not resolve "
-                            + PrettyPrinter.parseType(ins.getDeclaredField().getDeclaringClass()) + "." + ins.getDeclaredField().getName());
+                                                    + PrettyPrinter.parseType(ins.getDeclaredField()
+                                                                                    .getDeclaringClass()) + "."
+                                                    + ins.getDeclaredField().getName());
                 }
                 klass = f.getDeclaringClass();
             }
@@ -236,7 +240,8 @@ public class StatementRegistrationPass {
                 if (!superClass.isInterface()) {
                     if (VERBOSE >= 1 && !initializedClasses.contains(superClass)) {
                         System.err.println("Adding: " + PrettyPrinter.parseType(superClass.getReference())
-                                + " super class initializer from " + PrettyPrinter.parseType(klass.getReference()));
+                                                        + " super class initializer from "
+                                                        + PrettyPrinter.parseType(klass.getReference()));
                     }
                     addClassInit(q, superClass);
                 }
@@ -257,7 +262,7 @@ public class StatementRegistrationPass {
     private void handleNative(WorkQueue<InstrAndCode> q, IMethod m) {
         // TODO Statement registration not handling native methods yet
         if (VERBOSE >= 2) {
-            System.err.println("\tNot handling native method " + PrettyPrinter.parseMethod(m.getReference()));
+            System.err.println("\tNot handling native method " + PrettyPrinter.parseMethod(m));
         }
     }
 
@@ -324,8 +329,8 @@ public class StatementRegistrationPass {
             Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util.getClassHierarchy());
             for (IMethod m : targets) {
                 if (VERBOSE >= 1) {
-                    System.err.println("Adding: " + PrettyPrinter.parseMethod(m.getReference()) + " from "
-                            + PrettyPrinter.parseMethod(ir.getMethod().getReference()));
+                    System.err.println("Adding: " + PrettyPrinter.parseMethod(m) + " from "
+                                                    + PrettyPrinter.parseMethod(ir.getMethod()));
                 }
                 addFromMethod(q, m);
             }
