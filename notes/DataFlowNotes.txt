@@ -36,4 +36,4 @@ TODO Reasoning about read and write sets
 
 TODO Need to rework exceptions in statement registrar. instead of check thrown add a statement localToLocal for each catch block and the exit with filtered results.
 
-TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process"
+TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process". For now lets just do them all up front, otherwise it gets messy to determine which clinits need to be called when. e.g. a class might be initialized on one branch of an "if" and not on the other, so it still needs to be initialized again if it appears after the "phi".
