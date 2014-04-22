@@ -605,7 +605,7 @@ public class PrettyPrinter {
         return c.isAnonymousClass() ? c.getSuperclass().getSimpleName() : c.getSimpleName();
     }
 
-    public static String instructionString(IR ir, SSAInstruction instruction) {
+    public static String instructionString(SSAInstruction instruction, IR ir) {
         PrettyPrinter pp = getPrinter(ir);
         return pp.instructionString(instruction);
     }

@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
 import analysis.dataflow.util.AbstractLocation;
@@ -110,12 +110,12 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
             for (; j < formals.length; j++) {
                 NonNullAbsVal actualVal = nonNull.getLocal(actuals[j]);
                 if (actualVal == null) {
-                    if (TypeRepository.getType(actuals[0], currentNode.getIR()).isPrimitiveType()) {
+                    if (TypeRepository.getType(actuals[j], currentNode.getIR()).isPrimitiveType()) {
                         actualVal = NonNullAbsVal.NON_NULL;
-                    } else if (currentNode.getIR().getSymbolTable().isConstant(actuals[0])) {
-                        if (currentNode.getIR().getSymbolTable().isNullConstant(actuals[0])) {
+                    } else if (currentNode.getIR().getSymbolTable().isConstant(actuals[j])) {
+                        if (currentNode.getIR().getSymbolTable().isNullConstant(actuals[j])) {
                             actualVal = NonNullAbsVal.MAY_BE_NULL;
-                        } else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals[0])) {
+                        } else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals[j])) {
                             actualVal = NonNullAbsVal.NON_NULL;
                         }
                     } else {
@@ -435,7 +435,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         assert getNumSuccs(current, cfg) == 2 : "Not two successors for a conditional branch: "
-                                        + PrettyPrinter.instructionString(currentNode.getIR(), i) + " has "
+                                        + PrettyPrinter.instructionString(i, currentNode.getIR()) + " has "
                                         + getNumSuccs(current, cfg);
 
         VarContext<NonNullAbsVal> in = confluence(previousItems);

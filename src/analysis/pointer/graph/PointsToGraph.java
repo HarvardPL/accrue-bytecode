@@ -11,11 +11,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.statements.StatementRegistrar;
 import analysis.pointer.util.HafCallGraph;
@@ -40,11 +41,13 @@ public class PointsToGraph {
     private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
     private final Set<InstanceKey> allHContexts = new LinkedHashSet<>();
 
-    public Set<PointsToGraphNode> changedNodes;
-    public Set<PointsToGraphNode> readNodes;
-    public Map<IMethod, Set<Context>> newContexts;
+    private Set<PointsToGraphNode> changedNodes;
+    private Set<PointsToGraphNode> readNodes;
+    private Map<IMethod, Set<Context>> newContexts;
     private final Map<IMethod, Set<Context>> contexts;
+    private final Set<IMethod> classInitializers;
 
+    private final HeapAbstractionFactory haf;
     private final HafCallGraph callGraph;
     private final WalaAnalysisUtil util;
     private final StatementRegistrar registrar;
@@ -54,7 +57,9 @@ public class PointsToGraph {
         changedNodes = new LinkedHashSet<>();
         readNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
+        classInitializers = new LinkedHashSet<>();
         this.registrar = registrar;
+        this.haf = haf;
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
         this.util = util;
         callGraph = new HafCallGraph(util, haf);
@@ -217,16 +222,27 @@ public class PointsToGraph {
                                             + PrettyPrinter.parseMethod(callee) + " in " + calleeContext);
         }
 
+        recordContext(callee, calleeContext);
+        return true;
+    }
+    
+    /**
+     * Record a callee context for the given method
+     * 
+     * @param callee
+     *            method
+     * @param calleeContext
+     *            context
+     */
+    private void recordContext(IMethod callee, Context calleeContext) {
         Set<Context> s = contexts.get(callee);
         if (s == null) {
             s = new LinkedHashSet<>();
             contexts.put(callee, s);
         }
 
-        // Even though we added an edge we still might have already analyzed the
-        // callee in calleContext (due to context imprecision)
-        boolean newContext = s.add(calleeContext);
-        if (newContext) {
+        if (s.add(calleeContext)) {
+            // The context is new
             Set<Context> n = newContexts.get(callee);
             if (n == null) {
                 n = new LinkedHashSet<>();
@@ -234,7 +250,6 @@ public class PointsToGraph {
             }
             n.add(calleeContext);
         }
-        return true;
     }
 
     /**
@@ -506,5 +521,36 @@ public class PointsToGraph {
     
     public void setOutputLevel(int outputLevel) {
         this.outputLevel = outputLevel;
+    }
+
+    /**
+     * Add class initialization methods
+     * 
+     * @param classInits
+     *            list of class initializer is initialization order (i.e.
+     *            element j is a super class of element j+1)
+     */
+    public void addClassInitializers(List<IMethod> classInits) {
+        for (int j = classInits.size() - 1; j >= 0; j--) {
+            IMethod clinit = classInits.get(j);
+            if (classInitializers.add(clinit)) {
+                // new initializer
+                Context c = haf.initialContext();
+                CGNode initNode;
+                try {
+                    initNode = callGraph.findOrCreateNode(clinit, c);
+                } catch (CancelException e) {
+                    throw new RuntimeException(e);
+                }
+                recordContext(clinit, c);
+                callGraph.registerEntrypoint(initNode);
+            } else {
+                // Already added an initializer and thus must have added
+                // initializers for super classes. These are all that are left
+                // to process since we are adding from sub class to super class
+                // order
+                break;
+            }
+        }
     }
 }

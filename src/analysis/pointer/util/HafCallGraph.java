@@ -1,6 +1,6 @@
 package analysis.pointer.util;
 
-import util.WalaAnalysisUtil;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 
 import com.ibm.wala.ipa.callgraph.CGNode;

@@ -111,7 +111,7 @@ public class NonNullResults {
             Set<Integer> nonNulls = results.get(i);
             if (nonNulls == null) {
                 System.err.println("WARNING: empty non-null results for instruction "
-                                                + PrettyPrinter.instructionString(ir, i) + " in "
+                                                + PrettyPrinter.instructionString(i, ir) + " in "
                                                 + PrettyPrinter.parseMethod(ir.getMethod()));
                 return false;
             }

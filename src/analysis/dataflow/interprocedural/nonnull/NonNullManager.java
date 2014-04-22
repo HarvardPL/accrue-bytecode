@@ -4,13 +4,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import util.WalaAnalysisUtil;
 import util.print.PrettyPrinter;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ssa.SSAInstruction;
 
+import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
 import analysis.dataflow.util.ExitType;

@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -78,9 +79,15 @@ public abstract class InterproceduralDataFlowManager<F> {
      * Run the inter-procedural analysis starting with the root node
      */
     public void runAnalysis() {
-        // Get the entry point add it to the queue
+        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
+        
+        // These are the class initializers
+        q.addAll(entryPoints);
+        // Also add the fake root method (which calls main)
         q.add(cg.getFakeRootNode());
 
+        System.err.println("Initial Q: " + q);
+        
         while (!q.isEmpty()) {
             CGNode current = q.poll();
             if (getOutputLevel() >=2) {
@@ -89,7 +96,7 @@ public abstract class InterproceduralDataFlowManager<F> {
             AnalysisRecord<F> results = getLatestResults(current);
 
             F input;
-            if (current.equals(cg.getFakeRootNode())) {
+            if (current.equals(cg.getFakeRootNode()) || entryPoints.contains(current)) {
                 // This is the root node get the root input
                 input = getInputForRoot();
             } else {

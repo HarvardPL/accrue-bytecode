@@ -120,7 +120,7 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
 
             if (verbose) {
                 for (SSAInstruction i : current) {
-                    sw.write(getPrefix(i) + PrettyPrinter.instructionString(ir, i) + getPostfix(i));
+                    sw.write(getPrefix(i) + PrettyPrinter.instructionString(i, ir) + getPostfix(i));
                 }
             }
 

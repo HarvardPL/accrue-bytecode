@@ -4,16 +4,16 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import util.InstructionType;
-import util.WalaAnalysisUtil;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
+import analysis.ClassInitFinder;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.MethodSummaryNodes;
 
-import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ssa.IR;
@@ -49,9 +49,9 @@ public class StatementRegistrationPass {
      */
     private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
     /**
-     * Classes we have already called <clinit> for
+     * <clinit> methods that have already been added
      */
-    private final Set<IClass> initializedClasses = new LinkedHashSet<>();
+    private final Set<IMethod> classInits = new LinkedHashSet<>();
     /**
      * WALA-defined analysis utilities
      */
@@ -147,116 +147,27 @@ public class StatementRegistrationPass {
      * @return true if any class initializers were added
      */
     private boolean addClassInitForInstruction(WorkQueue<InstrAndCode> q, SSAInstruction i, IR ir) {
-        IClass klass = null;
+        List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), i, ir);
 
-        // T is a class and an instance of T is created.
-        if (i instanceof SSAInvokeInstruction) {
-            SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
-            if (ins.isSpecial()) {
-                IMethod callee = util.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
-                if (callee.isInit()) {
-                    klass = callee.getDeclaringClass();
+        boolean added = false;
+        for (int j = inits.size() - 1; j >=0; j--) {
+            IMethod clinit = inits.get(j);
+            if (classInits.add(clinit)) {
+                if (VERBOSE >= 1) {
+                    System.err.println("Adding: " + PrettyPrinter.parseType(clinit.getDeclaringClass().getReference())
+                                                    + " initializer");
                 }
+                addFromMethod(q, clinit);
+                added = true;
+            } else {
+                // we have reached a class in the list that has already been
+                // initialized the rest are super classes that must have already
+                // been initialized
+                break;
             }
         }
 
-        // T is a class and a static method declared by T is invoked.
-        if (i instanceof SSAInvokeInstruction) {
-            SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
-            if (ins.isStatic()) {
-                IMethod callee = util.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
-                if (callee == null) {
-                    throw new RuntimeException("Trying to add class initializer and could not resolve "
-                                                    + PrettyPrinter.parseMethod(ins.getDeclaredTarget()));
-                }
-                klass = callee.getDeclaringClass();
-            }
-        }
-
-        // A static field declared by T is assigned.
-        if (i instanceof SSAPutInstruction) {
-            SSAPutInstruction ins = (SSAPutInstruction) i;
-            if (ins.isStatic()) {
-                IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
-                if (f == null) {
-                    throw new RuntimeException("Trying to add class initializer and could not resolve "
-                                                    + PrettyPrinter.parseType(ins.getDeclaredField()
-                                                                                    .getDeclaringClass()) + "."
-                                                    + ins.getDeclaredField().getName());
-                }
-                klass = f.getDeclaringClass();
-            }
-        }
-
-        // A static field declared by T is used
-        if (i instanceof SSAGetInstruction) {
-            SSAGetInstruction ins = (SSAGetInstruction) i;
-            if (ins.isStatic()) {
-                IField f = util.getClassHierarchy().resolveField(ins.getDeclaredField());
-                if (f == null) {
-                    throw new RuntimeException("Trying to add class initializer and could not resolve "
-                                                    + PrettyPrinter.parseType(ins.getDeclaredField()
-                                                                                    .getDeclaringClass()) + "."
-                                                    + ins.getDeclaredField().getName());
-                }
-                klass = f.getDeclaringClass();
-            }
-        }
-
-        // Invocation of certain reflective methods in class Class and in
-        // package
-        // java.lang.reflect also causes class or interface initialization.
-        // TODO handle class initializers for reflection
-
-        if (klass == null) {
-            return false;
-        }
-        if (VERBOSE >= 1 && !initializedClasses.contains(klass)) {
-            StringBuilder s = new StringBuilder();
-            s.append("Adding: " + PrettyPrinter.parseType(klass.getReference()) + " initializer from ");
-            s.append(PrettyPrinter.instructionString(ir, i));
-            System.err.println(s.toString());
-        }
-        return addClassInit(q, klass);
-    }
-
-    /**
-     * Add a class initializers for the given class and its super classes to the
-     * work queue (if it has not already been added).
-     * 
-     * @param q
-     *            work queue of instructions
-     * @param klass
-     *            class to add the initializer for
-     * @return true if class init was added
-     */
-    private boolean addClassInit(WorkQueue<InstrAndCode> q, IClass klass) {
-
-        if (!initializedClasses.contains(klass)) {
-
-            if (!util.getClassHierarchy().isRootClass(klass)) {
-                // Need to initialize the super class before initializing klass
-                IClass superClass = klass.getSuperclass();
-                if (!superClass.isInterface()) {
-                    if (VERBOSE >= 1 && !initializedClasses.contains(superClass)) {
-                        System.err.println("Adding: " + PrettyPrinter.parseType(superClass.getReference())
-                                                        + " super class initializer from "
-                                                        + PrettyPrinter.parseType(klass.getReference()));
-                    }
-                    addClassInit(q, superClass);
-                }
-            }
-
-            initializedClasses.add(klass);
-            if (klass.getClassInitializer() != null) {
-                registrar.addClassInitializer(klass.getClassInitializer());
-                addFromMethod(q, klass.getClassInitializer());
-            } else if (VERBOSE >= 2) {
-                System.err.println("\tNo class initializer for " + PrettyPrinter.parseType(klass.getReference()));
-            }
-            return true;
-        }
-        return false;
+        return added;
     }
 
     private void handleNative(WorkQueue<InstrAndCode> q, IMethod m) {

@@ -72,10 +72,6 @@ public class StatementRegistrar {
      */
     private IMethod entryPoint;
     /**
-     * Class initializers
-     */
-    private final Set<IMethod> classInitializers = new LinkedHashSet<>();
-    /**
      * Map from method to the points-to statements generated from instructions
      * in that method
      */
@@ -560,13 +556,9 @@ public class StatementRegistrar {
      * @return set of methods
      */
     public Set<IMethod> getInitialContextMethods() {
-        Set<IMethod> ret = new LinkedHashSet<>(classInitializers);
+        Set<IMethod> ret = new LinkedHashSet<>();
         ret.add(getEntryPoint());
         return ret;
-    }
-
-    public void addClassInitializer(IMethod classInitializer) {
-        classInitializers.add(classInitializer);
     }
 
     /**

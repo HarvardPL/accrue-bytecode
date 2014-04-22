@@ -7,8 +7,8 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
 
-import util.WalaAnalysisUtil;
 import util.print.CFGWriter;
+import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
 import analysis.dataflow.interprocedural.nonnull.NonNullManager;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;

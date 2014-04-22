@@ -1,6 +1,6 @@
 package analysis.pointer.engine;
 
-import util.WalaAnalysisUtil;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.statements.PointsToStatement;

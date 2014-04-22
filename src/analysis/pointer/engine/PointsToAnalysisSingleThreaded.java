@@ -6,8 +6,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import util.WalaAnalysisUtil;
 import util.WorkQueue;
+import analysis.ClassInitFinder;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -99,6 +100,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             count++;
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
+            g.addClassInitializers(ClassInitFinder.getClassInitializers(util.getClassHierarchy(), s.getInstruction(),
+                                            s.getCode()));
             s.process(c, haf, g, registrar);
 
             // Get the changes from the graph
@@ -124,12 +127,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             for (PointsToGraphNode n : changedNodes) {
                 q.addAll(getDependencies(n));
             }
-        }
-        
-        // Run through one more time to check results
-        boolean changed = processAllStatements(g, registrar);
-        if (changed) {
-            System.err.println("Something wrong in points-to analysis.");
         }
         
         long endTime = System.currentTimeMillis();
