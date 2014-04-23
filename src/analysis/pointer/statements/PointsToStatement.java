@@ -8,7 +8,7 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
@@ -118,7 +118,7 @@ public abstract class PointsToStatement {
     protected final boolean checkAllThrown(Context currentContext, PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
 
-        for (TypeReference tr : PreciseExceptions.implicitExceptions(i)) {
+        for (TypeReference tr : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable exNode = registrar.getImplicitExceptionNode(tr, getInstruction(), getCode());
             ReferenceVariableReplica e = new ReferenceVariableReplica(currentContext, exNode);
             changed |= checkThrown(tr, e, currentContext, g, registrar);

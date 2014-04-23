@@ -172,7 +172,7 @@ public class NonNullResults {
     /**
      * Will write the results for all contexts for the given method
      * <p>
-     * TODO not sure what this looks like in dot
+     * TODO not sure what this looks like in dot if there is more than one node
      * 
      * @param writer
      *            writer to write to

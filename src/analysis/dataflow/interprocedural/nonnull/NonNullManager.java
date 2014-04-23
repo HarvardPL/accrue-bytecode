@@ -12,7 +12,7 @@ import com.ibm.wala.ssa.SSAInstruction;
 
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.util.ExitType;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
@@ -26,7 +26,7 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
     /**
      * Results of a precise exception analysis
      */
-    private final PreciseExceptions preciseEx;
+    private final PreciseExceptionResults preciseEx;
     /**
      * WALA analysis classes
      */
@@ -49,7 +49,7 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
      * @param util
      *            WALA analysis classes
      */
-    public NonNullManager(CallGraph cg, PointsToGraph ptg, PreciseExceptions preciseEx, WalaAnalysisUtil util) {
+    public NonNullManager(CallGraph cg, PointsToGraph ptg, PreciseExceptionResults preciseEx, WalaAnalysisUtil util) {
         super(cg, ptg);
         this.preciseEx = preciseEx;
         this.util = util;

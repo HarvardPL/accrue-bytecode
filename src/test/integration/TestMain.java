@@ -9,7 +9,7 @@ import java.util.Arrays;
 
 import util.print.CFGWriter;
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptions;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullManager;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.pointer.analyses.CallSiteSensitive;
@@ -259,7 +259,7 @@ public class TestMain {
         PointsToGraph g = analysis.solve(registrar);
         g.dumpCallGraphToFile(fileName + "_callGraph", false);
 
-        NonNullManager manager = new NonNullManager(g.getCallGraph(), g, new PreciseExceptions(), util);
+        NonNullManager manager = new NonNullManager(g.getCallGraph(), g, new PreciseExceptionResults(), util);
         manager.setOutputLevel(outputLevel);
         manager.runAnalysis();
         NonNullResults results = manager.getNonNullResults();

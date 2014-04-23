@@ -306,7 +306,7 @@ public abstract class DataFlow<F> {
      * @return modifiable mapping from each successor id to the single given
      *         value
      */
-    protected final Map<Integer, F> itemToModifiableMap(F fact, ISSABasicBlock bb,
+    protected final Map<Integer, F> factToModifiableMap(F fact, ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<Integer, F> res = new LinkedHashMap<>();
         IntIterator iter = getSuccNodeNumbers(bb, cfg).intIterator();
@@ -512,11 +512,13 @@ public abstract class DataFlow<F> {
      *            basic bloc that throws the exception
      * @param cha
      *            class hierarchy
+     * @param unreachable
+     *            basic block successors that cannot be reached
      * @return set of basic blocks that may
      */
     protected Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current,
-                                    IClassHierarchy cha) {
+                                    IClassHierarchy cha, Set<ISSABasicBlock> unreachable) {
         // TODO redo exception successors in a cleaner way
 
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
@@ -557,6 +559,7 @@ public abstract class DataFlow<F> {
             result.add(cfg.exit());
         }
 
+        result.removeAll(unreachable);
         return result;
     }
 

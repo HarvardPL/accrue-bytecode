@@ -44,6 +44,14 @@ public class PreciseExceptionAbsVal implements AbstractValue<PreciseExceptionAbs
 
     @Override
     public PreciseExceptionAbsVal join(PreciseExceptionAbsVal that) {
+        if (that == null || that.isBottom()) {
+            return this;
+        }
+        
+        if (this.isBottom()) {
+            return that;
+        }
+        
         Set<TypeReference> union = new LinkedHashSet<>(this.getThrowables());
         union.addAll(that.getThrowables());
         return new PreciseExceptionAbsVal(union);

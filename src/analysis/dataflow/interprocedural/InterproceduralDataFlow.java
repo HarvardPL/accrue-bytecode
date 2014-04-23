@@ -112,8 +112,6 @@ public abstract class InterproceduralDataFlow<F> extends InstructionDispatchData
             inItems = Collections.singleton(input);
         }
         assert inItems != null && !inItems.isEmpty();
-
-        // TODO make sure static initializers get analyzed
         return super.flow(inItems, cfg, current);
     }
 

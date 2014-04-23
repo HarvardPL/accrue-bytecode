@@ -4,10 +4,14 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import util.InstructionType;
 import util.OrderedPair;
 import analysis.dataflow.DataFlow;
 import analysis.dataflow.util.ExitType;
@@ -15,13 +19,13 @@ import analysis.dataflow.util.ExitType;
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
+import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.util.intset.IntIterator;
 
 /**
  * Write out a control flow graph for a specific method
  */
-public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
+public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
 
     /**
      * Output will be written to this writer
@@ -78,8 +82,8 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
 
         double spread = 1.0;
         writer.write("strict digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep="
-                + spread + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]"
-                + ";\n");
+                                        + spread + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+                                        + "edge [fontsize=10]" + ";\n");
 
         dataflow(ir);
 
@@ -111,8 +115,8 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
      * {@inheritDoc}
      */
     @Override
-    protected final Map<Integer, OrderedPair<ExitType, String>> flow(Set<OrderedPair<ExitType, String>> inItems,
-            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+    protected final Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         try (StringWriter sw = new StringWriter()) {
             String exit = current.isExitBlock() ? "\\lEXIT" : "";
             String entry = current.isEntryBlock() ? "\\lENTRY" : "";
@@ -125,22 +129,24 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
             }
 
             String bbString = escapeDot(sw.toString());
-            for (OrderedPair<ExitType, String> predPair : inItems) {
+            for (OrderedPair<String, String> predPair : inItems) {
                 String predNode = predPair.snd();
                 String predEdge = predPair.fst().toString();
                 String edgeLabel = "[label=\"" + predEdge + "\"]";
                 writer.write("\t\"" + predNode + "\" -> \"" + bbString + "\" " + edgeLabel + ";\n");
             }
-            Map<Integer, OrderedPair<ExitType, String>> result = new LinkedHashMap<>();
+            Map<Integer, OrderedPair<String, String>> result = new LinkedHashMap<>();
 
-            Collection<ISSABasicBlock> normalSuccs = getNormalSuccs(current, cfg);
-            IntIterator iter = getSuccNodeNumbers(current, cfg).intIterator();
+            Iterator<ISSABasicBlock> iter = getSuccs(current, cfg);
             while (iter.hasNext()) {
-                Integer bbNum = iter.next();
-                ExitType edge = normalSuccs.contains(cfg.getNode(bbNum)) ? ExitType.NORM_TERM : ExitType.EXCEPTION;
-                OrderedPair<ExitType, String> item = new OrderedPair<>(edge, bbString);
-                result.put(bbNum, item);
+                ISSABasicBlock target = iter.next();
+                String edgeLabel = getEdgeLabel(current, target, ir);
+                OrderedPair<String, String> item = new OrderedPair<>(edgeLabel, bbString);
+                result.put(target.getGraphNodeId(), item);
             }
+            // only print "real edges"
+            result.keySet().removeAll(getUnreachableSuccessors(current, cfg));
+            
             return result;
         } catch (IOException e) {
             throw new RuntimeException();
@@ -162,17 +168,58 @@ public class CFGWriter extends DataFlow<OrderedPair<ExitType, String>> {
     protected void post(IR ir) {
         // Intentionally blank
     }
-    
+
     /**
      * Can be overridden by subclass
+     * 
      * @param i
      * @return
      */
-    public String getPostfix(SSAInstruction i) {
+    protected String getPostfix(SSAInstruction i) {
         return postfix;
     }
-    
-    public String getPrefix(SSAInstruction i) {
+
+    /**
+     * Can be overridden by subclass
+     * 
+     * @param i
+     * @return
+     */
+    protected String getPrefix(SSAInstruction i) {
         return prefix;
+    }
+
+    /**
+     * Can be overridden by subclass
+     * 
+     * @param bb
+     * @param cfg
+     * @return
+     */
+    protected Set<Integer> getUnreachableSuccessors(ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        if (bb.getLastInstructionIndex() >= 0
+                                        && InstructionType.forInstruction(bb.getLastInstruction()) == InstructionType.NEW_OBJECT) {
+            // This instruction can only throw errors, which we are not handling
+            List<ISSABasicBlock> bbs = cfg.getExceptionalSuccessors(bb);
+            assert bbs.size() == 1;
+            return Collections.singleton(bbs.get(0).getGraphNodeId());
+        }
+        
+        return Collections.emptySet();
+    }
+
+    /**
+     * Can be overridden by subclass
+     * 
+     * @param source
+     * @param target
+     * @param ir
+     * @return
+     */
+    protected String getEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
+        SSACFG cfg = ir.getControlFlowGraph();
+        Collection<ISSABasicBlock> normalSuccs = getNormalSuccs(source, cfg);
+        return normalSuccs.contains(target) ? ExitType.NORM_TERM.toString() : ExitType.EXCEPTION.toString();
     }
 }
