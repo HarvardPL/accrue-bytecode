@@ -19,7 +19,6 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.statements.StatementRegistrar;
-import analysis.pointer.util.HafCallGraph;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -133,6 +132,7 @@ public class PointsToGraph {
         if (graph.containsKey(node)) {
             return new LinkedHashSet<>(graph.get(node));
         }
+
         return Collections.emptySet();
     }
 
@@ -199,7 +199,8 @@ public class PointsToGraph {
     }
 
     @SuppressWarnings("deprecation")
-    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext, IMethod callee, Context calleeContext) {
+    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext, IMethod callee,
+                                    Context calleeContext) {
 
         CGNode src;
         CGNode dst;
@@ -211,9 +212,10 @@ public class PointsToGraph {
             throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.parseMethod(caller)
                                             + " to " + PrettyPrinter.parseMethod(callee));
         }
-        
-        // We are building a call graph so it is safe to call this "deprecated" method
-        if(!src.addTarget(callSite, dst)) {
+
+        // We are building a call graph so it is safe to call this "deprecated"
+        // method
+        if (!src.addTarget(callSite, dst)) {
             // not a new target
             return false;
         }
@@ -225,7 +227,7 @@ public class PointsToGraph {
         recordContext(callee, calleeContext);
         return true;
     }
-    
+
     /**
      * Record a callee context for the given method
      * 
@@ -518,7 +520,7 @@ public class PointsToGraph {
     public ReferenceVariable getImplicitException(TypeReference exType, IR ir, SSAInstruction i) {
         return registrar.getImplicitExceptionNode(exType, i, ir);
     }
-    
+
     public void setOutputLevel(int outputLevel) {
         this.outputLevel = outputLevel;
     }

@@ -8,7 +8,9 @@ import java.io.Writer;
 import java.util.Arrays;
 
 import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionManager;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullManager;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
@@ -87,8 +89,14 @@ public class TestMain {
             case "nonnull":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                ir = util.getCache().getIR(entry.getMethod());
-                nonNullTest(util, outputLevel, ir.getMethod(), entryPoint + "_main");
+                nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", pointsToTest(util, outputLevel, "_main"));
+                break;
+            case "precise-ex":
+                util = setUpWala(entryPoint);
+                entry = util.getOptions().getEntrypoints().iterator().next();
+                PointsToGraph g = pointsToTest(util, outputLevel, "_main");
+                NonNullResults nonNull = nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
+                preciseExceptionTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, nonNull);
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
@@ -132,7 +140,7 @@ public class TestMain {
         Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
                                         + entryPoint.replace(".", "/"));
         AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
-        
+
         /********************************
          * End of WALA set up code
          ********************************/
@@ -152,8 +160,9 @@ public class TestMain {
         sb.append("Param 1: Level of output (higher means more console output)\n");
         sb.append("Param 2: Test name\n");
         sb.append("\t\"pointsto\" runs the points-to analysis test, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
-        sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"");
-        sb.append("\t\"nonnull\" prints the results of a n interprocedural non-null analysis for the main method to the tests folder with the name: \"entryClassName_nonnull.dot\"");
+        sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
+        sb.append("\t\"nonnull\" prints the results of an interprocedural non-null analysis for the main method to the tests folder with the name: \"entryClassName_nonnull.dot\"\n");
+        sb.append("\t\"precise-ex\" prints the results of an interprocedural precise exception analysis for the main method to the tests folder with the name: \"entryClassName_preciseEx.dot\"\n");
         return sb.toString();
     }
 
@@ -167,8 +176,9 @@ public class TestMain {
      *            print level
      * @param filename
      *            name of file to be printed to ("_ptg.dot" will be appended)
+     * @return the resulting points-to graph
      */
-    private static void pointsToTest(WalaAnalysisUtil util, int outputLevel, String filename) {
+    private static PointsToGraph pointsToTest(WalaAnalysisUtil util, int outputLevel, String filename) {
 
         // Gather all the points-to statements
         StatementRegistrationPass pass = new StatementRegistrationPass(util);
@@ -202,6 +212,8 @@ public class TestMain {
             numNodes++;
         }
         System.out.println(numNodes + " CGNodes");
+
+        return g;
     }
 
     /**
@@ -239,26 +251,9 @@ public class TestMain {
      *            method to print the results for
      * @param fileName
      *            file to save the results to (appended with _nonNull.dot)
+     * @return the results of the non-null analysis
      */
-    private static void nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName) {
-        // Gather all the points-to statements
-        StatementRegistrationPass pass = new StatementRegistrationPass(util);
-        // Don't print anything
-        StatementRegistrationPass.VERBOSE = outputLevel;
-        pass.run();
-        System.err.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
-        if (outputLevel >= 2) {
-            for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
-            }
-        }
-        StatementRegistrar registrar = pass.getRegistrar();
-
-        HeapAbstractionFactory context = new CallSiteSensitive(1);
-        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
-        PointsToGraph g = analysis.solve(registrar);
-        g.dumpCallGraphToFile(fileName + "_callGraph", false);
-
+    private static NonNullResults nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName, PointsToGraph g) {
         NonNullManager manager = new NonNullManager(g.getCallGraph(), g, new PreciseExceptionResults(), util);
         manager.setOutputLevel(outputLevel);
         manager.runAnalysis();
@@ -267,20 +262,64 @@ public class TestMain {
         String dir = "tests";
         String file = fileName + "_nonNull";
         String fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))){
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             results.writeResultsForMethod(out, method);
             System.err.println("\nDOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
-        
+
         file = fileName + "_fakeroot_nonNull";
         fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))){
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             results.writeResultsForMethod(out, util.getFakeRoot());
             System.err.println("\nDOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
+        return results;
+    }
+
+    /**
+     * Run a precise exceptions analysis and print out the results for the given
+     * method
+     * 
+     * @param util
+     *            WALA analysis classes
+     * @param outputLevel
+     *            level of logging
+     * @param method
+     *            method to print the results for
+     * @param fileName
+     *            name of the file to print the results to (the file name will
+     *            be appended with "_preciseEx")
+     * @return the results of the precise exceptions analysis
+     */
+    private static PreciseExceptionResults preciseExceptionTest(WalaAnalysisUtil util, int outputLevel, IMethod method,
+                                    String fileName, PointsToGraph g, NonNullResults nonNull) {
+        PreciseExceptionManager manager = new PreciseExceptionManager(g.getCallGraph(), g, nonNull, util);
+        manager.setOutputLevel(outputLevel);
+        manager.runAnalysis();
+        PreciseExceptionResults results = manager.getPreciseExceptionResults();
+
+        String dir = "tests";
+        String file = fileName + "_preciseEx";
+        String fullFilename = dir + "/" + file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            results.writeResultsForMethod(out, method);
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+
+        file = fileName + "_fakeroot_preciseEx";
+        fullFilename = dir + "/" + file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            results.writeResultsForMethod(out, util.getFakeRoot());
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+        return results;
     }
 }

@@ -2,20 +2,18 @@ package analysis.dataflow.interprocedural.nonnull;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import util.print.PrettyPrinter;
-
-import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
-import com.ibm.wala.ssa.SSAInstruction;
-
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.util.ExitType;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
+
+import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Inter-procedureal data-flow manager for an analysis that determines when
@@ -36,6 +34,10 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
      * are put here
      */
     private final NonNullResults results = new NonNullResults();
+    /**
+     * Name of this analysis
+     */
+    private static final String ANALYSIS_NAME = "Non-null Analysis";
 
     /**
      * Create a new inter-procedural non-null analysis over the given call graph
@@ -56,6 +58,11 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
     }
 
     @Override
+    protected String getAnalysisName() {
+        return ANALYSIS_NAME;
+    }
+
+    @Override
     protected Map<ExitType, VarContext<NonNullAbsVal>> analyze(CGNode n, VarContext<NonNullAbsVal> input) {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
@@ -63,6 +70,26 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
         NonNullDataFlow df = new NonNullDataFlow(n, this, preciseEx, util);
         df.setOutputLevel(getOutputLevel());
         return df.dataflow(input);
+    }
+
+    @Override
+    protected Map<ExitType, VarContext<NonNullAbsVal>> analyzeNative(CGNode n, VarContext<NonNullAbsVal> input) {
+        if (getOutputLevel() >= 2) {
+            System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
+        }
+        // TODO this is unsound if the arguments could change to null
+        // We could make this sound by setting all locals in input to
+        // MAYBE_NULL, but that would probably be imprecise
+        VarContext<NonNullAbsVal> normal = input;
+        if (!n.getMethod().getReturnType().equals(TypeReference.Void)
+                                        && !n.getMethod().getReturnType().isPrimitiveType()) {
+            // assume return result could be null
+            normal = normal.setReturnResult(NonNullAbsVal.MAY_BE_NULL);
+        }
+        Map<ExitType, VarContext<NonNullAbsVal>> results = new HashMap<>();
+        results.put(ExitType.NORM_TERM, normal);
+        results.put(ExitType.EXCEPTION, input.setExceptionValue(NonNullAbsVal.NON_NULL));
+        return results;
     }
 
     @Override
@@ -83,31 +110,22 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
                                     Map<ExitType, VarContext<NonNullAbsVal>> currentOutput) {
         assert previousOutput != null;
         assert currentOutput != null;
-        for (ExitType key : previousOutput.keySet()) {
-            if (!previousOutput.get(key).equals(currentOutput.get(key))) {
-                return true;
-            }
-        }
-        return false;
+        return previousOutput.equals(currentOutput);
     }
 
     @Override
-    protected boolean existingResultSuitable(VarContext<NonNullAbsVal> input,
-                                    AnalysisRecord<VarContext<NonNullAbsVal>> rec) {
-        return rec != null && input.leq(rec.getInput());
+    protected boolean existingResultSuitable(VarContext<NonNullAbsVal> newInput,
+                                    AnalysisRecord<VarContext<NonNullAbsVal>> existingResults) {
+        return existingResults != null && newInput.leq(existingResults.getInput());
     }
 
     /**
      * Get the results after running this inter-procedural analysis
      * 
-     * @return
+     * @return which variables are non-null before each instruction
      */
     public NonNullResults getNonNullResults() {
         return results;
-    }
-
-    public void replaceNonNull(Set<Integer> nonNulls, SSAInstruction i, CGNode containingNode) {
-        results.replaceNonNull(nonNulls, i, containingNode);
     }
 
     @Override

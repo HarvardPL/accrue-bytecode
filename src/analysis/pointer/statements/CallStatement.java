@@ -89,14 +89,14 @@ public abstract class CallStatement extends PointsToStatement {
      */
     protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
             Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
-        if (resolvedCallee.isNative()) {
-            // TODO Pointer Analysis not handling native methods yet
-            return false;
-        }
         boolean changed = false;
 
         // Record the call
         changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
+        if (resolvedCallee.isNative()) {
+            // TODO Pointer Analysis not handling native methods yet
+            return false;
+        }
 
         MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
 

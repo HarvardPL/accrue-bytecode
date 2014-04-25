@@ -321,13 +321,12 @@ public class PrettyPrinter {
             sb.append(valString(instruction.getDef())).append(" = ");
         }
         sb.append("new ");
-        sb.append(parseType(instruction.getConcreteType().getName().toString()));
-
-        if (instruction.getNumberOfUses() > 0) {
-            // Its an array that is initialized by passing in dimensions
-            // We don't need the array type indicator
-            sb.delete(sb.length() - 2, sb.length());
+        TypeReference type = instruction.getConcreteType();
+        while (type.isArrayType()) {
+            type = type.getArrayElementType();
         }
+        sb.append(parseType(type.getName().toString()));
+        
         for (int i = 0; i < instruction.getNumberOfUses(); i++) {
             sb.append("[" + valString(instruction.getUse(i)) + "]");
         }

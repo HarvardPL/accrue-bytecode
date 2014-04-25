@@ -90,7 +90,6 @@ public class ClassInitFinder {
         if (i instanceof SSAGetInstruction) {
             SSAGetInstruction ins = (SSAGetInstruction) i;
             if (ins.isStatic()) {
-                System.err.println("FINDING for " + PrettyPrinter.instructionString(i, ir));
                 IField f = cha.resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to add class initializer for "

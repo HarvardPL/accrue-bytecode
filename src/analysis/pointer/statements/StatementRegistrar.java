@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.io.StringWriter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.print.IRWriter;
 import util.print.PrettyPrinter;
 import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
@@ -418,18 +420,18 @@ public class StatementRegistrar {
     public ReferenceVariable getLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
                 + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
-
         LocalKey key = new LocalKey(local, ir);
         ReferenceVariable node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
-            node = freshLocal(PrettyPrinter.valString(ir, local), type);
+            node = new ReferenceVariable(PrettyPrinter.valString(ir, local), type, false);
             locals.put(key, node);
         }
         return node;
     }
     
     private ReferenceVariable getLocalForArrayContents(int dim, TypeReference type, SSANewInstruction i, IR ir) {
+        // Need to create one for the inner and use it to get the outer or it doesn't work
         ArrayContentsKey key = new ArrayContentsKey(dim, i, ir);
         ReferenceVariable local = arrayContentsTemps.get(key);
         if (local == null) {
@@ -454,7 +456,7 @@ public class StatementRegistrar {
         ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
         ReferenceVariable node = implicitThrows.get(key);
         if (node == null) {
-            node = freshLocal("IMPLICIT-" + PrettyPrinter.parseType(type), type);
+            node = new ReferenceVariable("IMPLICIT-" + PrettyPrinter.parseType(type), type, false);
             implicitThrows.put(key, node);
         }
         return node;
@@ -481,20 +483,6 @@ public class StatementRegistrar {
             staticFields.put(f, node);
         }
         return node;
-    }
-
-    /**
-     * Create a fresh points-to graph local node
-     * 
-     * @param debugString
-     *            string used for printing and debugging (e.g. the local
-     *            variable name)
-     * @param expectedType
-     *            type of the local
-     * @return a new local points-to graph node
-     */
-    private ReferenceVariable freshLocal(String debugString, TypeReference expectedType) {
-        return new ReferenceVariable(debugString, expectedType, false);
     }
 
     /**
@@ -753,6 +741,10 @@ public class StatementRegistrar {
             return true;
         }
 
+        @Override
+        public String toString() {
+            return PrettyPrinter.valString(ir, value) + " in " + PrettyPrinter.parseMethod(ir.getMethod());
+        }
     }
     
     /**

@@ -6,6 +6,8 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
+
 import com.ibm.wala.analysis.typeInference.TypeAbstraction;
 import com.ibm.wala.analysis.typeInference.TypeInference;
 import com.ibm.wala.classLoader.IMethod;
@@ -63,6 +65,7 @@ public class TypeRepository {
      * @return the type of the variable with the given value number
      */
     public static TypeReference getType(int valNum, IR ir) {
+        assert valNum >= 0 : "Negative value number " + valNum + " getting type in " + PrettyPrinter.irString(ir, "\t", "\n");
         if (ir.getSymbolTable().isNullConstant(valNum)) {
             return TypeReference.Null;
         }

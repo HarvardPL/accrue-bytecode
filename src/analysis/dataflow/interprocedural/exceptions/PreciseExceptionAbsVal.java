@@ -1,9 +1,11 @@
 package analysis.dataflow.interprocedural.exceptions;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.dataflow.util.AbstractValue;
 
 import com.ibm.wala.types.TypeReference;
@@ -64,5 +66,26 @@ public class PreciseExceptionAbsVal implements AbstractValue<PreciseExceptionAbs
      */
     public Set<TypeReference> getThrowables() {
         return throwables;
+    }
+    
+    @Override
+    public String toString() {
+        if (throwables.isEmpty()) {
+            return "[]";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        Iterator<TypeReference> iter = throwables.iterator();
+        TypeReference t;
+        if (iter.hasNext()) {
+            t = iter.next();
+            sb.append(PrettyPrinter.parseType(t));
+        }
+        while (iter.hasNext()) {
+            t = iter.next();
+            sb.append(", " + PrettyPrinter.parseType(t));
+        }
+        sb.append("]");
+        return sb.toString();
     }
 }

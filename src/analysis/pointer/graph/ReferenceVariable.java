@@ -29,7 +29,8 @@ public class ReferenceVariable {
     private static int count;
 
     /**
-     * Create a new (unique) reference variable
+     * Create a new (unique) reference variable, do not call this outside the
+     * pointer analysis
      * 
      * @param debugString
      *            String used for debugging and printing

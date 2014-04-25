@@ -93,7 +93,6 @@ public class LocalToFieldStatement extends PointsToStatement {
             ObjectField f;
             if (isArrayContents) {
                 f = new ObjectField(recHeapContext, PointsToGraph.ARRAY_CONTENTS, assigned.getExpectedType());
-                System.err.println("LocalToField: " + f + " " + f.getExpectedType());
             } else {
                 f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
             }

@@ -1,10 +1,13 @@
 package analysis.dataflow.interprocedural.exceptions;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,7 +61,12 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
     /**
      * Results of a non-null analysis
      */
-    private NonNullResults nonNullResults;
+    private final NonNullResults nonNullResults;
+    /**
+     * Map from array to list of integer dimensions for the array (from outside
+     * in), value in the list is null if the dimension is not a static integer
+     */
+    private final Map<Integer, List<Integer>> arrayDimensions = new HashMap<>();
 
     public PreciseExceptionDataFlow(NonNullResults nonNullResults, CGNode currentNode,
                                     InterproceduralDataFlowManager<PreciseExceptionAbsVal> manager, IClassHierarchy cha) {
@@ -71,7 +79,7 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
     @Override
     protected Map<Integer, PreciseExceptionAbsVal> call(SSAInvokeInstruction i, Set<PreciseExceptionAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-        Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
+        Set<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
         if (!i.isStatic() && nonNullResults.isNonNull(i.getReceiver(), i, currentNode)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
@@ -90,7 +98,9 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
             exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTION));
         }
 
-        throwables.addAll(exceptionResult.getThrowables());
+        if (exceptionResult != null) {
+            throwables.addAll(exceptionResult.getThrowables());
+        }
         return computeResults(throwables, cfg, bb);
     }
 
@@ -100,9 +110,6 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
         for (PreciseExceptionAbsVal item : items) {
             val = item.join(val);
         }
-        if (val == null) {
-            throw new RuntimeException("Got null absval in confluence.");
-        }
         return val;
     }
 
@@ -110,16 +117,20 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
     protected void postBasicBlock(Set<PreciseExceptionAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
                                     Map<Integer, PreciseExceptionAbsVal> outItems) {
-        Iterator<ISSABasicBlock> nextBlocks = cfg.getSuccNodes(justProcessed);
-        while (nextBlocks.hasNext()) {
-            ISSABasicBlock next = nextBlocks.next();
-            checkResults(justProcessed, next, outItems);
-            Set<TypeReference> throwables = outItems.get(next.getGraphNodeId()).getThrowables();
-            ((PreciseExceptionManager) manager).replaceExceptions(throwables, justProcessed, next, currentNode);
-            if (throwables.isEmpty()) {
-                ((PreciseExceptionManager) manager).addImpossibleSuccessor(justProcessed, next, currentNode);
+        Iterator<ISSABasicBlock> succBlocks = cfg.getSuccNodes(justProcessed);
+        Set<ISSABasicBlock> impossibleExceptions = new LinkedHashSet<>();
+        while (succBlocks.hasNext()) {
+            ISSABasicBlock succ = succBlocks.next();
+            checkResults(justProcessed, succ, outItems);
+            Set<TypeReference> throwables = outItems.get(succ.getGraphNodeId()).getThrowables();
+            ((PreciseExceptionManager) manager).getPreciseExceptionResults().replaceExceptions(throwables,
+                                            justProcessed, succ, currentNode);
+            if (throwables.isEmpty() && cfg.getExceptionalSuccessors(justProcessed).contains(succ)) {
+                impossibleExceptions.add(succ);
             }
         }
+        ((PreciseExceptionManager) manager).getPreciseExceptionResults().replaceImpossibleExceptions(justProcessed,
+                                        impossibleExceptions, currentNode);
         super.postBasicBlock(inItems, cfg, justProcessed, outItems);
     }
 
@@ -136,7 +147,7 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
     private void checkResults(ISSABasicBlock justProcessed, ISSABasicBlock next,
                                     Map<Integer, PreciseExceptionAbsVal> outItems) {
         if (outItems.get(next.getGraphNodeId()) == null
-                                        && !preciseEx.getImpossibleSuccessors(justProcessed, currentNode)
+                                        && !preciseEx.getImpossibleExceptions(justProcessed, currentNode)
                                                                         .contains(next)) {
             throw new RuntimeException("No item for successor of\n"
                                             + PrettyPrinter.basicBlockString(currentNode.getIR(), justProcessed, "\t",
@@ -226,7 +237,26 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         assert confluence(previousItems).getThrowables().isEmpty();
-        return computeResults(i, !nonNullResults.isNonNull(i.getArrayRef(), i, currentNode), cfg, current);
+        Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
+
+        // handle the array dimensions
+        if (isSafeArrayIndex(i.getArrayRef(), i.getIndex())) {
+            throwables.remove(TypeReference.JavaLangArrayIndexOutOfBoundsException);
+        }
+
+        // if there are multiple dimensions then the assignee is also an array
+        // use the dimensions from the parent array for the assignee
+        List<Integer> dims = arrayDimensions.get(i.getArrayRef());
+        if (dims.size() > 1) {
+            List<Integer> subDims = dims.subList(1, dims.size());
+            arrayDimensions.put(i.getDef(), subDims);
+        }
+
+        if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode)) {
+            throwables.remove(TypeReference.JavaLangNullPointerException);
+        }
+
+        return computeResults(throwables, cfg, current);
     }
 
     @Override
@@ -234,15 +264,20 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         assert confluence(previousItems).getThrowables().isEmpty();
-        Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
+        Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
         if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
 
         IClass elementType = cha.lookupClass(i.getElementType());
-        IClass storedType = cha.lookupClass(TypeRepository.getType(i.getDef(), currentNode.getIR()));
+        IClass storedType = cha.lookupClass(TypeRepository.getType(i.getUse(2), currentNode.getIR()));
         if (cha.isSubclassOf(storedType, elementType)) {
             throwables.remove(TypeReference.JavaLangArrayStoreException);
+        }
+
+        // handle the array dimensions
+        if (isSafeArrayIndex(i.getArrayRef(), i.getIndex())) {
+            throwables.remove(TypeReference.JavaLangArrayIndexOutOfBoundsException);
         }
 
         return computeResults(throwables, cfg, current);
@@ -254,18 +289,15 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
-        if (currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            // TODO Keep "definitely null" in non-null analysis
-
-            // Null objects can be cast to anything
-            throwables.remove(TypeReference.JavaLangClassCastException);
-        }
 
         IClass typeOfValue = cha.lookupClass(TypeRepository.getType(i.getVal(), currentNode.getIR()));
         IClass checkedType = cha.lookupClass(i.getDeclaredResultTypes()[0]);
-        if (cha.isSubclassOf(typeOfValue, checkedType)) {
-            // upcasts are always safe
-            throwables.remove(TypeReference.JavaLangArrayStoreException);
+        if (cha.isSubclassOf(typeOfValue, checkedType)
+                                        || currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
+            // upcasts and casts of null are always safe
+            // TODO track "definitely null" in the non-null analysis
+            throwables = new LinkedHashSet<>(throwables);
+            throwables.remove(TypeReference.JavaLangClassCastException);
         }
         return computeResults(throwables, cfg, current);
     }
@@ -349,13 +381,23 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
         assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
         boolean constantArraySize = true;
+
+        List<Integer> dimensions = new ArrayList<>(i.getNumberOfUses());
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             // see if jth dimension is a positive integer constant
-            constantArraySize &= (currentNode.getIR().getSymbolTable().isConstant(i.getUse(j)) && currentNode.getIR()
-                                            .getSymbolTable().getIntValue(i.getUse(j)) > 0);
+            Integer jthSize = null;
+            if (currentNode.getIR().getSymbolTable().isConstant(i.getUse(j))
+                                            && currentNode.getIR().getSymbolTable().getIntValue(i.getUse(j)) >= 0) {
+                jthSize = currentNode.getIR().getSymbolTable().getIntValue(i.getUse(j));
+            }
+            dimensions.add(jthSize);
+            constantArraySize &= (jthSize != null);
         }
 
+        arrayDimensions.put(i.getDef(), dimensions);
+
         if (constantArraySize) {
+            throwables = new LinkedHashSet<>(throwables);
             throwables.remove(TypeReference.JavaLangNegativeArraySizeException);
         }
 
@@ -424,6 +466,7 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Collection<TypeReference> types = PreciseExceptionResults.implicitExceptions(i);
         if (!canThrowNPE) {
+            types = new LinkedHashSet<>(types);
             types.remove(TypeReference.JavaLangNullPointerException);
         }
 
@@ -444,24 +487,31 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
      */
     private Map<Integer, PreciseExceptionAbsVal> computeResults(Collection<TypeReference> types,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        Map<Integer, Set<TypeReference>> typesForSuccs = new HashMap<>();
+        Map<ISSABasicBlock, Set<TypeReference>> typesForSuccs = new HashMap<>();
         for (TypeReference type : types) {
             // TODO is it unsound to use the impossible successors here?
             Set<ISSABasicBlock> succs = getSuccessorsForExceptionType(type, cfg, current, cha,
                                             Collections.<ISSABasicBlock> emptySet());
             for (ISSABasicBlock succ : succs) {
-                Set<TypeReference> typesForSucc = typesForSuccs.get(succ.getGraphNodeId());
+                Set<TypeReference> typesForSucc = typesForSuccs.get(succ);
                 if (typesForSucc == null) {
                     typesForSucc = new HashSet<>();
+                    typesForSuccs.put(succ, typesForSucc);
                 }
                 typesForSucc.add(type);
             }
         }
 
         Map<Integer, PreciseExceptionAbsVal> results = new HashMap<>();
-        for (Integer succNum : typesForSuccs.keySet()) {
-            Set<TypeReference> typesForSucc = typesForSuccs.get(succNum);
-            results.put(succNum, new PreciseExceptionAbsVal(typesForSucc));
+        Collection<ISSABasicBlock> exSuccs = cfg.getExceptionalSuccessors(current);
+        for (ISSABasicBlock succ : exSuccs) {
+            Set<TypeReference> typesForSucc = typesForSuccs.get(succ);
+            if (typesForSucc == null) {
+                // No exceptions on this edges
+                results.put(succ.getGraphNodeId(), PreciseExceptionAbsVal.EMPTY);
+            } else {
+                results.put(succ.getGraphNodeId(), new PreciseExceptionAbsVal(typesForSucc));
+            }
         }
 
         Collection<ISSABasicBlock> normalSuccs = cfg.getNormalSuccessors(current);
@@ -470,5 +520,34 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
         }
 
         return results;
+    }
+
+    /**
+     * Decide whether the given index is definitely in bounds for the given
+     * array
+     * 
+     * @param arrayValNumber
+     *            value number for array
+     * @param indexValNumber
+     *            value number for index (not the actual index)
+     * @return true if this access cannot throw an
+     *         {@link ArrayIndexOutOfBoundsException}
+     */
+    private boolean isSafeArrayIndex(int arrayValNumber, int indexValNumber) {
+        // TODO track array indices inter-procedurally
+        if (arrayDimensions.containsKey(arrayValNumber)) {
+            List<Integer> dims = arrayDimensions.get(arrayValNumber);
+            if (dims.get(0) != null) {
+                // constant dimension
+                int size = dims.get(0);
+                int index = !currentNode.getIR().getSymbolTable().isConstant(indexValNumber) ? -1 : currentNode.getIR()
+                                                .getSymbolTable().getIntValue(indexValNumber);
+                if (index >= 0 && index < size) {
+                    // safe index
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

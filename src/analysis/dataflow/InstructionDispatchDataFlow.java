@@ -355,7 +355,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
-     * Data-flow transfer function for an instruction with only one successor
+     * Data-flow transfer function for an instruction with only one successor, x = ClassName.f
      * 
      * @param i
      *            instruction
@@ -403,7 +403,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
-     * Data-flow transfer function for an instruction with only one successor
+     * Data-flow transfer function for an instruction with only one successor, ClassName.f = x
      * 
      * @param i
      *            instruction
@@ -451,7 +451,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
-     * Data-flow transfer function for an instruction
+     * Data-flow transfer function for an instruction, x = a[i]
      * 
      * @param i
      *            instruction
@@ -468,7 +468,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
-     * Data-flow transfer function for an instruction
+     * Data-flow transfer function for an instruction, a[i] = x
      * 
      * @param i
      *            instruction
@@ -519,7 +519,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
-     * Data-flow transfer function for an instruction
+     * Data-flow transfer function for an instruction, x = o.f
      * 
      * @param i
      *            instruction

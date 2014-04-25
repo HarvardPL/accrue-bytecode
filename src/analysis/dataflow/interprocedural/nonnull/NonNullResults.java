@@ -56,7 +56,7 @@ public class NonNullResults {
 
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
-            System.err.println("WARNING: empty non-null results for " + PrettyPrinter.parseCGNode(containingNode));
+            System.err.println("Null results for non-null analysis for " + containingNode);
             return false;
         }
 
@@ -110,9 +110,6 @@ public class NonNullResults {
         public boolean isNonNull(int valNum, SSAInstruction i, IR ir) {
             Set<Integer> nonNulls = results.get(i);
             if (nonNulls == null) {
-                System.err.println("WARNING: empty non-null results for instruction "
-                                                + PrettyPrinter.instructionString(i, ir) + " in "
-                                                + PrettyPrinter.parseMethod(ir.getMethod()));
                 return false;
             }
             return nonNulls.contains(valNum);

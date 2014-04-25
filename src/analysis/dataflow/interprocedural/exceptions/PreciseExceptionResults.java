@@ -5,6 +5,7 @@ import java.io.Writer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.Set;
 
 import util.InstructionType;
 import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
@@ -95,18 +97,18 @@ public class PreciseExceptionResults {
     }
 
     /**
-     * Successors which cannot be reached either because no exception can be
-     * thrown on the edge from the basic block or because the block cannot
-     * terminate normally.
+     * Successors which cannot be reached because no exception can be
+     * thrown on the edge between the given basic block and the block in the
+     * returned set
      * 
      * @param bb
      *            basic block to get impossible successors for
      * @param containingNode
      *            call graph node containing the basic block
      * @return set of basic block numbers for successors that can never be
-     *         reached
+     *         reached on exceptional edges
      */
-    public Set<ISSABasicBlock> getImpossibleSuccessors(ISSABasicBlock bb, CGNode containingNode) {
+    public Set<ISSABasicBlock> getImpossibleExceptions(ISSABasicBlock bb, CGNode containingNode) {
         if (bb.getLastInstructionIndex() >= 0
                                         && InstructionType.forInstruction(bb.getLastInstruction()) == InstructionType.NEW_OBJECT) {
             // This instruction can only throw errors, which we are not handling
@@ -119,27 +121,27 @@ public class PreciseExceptionResults {
             return Collections.emptySet();
         }
 
-        return allResults.get(containingNode).getImpossibleSuccessors(bb);
+        return allResults.get(containingNode).getImpossibleExceptions(bb);
     }
 
     /**
-     * Add the given successor to the set of unreachable successors from
-     * <code>source</code>
+     * Replace the set of successors from <code>source</code>
+     * that are unreachable on exception edges
      * 
      * @param source
      *            source node
-     * @param successor
-     *            unreachable successor
+     * @param successors
+     *            successors that are unreachable on exception edges
      * @param containingNode
      *            call graph node containing the basic blocks
      */
-    protected void addImpossibleSuccessor(ISSABasicBlock source, ISSABasicBlock successor, CGNode containingNode) {
+    protected void replaceImpossibleExceptions(ISSABasicBlock source, Set<ISSABasicBlock> unreachableByException, CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
             results = new ResultsForNode();
             allResults.put(containingNode, results);
         }
-        results.addImpossibleSucessor(source, successor);
+        results.replaceImpossibleExceptions(source, unreachableByException);
     }
 
     private static class ResultsForNode {
@@ -166,21 +168,16 @@ public class PreciseExceptionResults {
         }
 
         /**
-         * Add the given successor to the set of unreachable successors from
-         * <code>source</code>
+         * Replace the set of successors from <code>source</code>
+         * that are unreachable on exception edges
          * 
          * @param source
          *            source node
-         * @param successor
-         *            unreachable successor
+         * @param successors
+         *            successors that are unreachable on exception edges
          */
-        public void addImpossibleSucessor(ISSABasicBlock source, ISSABasicBlock successor) {
-            Set<ISSABasicBlock> impossible = impossibleSuccessors.get(source);
-            if (impossible == null) {
-                impossible = new LinkedHashSet<>();
-                impossibleSuccessors.put(source, impossible);
-            }
-            impossible.add(successor);
+        public void replaceImpossibleExceptions(ISSABasicBlock source, Set<ISSABasicBlock> unreachableByException) {
+            impossibleSuccessors.put(source, unreachableByException);
         }
 
         /**
@@ -232,7 +229,17 @@ public class PreciseExceptionResults {
             return exceptions;
         }
 
-        public Set<ISSABasicBlock> getImpossibleSuccessors(ISSABasicBlock bb) {
+        /**
+         * Successors which cannot be reached because no exception can be
+         * thrown on the edge between the given basic block and the block in the
+         * returned set
+         * 
+         * @param bb
+         *            basic block to get impossible successors for
+         * @return set of basic block numbers for successors that can never be
+         *         reached on exceptional edges
+         */
+        public Set<ISSABasicBlock> getImpossibleExceptions(ISSABasicBlock bb) {
             Set<ISSABasicBlock> succs = impossibleSuccessors.get(bb);
             if (succs == null) {
                 succs = Collections.emptySet();
@@ -434,19 +441,27 @@ public class PreciseExceptionResults {
 
         CFGWriter w = new CFGWriter(n.getIR()) {
             @Override
-            protected String getEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
-                return results.getExceptions(source, target).toString();
+            protected String getExceptionEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                Iterator<TypeReference> iter = results.getExceptions(source, target).iterator();
+                TypeReference t;
+                if (iter.hasNext()) {
+                    t = iter.next();
+                    sb.append(PrettyPrinter.parseType(t));
+                }
+                while (iter.hasNext()) {
+                    t = iter.next();
+                    sb.append(", " + PrettyPrinter.parseType(t));
+                }
+                sb.append("]");
+                return sb.toString();
             }
 
             @Override
-            protected Set<Integer> getUnreachableSuccessors(ISSABasicBlock bb,
+            protected Set<ISSABasicBlock> getUnreachableExceptions(ISSABasicBlock bb,
                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-                Set<ISSABasicBlock> bbs = results.getImpossibleSuccessors(bb);
-                Set<Integer> succs = new LinkedHashSet<>();
-                for (ISSABasicBlock succ : bbs) {
-                    succs.add(succ.getGraphNodeId());
-                }
-                return succs;
+                return results.getImpossibleExceptions(bb);
             }
         };
 

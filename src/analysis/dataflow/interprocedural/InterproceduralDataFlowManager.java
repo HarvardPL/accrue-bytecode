@@ -79,18 +79,18 @@ public abstract class InterproceduralDataFlowManager<F> {
      * Run the inter-procedural analysis starting with the root node
      */
     public void runAnalysis() {
+        System.err.println("RUNNING: " + getAnalysisName());
+        long start = System.currentTimeMillis();
         Collection<CGNode> entryPoints = cg.getEntrypointNodes();
-        
+
         // These are the class initializers
         q.addAll(entryPoints);
         // Also add the fake root method (which calls main)
         q.add(cg.getFakeRootNode());
-
-        System.err.println("Initial Q: " + q);
         
         while (!q.isEmpty()) {
             CGNode current = q.poll();
-            if (getOutputLevel() >=2) {
+            if (getOutputLevel() >= 2) {
                 System.err.println("QUEUE_POLL: " + PrettyPrinter.parseCGNode(current));
             }
             AnalysisRecord<F> results = getLatestResults(current);
@@ -103,9 +103,13 @@ public abstract class InterproceduralDataFlowManager<F> {
                 input = results.getInput();
             }
 
-            process(current, input, results == null ? null : results.getOutput());
+            processCallGraphNode(current, input, results == null ? null : results.getOutput());
         }
+
+        System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
     }
+
+    protected abstract String getAnalysisName();
 
     /**
      * Increment the counter giving the number of times the given node has been
@@ -220,7 +224,7 @@ public abstract class InterproceduralDataFlowManager<F> {
                 recordedResults.put(callee, results);
                 printResults(callee, "LATEST", results.getOutput());
             } else {
-                results = process(callee, results.input, previous == null ? null : previous.getOutput());
+                results = processCallGraphNode(callee, results.input, previous == null ? null : previous.getOutput());
             }
         }
 
@@ -279,10 +283,15 @@ public abstract class InterproceduralDataFlowManager<F> {
      *            changed
      * @return output after analyzing the given node with the given input
      */
-    private AnalysisRecord<F> process(CGNode n, F input, Map<ExitType, F> previousOutput) {
+    private AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
         incrementCounter(n);
         currentlyProcessing.add(n);
-        Map<ExitType, F> output = analyze(n, input);
+        Map<ExitType, F> output;
+        if (n.getMethod().isNative()) {
+            output = analyzeNative(n, input);
+        } else {
+            output = analyze(n, input);
+        }
         AnalysisRecord<F> results = new AnalysisRecord<F>(input, output, isSoundResultsSoFar(n));
         recordedResults.put(n, results);
         currentlyProcessing.remove(n);
@@ -335,6 +344,17 @@ public abstract class InterproceduralDataFlowManager<F> {
      * @return output facts resulting from analyzing <code>n</code>
      */
     protected abstract Map<ExitType, F> analyze(CGNode n, F input);
+    
+    /**
+     * Analyze the given node with the given input data-flow fact
+     * 
+     * @param n
+     *            node to analyze
+     * @param input
+     *            initial data-flow fact
+     * @return output facts resulting from analyzing <code>n</code>
+     */
+    protected abstract Map<ExitType, F> analyzeNative(CGNode n, F input);
 
     /**
      * Get the default output data-flow facts (given an input fact), this is
@@ -379,8 +399,7 @@ public abstract class InterproceduralDataFlowManager<F> {
      * @return true if the output results have changed (and dependencies have to
      *         be computed)
      */
-    protected abstract boolean outputChanged(Map<ExitType, F> previousOutput,
-                                    Map<ExitType, F> currentOutput);
+    protected abstract boolean outputChanged(Map<ExitType, F> previousOutput, Map<ExitType, F> currentOutput);
 
     /**
      * Check whether existing output results are suitable, given a new input
@@ -393,7 +412,7 @@ public abstract class InterproceduralDataFlowManager<F> {
      *         recomputed using the new input
      */
     protected abstract boolean existingResultSuitable(F newInput, AnalysisRecord<F> existingResults);
-
+    
     /**
      * Class holding the input and output values for a specific call graph node
      * 
@@ -459,6 +478,11 @@ public abstract class InterproceduralDataFlowManager<F> {
          */
         public boolean isSoundResult() {
             return isSoundResult;
+        }
+        
+        @Override
+        public String toString() {
+            return "INPUT: " + input + " OUTPUT: " + output + " sound? " + isSoundResult;
         }
     }
 }

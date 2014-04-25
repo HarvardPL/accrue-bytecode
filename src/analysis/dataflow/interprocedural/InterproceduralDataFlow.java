@@ -182,33 +182,57 @@ public abstract class InterproceduralDataFlow<F> extends InstructionDispatchData
      *            current basic block
      * @return map with the same merged value for each key
      */
-    protected Map<Integer, F> mergeAndCreateMap(Set<F> facts,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
+    protected Map<Integer, F> mergeAndCreateMap(Set<F> facts, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock bb) {
         F fact = confluence(facts);
         return factToMap(fact, bb, cfg);
     }
 
     /**
-     * Get the abstract locations for a field access
+     * Get the abstract locations for a non-static field
      * 
      * @param receiver
      *            value number for the local variable for the receiver of a
      *            field access
      * @param field
-     *            field being accessed
+     *            field
      * @return set of abstract locations for the field
      */
-    protected Set<AbstractLocation> locationsForField(int receiver, FieldReference field) {
+    protected Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver));
         if (pointsTo.isEmpty()) {
             throw new RuntimeException("Field target doesn't point to anything. "
                                             + PrettyPrinter.parseType(field.getDeclaringClass()) + "."
                                             + field.getName());
         }
-        
+
         Set<AbstractLocation> ret = new LinkedHashSet<>();
         for (InstanceKey o : pointsTo) {
-            AbstractLocation loc = new AbstractLocation(o, field);
+            AbstractLocation loc = AbstractLocation.createNonStatic(o, field);
+            ret.add(loc);
+        }
+        return ret;
+    }
+
+    /**
+     * Get the abstract locations for the contents of an array
+     * 
+     * @param arary
+     *            value number for the local variable for the array
+     * @return set of abstract locations for the contents of the array
+     */
+    protected Set<AbstractLocation> getLocationsForArrayContents(int array) {
+        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array));
+        if (pointsTo.isEmpty()) {
+            ptg.getPointsToSet(getReplica(array));
+            throw new RuntimeException("Array doesn't point to anything. "
+                                            + PrettyPrinter.valString(currentNode.getIR(), array) + " in "
+                                            + PrettyPrinter.parseCGNode(currentNode));
+        }
+
+        Set<AbstractLocation> ret = new LinkedHashSet<>();
+        for (InstanceKey o : pointsTo) {
+            AbstractLocation loc = AbstractLocation.createArrayContents(o);
             ret.add(loc);
         }
         return ret;

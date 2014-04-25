@@ -15,9 +15,9 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
     public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
         assert (rv != null);
         assert (context != null);
-    	this.l = rv;
-    	this.context = context;
-	}
+        this.l = rv;
+        this.context = context;
+    }
     
     @Override
     public TypeReference getExpectedType() {

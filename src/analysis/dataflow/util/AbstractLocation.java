@@ -9,13 +9,64 @@ import com.ibm.wala.types.FieldReference;
  * Represents an abstract location, i.e., zero or more concrete locations.
  */
 public class AbstractLocation {
-    
-    private final InstanceKey receiverContext;
-    private final FieldReference field;
 
-    public AbstractLocation(InstanceKey receiverContext, FieldReference field) {
+    /**
+     * receiver heap context (null for static fields)
+     */
+    private final InstanceKey receiverContext;
+    /**
+     * field this location represents
+     */
+    private final FieldReference field;
+    /**
+     * true if this location represents the contents of an array
+     */
+    private final boolean isArrayContents;
+
+    /**
+     * Create an abstract location for a field
+     * 
+     * @param receiverContext
+     *            receiver heap context (null for static fields)
+     * @param field
+     *            field this location represents
+     */
+    private AbstractLocation(InstanceKey receiverContext, FieldReference field, boolean isArrayContents) {
         this.receiverContext = receiverContext;
         this.field = field;
+        this.isArrayContents = isArrayContents;
+    }
+
+    /**
+     * Create an abstract location for a non-static field
+     * 
+     * @param receiverContext
+     *            receiver heap context
+     * @param field
+     *            field this location represents
+     */
+    public static AbstractLocation createNonStatic(InstanceKey receiverContext, FieldReference field) {
+        return new AbstractLocation(receiverContext, field, false);
+    }
+
+    /**
+     * Create an abstract location representing the contents of an array
+     * 
+     * @param array
+     *            array heap context
+     */
+    public static AbstractLocation createArrayContents(InstanceKey array) {
+        return new AbstractLocation(array, null, true);
+    }
+
+    /**
+     * Create an abstract location for a non-static field
+     * 
+     * @param field
+     *            field this location represents
+     */
+    public static AbstractLocation createStatic(FieldReference field) {
+        return new AbstractLocation(null, field, false);
     }
 
     @Override
@@ -23,6 +74,7 @@ public class AbstractLocation {
         final int prime = 31;
         int result = 1;
         result = prime * result + ((field == null) ? 0 : field.hashCode());
+        result = prime * result + (isArrayContents ? 1231 : 1237);
         result = prime * result + ((receiverContext == null) ? 0 : receiverContext.hashCode());
         return result;
     }
@@ -41,6 +93,8 @@ public class AbstractLocation {
                 return false;
         } else if (!field.equals(other.field))
             return false;
+        if (isArrayContents != other.isArrayContents)
+            return false;
         if (receiverContext == null) {
             if (other.receiverContext != null)
                 return false;
@@ -48,9 +102,10 @@ public class AbstractLocation {
             return false;
         return true;
     }
-    
+
     @Override
     public String toString() {
-        return PrettyPrinter.parseType(field.getDeclaringClass()) + "." + field.getName() + " in " + receiverContext;
+        return PrettyPrinter.parseType(field.getDeclaringClass()) + "." + field.getName()
+                                        + (receiverContext == null ? " (static)" : " in " + receiverContext);
     }
 }

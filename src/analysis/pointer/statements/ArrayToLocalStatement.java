@@ -55,7 +55,6 @@ public class ArrayToLocalStatement extends PointsToStatement {
         // Might have to subclass InstanceKey to keep more info about arrays
         for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
             ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-            System.err.println("ArrayToLocal: " + contents + " " + contents.getExpectedType());
             changed |= g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
         }
 

@@ -1,19 +1,14 @@
 package util.print;
 
 import java.io.IOException;
-import java.io.StringWriter;
 import java.io.Writer;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import util.InstructionType;
-import util.OrderedPair;
-import analysis.dataflow.DataFlow;
 import analysis.dataflow.util.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -25,16 +20,21 @@ import com.ibm.wala.ssa.SSAInstruction;
 /**
  * Write out a control flow graph for a specific method
  */
-public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
+public class CFGWriter {
 
-    /**
-     * Output will be written to this writer
-     */
-    private Writer writer;
     /**
      * Code for method to be written
      */
     private final IR ir;
+    /**
+     * If true then code will be included in CFG, otherwise it will just be
+     * basic block numbers
+     */
+    private boolean verbose;
+    /**
+     * Holds the string representation of the basic blocks
+     */
+    private final Map<ISSABasicBlock, String> bbStrings = new HashMap<>();
     /**
      * String to prepend to instructions
      */
@@ -43,11 +43,6 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      * String to append to instructions
      */
     private String postfix;
-    /**
-     * If true then code will be included in CFG, otherwise it will just be
-     * basic block numbers
-     */
-    private boolean verbose;
 
     /**
      * Create a writer for the given IR
@@ -58,7 +53,6 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      *            output will be written to this writer; will not be closed
      */
     public CFGWriter(IR ir) {
-        super(true /* forward analysis */);
         this.ir = ir;
     }
 
@@ -76,16 +70,14 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      *             writer issues
      */
     public final void write(Writer writer, String prefix, String postfix) throws IOException {
-        this.writer = writer;
         this.prefix = prefix;
         this.postfix = postfix;
-
         double spread = 1.0;
         writer.write("strict digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep="
                                         + spread + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
                                         + "edge [fontsize=10]" + ";\n");
 
-        dataflow(ir);
+        writeGraph(writer);
 
         writer.write("\n};\n");
     }
@@ -110,47 +102,62 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
     }
 
     /**
-     * The flow item a pair of (edge label,node label)
-     * <p>
-     * {@inheritDoc}
+     * Write all the edges in the CFG to the given writer
+     * 
+     * @param writer
+     *            writer to write the graph to
+     * @throws IOException
+     *             writer issues
      */
-    @Override
-    protected final Map<Integer, OrderedPair<String, String>> flow(Set<OrderedPair<String, String>> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        try (StringWriter sw = new StringWriter()) {
-            String exit = current.isExitBlock() ? "\\lEXIT" : "";
-            String entry = current.isEntryBlock() ? "\\lENTRY" : "";
-            sw.write("BB" + current.getNumber() + entry + exit + "\\l");
+    private void writeGraph(Writer writer) throws IOException {
+        SSACFG cfg = ir.getControlFlowGraph();
+        for (ISSABasicBlock current : cfg) {
+            String currentString = getStringForBasicBlock(current);
+            for (ISSABasicBlock succ : cfg.getNormalSuccessors(current)) {
+                String succString = getStringForBasicBlock(succ);
+                String edgeLabel = "[label=\"" + getNormalEdgeLabel(current, succ, ir) + "\"]";
+                writer.write("\t\"" + currentString + "\" -> \"" + succString + "\" " + edgeLabel + ";\n");
+            }
+
+            for (ISSABasicBlock succ : cfg.getExceptionalSuccessors(current)) {
+                if (getUnreachableExceptions(current, cfg).contains(succ)) {
+                    continue;
+                }
+                String succString = getStringForBasicBlock(succ);
+                String edgeLabel = "[label=\"" + getExceptionEdgeLabel(current, succ, ir) + "\"]";
+                writer.write("\t\"" + currentString + "\" -> \"" + succString + "\" " + edgeLabel + ";\n");
+            }
+        }
+    }
+
+    /**
+     * Get the string representation of the basic block
+     * 
+     * @param bb
+     *            basic block to get a string for
+     * @return string for <code>bb</code>
+     */
+    private String getStringForBasicBlock(ISSABasicBlock bb) {
+        String bbString = bbStrings.get(bb);
+        if (bbString == null) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("BB" + bb.getNumber() + "\\l");
+            if (bb.isEntryBlock()) {
+                sb.append("ENTRY\\l");
+            }
+            if (bb.isExitBlock()) {
+                sb.append("EXIT\\l");
+            }
 
             if (verbose) {
-                for (SSAInstruction i : current) {
-                    sw.write(getPrefix(i) + PrettyPrinter.instructionString(i, ir) + getPostfix(i));
+                for (SSAInstruction i : bb) {
+                    sb.append(getPrefix(i) + PrettyPrinter.instructionString(i, ir) + getPostfix(i));
                 }
             }
-
-            String bbString = escapeDot(sw.toString());
-            for (OrderedPair<String, String> predPair : inItems) {
-                String predNode = predPair.snd();
-                String predEdge = predPair.fst().toString();
-                String edgeLabel = "[label=\"" + predEdge + "\"]";
-                writer.write("\t\"" + predNode + "\" -> \"" + bbString + "\" " + edgeLabel + ";\n");
-            }
-            Map<Integer, OrderedPair<String, String>> result = new LinkedHashMap<>();
-
-            Iterator<ISSABasicBlock> iter = getSuccs(current, cfg);
-            while (iter.hasNext()) {
-                ISSABasicBlock target = iter.next();
-                String edgeLabel = getEdgeLabel(current, target, ir);
-                OrderedPair<String, String> item = new OrderedPair<>(edgeLabel, bbString);
-                result.put(target.getGraphNodeId(), item);
-            }
-            // only print "real edges"
-            result.keySet().removeAll(getUnreachableSuccessors(current, cfg));
-            
-            return result;
-        } catch (IOException e) {
-            throw new RuntimeException();
+            bbString = escapeDot(sb.toString());
+            bbStrings.put(bb, bbString);
         }
+        return bbString;
     }
 
     /**
@@ -162,11 +169,6 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      */
     private String escapeDot(String s) {
         return s.replace("\"", "\\\"").replace("\n", "\\l");
-    }
-
-    @Override
-    protected void post(IR ir) {
-        // Intentionally blank
     }
 
     /**
@@ -196,16 +198,16 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      * @param cfg
      * @return
      */
-    protected Set<Integer> getUnreachableSuccessors(ISSABasicBlock bb,
+    protected Set<ISSABasicBlock> getUnreachableExceptions(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         if (bb.getLastInstructionIndex() >= 0
                                         && InstructionType.forInstruction(bb.getLastInstruction()) == InstructionType.NEW_OBJECT) {
             // This instruction can only throw errors, which we are not handling
             List<ISSABasicBlock> bbs = cfg.getExceptionalSuccessors(bb);
             assert bbs.size() == 1;
-            return Collections.singleton(bbs.get(0).getGraphNodeId());
+            return Collections.singleton(bbs.get(0));
         }
-        
+
         return Collections.emptySet();
     }
 
@@ -217,9 +219,19 @@ public class CFGWriter extends DataFlow<OrderedPair<String, String>> {
      * @param ir
      * @return
      */
-    protected String getEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
-        SSACFG cfg = ir.getControlFlowGraph();
-        Collection<ISSABasicBlock> normalSuccs = getNormalSuccs(source, cfg);
-        return normalSuccs.contains(target) ? ExitType.NORM_TERM.toString() : ExitType.EXCEPTION.toString();
+    protected String getExceptionEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
+        return ExitType.EXCEPTION.toString();
+    }
+
+    /**
+     * Can be overridden by subclass
+     * 
+     * @param source
+     * @param target
+     * @param ir
+     * @return
+     */
+    protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
+        return ExitType.NORM_TERM.toString();
     }
 }

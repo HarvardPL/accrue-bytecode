@@ -103,12 +103,15 @@ public abstract class DataFlow<F> {
                             if (item != null) {
                                 inItems.add(item);
                             } else {
-                                String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional"
-                                                                : "normal";
-                                System.err.println("null data-flow item in "
-                                                                + PrettyPrinter.parseMethod(ir.getMethod())
-                                                                + " from BB" + g.getNumber(pred) + " to BB"
-                                                                + g.getNumber(current) + " on " + edgeType + " edge");
+                                if (getOutputLevel() >= 2) {
+                                    String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional"
+                                                                    : "normal";
+                                    System.err.println("null data-flow item in "
+                                                                    + PrettyPrinter.parseMethod(ir.getMethod())
+                                                                    + " from BB" + g.getNumber(pred) + " to BB"
+                                                                    + g.getNumber(current) + " on " + edgeType
+                                                                    + " edge");
+                                }
                             }
                         }
                     }

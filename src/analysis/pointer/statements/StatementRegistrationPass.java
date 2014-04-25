@@ -98,16 +98,16 @@ public class StatementRegistrationPass {
             }
             return;
         }
-        if (m.isNative()) {
-            handleNative(q, m);
-            return;
-        }
         if (m.isAbstract()) {
             System.err.println("No need to analyze abstract methods: " + m.getSignature());
             return;
         }
 
         visitedMethods.add(m);
+        if (m.isNative()) {
+            addFromNative(q, m);
+            return;
+        }
 
         IR ir = util.getCache().getSSACache()
                                         .findOrCreateIR(m, Everywhere.EVERYWHERE, util.getOptions().getSSAOptions());
@@ -150,7 +150,7 @@ public class StatementRegistrationPass {
         List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), i, ir);
 
         boolean added = false;
-        for (int j = inits.size() - 1; j >=0; j--) {
+        for (int j = inits.size() - 1; j >= 0; j--) {
             IMethod clinit = inits.get(j);
             if (classInits.add(clinit)) {
                 if (VERBOSE >= 1) {
@@ -170,10 +170,10 @@ public class StatementRegistrationPass {
         return added;
     }
 
-    private void handleNative(WorkQueue<InstrAndCode> q, IMethod m) {
+    private void addFromNative(WorkQueue<InstrAndCode> q, IMethod m) {
         // TODO Statement registration not handling native methods yet
         if (VERBOSE >= 2) {
-            System.err.println("\tNot handling native method " + PrettyPrinter.parseMethod(m));
+            System.err.println("\tNot adding statements from native methods yet " + PrettyPrinter.parseMethod(m));
         }
     }
 
