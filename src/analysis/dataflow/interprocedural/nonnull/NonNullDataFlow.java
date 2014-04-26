@@ -2,7 +2,6 @@ package analysis.dataflow.interprocedural.nonnull;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,10 +10,10 @@ import java.util.Set;
 import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.InterproceduralDataFlow;
+import analysis.dataflow.interprocedural.ExitType;
+import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.util.AbstractLocation;
-import analysis.dataflow.util.ExitType;
 import analysis.dataflow.util.VarContext;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -52,7 +51,7 @@ import com.ibm.wala.types.TypeReference;
  * Inter-procedural analysis that determines which local variable can be null at
  * a particular program point
  */
-public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullAbsVal>> {
+public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
     /**
      * Results of a precise exceptions analysis
@@ -63,9 +62,9 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
      */
     private final WalaAnalysisUtil util;
 
-    public NonNullDataFlow(CGNode currentNode, NonNullManager manager, PreciseExceptionResults preciseEx,
-                                    WalaAnalysisUtil util) {
-        super(currentNode, manager);
+    public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc,
+                                    PreciseExceptionResults preciseEx, WalaAnalysisUtil util) {
+        super(currentNode, interProc, interProc.getReachabilityResults());
         this.preciseEx = preciseEx;
         this.util = util;
     }
@@ -77,12 +76,8 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         boolean isVoid = i.getNumberOfReturnValues() == 0;
 
         VarContext<NonNullAbsVal> in = confluence(inItems);
-
-        VarContext<NonNullAbsVal> npe = null;
         VarContext<NonNullAbsVal> nonNull = in;
-        if (!i.isStatic() && in.getLocal(i.getReceiver()) == NonNullAbsVal.MAY_BE_NULL) {
-            npe = in.setExceptionValue(NonNullAbsVal.NON_NULL);
-            npe = in.setLocal(i.getReceiver(), NonNullAbsVal.MAY_BE_NULL);
+        if (!i.isStatic()) {
             nonNull = in.setLocal(i.getReceiver(), NonNullAbsVal.NON_NULL);
         }
 
@@ -97,6 +92,8 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         }
 
         NonNullAbsVal calleeReturn = null;
+        boolean canThrowException = false;
+        boolean canTerminateNormally = false;
         for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
             Map<ExitType, VarContext<NonNullAbsVal>> out;
             int[] formals;
@@ -129,26 +126,30 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
                 }
                 initial = initial.setLocal(formals[j], actualVal);
             }
-            out = manager.getResults(currentNode, callee, initial);
+            out = interProc.getResults(currentNode, callee, initial);
             assert out != null : "Null data-flow results for: " + PrettyPrinter.parseCGNode(callee) + "\nFrom "
                                             + PrettyPrinter.parseCGNode(currentNode);
 
             // join the formals to the previous formals
-            VarContext<NonNullAbsVal> normal = out.get(ExitType.NORM_TERM);
-            assert normal != null;
-            if (!isVoid) {
-                calleeReturn = normal.getReturnResult().join(calleeReturn);
-            }
-            for (int j = 0; j < formals.length; j++) {
-                NonNullAbsVal newVal = normal.getLocal(formals[j]).join(newNormalActualValues.get(j));
-                newNormalActualValues.set(j, newVal);
+            VarContext<NonNullAbsVal> normal = out.get(ExitType.NORMAL);
+            if (normal != null) {
+                canTerminateNormally = true;
+                if (!isVoid) {
+                    calleeReturn = normal.getReturnResult().join(calleeReturn);
+                }
+                for (int j = 0; j < formals.length; j++) {
+                    NonNullAbsVal newVal = normal.getLocal(formals[j]).join(newNormalActualValues.get(j));
+                    newNormalActualValues.set(j, newVal);
+                }
             }
 
-            VarContext<NonNullAbsVal> exception = out.get(ExitType.EXCEPTION);
+            VarContext<NonNullAbsVal> exception = out.get(ExitType.EXCEPTIONAL);
             if (exception != null) {
+                canThrowException = true;
                 // If the method can throw an exception record any changes to
                 // the arguments
                 for (int j = 0; j < formals.length; j++) {
+                    assert exception.getLocal(formals[j]) != null;
                     NonNullAbsVal newVal = exception.getLocal(formals[j]).join(newExceptionActualValues.get(j));
                     newExceptionActualValues.set(j, newVal);
                 }
@@ -158,32 +159,58 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
         Map<Integer, VarContext<NonNullAbsVal>> ret = new LinkedHashMap<>();
 
         // Normal return
-        VarContext<NonNullAbsVal> normal = null;
-        if (!isVoid) {
-            normal = nonNull.setLocal(i.getReturnValue(0), calleeReturn);
-            normal = updateActuals(newNormalActualValues, actuals, normal);
+        if (canTerminateNormally) {
+            VarContext<NonNullAbsVal> normal = null;
+            if (!isVoid) {
+                normal = nonNull.setLocal(i.getReturnValue(0), calleeReturn);
+                normal = updateActuals(newNormalActualValues, actuals, normal);
+            } else {
+                normal = updateActuals(newNormalActualValues, actuals, nonNull);
+            }
+
+            for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(bb)) {
+                assert normal != null : "Should be non-null if there is a normal successor.";
+                ret.put(normalSucc.getGraphNodeId(), normal);
+            }
         } else {
-            normal = updateActuals(newNormalActualValues, actuals, nonNull);
+            // The CFG is not precise enough to tell that this invoke doesn't
+            // terminate normally, but is precise enough to tell that the call
+            // itself doesn't terminate normally.
+            System.err.println(PrettyPrinter.parseMethod(i.getDeclaredTarget())
+                                            + " cannot terminate normally when called from "
+                                            + PrettyPrinter.parseCGNode(currentNode));
         }
 
-        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(bb)) {
-            assert normal != null : "Should be non-null if there is a normal successor.";
-            ret.put(normalSucc.getGraphNodeId(), normal);
+        Set<ISSABasicBlock> npeSuccs = null;
+        VarContext<NonNullAbsVal> npe = null;
+        if (!i.isStatic() && in.getLocal(i.getReceiver()) == NonNullAbsVal.MAY_BE_NULL) {
+            npeSuccs = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException, cfg, bb,
+                                            util.getClassHierarchy(),
+                                            preciseEx.getImpossibleExceptions(bb, currentNode));
+            npe = in.setExceptionValue(NonNullAbsVal.NON_NULL);
+            npe = in.setLocal(i.getReceiver(), NonNullAbsVal.MAY_BE_NULL);
         }
 
         // Exceptional return
-        VarContext<NonNullAbsVal> callerExContext = nonNull.setLocal(i.getException(), NonNullAbsVal.NON_NULL)
-                                        .setExceptionValue(NonNullAbsVal.NON_NULL);
-        callerExContext = updateActuals(newExceptionActualValues, actuals, callerExContext);
-        Set<ISSABasicBlock> npeSuccs = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException, cfg,
-                                        bb, util.getClassHierarchy(),
-                                        preciseEx.getImpossibleExceptions(bb, currentNode));
+        if (canThrowException) {
+            VarContext<NonNullAbsVal> callerExContext = nonNull.setExceptionValue(NonNullAbsVal.NON_NULL);
+            callerExContext = updateActuals(newExceptionActualValues, actuals, callerExContext);
 
-        for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
-            if (!i.isStatic() && in.getLocal(i.getReceiver()) == NonNullAbsVal.MAY_BE_NULL && npeSuccs.contains(exSucc)) {
-                ret.put(exSucc.getGraphNodeId(), npe.join(callerExContext));
-            } else {
-                ret.put(exSucc.getGraphNodeId(), nonNull.join(callerExContext));
+            for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
+                if (npeSuccs != null && npeSuccs.contains(exSucc)) {
+                    // If this edge could be an NPE then join it with the
+                    // callerEx
+                    // TODO only join contexts if the callee could throw one
+                    ret.put(exSucc.getGraphNodeId(), npe.join(callerExContext));
+                } else {
+                    ret.put(exSucc.getGraphNodeId(), nonNull.join(callerExContext));
+                }
+            }
+        } else {
+            for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
+                if (npeSuccs != null && npeSuccs.contains(exSucc)) {
+                    ret.put(exSucc.getGraphNodeId(), npe);
+                }
             }
         }
 
@@ -214,26 +241,8 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
 
     @Override
     protected VarContext<NonNullAbsVal> confluence(Set<VarContext<NonNullAbsVal>> items) {
+        assert !items.isEmpty();
         return VarContext.join(items);
-    }
-
-    @Override
-    protected void postBasicBlock(Set<VarContext<NonNullAbsVal>> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
-                                    Map<Integer, VarContext<NonNullAbsVal>> outItems) {
-        Iterator<ISSABasicBlock> nextBlocks = cfg.getSuccNodes(justProcessed);
-        while (nextBlocks.hasNext()) {
-            ISSABasicBlock next = nextBlocks.next();
-            if (outItems.get(next.getGraphNodeId()) == null
-                                            && !preciseEx.getImpossibleExceptions(justProcessed, currentNode).contains(
-                                                                            next)) {
-                throw new RuntimeException("No item for successor of\n"
-                                                + PrettyPrinter.basicBlockString(currentNode.getIR(), justProcessed,
-                                                                                "\t", "\n") + " from BB"
-                                                + justProcessed.getGraphNodeId() + " to BB" + next.getGraphNodeId());
-            }
-        }
-        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
     }
 
     @Override
@@ -246,7 +255,7 @@ public class NonNullDataFlow extends InterproceduralDataFlow<VarContext<NonNullA
                     nonNulls.add(j);
                 }
             }
-            ((NonNullManager) manager).getNonNullResults().replaceNonNull(nonNulls, i, currentNode);
+            ((NonNullInterProceduralDataFlow) interProc).getNonNullResults().replaceNonNull(nonNulls, i, currentNode);
         }
         super.post(ir);
     }

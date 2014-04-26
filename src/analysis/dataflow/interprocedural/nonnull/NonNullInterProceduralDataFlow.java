@@ -5,21 +5,21 @@ import java.util.Map;
 
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
+import analysis.dataflow.interprocedural.ExitType;
+import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
-import analysis.dataflow.util.ExitType;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.types.TypeReference;
 
 /**
  * Inter-procedureal data-flow manager for an analysis that determines when
  * local variable are non-null
  */
-public class NonNullManager extends InterproceduralDataFlowManager<VarContext<NonNullAbsVal>> {
+public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
     /**
      * Results of a precise exception analysis
@@ -42,17 +42,18 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
     /**
      * Create a new inter-procedural non-null analysis over the given call graph
      * 
-     * @param cg
-     *            call graph
      * @param ptg
      *            points-to graph
      * @param preciseEx
      *            results of a precise exception analysis
+     * @param reachable
+     *            results of a reachability analysis
      * @param util
      *            WALA analysis classes
      */
-    public NonNullManager(CallGraph cg, PointsToGraph ptg, PreciseExceptionResults preciseEx, WalaAnalysisUtil util) {
-        super(cg, ptg);
+    public NonNullInterProceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
+                                    ReachabilityResults reachable, WalaAnalysisUtil util) {
+        super(ptg, reachable);
         this.preciseEx = preciseEx;
         this.util = util;
     }
@@ -87,16 +88,16 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
             normal = normal.setReturnResult(NonNullAbsVal.MAY_BE_NULL);
         }
         Map<ExitType, VarContext<NonNullAbsVal>> results = new HashMap<>();
-        results.put(ExitType.NORM_TERM, normal);
-        results.put(ExitType.EXCEPTION, input.setExceptionValue(NonNullAbsVal.NON_NULL));
+        results.put(ExitType.NORMAL, normal);
+        results.put(ExitType.EXCEPTIONAL, input.setExceptionValue(NonNullAbsVal.NON_NULL));
         return results;
     }
 
     @Override
     protected Map<ExitType, VarContext<NonNullAbsVal>> getDefaultOutput(VarContext<NonNullAbsVal> input) {
         Map<ExitType, VarContext<NonNullAbsVal>> res = new HashMap<ExitType, VarContext<NonNullAbsVal>>();
-        res.put(ExitType.NORM_TERM, input.setReturnResult(NonNullAbsVal.MAY_BE_NULL));
-        res.put(ExitType.EXCEPTION, input.setExceptionValue(NonNullAbsVal.NON_NULL));
+        res.put(ExitType.NORMAL, input.setReturnResult(NonNullAbsVal.MAY_BE_NULL));
+        res.put(ExitType.EXCEPTIONAL, input.setExceptionValue(NonNullAbsVal.NON_NULL));
         return res;
     }
 
@@ -120,7 +121,9 @@ public class NonNullManager extends InterproceduralDataFlowManager<VarContext<No
     }
 
     /**
-     * Get the results after running this inter-procedural analysis
+     * Get the results after running this inter-procedural analysis, these may
+     * be unsound while the analysis is running
+     * 
      * 
      * @return which variables are non-null before each instruction
      */

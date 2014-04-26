@@ -13,10 +13,10 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.ExitType;
+import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
-import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
-import analysis.dataflow.util.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
@@ -48,7 +48,7 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 
-public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExceptionAbsVal> {
+public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExceptionAbsVal> {
 
     /**
      * Holds the results of the analysis
@@ -69,8 +69,8 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
     private final Map<Integer, List<Integer>> arrayDimensions = new HashMap<>();
 
     public PreciseExceptionDataFlow(NonNullResults nonNullResults, CGNode currentNode,
-                                    InterproceduralDataFlowManager<PreciseExceptionAbsVal> manager, IClassHierarchy cha) {
-        super(currentNode, manager);
+                                    InterproceduralDataFlow<PreciseExceptionAbsVal> interProc, IClassHierarchy cha) {
+        super(currentNode, interProc, interProc.getReachabilityResults());
         this.nonNullResults = nonNullResults;
         this.cha = cha;
         preciseEx = new PreciseExceptionResults();
@@ -86,16 +86,16 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
 
         PreciseExceptionAbsVal exceptionResult = null;
         for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
-            Map<ExitType, PreciseExceptionAbsVal> out = manager.getResults(currentNode, callee,
+            Map<ExitType, PreciseExceptionAbsVal> out = interProc.getResults(currentNode, callee,
                                             PreciseExceptionAbsVal.EMPTY);
 
-            if (!out.get(ExitType.NORM_TERM).isBottom()) {
+            if (!out.get(ExitType.NORMAL).isBottom()) {
                 throw new RuntimeException("Exceptions for normal termination from "
                                                 + PrettyPrinter.parseCGNode(callee) + " called from "
                                                 + PrettyPrinter.parseCGNode(currentNode));
             }
 
-            exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTION));
+            exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTIONAL));
         }
 
         if (exceptionResult != null) {
@@ -123,14 +123,14 @@ public class PreciseExceptionDataFlow extends InterproceduralDataFlow<PreciseExc
             ISSABasicBlock succ = succBlocks.next();
             checkResults(justProcessed, succ, outItems);
             Set<TypeReference> throwables = outItems.get(succ.getGraphNodeId()).getThrowables();
-            ((PreciseExceptionManager) manager).getPreciseExceptionResults().replaceExceptions(throwables,
-                                            justProcessed, succ, currentNode);
+            ((PreciseExceptionInterproceduralDataFlow) interProc).getPreciseExceptionResults().replaceExceptions(
+                                            throwables, justProcessed, succ, currentNode);
             if (throwables.isEmpty() && cfg.getExceptionalSuccessors(justProcessed).contains(succ)) {
                 impossibleExceptions.add(succ);
             }
         }
-        ((PreciseExceptionManager) manager).getPreciseExceptionResults().replaceImpossibleExceptions(justProcessed,
-                                        impossibleExceptions, currentNode);
+        ((PreciseExceptionInterproceduralDataFlow) interProc).getPreciseExceptionResults().replaceImpossibleExceptions(
+                                        justProcessed, impossibleExceptions, currentNode);
         super.postBasicBlock(inItems, cfg, justProcessed, outItems);
     }
 

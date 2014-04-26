@@ -254,6 +254,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return least upper bound of all the input items
      */
     public static <T extends AbstractValue<T>> VarContext<T> join(Set<VarContext<T>> contexts) {
+        assert !contexts.isEmpty() : "Cannot join a set of empty contexts.";
         VarContext<T> output = null;
         for (VarContext<T> vc : contexts) {
             output = join(vc, output);

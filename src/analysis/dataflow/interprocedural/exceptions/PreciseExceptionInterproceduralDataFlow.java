@@ -8,13 +8,13 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.InterproceduralDataFlowManager;
+import analysis.dataflow.interprocedural.ExitType;
+import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
-import analysis.dataflow.util.ExitType;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.types.TypeReference;
 
@@ -23,7 +23,7 @@ import com.ibm.wala.types.TypeReference;
  * This analysis more precisely determines which exceptions can actually be
  * thrown by a basic block (possibly using a previously run non-null analysis).
  */
-public class PreciseExceptionManager extends InterproceduralDataFlowManager<PreciseExceptionAbsVal> {
+public class PreciseExceptionInterproceduralDataFlow extends InterproceduralDataFlow<PreciseExceptionAbsVal> {
 
     /**
      * Results of this analysis
@@ -45,17 +45,18 @@ public class PreciseExceptionManager extends InterproceduralDataFlowManager<Prec
     /**
      * Create a new inter-procedural precise exception analysis
      * 
-     * @param cg
-     *            call graph
      * @param ptg
      *            previously computed points-to graph
      * @param nonNull
      *            results of previous non-null analysis
+     * @param reachable
+     *            results of a reachability analysis
      * @param util
      *            WALA utilities
      */
-    public PreciseExceptionManager(CallGraph cg, PointsToGraph ptg, NonNullResults nonNull, WalaAnalysisUtil util) {
-        super(cg, ptg);
+    public PreciseExceptionInterproceduralDataFlow(PointsToGraph ptg, NonNullResults nonNull,
+                                    ReachabilityResults reachable, WalaAnalysisUtil util) {
+        super(ptg, reachable);
         preciseEx = new PreciseExceptionResults();
         this.nonNull = nonNull;
         this.util = util;
@@ -90,16 +91,16 @@ public class PreciseExceptionManager extends InterproceduralDataFlowManager<Prec
                                             + PrettyPrinter.parseMethod(n.getMethod()));
         }
         types.add(TypeReference.JavaLangRuntimeException);
-        results.put(ExitType.EXCEPTION, new PreciseExceptionAbsVal(types));
-        results.put(ExitType.NORM_TERM, PreciseExceptionAbsVal.EMPTY);
+        results.put(ExitType.EXCEPTIONAL, new PreciseExceptionAbsVal(types));
+        results.put(ExitType.NORMAL, PreciseExceptionAbsVal.EMPTY);
         return results;
     }
 
     @Override
     protected Map<ExitType, PreciseExceptionAbsVal> getDefaultOutput(PreciseExceptionAbsVal input) {
         Map<ExitType, PreciseExceptionAbsVal> res = new HashMap<ExitType, PreciseExceptionAbsVal>();
-        res.put(ExitType.NORM_TERM, PreciseExceptionAbsVal.EMPTY);
-        res.put(ExitType.EXCEPTION, PreciseExceptionAbsVal.EMPTY);
+        res.put(ExitType.NORMAL, PreciseExceptionAbsVal.EMPTY);
+        res.put(ExitType.EXCEPTIONAL, PreciseExceptionAbsVal.EMPTY);
         return res;
     }
 

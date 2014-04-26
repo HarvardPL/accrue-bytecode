@@ -45,7 +45,7 @@ public abstract class DataFlow<F> {
     /**
      * Map from basic block to record containing analysis results
      */
-    private final Map<ISSABasicBlock, AnalysisRecord<F>> bbToOutItems;
+    private final Map<ISSABasicBlock, AnalysisRecord<F>> bbToRecord;
     /**
      * determines printing volume
      */
@@ -59,7 +59,7 @@ public abstract class DataFlow<F> {
      */
     public DataFlow(boolean forward) {
         this.forward = forward;
-        bbToOutItems = new HashMap<>();
+        bbToRecord = new HashMap<>();
     }
 
     /**
@@ -129,6 +129,11 @@ public abstract class DataFlow<F> {
                         System.err.println("\t" + inItems);
                     }
 
+                    if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
+                        System.err.println("No input for BB" + current.getGraphNodeId() + " in "
+                                                        + PrettyPrinter.parseMethod(ir.getMethod()));
+                    }
+
                     Map<Integer, F> outItems = flow(inItems, g, current);
 
                     assert outItems != null : "Null out items for "
@@ -156,7 +161,6 @@ public abstract class DataFlow<F> {
                 }
             }
         }
-
         post(ir);
     }
 
@@ -411,7 +415,7 @@ public abstract class DataFlow<F> {
      *            input and output data-flow facts for the basic block
      */
     private final void putRecord(ISSABasicBlock bb, AnalysisRecord<F> record) {
-        bbToOutItems.put(bb, record);
+        bbToRecord.put(bb, record);
     }
 
     /**
@@ -424,7 +428,7 @@ public abstract class DataFlow<F> {
      * @return input and output data-flow facts for the basic block
      */
     protected final AnalysisRecord<F> getOutItems(ISSABasicBlock bb) {
-        return bbToOutItems.get(bb);
+        return bbToRecord.get(bb);
     }
 
     /**

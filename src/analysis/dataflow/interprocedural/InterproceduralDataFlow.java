@@ -1,254 +1,502 @@
 package analysis.dataflow.interprocedural;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.WorkQueue;
 import util.print.PrettyPrinter;
-import analysis.dataflow.InstructionDispatchDataFlow;
-import analysis.dataflow.util.AbstractLocation;
-import analysis.dataflow.util.ExitType;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ReferenceVariable;
-import analysis.pointer.graph.ReferenceVariableReplica;
 
-import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
-import com.ibm.wala.types.FieldReference;
 
 /**
- * Intra-procedural part of an inter-procedural data-flow analysis
+ * Manages the running of an inter-procedural data-flow analysis
  * 
- * @param <F>
- *            Type of the data-flow facts
+ * <F> Type of data-flow facts propagated by this analysis
  */
-public abstract class InterproceduralDataFlow<F> extends InstructionDispatchDataFlow<F> {
+public abstract class InterproceduralDataFlow<F> {
 
-    /**
-     * Input facts for each instruction analyzed
-     */
-    protected final Map<SSAInstruction, Set<F>> inputItems = new LinkedHashMap<>();
-    /**
-     * Output fact for each basic block analyzed
-     */
-    protected final Map<ISSABasicBlock, Map<Integer, F>> outputItems = new LinkedHashMap<>();
     /**
      * Procedure call graph
      */
-    protected final CallGraph cg;
+    private final CallGraph cg;
     /**
      * Points-to graph
      */
-    protected final PointsToGraph ptg;
+    private final PointsToGraph ptg;
     /**
-     * Call graph node currently being analyzed
+     * Analysis work-queue containing call graph nodes to be processed
      */
-    protected final CGNode currentNode;
+    private final WorkQueue<CGNode> q;
     /**
-     * Inter-procedural manager
+     * Computed results for each call graph node analyzed
      */
-    protected final InterproceduralDataFlowManager<F> manager;
+    protected final Map<CGNode, AnalysisRecord<F>> recordedResults = new LinkedHashMap<>();
     /**
-     * Data-flow fact before analyzing the entry block
+     * Nodes that are currently being processed, used to detect recursive calls
      */
-    private F input;
+    private final Set<CGNode> currentlyProcessing = new HashSet<>();
     /**
-     * Data-flow facts upon exit, one for normal termination and one for
-     * exception
+     * Record of which CG nodes need to be re-analyzed if a given node changes
      */
-    private Map<ExitType, F> output;
+    private final Map<CGNode, Set<CGNode>> dependencyMap = new HashMap<>();
+    /**
+     * Whether the analysis results for the given CGNode were soundly computed
+     * i.e. they did not use unsound results for a recursive call
+     */
+    private final Map<CGNode, Boolean> soundResultsSoFar = new HashMap<>();
+    /**
+     * Specifies the logging level
+     */
+    private int outputLevel = 0;
+    /**
+     * debugging map to make sure there are infinite loops
+     */
+    private final Map<CGNode, Integer> iterations = new HashMap<>();
+    /**
+     * Results of a reachability analysis
+     */
+    private final ReachabilityResults reachable;
 
     /**
-     * Intra-procedural part of an inter-procedural data-flow analysis
+     * Construct a new inter-procedural analysis over the given call graph
      * 
-     * @param currentNode
-     *            node this will analyze
-     * @param manager
-     *            used to get results for calls to other call graph nodes
+     * @param cg
+     *            call graph this analysis will be over
+     * @param ptg
+     *            points-to graph
      */
-    public InterproceduralDataFlow(CGNode currentNode, InterproceduralDataFlowManager<F> manager) {
-        // only forward inter-procedural data-flows are supported
-        super(true);
-        this.currentNode = currentNode;
-        this.manager = manager;
-        this.cg = manager.getCallGraph();
-        this.ptg = manager.getPointsToGraph();
+    public InterproceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable) {
+        this.cg = ptg.getCallGraph();
+        this.ptg = ptg;
+        this.q = new WorkQueue<>();
+        this.reachable = reachable;
     }
 
     /**
-     * Kick off an intra-procedural data-flow analysis for the current call
-     * graph node with the given initial data-flow fact, this will use the
-     * {@link InterproceduralDataFlowManager} to get results for calls to other
-     * call graph nodes.
+     * Run the inter-procedural analysis starting with the root node
+     */
+    public void runAnalysis() {
+        System.err.println("RUNNING: " + getAnalysisName());
+        long start = System.currentTimeMillis();
+        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
+
+        // These are the class initializers
+        q.addAll(entryPoints);
+        // Also add the fake root method (which calls main)
+        q.add(cg.getFakeRootNode());
+
+        while (!q.isEmpty()) {
+            CGNode current = q.poll();
+            if (getOutputLevel() >= 2) {
+                System.err.println("QUEUE_POLL: " + PrettyPrinter.parseCGNode(current));
+            }
+            AnalysisRecord<F> results = getLatestResults(current);
+
+            F input;
+            if (current.equals(cg.getFakeRootNode()) || entryPoints.contains(current)) {
+                // This is the root node get the root input
+                input = getInputForRoot();
+            } else {
+                input = results.getInput();
+            }
+
+            processCallGraphNode(current, input, results == null ? null : results.getOutput());
+        }
+
+        System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
+    }
+
+    protected abstract String getAnalysisName();
+
+    /**
+     * Increment the counter giving the number of times the given node has been
+     * analyzed
      * 
-     * @param initial
+     * @param n
+     *            node to increment for
+     * @return incremented counter
+     */
+    private int incrementCounter(CGNode n) {
+        Integer i = iterations.get(n);
+        if (i == null) {
+            i = 0;
+        }
+        i++;
+        if (i >= 5) {
+            throw new RuntimeException("Analyzed the same CG node " + i + " times for method: "
+                                            + PrettyPrinter.parseCGNode(n));
+        }
+        return i;
+    }
+
+    /**
+     * Get any nodes that have to be reanalyzed if the result of analyzing n
+     * changes
+     * 
+     * @param n
+     *            call graph node to get the dependencies for
+     * @return set of nodes that need to be reanalyzed if the result of
+     *         analyzing n changes
+     */
+    private Set<CGNode> getDependencies(CGNode n) {
+        Set<CGNode> deps = dependencyMap.get(n);
+        if (deps == null) {
+            deps = Collections.emptySet();
+        }
+        return deps;
+    }
+
+    /**
+     * Ensure that n2 will be reanalyzed if the result of analyzing n1 changes
+     * 
+     * @param n1
+     *            node on which the n2 depends
+     * @param n2
+     *            node that depends on the output of analyzing n1
+     */
+    private void addDependency(CGNode n1, CGNode n2) {
+        Set<CGNode> deps = dependencyMap.get(n1);
+        if (deps == null) {
+            deps = new HashSet<>();
+            dependencyMap.put(n1, deps);
+        }
+        deps.add(n2);
+    }
+
+    /**
+     * Get the call graph this is an analysis over
+     * 
+     * @return call graph
+     */
+    public CallGraph getCallGraph() {
+        return cg;
+    }
+
+    /**
+     * Get the previously computed points-to graph
+     * 
+     * @return points-to graph
+     */
+    public PointsToGraph getPointsToGraph() {
+        return ptg;
+    }
+
+    /**
+     * Get the results of analyzing the callee
+     * 
+     * @param caller
+     *            caller's call graph node
+     * @param callee
+     *            calee's call graph node
+     * @param input
      *            initial data-flow fact
-     */
-    public Map<ExitType, F> dataflow(F initial) {
-        this.input = initial;
-        dataflow(currentNode.getIR());
-        return this.output;
-    }
-
-    @Override
-    protected Map<Integer, F> flowInstruction(SSAInstruction i, Set<F> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        inputItems.put(i, inItems);
-        return super.flowInstruction(i, inItems, cfg, current);
-    }
-
-    @Override
-    protected Map<Integer, F> flow(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock current) {
-        if (current.isEntryBlock()) {
-            inItems = Collections.singleton(input);
-        }
-        assert inItems != null && !inItems.isEmpty();
-        return super.flow(inItems, cfg, current);
-    }
-
-    /**
-     * Process a procedure invocation
+     * @return map from exit type (normal or exceptional) to data-flow fact
      * 
-     * @param inItems
-     *            data-flow facts on edges entering the call
-     * @param instruction
-     *            invocation instruction in the caller
-     * @param ir
-     *            caller IR
-     * @param cfg
-     *            caller control flow graph
-     * @param bb
-     *            caller basic block containing the call
-     * @return Data-flow fact for each successor after processing the call
      */
-    protected abstract Map<Integer, F> call(SSAInvokeInstruction instruction, Set<F> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
-
-    @Override
-    protected void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<Integer, F> outItems) {
-        outputItems.put(justProcessed, outItems);
-    }
-
-    @Override
-    protected void post(IR ir) {
-
-        output = new LinkedHashMap<>();
-
-        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg = ir.getControlFlowGraph();
-        ISSABasicBlock exit = cfg.exit();
-        Integer exitNum = exit.getGraphNodeId();
-        Set<F> normals = new LinkedHashSet<>();
-        for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
-            if (outputItems.get(bb) == null || outputItems.get(bb).get(exitNum) == null) {
-                throw new RuntimeException("Null results for exit predecessor");
-            }
-            normals.add(outputItems.get(bb).get(exitNum));
+    public Map<ExitType, F> getResults(CGNode caller, CGNode callee, F input) {
+        if (getOutputLevel() >= 2) {
+            System.err.println("GETTING:\n\t" + PrettyPrinter.parseCGNode(callee));
+            System.err.println("\tFROM: " + PrettyPrinter.parseCGNode(caller));
+            System.err.println("\tINPUT: " + input);
         }
-        output.put(ExitType.NORM_TERM, confluence(normals));
 
-        Set<F> exceptions = new LinkedHashSet<>();
-        for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
-            if (outputItems.get(bb) == null) {
-                throw new RuntimeException("Null results for exit predecessor");
+        AnalysisRecord<F> previous = getLatestResults(callee);
+
+        AnalysisRecord<F> results;
+        if (previous != null && existingResultSuitable(input, previous)) {
+            results = previous;
+            printResults(callee, "PREVIOUS", results.output);
+        } else {
+            if (previous == null) {
+                results = new AnalysisRecord<F>(input, getDefaultOutput(input), false);
+            } else {
+                // TODO use widen for back edges
+                results = new AnalysisRecord<F>(join(input, previous.getInput()), previous.output, false);
             }
-            if (outputItems.get(bb).get(exitNum) != null) {
-                // Null data-flow fact might be ok if the exception can't be
-                // thrown
-                exceptions.add(outputItems.get(bb).get(exitNum));
+
+            if (currentlyProcessing.contains(callee)) {
+                // Already processing the callee, this is a recursive call, just
+                // use latest results and process this later with the new input
+                q.add(callee);
+                recordedResults.put(callee, results);
+                printResults(callee, "LATEST", results.getOutput());
+            } else {
+                results = processCallGraphNode(callee, results.input, previous == null ? null : previous.getOutput());
             }
         }
-        output.put(ExitType.EXCEPTION, confluence(exceptions));
+
+        if (!results.isSoundResult()) {
+            // Ensure that the caller will be re-analyzed if the results for the
+            // callee change
+            addDependency(callee, caller);
+        }
+
+        // Record whether sound results will be returned to the caller
+        soundResultsSoFar.put(caller, isSoundResultsSoFar(caller) && results.isSoundResult());
+        return results.output;
     }
 
     /**
-     * Merge given facts to create a new data-flow fact and map each successor
-     * node number to that fact.
+     * Print the results to the screen if the logging level is high enough
      * 
-     * @param facts
-     *            facts to merge
-     * @param cfg
-     *            current control flow graph
-     * @param bb
-     *            current basic block
-     * @return map with the same merged value for each key
+     * @param n
+     *            node the results are for
+     * @param label
+     *            label for type of output (e.g. "PREVIOUS", "NEW", "LATEST")
+     * @param output
+     *            output of analysis
      */
-    protected Map<Integer, F> mergeAndCreateMap(Set<F> facts, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock bb) {
-        F fact = confluence(facts);
-        return factToMap(fact, bb, cfg);
+    private void printResults(CGNode n, String typeLabel, Map<ExitType, F> output) {
+        if (getOutputLevel() >= 2) {
+            System.err.println("RESULTS:\n\t" + PrettyPrinter.parseCGNode(n));
+            System.err.println("\t" + typeLabel + ": " + output);
+        }
     }
 
     /**
-     * Get the abstract locations for a non-static field
+     * Check if the results computed for the given node have only used sound
+     * results so far. This could be false if there are recursive calls for
+     * which we had to use unsound results.
      * 
-     * @param receiver
-     *            value number for the local variable for the receiver of a
-     *            field access
-     * @param field
-     *            field
-     * @return set of abstract locations for the field
+     * @param n
+     *            node to check
+     * @return true if the results for <code>n</code> are sound
      */
-    protected Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field) {
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver));
-        if (pointsTo.isEmpty()) {
-            throw new RuntimeException("Field target doesn't point to anything. "
-                                            + PrettyPrinter.parseType(field.getDeclaringClass()) + "."
-                                            + field.getName());
-        }
-
-        Set<AbstractLocation> ret = new LinkedHashSet<>();
-        for (InstanceKey o : pointsTo) {
-            AbstractLocation loc = AbstractLocation.createNonStatic(o, field);
-            ret.add(loc);
-        }
-        return ret;
+    private boolean isSoundResultsSoFar(CGNode n) {
+        Boolean b = soundResultsSoFar.get(n);
+        return b == null ? true : b;
     }
 
     /**
-     * Get the abstract locations for the contents of an array
+     * Process the given node using the given input, record the results. If the
+     * output changes then add dependencies to the work-queue.
      * 
-     * @param arary
-     *            value number for the local variable for the array
-     * @return set of abstract locations for the contents of the array
+     * @param n
+     *            node to process
+     * @param input
+     *            input to the data-flow for the node
+     * @param previousOutput
+     *            previous analysis results, used to determine if the output
+     *            changed
+     * @return output after analyzing the given node with the given input
      */
-    protected Set<AbstractLocation> getLocationsForArrayContents(int array) {
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array));
-        if (pointsTo.isEmpty()) {
-            ptg.getPointsToSet(getReplica(array));
-            throw new RuntimeException("Array doesn't point to anything. "
-                                            + PrettyPrinter.valString(currentNode.getIR(), array) + " in "
-                                            + PrettyPrinter.parseCGNode(currentNode));
+    private AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
+        incrementCounter(n);
+        currentlyProcessing.add(n);
+        Map<ExitType, F> output;
+        if (n.getMethod().isNative()) {
+            output = analyzeNative(n, input);
+        } else {
+            output = analyze(n, input);
         }
+        AnalysisRecord<F> results = new AnalysisRecord<F>(input, output, isSoundResultsSoFar(n));
+        recordedResults.put(n, results);
+        currentlyProcessing.remove(n);
 
-        Set<AbstractLocation> ret = new LinkedHashSet<>();
-        for (InstanceKey o : pointsTo) {
-            AbstractLocation loc = AbstractLocation.createArrayContents(o);
-            ret.add(loc);
+        if (previousOutput == null || outputChanged(previousOutput, output)) {
+            // The output changed add dependencies to the queue
+            q.addAll(getDependencies(n));
         }
-        return ret;
+        printResults(n, "NEW", output);
+        return results;
     }
 
     /**
-     * Get the reference variable replica for the given local variable in the
-     * current context
+     * Get the logging level for this class
      * 
-     * @param local
-     *            value number of the local variable
-     * 
-     * @return Reference variable replica in the current context for the local
+     * @return logging level (higher is more)
      */
-    protected ReferenceVariableReplica getReplica(int local) {
-        ReferenceVariable rv = ptg.getLocal(local, currentNode.getIR());
-        return new ReferenceVariableReplica(currentNode.getContext(), rv);
+    public int getOutputLevel() {
+        return outputLevel;
+    }
+
+    /**
+     * Set the logging level for this class
+     * 
+     * @param outputLevel
+     *            logging level (higher is more)
+     */
+    public void setOutputLevel(int outputLevel) {
+        this.outputLevel = outputLevel;
+    }
+
+    /**
+     * Get the latest results, may return null if none have been computed yet
+     * 
+     * @param n
+     *            node to get results for
+     * @return latest results for the given node or null if there are none
+     */
+    private final AnalysisRecord<F> getLatestResults(CGNode n) {
+        return recordedResults.get(n);
+    }
+    
+    /**
+     * Results of an inter-procedural reachability analysis
+     * 
+     * @return results of a reachability analysis
+     */
+    public ReachabilityResults getReachabilityResults() {
+        return reachable;
+    }
+
+    /**
+     * Analyze the given node with the given input data-flow fact
+     * 
+     * @param n
+     *            node to analyze
+     * @param input
+     *            initial data-flow fact
+     * @return output facts resulting from analyzing <code>n</code>
+     */
+    protected abstract Map<ExitType, F> analyze(CGNode n, F input);
+
+    /**
+     * Analyze the given node with the given input data-flow fact
+     * 
+     * @param n
+     *            node to analyze
+     * @param input
+     *            initial data-flow fact
+     * @return output facts resulting from analyzing <code>n</code>
+     */
+    protected abstract Map<ExitType, F> analyzeNative(CGNode n, F input);
+
+    /**
+     * Get the default output data-flow facts (given an input fact), this is
+     * used as the output for a recursive call before a fixed point is reached.
+     * 
+     * @param input
+     *            input data-flow fact
+     * @return output to be returned to callers when the callee is already in
+     *         the middle of being analyzed
+     */
+    protected abstract Map<ExitType, F> getDefaultOutput(F input);
+
+    /**
+     * Get the input for the root node of the call graph. This is the initial
+     * input to the inter-procedural analysis
+     * 
+     * @return initial data-flow fact
+     */
+    protected abstract F getInputForRoot();
+
+    /**
+     * Compute a single data-flow fact from two facts. This is used to compute
+     * (intra-procedural) analysis input when there are for merges in the call
+     * graph.
+     * 
+     * @param fact1
+     *            first data-flow fact
+     * @param fact2
+     *            second data-flow fact
+     * @return least upper bound of item1 and item2
+     */
+    protected abstract F join(F fact1, F fact2);
+
+    /**
+     * Check whether the output changed after analysis, and dependencies need to
+     * be reanalyzed.
+     * 
+     * @param previousOutput
+     *            previous output results
+     * @param currentOutput
+     *            current output results
+     * @return true if the output results have changed (and dependencies have to
+     *         be computed)
+     */
+    protected abstract boolean outputChanged(Map<ExitType, F> previousOutput, Map<ExitType, F> currentOutput);
+
+    /**
+     * Check whether existing output results are suitable, given a new input
+     * 
+     * @param newInput
+     *            new input to the analysis
+     * @param existingResults
+     *            previous results
+     * @return true if the existing results can be reused, false if they must be
+     *         recomputed using the new input
+     */
+    protected abstract boolean existingResultSuitable(F newInput, AnalysisRecord<F> existingResults);
+
+    /**
+     * Class holding the input and output values for a specific call graph node
+     * 
+     * @param <F>
+     *            type of the data-flow facts
+     */
+    protected static class AnalysisRecord<F> {
+
+        /**
+         * output of the analysis
+         */
+        private final Map<ExitType, F> output;
+        /**
+         * input to the analysis
+         */
+        private final F input;
+        /**
+         * False if there are back edges and this result could be unsound
+         */
+        private final boolean isSoundResult;
+
+        /**
+         * Create a record for the analysis of a specific call graph node
+         * 
+         * @param input
+         *            input for the analysis
+         * @param output
+         *            output of the analysis
+         * @param isSoundResult
+         *            False if there are back edges and this result could be
+         *            unsound
+         */
+        public AnalysisRecord(F input, Map<ExitType, F> output, boolean isSoundResult) {
+            this.input = input;
+            this.output = output;
+            this.isSoundResult = isSoundResult;
+        }
+
+        /**
+         * Get the input used for this analysis
+         * 
+         * @return the input
+         */
+        public F getInput() {
+            return input;
+        }
+
+        /**
+         * Get the output returned by this analysis
+         * 
+         * @return the output
+         */
+        public Map<ExitType, F> getOutput() {
+            return output;
+        }
+
+        /**
+         * Check whether this record contains sound results. This will be false
+         * if there were back edges in the call graph due to recursive calls,
+         * and temporary unsound results were used to compute the output.
+         * 
+         * @return whether the results are sound
+         */
+        public boolean isSoundResult() {
+            return isSoundResult;
+        }
+
+        @Override
+        public String toString() {
+            return "INPUT: " + input + " OUTPUT: " + output + " sound? " + isSoundResult;
+        }
     }
 }

@@ -6,7 +6,6 @@ import java.util.Set;
 
 import types.TypeRepository;
 import analysis.pointer.graph.ReferenceVariable;
-import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 

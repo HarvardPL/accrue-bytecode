@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import java.io.StringWriter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -11,9 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.print.IRWriter;
 import util.print.PrettyPrinter;
-import analysis.pointer.graph.MethodSummaryNodes;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
 
@@ -87,14 +84,14 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerArrayLoad(SSAArrayLoadInstruction i, IR ir) {
+    protected void registerArrayLoad(SSAArrayLoadInstruction i, IR ir) {
         TypeReference baseType = TypeRepository.getType(i.getArrayRef(), ir).getArrayElementType();
         if (baseType.isPrimitiveType()) {
             // Assigning from a primitive array so result is not a pointer
             return;
         }
-        ReferenceVariable array = getLocal(i.getArrayRef(), ir);
-        ReferenceVariable local = getLocal(i.getDef(), ir);
+        ReferenceVariable array = getOrCreateLocal(i.getArrayRef(), ir);
+        ReferenceVariable local = getOrCreateLocal(i.getDef(), ir);
         addStatement(new ArrayToLocalStatement(local, array, baseType, ir, i));
     }
 
@@ -106,15 +103,15 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerArrayStore(SSAArrayStoreInstruction i, IR ir) {
+    protected void registerArrayStore(SSAArrayStoreInstruction i, IR ir) {
         TypeReference t = i.getElementType();
         if (t.isPrimitiveType() || TypeRepository.getType(i.getValue(), ir) == TypeReference.Null) {
             // Assigning into a primitive array so value is not a pointer, or
             // assigning null
             return;
         }
-        ReferenceVariable array = getLocal(i.getArrayRef(), ir);
-        ReferenceVariable value = getLocal(i.getValue(), ir);
+        ReferenceVariable array = getOrCreateLocal(i.getArrayRef(), ir);
+        ReferenceVariable value = getOrCreateLocal(i.getValue(), ir);
         addStatement(new LocalToArrayStatement(array, value, i.getElementType(), ir, i));
     }
 
@@ -126,7 +123,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerCheckCast(SSACheckCastInstruction i, IR ir) {
+    protected void registerCheckCast(SSACheckCastInstruction i, IR ir) {
         if (TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // the cast value is null so no effect on pointer analysis
             return;
@@ -134,8 +131,8 @@ public class StatementRegistrar {
 
         // This has the same effect as a copy, v = x (except for the exception
         // it could throw)
-        ReferenceVariable result = getLocal(i.getResult(), ir);
-        ReferenceVariable checkedVal = getLocal(i.getVal(), ir);
+        ReferenceVariable result = getOrCreateLocal(i.getResult(), ir);
+        ReferenceVariable checkedVal = getOrCreateLocal(i.getVal(), ir);
         addStatement(new LocalToLocalStatement(result, checkedVal, ir, i));
     }
 
@@ -147,16 +144,16 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerGetField(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerGetField(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
         }
-        ReferenceVariable assignee = getLocal(i.getDef(), ir);
-        ReferenceVariable receiver = getLocal(i.getRef(), ir);
+        ReferenceVariable assignee = getOrCreateLocal(i.getDef(), ir);
+        ReferenceVariable receiver = getOrCreateLocal(i.getRef(), ir);
         addStatement(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir, i));
     }
-    
+
     /**
      * v = ClassName.f
      * 
@@ -165,13 +162,13 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerGetStatic(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerGetStatic(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
         }
-        ReferenceVariable assignee = getLocal(i.getDef(), ir);
-        ReferenceVariable field = getNodeForStaticField(i.getDeclaredField(), cha);
+        ReferenceVariable assignee = getOrCreateLocal(i.getDef(), ir);
+        ReferenceVariable field = getOrCreateNodeForStaticField(i.getDeclaredField(), cha);
         addStatement(new StaticFieldToLocalStatement(assignee, field, ir, i));
     }
 
@@ -183,15 +180,15 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void registerPutField(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerPutField(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // Assigning into a primitive field, or assigning null
             return;
         }
 
         FieldReference f = i.getDeclaredField();
-        ReferenceVariable assignedValue = getLocal(i.getVal(), ir);
-        ReferenceVariable receiver = getLocal(i.getRef(), ir);
+        ReferenceVariable assignedValue = getOrCreateLocal(i.getVal(), ir);
+        ReferenceVariable receiver = getOrCreateLocal(i.getRef(), ir);
         addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir, i));
     }
 
@@ -203,15 +200,15 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void registerPutStatic(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerPutStatic(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
         if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // Assigning into a primitive field, or assigning null
             return;
         }
 
         FieldReference f = i.getDeclaredField();
-        ReferenceVariable assignedValue = getLocal(i.getVal(), ir);
-        ReferenceVariable fieldNode = getNodeForStaticField(f, cha);
+        ReferenceVariable assignedValue = getOrCreateLocal(i.getVal(), ir);
+        ReferenceVariable fieldNode = getOrCreateNodeForStaticField(f, cha);
         addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir, i));
 
     }
@@ -226,14 +223,14 @@ public class StatementRegistrar {
      * @param cha
      *            Class hierarchy, used to resolve method calls
      */
-    public void registerInvoke(SSAInvokeInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerInvoke(SSAInvokeInstruction i, IR ir, IClassHierarchy cha) {
         assert (i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1);
 
         ReferenceVariable resultNode = null;
         if (i.getNumberOfReturnValues() > 0) {
             TypeReference returnType = TypeRepository.getType(i.getReturnValue(0), ir);
             if (!returnType.isPrimitiveType()) {
-                resultNode = getLocal(i.getReturnValue(0), ir);
+                resultNode = getOrCreateLocal(i.getReturnValue(0), ir);
             }
         }
 
@@ -245,43 +242,43 @@ public class StatementRegistrar {
             if (TypeRepository.getType(i.getUse(0), ir).isPrimitiveType()) {
                 actuals.add(null);
             } else {
-                actuals.add(getLocal(i.getUse(0), ir));
+                actuals.add(getOrCreateLocal(i.getUse(0), ir));
             }
         }
         for (int j = 1; j < i.getNumberOfParameters(); j++) {
             if (TypeRepository.getType(i.getUse(j), ir).isPrimitiveType()) {
                 actuals.add(null);
             } else {
-                actuals.add(getLocal(i.getUse(j), ir));
+                actuals.add(getOrCreateLocal(i.getUse(j), ir));
             }
         }
 
-        ReferenceVariable exceptionNode = getLocal(i.getException(), ir);
+        ReferenceVariable exceptionNode = getOrCreateLocal(i.getException(), ir);
 
         // Get the receiver if it is not static
-        ReferenceVariable receiver = i.isStatic() ? null : getLocal(i.getReceiver(), ir);
+        ReferenceVariable receiver = i.isStatic() ? null : getOrCreateLocal(i.getReceiver(), ir);
 
         Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, cha);
         if (i.isStatic()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(new StaticCallStatement(i.getCallSite(), resolvedMethod, actuals, resultNode, exceptionNode,
-                    ir, i));
+                                            ir, i));
         } else if (i.isSpecial()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(new SpecialCallStatement(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
-                    exceptionNode, ir, i));
+                                            exceptionNode, ir, i));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
-                || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+                                        || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             addStatement(new VirtualCallStatement(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
-                    resultNode, exceptionNode, cha, ir, i));
+                                            resultNode, exceptionNode, cha, ir, i));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
-                    + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
+                                            + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
         }
     }
-    
+
     /**
      * Register a new array allocation, note that this is only the allocation
      * not the initialization if there is any.
@@ -293,30 +290,33 @@ public class StatementRegistrar {
      * @param cha
      *            WALA class hierarchy
      */
-    public void registerNewArray(SSANewInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerNewArray(SSANewInstruction i, IR ir, IClassHierarchy cha) {
         // all "new" instructions are assigned to a local
-        ReferenceVariable result = getLocal(i.getDef(), ir);
+        ReferenceVariable result = getOrCreateLocal(i.getDef(), ir);
 
         addStatement(new NewStatement(result, i.getNewSite(), cha, ir, i));
-        
+
         // Handle arrays with multiple dimensions
         ReferenceVariable array = result;
         for (int dim = 1; dim < i.getNumberOfUses(); dim++) {
             // Create local for array contents
-            ReferenceVariable contents = getLocalForArrayContents(dim, array.getExpectedType().getArrayElementType(), i, ir);
+            ReferenceVariable contents = getLocalForArrayContents(dim, array.getExpectedType().getArrayElementType(),
+                                            i, ir);
             // Add an allocation for the contents
             addStatement(new NewStatement(contents, i.getNewSite(), cha.lookupClass(contents.getExpectedType()), ir, i));
 
-            // Add field assign from the field of the outer array to the array contents
+            // Add field assign from the field of the outer array to the array
+            // contents
             addStatement(new LocalToFieldStatement(array, contents, ir, i));
-            
+
             // The array on the next iteration will be contents of this one
             array = contents;
         }
     }
 
     /**
-     * Handle an allocation of the form: "new Foo". Note that this is only the allocation not the constructor call.
+     * Handle an allocation of the form: "new Foo". Note that this is only the
+     * allocation not the constructor call.
      * 
      * @param i
      *            new instruction
@@ -325,9 +325,9 @@ public class StatementRegistrar {
      * @param classHierarchy
      *            WALA class hierarchy
      */
-    public void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha) {
         // all "new" instructions are assigned to a local
-        ReferenceVariable result = getLocal(i.getDef(), ir);
+        ReferenceVariable result = getOrCreateLocal(i.getDef(), ir);
 
         addStatement(new NewStatement(result, i.getNewSite(), cha, ir, i));
     }
@@ -340,18 +340,18 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    public void registerPhiAssignment(SSAPhiInstruction i, IR ir) {
+    protected void registerPhiAssignment(SSAPhiInstruction i, IR ir) {
         TypeReference type = TypeRepository.getType(i.getDef(), ir);
         if (type.isPrimitiveType()) {
             // No pointers here
             return;
         }
-        ReferenceVariable assignee = getLocal(i.getDef(), ir);
+        ReferenceVariable assignee = getOrCreateLocal(i.getDef(), ir);
         List<ReferenceVariable> uses = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int arg = i.getUse(j);
             if (TypeRepository.getType(arg, ir) != TypeReference.Null) {
-                ReferenceVariable use = getLocal(i.getUse(j), ir);
+                ReferenceVariable use = getOrCreateLocal(i.getUse(j), ir);
                 uses.add(use);
             }
         }
@@ -371,7 +371,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing instruction
      */
-    public void registerReflection(SSALoadMetadataInstruction i, IR ir) {
+    protected void registerReflection(SSALoadMetadataInstruction i, IR ir) {
         // TODO statement registrar not handling reflection yet
     }
 
@@ -383,13 +383,13 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerReturn(SSAReturnInstruction i, IR ir) {
+    protected void registerReturn(SSAReturnInstruction i, IR ir) {
         if (i.returnsPrimitiveType() || i.returnsVoid()
-                || TypeRepository.getType(i.getResult(), ir) == TypeReference.Null) {
+                                        || TypeRepository.getType(i.getResult(), ir) == TypeReference.Null) {
             // no pointers here
             return;
         }
-        ReferenceVariable result = getLocal(i.getResult(), ir);
+        ReferenceVariable result = getOrCreateLocal(i.getResult(), ir);
         ReferenceVariable summary = methods.get(ir.getMethod()).getReturnNode();
         addStatement(new ReturnStatement(result, summary, ir, i));
     }
@@ -402,14 +402,15 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    public void registerThrow(SSAThrowInstruction i, IR ir) {
-        ReferenceVariable exception = getLocal(i.getException(), ir);
+    protected void registerThrow(SSAThrowInstruction i, IR ir) {
+        ReferenceVariable exception = getOrCreateLocal(i.getException(), ir);
         addStatement(new ThrowStatement(exception, ir, i));
     }
 
     /**
-     * Get the points-to graph node for the given local in the given IR. The
-     * local should not have a primitive type or null.
+     * Get the reference variable for the given local in the given IR. The local
+     * should not have a primitive type or null. Create a reference variable if
+     * one does not already exist
      * 
      * @param local
      *            local ID, the type of this should not be primitive or null
@@ -417,9 +418,9 @@ public class StatementRegistrar {
      *            method intermediate representation
      * @return points-to graph node for the local
      */
-    public ReferenceVariable getLocal(int local, IR ir) {
+    protected ReferenceVariable getOrCreateLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
-                + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
+                                        + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
         LocalKey key = new LocalKey(local, ir);
         ReferenceVariable node = locals.get(key);
         if (node == null) {
@@ -429,9 +430,28 @@ public class StatementRegistrar {
         }
         return node;
     }
-    
+
+    /**
+     * Get the reference variable for the given local in the given IR. The local
+     * should not have a primitive type or null.
+     * 
+     * @param local
+     *            local ID, the type of this should not be primitive or null
+     * @param ir
+     *            method intermediate representation
+     * @return reference variable for the local
+     */
+    public ReferenceVariable getLocal(int local, IR ir) {
+        assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
+                                        + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
+        LocalKey key = new LocalKey(local, ir);
+        assert locals.containsKey(key);
+        return locals.get(key);
+    }
+
     private ReferenceVariable getLocalForArrayContents(int dim, TypeReference type, SSANewInstruction i, IR ir) {
-        // Need to create one for the inner and use it to get the outer or it doesn't work
+        // Need to create one for the inner and use it to get the outer or it
+        // doesn't work
         ArrayContentsKey key = new ArrayContentsKey(dim, i, ir);
         ReferenceVariable local = arrayContentsTemps.get(key);
         if (local == null) {
@@ -442,7 +462,8 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get a points-to graph node for an implicitly thrown exception/error
+     * Get a reference variable for an implicitly thrown exception/error, create
+     * it if it does not already exist
      * 
      * @param type
      *            type of the exception
@@ -450,9 +471,9 @@ public class StatementRegistrar {
      *            instruction that throws
      * @param ir
      *            method containing the instruction that throws
-     * @return local node for an implicit throwable
+     * @return reference variable for an implicit throwable
      */
-    public ReferenceVariable getImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
+    protected ReferenceVariable getOrCreateImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
         ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
         ReferenceVariable node = implicitThrows.get(key);
         if (node == null) {
@@ -463,26 +484,56 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get the points-to graph node for the given static field
+     * Get a reference variable for an implicitly thrown exception/error
+     * 
+     * @param type
+     *            type of the exception
+     * @param i
+     *            instruction that throws
+     * @param ir
+     *            method containing the instruction that throws
+     * @return reference variable for an implicit throwable
+     */
+    public ReferenceVariable getImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
+        ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
+        assert implicitThrows.containsKey(key);
+        return implicitThrows.get(key);
+    }
+
+    /**
+     * Get the reference variable for the given static field
      * 
      * @param field
      *            field to get the node for
-     * @return points-to graph node for the static field
+     * @return reference variable for the static field
      */
-    public ReferenceVariable getNodeForStaticField(FieldReference field, IClassHierarchy cha) {
+    private ReferenceVariable getOrCreateNodeForStaticField(FieldReference field, IClassHierarchy cha) {
         IField f = cha.resolveField(field);
         ReferenceVariable node = staticFields.get(f);
         if (node == null) {
             if (f.getFieldTypeReference().isPrimitiveType()) {
                 throw new RuntimeException(
-                        "Trying to create reference variable for a static field with a primitive type.");
+                                                "Trying to create reference variable for a static field with a primitive type.");
             }
 
             node = new ReferenceVariable(PrettyPrinter.parseType(f.getDeclaringClass().getReference()) + "."
-                    + f.getName().toString(), f.getFieldTypeReference(), true);
+                                            + f.getName().toString(), f.getFieldTypeReference(), true);
             staticFields.put(f, node);
         }
         return node;
+    }
+
+    /**
+     * Get the reference variable for the given static field
+     * 
+     * @param field
+     *            field to get the node for
+     * @return reference variable for the static field
+     */
+    public ReferenceVariable getNodeForStaticField(FieldReference field, IClassHierarchy cha) {
+        IField f = cha.resolveField(field);
+        assert staticFields.containsKey(f);
+        return staticFields.get(f);
     }
 
     /**
@@ -525,17 +576,8 @@ public class StatementRegistrar {
      * @param entryPoint
      *            entry point for the analyzed code
      */
-    public void setEntryPoint(IMethod entryPoint) {
+    protected void setEntryPoint(IMethod entryPoint) {
         this.entryPoint = entryPoint;
-    }
-
-    /**
-     * Get the entry point for the code being analyzed
-     * 
-     * @return entry point for the analyzed code
-     */
-    public IMethod getEntryPoint() {
-        return entryPoint;
     }
 
     /**
@@ -545,7 +587,7 @@ public class StatementRegistrar {
      */
     public Set<IMethod> getInitialContextMethods() {
         Set<IMethod> ret = new LinkedHashSet<>();
-        ret.add(getEntryPoint());
+        ret.add(entryPoint);
         return ret;
     }
 
@@ -562,7 +604,7 @@ public class StatementRegistrar {
      *            class hierarchy to use for method resolution
      * @return Set of methods the invocation could call
      */
-    public static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IClassHierarchy cha) {
+    protected static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IClassHierarchy cha) {
         Set<IMethod> targets = null;
         if (inv.isStatic()) {
             IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
@@ -573,12 +615,12 @@ public class StatementRegistrar {
             assert resolvedMethod != null : "No method found for " + inv.toString();
             targets = Collections.singleton(resolvedMethod);
         } else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
-                || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+                                        || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             targets = cha.getPossibleTargets(inv.getDeclaredTarget());
             assert targets != null : "No methods found for " + inv.toString();
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
-                    + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
+                                            + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
         }
         return targets;
     }
@@ -746,9 +788,11 @@ public class StatementRegistrar {
             return PrettyPrinter.valString(ir, value) + " in " + PrettyPrinter.parseMethod(ir.getMethod());
         }
     }
-    
+
     /**
-     * Key into the array containing temporary local variables created to represent the contents of the inner dimensions of multi-dimensional arrays 
+     * Key into the array containing temporary local variables created to
+     * represent the contents of the inner dimensions of multi-dimensional
+     * arrays
      */
     private static class ArrayContentsKey {
         /**

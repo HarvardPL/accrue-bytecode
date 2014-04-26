@@ -4,12 +4,10 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import util.InstructionType;
-import analysis.dataflow.util.ExitType;
+import analysis.dataflow.interprocedural.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ssa.IR;
@@ -114,17 +112,26 @@ public class CFGWriter {
         for (ISSABasicBlock current : cfg) {
             String currentString = getStringForBasicBlock(current);
             for (ISSABasicBlock succ : cfg.getNormalSuccessors(current)) {
+                String edge;
+                if (getUnreachableSuccessors(current, cfg).contains(succ)) {
+                    edge = "UNREACHABLE";
+                } else {
+                    edge = getNormalEdgeLabel(current, succ, ir);
+                }
                 String succString = getStringForBasicBlock(succ);
-                String edgeLabel = "[label=\"" + getNormalEdgeLabel(current, succ, ir) + "\"]";
+                String edgeLabel = "[label=\"" + edge + "\"]";
                 writer.write("\t\"" + currentString + "\" -> \"" + succString + "\" " + edgeLabel + ";\n");
             }
 
             for (ISSABasicBlock succ : cfg.getExceptionalSuccessors(current)) {
-                if (getUnreachableExceptions(current, cfg).contains(succ)) {
-                    continue;
+                String edge;
+                if (getUnreachableSuccessors(current, cfg).contains(succ)) {
+                    edge = "UNREACHABLE";
+                } else {
+                    edge = getExceptionEdgeLabel(current, succ, ir);
                 }
                 String succString = getStringForBasicBlock(succ);
-                String edgeLabel = "[label=\"" + getExceptionEdgeLabel(current, succ, ir) + "\"]";
+                String edgeLabel = "[label=\"" + edge + "\"]";
                 writer.write("\t\"" + currentString + "\" -> \"" + succString + "\" " + edgeLabel + ";\n");
             }
         }
@@ -198,16 +205,8 @@ public class CFGWriter {
      * @param cfg
      * @return
      */
-    protected Set<ISSABasicBlock> getUnreachableExceptions(ISSABasicBlock bb,
+    protected Set<ISSABasicBlock> getUnreachableSuccessors(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        if (bb.getLastInstructionIndex() >= 0
-                                        && InstructionType.forInstruction(bb.getLastInstruction()) == InstructionType.NEW_OBJECT) {
-            // This instruction can only throw errors, which we are not handling
-            List<ISSABasicBlock> bbs = cfg.getExceptionalSuccessors(bb);
-            assert bbs.size() == 1;
-            return Collections.singleton(bbs.get(0));
-        }
-
         return Collections.emptySet();
     }
 
@@ -220,7 +219,7 @@ public class CFGWriter {
      * @return
      */
     protected String getExceptionEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
-        return ExitType.EXCEPTION.toString();
+        return ExitType.EXCEPTIONAL.toString();
     }
 
     /**
@@ -232,6 +231,6 @@ public class CFGWriter {
      * @return
      */
     protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
-        return ExitType.NORM_TERM.toString();
+        return ExitType.NORMAL.toString();
     }
 }

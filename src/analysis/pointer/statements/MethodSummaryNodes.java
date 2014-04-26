@@ -1,11 +1,11 @@
-package analysis.pointer.graph;
+package analysis.pointer.statements;
 
 import java.util.LinkedList;
 import java.util.List;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
-import analysis.pointer.statements.StatementRegistrar;
+import analysis.pointer.graph.ReferenceVariable;
 
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
@@ -53,7 +53,7 @@ public class MethodSummaryNodes {
         }
 
         boolean isStatic = ir.getMethod().isStatic();
-        thisNode = isStatic ? null : registrar.getLocal(ir.getParameter(0), ir);
+        thisNode = isStatic ? null : registrar.getOrCreateLocal(ir.getParameter(0), ir);
 
         formals = new LinkedList<>();
         if (isStatic) {
@@ -63,7 +63,7 @@ public class MethodSummaryNodes {
                 if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
                     formals.add(null);
                 } else {
-                    formals.add(registrar.getLocal(ir.getParameter(0), ir));
+                    formals.add(registrar.getOrCreateLocal(ir.getParameter(0), ir));
                 }
             }
         }
@@ -72,7 +72,7 @@ public class MethodSummaryNodes {
             if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
                 formals.add(null);
             } else {
-                formals.add(registrar.getLocal(ir.getParameter(i), ir));
+                formals.add(registrar.getOrCreateLocal(ir.getParameter(i), ir));
             }
         }
 

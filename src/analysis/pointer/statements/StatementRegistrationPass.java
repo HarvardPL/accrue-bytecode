@@ -12,7 +12,6 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
-import analysis.pointer.graph.MethodSummaryNodes;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;

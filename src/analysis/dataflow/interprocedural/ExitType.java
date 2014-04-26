@@ -1,4 +1,4 @@
-package analysis.dataflow.util;
+package analysis.dataflow.interprocedural;
 
 /**
  * Key indicating the type of procedure termination
@@ -7,11 +7,11 @@ public class ExitType {
     /**
      * Exit edge key for normal termination
      */
-    public static final ExitType NORM_TERM = new ExitType("NT");
+    public static final ExitType NORMAL = new ExitType("NT");
     /**
      * Exit edge key for exceptional termination
      */
-    public static final ExitType EXCEPTION = new ExitType("EX");
+    public static final ExitType EXCEPTIONAL = new ExitType("EX");
 
     /**
      * String indicating exit type

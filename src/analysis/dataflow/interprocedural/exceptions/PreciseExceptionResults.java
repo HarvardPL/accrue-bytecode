@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural.exceptions;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Collection;
@@ -97,9 +98,8 @@ public class PreciseExceptionResults {
     }
 
     /**
-     * Successors which cannot be reached because no exception can be
-     * thrown on the edge between the given basic block and the block in the
-     * returned set
+     * Successors which cannot be reached because no exception can be thrown on
+     * the edge between the given basic block and the block in the returned set
      * 
      * @param bb
      *            basic block to get impossible successors for
@@ -125,8 +125,8 @@ public class PreciseExceptionResults {
     }
 
     /**
-     * Replace the set of successors from <code>source</code>
-     * that are unreachable on exception edges
+     * Replace the set of successors from <code>source</code> that are
+     * unreachable on exception edges
      * 
      * @param source
      *            source node
@@ -135,7 +135,8 @@ public class PreciseExceptionResults {
      * @param containingNode
      *            call graph node containing the basic blocks
      */
-    protected void replaceImpossibleExceptions(ISSABasicBlock source, Set<ISSABasicBlock> unreachableByException, CGNode containingNode) {
+    protected void replaceImpossibleExceptions(ISSABasicBlock source, Set<ISSABasicBlock> unreachableByException,
+                                    CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
             results = new ResultsForNode();
@@ -155,6 +156,10 @@ public class PreciseExceptionResults {
          * never be reached
          */
         private final Map<ISSABasicBlock, Set<ISSABasicBlock>> impossibleSuccessors;
+        /**
+         * Get exceptions that can be thrown by the procedure and context
+         * represented by the call-graph node
+         */
         private Set<TypeReference> exceptionsForNode;
 
         /**
@@ -168,8 +173,8 @@ public class PreciseExceptionResults {
         }
 
         /**
-         * Replace the set of successors from <code>source</code>
-         * that are unreachable on exception edges
+         * Replace the set of successors from <code>source</code> that are
+         * unreachable on exception edges
          * 
          * @param source
          *            source node
@@ -230,8 +235,8 @@ public class PreciseExceptionResults {
         }
 
         /**
-         * Successors which cannot be reached because no exception can be
-         * thrown on the edge between the given basic block and the block in the
+         * Successors which cannot be reached because no exception can be thrown
+         * on the edge between the given basic block and the block in the
          * returned set
          * 
          * @param bb
@@ -436,6 +441,16 @@ public class PreciseExceptionResults {
         }
     }
 
+    public void writeAllToFiles() throws IOException {
+        for (CGNode n : allResults.keySet()) {
+            String fileName = "tests/precise_ex" + PrettyPrinter.parseCGNode(n).replace(" ", "") + ".dot";
+            try (Writer w = new FileWriter(fileName)) {
+                writeResultsForNode(w, n);
+                System.err.println("DOT written to " + fileName);
+            }
+        }
+    }
+
     private void writeResultsForNode(Writer writer, final CGNode n) throws IOException {
         final ResultsForNode results = allResults.get(n);
 
@@ -459,7 +474,7 @@ public class PreciseExceptionResults {
             }
 
             @Override
-            protected Set<ISSABasicBlock> getUnreachableExceptions(ISSABasicBlock bb,
+            protected Set<ISSABasicBlock> getUnreachableSuccessors(ISSABasicBlock bb,
                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
                 return results.getImpossibleExceptions(bb);
             }

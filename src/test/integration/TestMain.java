@@ -8,12 +8,13 @@ import java.io.Writer;
 import java.util.Arrays;
 
 import util.print.CFGWriter;
-import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptionManager;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
-import analysis.dataflow.interprocedural.nonnull.NonNullManager;
+import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
+import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -89,14 +90,23 @@ public class TestMain {
             case "nonnull":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", pointsToTest(util, outputLevel, "_main"));
+                PointsToGraph g = pointsToTest(util, outputLevel, "_main");
+                ReachabilityResults r = reachabilityTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
+                nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, r);
                 break;
             case "precise-ex":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                PointsToGraph g = pointsToTest(util, outputLevel, "_main");
-                NonNullResults nonNull = nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
-                preciseExceptionTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, nonNull);
+                g = pointsToTest(util, outputLevel, "_main");
+                r = reachabilityTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
+                NonNullResults nonNull = nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, r);
+                preciseExceptionTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, r, nonNull);
+                break;
+            case "reachability":
+                util = setUpWala(entryPoint);
+                entry = util.getOptions().getEntrypoints().iterator().next();
+                g = pointsToTest(util, outputLevel, "_main");
+                reachabilityTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
@@ -251,13 +261,19 @@ public class TestMain {
      *            method to print the results for
      * @param fileName
      *            file to save the results to (appended with _nonNull.dot)
+     * @param g
+     *            points-to graph
+     * @param r
+     *            results of a reachability analysis
      * @return the results of the non-null analysis
      */
-    private static NonNullResults nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName, PointsToGraph g) {
-        NonNullManager manager = new NonNullManager(g.getCallGraph(), g, new PreciseExceptionResults(), util);
-        manager.setOutputLevel(outputLevel);
-        manager.runAnalysis();
-        NonNullResults results = manager.getNonNullResults();
+    private static NonNullResults nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName,
+                                    PointsToGraph g, ReachabilityResults r) {
+        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, new PreciseExceptionResults(),
+                                        r, util);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        NonNullResults results = analysis.getNonNullResults();
 
         String dir = "tests";
         String file = fileName + "_nonNull";
@@ -293,14 +309,21 @@ public class TestMain {
      * @param fileName
      *            name of the file to print the results to (the file name will
      *            be appended with "_preciseEx")
+     * @param g
+     *            points-to graph
+     * @param r
+     *            results of a reachability analysis
+     * @param nonNull
+     *            results of a non-null analysis
      * @return the results of the precise exceptions analysis
      */
     private static PreciseExceptionResults preciseExceptionTest(WalaAnalysisUtil util, int outputLevel, IMethod method,
-                                    String fileName, PointsToGraph g, NonNullResults nonNull) {
-        PreciseExceptionManager manager = new PreciseExceptionManager(g.getCallGraph(), g, nonNull, util);
-        manager.setOutputLevel(outputLevel);
-        manager.runAnalysis();
-        PreciseExceptionResults results = manager.getPreciseExceptionResults();
+                                    String fileName, PointsToGraph g, ReachabilityResults r, NonNullResults nonNull) {
+        PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g, nonNull, r,
+                                        util);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        PreciseExceptionResults results = analysis.getPreciseExceptionResults();
 
         String dir = "tests";
         String file = fileName + "_preciseEx";
@@ -320,6 +343,62 @@ public class TestMain {
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
+
+        try {
+            results.writeAllToFiles();
+        } catch (IOException e) {
+            System.err.println("Could not write all results to file.");
+        }
+
+        return results;
+    }
+
+    /**
+     * Test the inter-procedural reachability analysis
+     * 
+     * @param util
+     *            utility WALA classes
+     * @param outputLevel
+     *            logging level
+     * @param method
+     *            method to print
+     * @param fileName
+     *            name of file to print to
+     * @param g
+     *            points-to graph
+     */
+    private static ReachabilityResults reachabilityTest(WalaAnalysisUtil util, int outputLevel, IMethod method,
+                                    String fileName, PointsToGraph g) {
+        ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        ReachabilityResults results = analysis.getReachabilityResults();
+
+        String dir = "tests";
+        String file = fileName + "_reachibility";
+        String fullFilename = dir + "/" + file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            results.writeResultsForMethod(out, method);
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+
+        file = fileName + "_fakeroot_reachability";
+        fullFilename = dir + "/" + file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            results.writeResultsForMethod(out, util.getFakeRoot());
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+
+        try {
+            results.writeAllToFiles();
+        } catch (IOException e) {
+            System.err.println("Could not write all results to file.");
+        }
+
         return results;
     }
 }
