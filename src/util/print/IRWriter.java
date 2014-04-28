@@ -70,14 +70,15 @@ public class IRWriter extends DataFlow<Unit> {
     }
 
     @Override
-    protected Map<Integer, Unit> flow(Set<Unit> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, Unit> flow(Set<Unit> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock current) {
         if (!visited.contains(current)) {
             PrettyPrinter.writeBasicBlock(ir, current, writer, prefix, postfix);
             visited.add(current);
         }
         return factToMap(Unit.VALUE, current, cfg);
     }
-    
+
     @Override
     protected void post(IR ir) {
         // Intentionally left blank

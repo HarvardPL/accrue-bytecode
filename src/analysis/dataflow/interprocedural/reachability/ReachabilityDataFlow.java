@@ -47,7 +47,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> call(SSAInvokeInstruction i, Set<ReachabilityAbsVal> inItems,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> call(SSAInvokeInstruction i, Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
 
         ReachabilityAbsVal in = confluence(inItems);
@@ -64,7 +64,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : ReachabilityAbsVal.REACHABLE, bb, cfg);
     }
 
-    private Map<Integer, ReachabilityAbsVal> factsToMapWithExceptions(ReachabilityAbsVal normal,
+    private Map<ISSABasicBlock, ReachabilityAbsVal> factsToMapWithExceptions(ReachabilityAbsVal normal,
                                     ReachabilityAbsVal exceptional, ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return factsToMapWithExceptions(normal, exceptional, Collections.<ISSABasicBlock> emptySet(), bb, cfg);
@@ -73,16 +73,16 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     @Override
     protected void postBasicBlock(Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
-                                    Map<Integer, ReachabilityAbsVal> outItems) {
+                                    Map<ISSABasicBlock, ReachabilityAbsVal> outItems) {
 
         for (ISSABasicBlock bb : getNormalSuccs(justProcessed, cfg)) {
-            if (outItems.get(bb.getGraphNodeId()) == null) {
+            if (outItems.get(bb) == null) {
                 throw new RuntimeException("Missing fact on normal edge.");
             }
         }
 
         for (ISSABasicBlock bb : getExceptionalSuccs(justProcessed, cfg)) {
-            if (outItems.get(bb.getGraphNodeId()) == null) {
+            if (outItems.get(bb) == null) {
                 throw new RuntimeException("Missing fact on exception edge.");
             }
         }
@@ -93,10 +93,10 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     @Override
     protected void post(IR ir) {
 
-        Set<OrderedPair<ISSABasicBlock, Integer>> unreachable = new LinkedHashSet<>();
+        Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachable = new LinkedHashSet<>();
         for (ISSABasicBlock source : outputItems.keySet()) {
-            Map<Integer, ReachabilityAbsVal> output = outputItems.get(source);
-            for (Integer target : output.keySet()) {
+            Map<ISSABasicBlock, ReachabilityAbsVal> output = outputItems.get(source);
+            for (ISSABasicBlock target : output.keySet()) {
                 if (output.get(target).isUnreachable()) {
                     unreachable.add(new OrderedPair<>(source, target));
                 }
@@ -173,102 +173,105 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowArrayLength(SSAArrayLengthInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowArrayLength(SSAArrayLengthInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowArrayLoad(SSAArrayLoadInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowArrayLoad(SSAArrayLoadInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowCheckCast(SSACheckCastInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowCheckCast(SSACheckCastInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowConditionalBranch(SSAConditionalBranchInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowGetField(SSAGetInstruction i, Set<ReachabilityAbsVal> previousItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
-    }
-
-    @Override
-    protected Map<Integer, ReachabilityAbsVal> flowInvokeInterface(SSAInvokeInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowGetField(SSAGetInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return call(i, previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowInvokeSpecial(SSAInvokeInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowInvokeInterface(SSAInvokeInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return call(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowInvokeStatic(SSAInvokeInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowInvokeSpecial(SSAInvokeInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return call(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowInvokeVirtual(SSAInvokeInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowInvokeStatic(SSAInvokeInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return call(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowGoto(SSAGotoInstruction i, Set<ReachabilityAbsVal> previousItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
-    }
-
-    @Override
-    protected Map<Integer, ReachabilityAbsVal> flowLoadMetadata(SSALoadMetadataInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowInvokeVirtual(SSAInvokeInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return call(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowMonitor(SSAMonitorInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowGoto(SSAGotoInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowNewArray(SSANewInstruction i, Set<ReachabilityAbsVal> previousItems,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowLoadMetadata(SSALoadMetadataInstruction i,
+                                    Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowNewObject(SSANewInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowMonitor(SSAMonitorInstruction i,
+                                    Set<ReachabilityAbsVal> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return mergeAndCreateMap(previousItems, cfg, current);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowNewArray(SSANewInstruction i,
+                                    Set<ReachabilityAbsVal> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return mergeAndCreateMap(previousItems, cfg, current);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowNewObject(SSANewInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // There is an error from new Object() but we are not tracking errors
@@ -276,30 +279,32 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowPutField(SSAPutInstruction i, Set<ReachabilityAbsVal> previousItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
-    }
-
-    @Override
-    protected Map<Integer, ReachabilityAbsVal> flowReturn(SSAReturnInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowPutField(SSAPutInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowSwitch(SSASwitchInstruction i,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowReturn(SSAReturnInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 
     @Override
-    protected Map<Integer, ReachabilityAbsVal> flowThrow(SSAThrowInstruction i, Set<ReachabilityAbsVal> previousItems,
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowSwitch(SSASwitchInstruction i,
+                                    Set<ReachabilityAbsVal> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return mergeAndCreateMap(previousItems, cfg, current);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowThrow(SSAThrowInstruction i,
+                                    Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // This cannot terminate normally, but there is no normal termination
         // edge either
-        return factToMap(confluence(previousItems), current, cfg);
+        return mergeAndCreateMap(previousItems, cfg, current);
     }
 }

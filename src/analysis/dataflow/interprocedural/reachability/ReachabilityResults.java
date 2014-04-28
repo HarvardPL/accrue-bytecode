@@ -21,7 +21,7 @@ public class ReachabilityResults {
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
-    public void replaceUnreachable(Set<OrderedPair<ISSABasicBlock, Integer>> unreachableEdges, CGNode containingNode) {
+    public void replaceUnreachable(Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachableEdges, CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
             results = new ResultsForNode();
@@ -30,7 +30,7 @@ public class ReachabilityResults {
         results.replaceUnreachable(unreachableEdges);
     }
 
-    public boolean isUnreachable(ISSABasicBlock source, Integer target, CGNode containingNode) {
+    public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
             return true;
@@ -38,28 +38,20 @@ public class ReachabilityResults {
         return results.isUnreachable(source, target);
     }
 
-    public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode containingNode) {
-        return isUnreachable(source, target.getGraphNodeId(), containingNode);
-    }
-
     private class ResultsForNode {
 
-        Set<OrderedPair<ISSABasicBlock, Integer>> unreachableEdges;
+        Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachableEdges;
 
         public ResultsForNode() {
             unreachableEdges = new LinkedHashSet<>();
         }
 
-        public boolean isUnreachable(ISSABasicBlock source, Integer target) {
+        public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
             return unreachableEdges.contains(new OrderedPair<>(source, target));
         }
 
-        public void replaceUnreachable(Set<OrderedPair<ISSABasicBlock, Integer>> unreachableEdges) {
+        public void replaceUnreachable(Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachableEdges) {
             this.unreachableEdges = unreachableEdges;
-        }
-
-        public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
-            return isUnreachable(source, target.getGraphNodeId());
         }
     }
 
@@ -109,7 +101,7 @@ public class ReachabilityResults {
             @Override
             protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
                 if (results.isUnreachable(source, target)) {
-                    return "EX UNREACHABLE";
+                    return "UNREACHABLE";
                 }
                 return "REACHABLE";
             }
