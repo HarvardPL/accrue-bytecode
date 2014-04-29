@@ -126,7 +126,7 @@ public class CFGWriter {
             for (ISSABasicBlock succ : cfg.getExceptionalSuccessors(current)) {
                 String edge;
                 if (getUnreachableSuccessors(current, cfg).contains(succ)) {
-                    edge = "UNREACHABLE";
+                    edge = "EX UNREACHABLE";
                 } else {
                     edge = getExceptionEdgeLabel(current, succ, ir);
                 }

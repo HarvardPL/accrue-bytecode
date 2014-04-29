@@ -1,19 +1,25 @@
 package analysis.dataflow.interprocedural.nonnull;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
+import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 
 /**
@@ -56,7 +62,6 @@ public class NonNullResults {
 
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
-            System.err.println("Null results for non-null analysis for " + containingNode);
             return false;
         }
 
@@ -123,7 +128,11 @@ public class NonNullResults {
          * @return set of non-null value numbers
          */
         private Set<Integer> getAllNonNull(SSAInstruction i) {
-            return results.get(i);
+            Set<Integer> res = results.get(i);
+            if (res == null) {
+                return Collections.emptySet();
+            }
+            return res;
         }
 
         /**
@@ -167,9 +176,7 @@ public class NonNullResults {
     }
 
     /**
-     * Will write the results for all contexts for the given method
-     * <p>
-     * TODO not sure what this looks like in dot if there is more than one node
+     * Will write the results for the first context for the given method
      * 
      * @param writer
      *            writer to write to
@@ -179,25 +186,60 @@ public class NonNullResults {
      * @throws IOException
      *             issues with the writer
      */
-    public void writeResultsForMethod(Writer writer, IMethod m) throws IOException {
+    public void writeResultsForMethod(Writer writer, IMethod m, ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
             if (n.getMethod().equals(m)) {
-                writeResultsForNode(writer, n);
+                writeResultsForNode(writer, n, reachable);
+                return;
+            }
+        }
+    }
+    
+    public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
+        for (CGNode n : allResults.keySet()) {
+            String fileName = "tests/nonnull_" + PrettyPrinter.parseCGNode(n).replace(" ", "") + ".dot";
+            try (Writer w = new FileWriter(fileName)) {
+                writeResultsForNode(w, n, reachable);
+                System.err.println("DOT written to " + fileName);
             }
         }
     }
 
-    private void writeResultsForNode(Writer writer, final CGNode n) throws IOException {
+    private void writeResultsForNode(Writer writer, final CGNode n, final ReachabilityResults reachable)
+                                    throws IOException {
         final ResultsForNode results = allResults.get(n);
 
         CFGWriter w = new CFGWriter(n.getIR()) {
             @Override
             public String getPrefix(SSAInstruction i) {
+                if (results == null) {
+                    // nothing is non-null
+                    return "[]\\l";
+                }
+
                 Set<String> strings = new HashSet<>();
                 for (Integer val : results.getAllNonNull(i)) {
                     strings.add(PrettyPrinter.valString(n.getIR(), val));
                 }
                 return strings + "\\l";
+            }
+
+            @Override
+            protected Set<ISSABasicBlock> getUnreachableSuccessors(ISSABasicBlock bb,
+                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+                Set<ISSABasicBlock> unreachable = new LinkedHashSet<>();
+                for (ISSABasicBlock next : cfg.getNormalSuccessors(bb)) {
+                    if (reachable.isUnreachable(bb, next, n)) {
+                        unreachable.add(next);
+                    }
+                }
+
+                for (ISSABasicBlock next : cfg.getExceptionalSuccessors(bb)) {
+                    if (reachable.isUnreachable(bb, next, n)) {
+                        unreachable.add(next);
+                    }
+                }
+                return unreachable;
             }
         };
 

@@ -12,7 +12,6 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
 
@@ -54,18 +53,12 @@ import com.ibm.wala.types.TypeReference;
 public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
     /**
-     * Results of a precise exceptions analysis
-     */
-    private final PreciseExceptionResults preciseEx;
-    /**
      * WALA classes
      */
     private final WalaAnalysisUtil util;
 
-    public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc,
-                                    PreciseExceptionResults preciseEx, WalaAnalysisUtil util) {
+    public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc, WalaAnalysisUtil util) {
         super(currentNode, interProc, interProc.getReachabilityResults());
-        this.preciseEx = preciseEx;
         this.util = util;
     }
 
@@ -99,7 +92,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             int[] formals;
             VarContext<NonNullAbsVal> initial = nonNull.clearLocalsAndExits();
             if (callee.getMethod().isNative()) {
-                System.err.println(PrettyPrinter.parseMethod(callee.getMethod()) + " is NATIVE");
                 // Create fake formals so they can be restored at the end
                 formals = new int[numParams];
                 for (int j = 0; j < numParams; j++) {
@@ -172,21 +164,13 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 assert normal != null : "Should be non-null if there is a normal successor.";
                 ret.put(normalSucc, normal);
             }
-        } else {
-            // The CFG is not precise enough to tell that this invoke doesn't
-            // terminate normally, but is precise enough to tell that the call
-            // itself doesn't terminate normally.
-            System.err.println(PrettyPrinter.parseMethod(i.getDeclaredTarget())
-                                            + " cannot terminate normally when called from "
-                                            + PrettyPrinter.parseCGNode(currentNode));
         }
 
         Set<ISSABasicBlock> npeSuccs = null;
         VarContext<NonNullAbsVal> npe = null;
-        if (!i.isStatic() && in.getLocal(i.getReceiver()) == NonNullAbsVal.MAY_BE_NULL) {
+        if (!i.isStatic()) {
             npeSuccs = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException, cfg, bb,
-                                            util.getClassHierarchy(),
-                                            preciseEx.getImpossibleExceptions(bb, currentNode));
+                                            util.getClassHierarchy());
             npe = in.setExceptionValue(NonNullAbsVal.NON_NULL);
             npe = in.setLocal(i.getReceiver(), NonNullAbsVal.MAY_BE_NULL);
         }
@@ -361,8 +345,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getArrayRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleExceptions(current, currentNode), current,
-                                        cfg);
+        return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
@@ -387,9 +370,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> indexOOB = normal.setExceptionValue(NonNullAbsVal.NON_NULL);
         Set<ISSABasicBlock> possibleIOOB = getSuccessorsForExceptionType(
                                         TypeReference.JavaLangArrayIndexOutOfBoundsException, cfg, current,
-                                        util.getClassHierarchy(),
-                                        preciseEx.getImpossibleExceptions(current, currentNode));
-        possibleIOOB.removeAll(preciseEx.getImpossibleExceptions(current, currentNode));
+                                        util.getClassHierarchy());
         for (ISSABasicBlock succ : possibleIOOB) {
             out.put(succ, indexOOB);
         }
@@ -397,9 +378,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getArrayRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
         Set<ISSABasicBlock> possibleNPE = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException,
-                                        cfg, current, util.getClassHierarchy(),
-                                        preciseEx.getImpossibleExceptions(current, currentNode));
-        possibleNPE.removeAll(preciseEx.getImpossibleExceptions(current, currentNode));
+                                        cfg, current, util.getClassHierarchy());
         for (ISSABasicBlock succ : possibleNPE) {
             // Note that if a successor can be reached another way in addition
             // to the NPE, the context is the NPE context (since the array may
@@ -433,12 +412,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> otherEx = normal.setExceptionValue(NonNullAbsVal.NON_NULL);
         Set<ISSABasicBlock> possibleOtherEx = getSuccessorsForExceptionType(
                                         TypeReference.JavaLangArrayIndexOutOfBoundsException, cfg, current,
-                                        util.getClassHierarchy(),
-                                        preciseEx.getImpossibleExceptions(current, currentNode));
+                                        util.getClassHierarchy());
         possibleOtherEx.addAll(getSuccessorsForExceptionType(TypeReference.JavaLangArrayStoreException, cfg, current,
-                                        util.getClassHierarchy(),
-                                        preciseEx.getImpossibleExceptions(current, currentNode)));
-        possibleOtherEx.removeAll(preciseEx.getImpossibleExceptions(current, currentNode));
+                                        util.getClassHierarchy()));
+
         for (ISSABasicBlock succ : possibleOtherEx) {
             out.put(succ, otherEx);
         }
@@ -446,9 +423,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getArrayRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
         Set<ISSABasicBlock> possibleNPE = getSuccessorsForExceptionType(TypeReference.JavaLangNullPointerException,
-                                        cfg, current, util.getClassHierarchy(),
-                                        preciseEx.getImpossibleExceptions(current, currentNode));
-        possibleNPE.removeAll(preciseEx.getImpossibleExceptions(current, currentNode));
+                                        cfg, current, util.getClassHierarchy());
         for (ISSABasicBlock succ : possibleNPE) {
             // Note that if a successor can be reached another way in addition
             // to the NPE, the context is the NPE context (since the array may
@@ -469,8 +444,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // we know the casted object was not null
         exception = exception.setLocal(i.getUse(0), NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(in, exception, preciseEx.getImpossibleExceptions(current, currentNode),
-                                        current, cfg);
+        return factsToMapWithExceptions(in, exception, current, cfg);
     }
 
     @Override
@@ -542,8 +516,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleExceptions(current, currentNode), current,
-                                        cfg);
+        return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
@@ -589,8 +562,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normalOut, exception, preciseEx.getImpossibleExceptions(current, currentNode),
-                                        current, cfg);
+        return factsToMapWithExceptions(normalOut, exception, current, cfg);
     }
 
     @Override
@@ -602,8 +574,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleExceptions(current, currentNode), current,
-                                        cfg);
+        return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
@@ -614,8 +585,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normalOut, exception, preciseEx.getImpossibleExceptions(current, currentNode),
-                                        current, cfg);
+        return factsToMapWithExceptions(normalOut, exception, current, cfg);
     }
 
     @Override
@@ -627,8 +597,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         // The exception edge is actually for errors so no value needs to be
         // passed on that edge (it will always be impossible)
-        return factsToMapWithExceptions(normalOut, null, preciseEx.getImpossibleExceptions(current, currentNode),
-                                        current, cfg);
+        return factsToMapWithExceptions(normalOut, null, current, cfg);
     }
 
     @Override
@@ -645,8 +614,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleExceptions(current, currentNode), current,
-                                        cfg);
+        return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
@@ -680,7 +648,11 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> npe = in.setReturnResult(null);
         npe = normal.setExceptionValue(NonNullAbsVal.NON_NULL);
 
-        return factsToMapWithExceptions(normal, npe, preciseEx.getImpossibleExceptions(current, currentNode), current,
-                                        cfg);
+        return factsToMapWithExceptions(normal, npe, current, cfg);
+    }
+    
+    @Override
+    protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
+        return super.isUnreachable(source, target);
     }
 }

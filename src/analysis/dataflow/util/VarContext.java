@@ -247,10 +247,10 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     }
 
     /**
-     * Join the given set of variable contexts
+     * Join the given non-empty set of variable contexts
      * 
      * @param contexts
-     *            variable contexts to join
+     *            non-empty set of variable contexts to join
      * @return least upper bound of all the input items
      */
     public static <T extends AbstractValue<T>> VarContext<T> join(Set<VarContext<T>> contexts) {

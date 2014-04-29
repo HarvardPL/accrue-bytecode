@@ -18,6 +18,15 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 
 public class ReachabilityResults {
+    
+    /**
+     * Reachability results where everything is reachable
+     */
+    public static final ReachabilityResults ALWAYS_REACHABLE = new ReachabilityResults() {
+        public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode containingNode) {
+            return false;
+        };
+    };
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
@@ -32,9 +41,7 @@ public class ReachabilityResults {
 
     public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
-        if (results == null) {
-            return true;
-        }
+        assert results != null;
         return results.isUnreachable(source, target);
     }
 
@@ -56,9 +63,7 @@ public class ReachabilityResults {
     }
 
     /**
-     * Will write the results for all contexts for the given method
-     * <p>
-     * TODO not sure what this looks like in dot if there is more than one node
+     * Will write the results for the first context for the given method
      * 
      * @param writer
      *            writer to write to
@@ -72,6 +77,7 @@ public class ReachabilityResults {
         for (CGNode n : allResults.keySet()) {
             if (n.getMethod().equals(m)) {
                 writeResultsForNode(writer, n);
+                return;
             }
         }
     }

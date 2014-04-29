@@ -73,40 +73,61 @@ public class TestMain {
             int outputLevel = Integer.parseInt(args[1]);
             String testName = args[2];
 
+            String fileName = entryPoint + "_main";
             WalaAnalysisUtil util;
             Entrypoint entry;
             IR ir;
             switch (testName) {
             case "pointsto":
                 util = setUpWala(entryPoint);
-                pointsToTest(util, outputLevel, entryPoint);
+                PointsToGraph g = pointsToTest(util, outputLevel, entryPoint);
+                g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+
+                System.err.println(g.getNodes().size() + " Nodes");
+                int num = 0;
+                for (PointsToGraphNode n : g.getNodes()) {
+                    num += g.getPointsToSet(n).size();
+                }
+                System.err.println(num + " Edges");
+                System.err.println(g.getAllHContexts().size() + " HContexts");
+
+                int numNodes = 0;
+                for (@SuppressWarnings("unused")
+                CGNode n : g.getCallGraph()) {
+                    numNodes++;
+                }
+                System.err.println(numNodes + " CGNodes");
                 break;
             case "maincfg":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
                 ir = util.getCache().getIR(entry.getMethod());
-                cfgSingleTest(util, ir, entryPoint + "_main");
+                cfgSingleTest(util, ir, fileName);
                 break;
             case "nonnull":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                PointsToGraph g = pointsToTest(util, outputLevel, "_main");
-                ReachabilityResults r = reachabilityTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
-                nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, r);
+                g = pointsToTest(util, outputLevel, fileName);
+                ReachabilityResults r = reachabilityTest(util, outputLevel, entry.getMethod(), fileName, g);
+                NonNullResults nonNull = nonNullTest(util, outputLevel, entry.getMethod(), fileName, g, r);
+                nonNull.writeAllToFiles(r);
                 break;
             case "precise-ex":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                g = pointsToTest(util, outputLevel, "_main");
-                r = reachabilityTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
-                NonNullResults nonNull = nonNullTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, r);
-                preciseExceptionTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g, r, nonNull);
+                g = pointsToTest(util, outputLevel, fileName);
+                r = reachabilityTest(util, outputLevel, entry.getMethod(), fileName, g);
+                nonNull = nonNullTest(util, outputLevel, entry.getMethod(), fileName, g, r);
+                PreciseExceptionResults preciseEx = preciseExceptionTest(util, outputLevel, entry.getMethod(),
+                                                entryPoint + fileName, g, r, nonNull);
+                preciseEx.writeAllToFiles(r);
                 break;
             case "reachability":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                g = pointsToTest(util, outputLevel, "_main");
-                reachabilityTest(util, outputLevel, entry.getMethod(), entryPoint + "_main", g);
+                g = pointsToTest(util, outputLevel, fileName);
+                r = reachabilityTest(util, outputLevel, entry.getMethod(), fileName, g);
+                r.writeAllToFiles();
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
@@ -171,8 +192,9 @@ public class TestMain {
         sb.append("Param 2: Test name\n");
         sb.append("\t\"pointsto\" runs the points-to analysis test, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
         sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
-        sb.append("\t\"nonnull\" prints the results of an interprocedural non-null analysis for the main method to the tests folder with the name: \"entryClassName_nonnull.dot\"\n");
-        sb.append("\t\"precise-ex\" prints the results of an interprocedural precise exception analysis for the main method to the tests folder with the name: \"entryClassName_preciseEx.dot\"\n");
+        sb.append("\t\"nonnull\" prints the results of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
+        sb.append("\t\"precise-ex\" prints the results of an interprocedural precise exception analysis to the tests folder prepended with \"precise_ex_\"\n");
+        sb.append("\t\"reachability\" prints the results of an interprocedural reachability analysis fto the tests folder prepended with \"reachability_\"\n");
         return sb.toString();
     }
 
@@ -206,23 +228,6 @@ public class TestMain {
         HeapAbstractionFactory context = new CallSiteSensitive();
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
         PointsToGraph g = analysis.solve(registrar);
-        g.dumpPointsToGraphToFile(filename + "_ptg", false);
-
-        System.out.println(g.getNodes().size() + " Nodes");
-        int num = 0;
-        for (PointsToGraphNode n : g.getNodes()) {
-            num += g.getPointsToSet(n).size();
-        }
-        System.out.println(num + " Edges");
-        System.out.println(g.getAllHContexts().size() + " HContexts");
-
-        int numNodes = 0;
-        for (@SuppressWarnings("unused")
-        CGNode n : g.getCallGraph()) {
-            numNodes++;
-        }
-        System.out.println(numNodes + " CGNodes");
-
         return g;
     }
 
@@ -269,31 +274,10 @@ public class TestMain {
      */
     private static NonNullResults nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName,
                                     PointsToGraph g, ReachabilityResults r) {
-        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, new PreciseExceptionResults(),
-                                        r, util);
+        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, util);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        NonNullResults results = analysis.getNonNullResults();
-
-        String dir = "tests";
-        String file = fileName + "_nonNull";
-        String fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            results.writeResultsForMethod(out, method);
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-
-        file = fileName + "_fakeroot_nonNull";
-        fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            results.writeResultsForMethod(out, util.getFakeRoot());
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-        return results;
+        return analysis.getNonNullResults();
     }
 
     /**
@@ -323,34 +307,7 @@ public class TestMain {
                                         util);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        PreciseExceptionResults results = analysis.getPreciseExceptionResults();
-
-        String dir = "tests";
-        String file = fileName + "_preciseEx";
-        String fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            results.writeResultsForMethod(out, method);
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-
-        file = fileName + "_fakeroot_preciseEx";
-        fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            results.writeResultsForMethod(out, util.getFakeRoot());
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-
-        try {
-            results.writeAllToFiles();
-        } catch (IOException e) {
-            System.err.println("Could not write all results to file.");
-        }
-
-        return results;
+        return analysis.getPreciseExceptionResults();
     }
 
     /**
@@ -372,33 +329,6 @@ public class TestMain {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        ReachabilityResults results = analysis.getReachabilityResults();
-
-        String dir = "tests";
-        String file = fileName + "_reachibility";
-        String fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            results.writeResultsForMethod(out, method);
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-
-        file = fileName + "_fakeroot_reachability";
-        fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            results.writeResultsForMethod(out, util.getFakeRoot());
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-
-        try {
-            results.writeAllToFiles();
-        } catch (IOException e) {
-            System.err.println("Could not write all results to file.");
-        }
-
-        return results;
+        return analysis.getReachabilityResults();
     }
 }

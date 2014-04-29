@@ -1,6 +1,5 @@
 package analysis.dataflow.interprocedural.reachability;
 
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +42,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAbsVal> {
 
     public ReachabilityDataFlow(CGNode n, ReachabilityInterProceduralDataFlow interProc) {
-        super(n, interProc, new ReachabilityResults());
+        super(n, interProc, ReachabilityResults.ALWAYS_REACHABLE);
     }
 
     @Override
@@ -62,12 +61,6 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         // If non-static assume exceptional successors are reachable at least
         // via NPE
         return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : ReachabilityAbsVal.REACHABLE, bb, cfg);
-    }
-
-    private Map<ISSABasicBlock, ReachabilityAbsVal> factsToMapWithExceptions(ReachabilityAbsVal normal,
-                                    ReachabilityAbsVal exceptional, ISSABasicBlock bb,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        return factsToMapWithExceptions(normal, exceptional, Collections.<ISSABasicBlock> emptySet(), bb, cfg);
     }
 
     @Override
@@ -92,7 +85,6 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
     @Override
     protected void post(IR ir) {
-
         Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachable = new LinkedHashSet<>();
         for (ISSABasicBlock source : outputItems.keySet()) {
             Map<ISSABasicBlock, ReachabilityAbsVal> output = outputItems.get(source);

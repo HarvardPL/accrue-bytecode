@@ -88,4 +88,13 @@ public class PreciseExceptionAbsVal implements AbstractValue<PreciseExceptionAbs
         sb.append("]");
         return sb.toString();
     }
+
+    /**
+     * True if the set of exceptions represented by this value is empty
+     * 
+     * @return true if this represents the empty set of exceptions
+     */
+    public boolean isEmpty() {
+        return throwables.isEmpty();
+    }
 }

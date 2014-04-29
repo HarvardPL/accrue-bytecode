@@ -9,13 +9,13 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
@@ -56,37 +56,6 @@ public class PreciseExceptionResults {
         return results.getExceptions(bb, successor);
     }
 
-    /**
-     * Exceptions that can be thrown by the method represented by the call graph
-     * node in the context contained therein
-     * 
-     * @param containingNode
-     * @return
-     */
-    public Set<TypeReference> getExceptions(CGNode containingNode) {
-        ResultsForNode results = allResults.get(containingNode);
-        if (results == null) {
-            return Collections.emptySet();
-        }
-        return results.getExceptions();
-    }
-
-    /**
-     * Set the exceptions that can be thrown by the method represented by the
-     * call graph node in the context contained therein
-     * 
-     * @param throwTypes
-     * @param containingNode
-     */
-    protected void replaceExceptions(Set<TypeReference> throwTypes, CGNode containingNode) {
-        ResultsForNode results = allResults.get(containingNode);
-        if (results == null) {
-            results = new ResultsForNode();
-            allResults.put(containingNode, results);
-        }
-        results.replaceExceptions(throwTypes);
-    }
-
     protected void replaceExceptions(Set<TypeReference> throwTypes, ISSABasicBlock bb, ISSABasicBlock successor,
                                     CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
@@ -97,70 +66,12 @@ public class PreciseExceptionResults {
         results.replaceExceptions(throwTypes, bb, successor);
     }
 
-    /**
-     * Successors which cannot be reached because no exception can be thrown on
-     * the edge between the given basic block and the block in the returned set
-     * 
-     * @param bb
-     *            basic block to get impossible successors for
-     * @param containingNode
-     *            call graph node containing the basic block
-     * @return set of basic block numbers for successors that can never be
-     *         reached on exceptional edges
-     */
-    public Set<ISSABasicBlock> getImpossibleExceptions(ISSABasicBlock bb, CGNode containingNode) {
-        if (bb.getLastInstructionIndex() >= 0
-                                        && InstructionType.forInstruction(bb.getLastInstruction()) == InstructionType.NEW_OBJECT) {
-            // This instruction can only throw errors, which we are not handling
-            List<ISSABasicBlock> bbs = containingNode.getIR().getControlFlowGraph().getExceptionalSuccessors(bb);
-            assert bbs.size() == 1;
-            return Collections.singleton(bbs.get(0));
-        }
-
-        if (containingNode == null || allResults.get(containingNode) == null) {
-            return Collections.emptySet();
-        }
-
-        return allResults.get(containingNode).getImpossibleExceptions(bb);
-    }
-
-    /**
-     * Replace the set of successors from <code>source</code> that are
-     * unreachable on exception edges
-     * 
-     * @param source
-     *            source node
-     * @param successors
-     *            successors that are unreachable on exception edges
-     * @param containingNode
-     *            call graph node containing the basic blocks
-     */
-    protected void replaceImpossibleExceptions(ISSABasicBlock source, Set<ISSABasicBlock> unreachableByException,
-                                    CGNode containingNode) {
-        ResultsForNode results = allResults.get(containingNode);
-        if (results == null) {
-            results = new ResultsForNode();
-            allResults.put(containingNode, results);
-        }
-        results.replaceImpossibleExceptions(source, unreachableByException);
-    }
-
     private static class ResultsForNode {
         /**
          * Map of instruction/call graph node to the set of exceptions that can
          * be thrown by the instruction in that call graph node
          */
         private final Map<CFGEdge, Set<TypeReference>> thrownExceptions;
-        /**
-         * Map of instruction/call graph node to the set of successors that can
-         * never be reached
-         */
-        private final Map<ISSABasicBlock, Set<ISSABasicBlock>> impossibleSuccessors;
-        /**
-         * Get exceptions that can be thrown by the procedure and context
-         * represented by the call-graph node
-         */
-        private Set<TypeReference> exceptionsForNode;
 
         /**
          * Initialize the precise exceptions where every instruction key is
@@ -168,39 +79,6 @@ public class PreciseExceptionResults {
          */
         public ResultsForNode() {
             thrownExceptions = new LinkedHashMap<>();
-            impossibleSuccessors = new LinkedHashMap<>();
-            exceptionsForNode = new LinkedHashSet<>();
-        }
-
-        /**
-         * Replace the set of successors from <code>source</code> that are
-         * unreachable on exception edges
-         * 
-         * @param source
-         *            source node
-         * @param successors
-         *            successors that are unreachable on exception edges
-         */
-        public void replaceImpossibleExceptions(ISSABasicBlock source, Set<ISSABasicBlock> unreachableByException) {
-            impossibleSuccessors.put(source, unreachableByException);
-        }
-
-        /**
-         * Replace the set of exceptions that can be thrown by this node
-         * 
-         * @param throwTypes
-         */
-        public void replaceExceptions(Set<TypeReference> throwTypes) {
-            exceptionsForNode = new LinkedHashSet<>();
-        }
-
-        /**
-         * Get the set of exceptions that can be thrown by this node
-         * 
-         * @return
-         */
-        public Set<TypeReference> getExceptions() {
-            return exceptionsForNode;
         }
 
         /**
@@ -232,24 +110,6 @@ public class PreciseExceptionResults {
                 exceptions = Collections.emptySet();
             }
             return exceptions;
-        }
-
-        /**
-         * Successors which cannot be reached because no exception can be thrown
-         * on the edge between the given basic block and the block in the
-         * returned set
-         * 
-         * @param bb
-         *            basic block to get impossible successors for
-         * @return set of basic block numbers for successors that can never be
-         *         reached on exceptional edges
-         */
-        public Set<ISSABasicBlock> getImpossibleExceptions(ISSABasicBlock bb) {
-            Set<ISSABasicBlock> succs = impossibleSuccessors.get(bb);
-            if (succs == null) {
-                succs = Collections.emptySet();
-            }
-            return succs;
         }
     }
 
@@ -421,37 +281,39 @@ public class PreciseExceptionResults {
     }
 
     /**
-     * Will write the results for all contexts for the given method
-     * <p>
-     * TODO not sure what this looks like in dot if there is more than one node
+     * Will write the results for the first context for the given method
      * 
      * @param writer
      *            writer to write to
      * @param m
      *            method to write the results for
+     * @param reachable
+     *            results of a reachability analysis
      * 
      * @throws IOException
      *             issues with the writer
      */
-    public void writeResultsForMethod(Writer writer, IMethod m) throws IOException {
+    public void writeResultsForMethod(Writer writer, IMethod m, ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
             if (n.getMethod().equals(m)) {
-                writeResultsForNode(writer, n);
+                writeResultsForNode(writer, n, reachable);
+                return;
             }
         }
     }
 
-    public void writeAllToFiles() throws IOException {
+    public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/precise_ex" + PrettyPrinter.parseCGNode(n).replace(" ", "") + ".dot";
+            String fileName = "tests/preciseex_" + PrettyPrinter.parseCGNode(n).replace(" ", "") + ".dot";
             try (Writer w = new FileWriter(fileName)) {
-                writeResultsForNode(w, n);
+                writeResultsForNode(w, n, reachable);
                 System.err.println("DOT written to " + fileName);
             }
         }
     }
 
-    private void writeResultsForNode(Writer writer, final CGNode n) throws IOException {
+    private void writeResultsForNode(Writer writer, final CGNode n, final ReachabilityResults reachable)
+                                    throws IOException {
         final ResultsForNode results = allResults.get(n);
 
         CFGWriter w = new CFGWriter(n.getIR()) {
@@ -476,7 +338,19 @@ public class PreciseExceptionResults {
             @Override
             protected Set<ISSABasicBlock> getUnreachableSuccessors(ISSABasicBlock bb,
                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-                return results.getImpossibleExceptions(bb);
+                Set<ISSABasicBlock> unreachable = new LinkedHashSet<>();
+                for (ISSABasicBlock next : cfg.getNormalSuccessors(bb)) {
+                    if (reachable.isUnreachable(bb, next, n)) {
+                        unreachable.add(next);
+                    }
+                }
+
+                for (ISSABasicBlock next : cfg.getExceptionalSuccessors(bb)) {
+                    if (reachable.isUnreachable(bb, next, n)) {
+                        unreachable.add(next);
+                    }
+                }
+                return unreachable;
             }
         };
 

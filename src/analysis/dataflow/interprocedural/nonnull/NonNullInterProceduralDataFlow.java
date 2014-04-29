@@ -7,7 +7,6 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
@@ -21,10 +20,6 @@ import com.ibm.wala.types.TypeReference;
  */
 public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
-    /**
-     * Results of a precise exception analysis
-     */
-    private final PreciseExceptionResults preciseEx;
     /**
      * WALA analysis classes
      */
@@ -44,17 +39,13 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      * 
      * @param ptg
      *            points-to graph
-     * @param preciseEx
-     *            results of a precise exception analysis
      * @param reachable
      *            results of a reachability analysis
      * @param util
      *            WALA analysis classes
      */
-    public NonNullInterProceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
-                                    ReachabilityResults reachable, WalaAnalysisUtil util) {
+    public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable, WalaAnalysisUtil util) {
         super(ptg, reachable);
-        this.preciseEx = preciseEx;
         this.util = util;
     }
 
@@ -68,7 +59,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
         }
-        NonNullDataFlow df = new NonNullDataFlow(n, this, preciseEx, util);
+        NonNullDataFlow df = new NonNullDataFlow(n, this, util);
         df.setOutputLevel(getOutputLevel());
         return df.dataflow(input);
     }

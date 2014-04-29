@@ -138,13 +138,19 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
     protected abstract Map<ISSABasicBlock, F> call(SSAInvokeInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
 
+    /**
+     * Ensure that all reachable successors get results. Record output for the
+     * basic block that was just analyzed.
+     * <p>
+     * {@inheritDoc}
+     */
     @Override
     protected void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                     ISSABasicBlock justProcessed, Map<ISSABasicBlock, F> outItems) {
 
         for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(justProcessed)) {
-            if (outItems.get(normalSucc) == null) {
-                System.err.println("No fact for normal successor from BB"
+            if (outItems.get(normalSucc) == null && !isUnreachable(justProcessed, normalSucc)) {
+                throw new RuntimeException("No fact for normal successor from BB"
                                                 + justProcessed.getGraphNodeId()
                                                 + " to BB"
                                                 + normalSucc.getGraphNodeId()
@@ -155,8 +161,8 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
         }
 
         for (ISSABasicBlock exceptionalSucc : cfg.getExceptionalSuccessors(justProcessed)) {
-            if (outItems.get(exceptionalSucc) == null) {
-                System.err.println("No fact for exceptional successor from BB"
+            if (outItems.get(exceptionalSucc) == null && !isUnreachable(justProcessed, exceptionalSucc)) {
+                throw new RuntimeException("No fact for exceptional successor from BB"
                                                 + justProcessed.getGraphNodeId()
                                                 + " to BB"
                                                 + exceptionalSucc.getGraphNodeId()
@@ -177,19 +183,39 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
         ISSABasicBlock exit = cfg.exit();
         Set<F> normals = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
-            if (outputItems.get(bb).get(exit) != null) {
+            if (!isUnreachable(bb, exit)) {
                 normals.add(outputItems.get(bb).get(exit));
             }
         }
-        output.put(ExitType.NORMAL, confluence(normals));
+
+        if (normals.isEmpty()) {
+            // There are no normal predecessors of the exit so this procedure
+            // cannot terminate normally
+            output.put(ExitType.NORMAL, null);
+        } else {
+            output.put(ExitType.NORMAL, confluence(normals));
+        }
+
+        if (cfg.getExceptionalPredecessors(exit).isEmpty()) {
+            // No exceptions can be thrown by this procedure
+            output.put(ExitType.EXCEPTIONAL, null);
+            return;
+        }
 
         Set<F> exceptions = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
-            if (outputItems.get(bb).get(exit) != null) {
+            if (!isUnreachable(bb, exit)) {
                 exceptions.add(outputItems.get(bb).get(exit));
             }
         }
-        output.put(ExitType.EXCEPTIONAL, confluence(exceptions));
+
+        if (exceptions.isEmpty()) {
+            // There are no exceptional predecessors of the exit so this
+            // procedure cannot throw an exception
+            output.put(ExitType.EXCEPTIONAL, null);
+        } else {
+            output.put(ExitType.EXCEPTIONAL, confluence(exceptions));
+        }
     }
 
     /**
@@ -204,8 +230,8 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
      *            current basic block
      * @return map with the same merged value for each key
      */
-    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock bb) {
+    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
         F fact = confluence(facts);
         return factToMap(fact, bb, cfg);
     }
@@ -281,5 +307,10 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
      */
     protected ReachabilityResults getReachable() {
         return reachable;
+    }
+
+    @Override
+    protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
+        return getReachable().isUnreachable(source, target, currentNode);
     }
 }

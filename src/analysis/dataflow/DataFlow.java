@@ -13,7 +13,6 @@ import util.InstructionType;
 import util.OrderedPair;
 import util.SingletonValueMap;
 import util.print.PrettyPrinter;
-import analysis.dataflow.interprocedural.exceptions.PreciseExceptionDataFlow;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
@@ -90,28 +89,51 @@ public abstract class DataFlow<F> {
                     AnalysisRecord<F> previousResults = getOutItems(current);
                     Map<ISSABasicBlock, F> oldOutItems = previousResults == null ? null : previousResults.getOutput();
 
+                    // If all incoming edges unreachable then this block is
+                    // unreachable and we do not need to analyze
+                    // Note that all entry blocks are considered reachable
+                    boolean isBasicBlockunreachable = !current.isEntryBlock();
+
                     // Get all out items for predecessors
                     Iterator<ISSABasicBlock> preds = getPreds(current, g);
                     while (preds.hasNext()) {
                         ISSABasicBlock pred = preds.next();
-                        Map<ISSABasicBlock, F> items = getOutItems(pred).output;
-                        if (items != null) {
-                            F item = items.get(current);
-                            // TODO should we allow item == null?
-                            if (item != null) {
-                                inItems.add(item);
-                            } else {
-                                if (getOutputLevel() >= 2) {
-                                    String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional"
-                                                                    : "normal";
-                                    System.err.println("null data-flow item in "
-                                                                    + PrettyPrinter.parseMethod(ir.getMethod())
-                                                                    + " from BB" + g.getNumber(pred) + " to BB"
-                                                                    + g.getNumber(current) + " on " + edgeType
-                                                                    + " edge");
-                                }
-                            }
+
+                        boolean isUnreachableEdge = isUnreachable(pred, current);
+                        isBasicBlockunreachable &= isUnreachableEdge;
+                        if (isUnreachableEdge || getOutItems(pred) == null) {
+                            // There is no input on this edge if current is
+                            // unreachable from the predecessor
+
+                            // The output items could be null for a predecessor
+                            // if there is a back edge and that predecessor has
+                            // not been analyzed yet
+                            continue;
                         }
+
+                        Map<ISSABasicBlock, F> items = getOutItems(pred).output;
+                        F item = items.get(current);
+                        inItems.add(item);
+                        if (item == null) {
+                            // We do not allow null output for reachable
+                            // successors
+                            String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional" : "normal";
+                            throw new RuntimeException("null data-flow item in "
+                                                            + PrettyPrinter.parseMethod(ir.getMethod()) + " from BB"
+                                                            + g.getNumber(pred) + " to BB" + g.getNumber(current)
+                                                            + " on " + edgeType + " edge");
+                        }
+                        inItems.add(item);
+                    }
+
+                    if (isBasicBlockunreachable) {
+                        // Do not analyze this block if it cannot be reached
+                        // from any predecessor
+                        if (verbose >= 1) {
+                            System.err.println("UNREACHABLE basic block:\n"
+                                                            + PrettyPrinter.basicBlockString(ir, current, "\t", "\n") + ir);
+                        }
+                        continue;
                     }
 
                     if (previousResults != null && existingResultsSuitable(inItems, previousResults)) {
@@ -128,7 +150,7 @@ public abstract class DataFlow<F> {
                     }
 
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
-                        System.err.println("No input for BB" + current.getGraphNodeId() + " in "
+                        throw new RuntimeException("No input for BB" + current.getGraphNodeId() + " in "
                                                         + PrettyPrinter.parseMethod(ir.getMethod()));
                     }
 
@@ -314,26 +336,20 @@ public abstract class DataFlow<F> {
      *            fact to associate with each normal successor
      * @param exceptionalItem
      *            fact to associate with each exceptional successor
-     * @param impossibleExceptions
-     *            exceptional successors that cannot be reached, determined by a
-     *            separate analysis (e.g. {@link PreciseExceptionDataFlow})
      * @param bb
      *            basic block this computes the output for
      * @param cfg
      *            control flow graph
      * @return mapping from each successor to the corresponding data-flow fact
      */
-    protected final Map<ISSABasicBlock, F> factsToMapWithExceptions(F normalItem, F exceptionItem,
-                                    Set<ISSABasicBlock> impossibleExceptions, ISSABasicBlock bb,
+    protected final Map<ISSABasicBlock, F> factsToMapWithExceptions(F normalItem, F exceptionItem, ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<ISSABasicBlock, F> ret = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
             ret.put(succ, normalItem);
         }
         for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
-            if (!impossibleExceptions.contains(succ)) {
-                ret.put(succ, exceptionItem);
-            }
+            ret.put(succ, exceptionItem);
         }
         return ret;
     }
@@ -490,6 +506,17 @@ public abstract class DataFlow<F> {
     }
 
     /**
+     * Determine whether a data-flow edge is unreachable, e.g. it could be the
+     * normal edge leaving a call that can only throw an exception
+     * 
+     * @param source
+     *            edge source
+     * @param target
+     *            edge target
+     */
+    protected abstract boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target);
+
+    /**
      * Get the successor basic blocks that may be able to be reached by throwing
      * a particular type of exception.
      * <p>
@@ -504,13 +531,11 @@ public abstract class DataFlow<F> {
      *            basic bloc that throws the exception
      * @param cha
      *            class hierarchy
-     * @param unreachable
-     *            basic block successors that cannot be reached
      * @return set of basic blocks that may
      */
     protected Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current,
-                                    IClassHierarchy cha, Set<ISSABasicBlock> unreachable) {
+                                    IClassHierarchy cha) {
         // TODO redo exception successors in a cleaner way
 
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
@@ -551,7 +576,6 @@ public abstract class DataFlow<F> {
             result.add(cfg.exit());
         }
 
-        result.removeAll(unreachable);
         return result;
     }
 

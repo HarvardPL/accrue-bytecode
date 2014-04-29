@@ -236,7 +236,7 @@ public enum InstructionType {
         if (i instanceof SSAGetCaughtExceptionInstruction) return GET_CAUGHT_EXCEPTION;
         if (i instanceof SSALoadMetadataInstruction) return LOAD_METADATA;
         if (i instanceof SSAMonitorInstruction) return MONITOR;
-        String msg = "Invalid/unexpected instruction type: " + PrettyPrinter.getSimpleClassName(i);
+        String msg = "Invalid/unexpected instruction type: " + (i == null ? "NULL" : PrettyPrinter.getSimpleClassName(i));
         assert false : msg;
         throw new RuntimeException(msg);
     }

@@ -52,10 +52,10 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     }
 
     /**
-     * Join the given set of data-flow facts to get a new item
+     * Join the given (non-empty) set of data-flow facts to get a new item
      * 
      * @param facts
-     *            data-flow facts to merge
+     *            non-empty set of data-flow facts to merge
      * @return new data-flow item computed by merging the facts in the given set
      */
     protected abstract F confluence(Set<F> facts);
