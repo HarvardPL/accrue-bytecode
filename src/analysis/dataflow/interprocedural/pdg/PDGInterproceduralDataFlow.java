@@ -9,8 +9,10 @@ import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
+import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
@@ -140,11 +142,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
         // issue not a soundness issue).
         super.postAnalysis();
     }
-
-    public ProgramDependenceGraph getProgramDependenceGraph() {
-        return pdg;
-    }
-
+    
     public PreciseExceptionResults getPreciseExceptionResults() {
         return preciseEx;
     }
@@ -161,7 +159,20 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
     
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
+        return pdg;
+    }
+    
+    /**
+     * Add an edge of the given type to the PDG
+     * 
+     * @param source
+     *            source of the new edge
+     * @param target
+     *            target of the new edge
+     * @param type
+     *            type of edge being added
+     */
+    protected void addEdge(PDGNode source, PDGNode target, PDGEdgeType type) {
         // TODO Auto-generated method stub
-        return null;
     }
 }

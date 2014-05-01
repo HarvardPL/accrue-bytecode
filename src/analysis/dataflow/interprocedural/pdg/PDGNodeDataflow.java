@@ -1,11 +1,15 @@
 package analysis.dataflow.interprocedural.pdg;
 
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
+import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 import analysis.dataflow.util.VarContext;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -43,15 +47,23 @@ import com.ibm.wala.types.TypeReference;
  */
 public class PDGNodeDataflow extends InstructionDispatchDataFlow<VarContext<PDGNode>> {
 
-    private CGNode currentNode;
-    private PDGInterproceduralDataFlow interProc;
+    private final CGNode currentNode;
+    private final PDGInterproceduralDataFlow interProc;
+    private final ProcedureSummaryNodes summary;
+    private static final boolean DEBUG = true;
 
-    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc) {
+    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, ProcedureSummaryNodes summary) {
         super(true);
 
         this.currentNode = currentNode;
         this.interProc = interProc;
-        // TODO Auto-generated constructor stub
+        this.summary = summary;
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, VarContext<PDGNode>> flow(Set<VarContext<PDGNode>> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return super.flow(inItems, cfg, current);
     }
 
     @Override
@@ -68,9 +80,105 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<VarContext<PDGN
 
         // Maybe another pass to add edges rather than the above
     }
-    
+
     @Override
-    protected VarContext<PDGNode> confluence(Set<VarContext<PDGNode>> facts) {
+    protected VarContext<PDGNode> confluence(Set<VarContext<PDGNode>> facts, ISSABasicBlock bb) {
+
+        VarContext<PDGNode> first = null;
+        boolean allContextsEqual = true;
+        for (VarContext<PDGNode> fact : facts) {
+            if (first == null) {
+                first = fact;
+            }
+            allContextsEqual &= (fact == first || fact.equals(first));
+        }
+
+        if (allContextsEqual) {
+            return first;
+        }
+
+        Map<Integer, Set<PDGNode>> localNodes = new LinkedHashMap<>();
+        Set<PDGNode> returnNodes = new LinkedHashSet<>();
+        Set<PDGNode> exceptionNodes = new LinkedHashSet<>();
+        for (VarContext<PDGNode> fact : facts) {
+            // Get PDG nodes for the local variables
+            for (Integer local : fact.getLocals()) {
+                Set<PDGNode> nodesForLocal = localNodes.get(local);
+                if (nodesForLocal == null) {
+                    nodesForLocal = new LinkedHashSet<>();
+                    localNodes.put(local, nodesForLocal);
+                }
+                nodesForLocal.add(fact.getLocal(local));
+            }
+
+            if (fact.getReturnResult() != null) {
+                returnNodes.add(fact.getReturnResult());
+            }
+
+            if (fact.getException() != null) {
+                exceptionNodes.add(fact.getException());
+            }
+        }
+
+        // Locals will never be merged here there will always be the same local
+        // on each
+        // TODO Can locals ever be different on in-edges?
+        Map<Integer, PDGNode> newLocals = new LinkedHashMap<>();
+        for (Integer local : localNodes.keySet()) {
+            PDGNode firstLocalNode = null;
+            for (VarContext<PDGNode> fact : facts) {
+                if (firstLocalNode == null) {
+                    firstLocalNode = fact.getLocal(local);
+                    if (!DEBUG) {
+                        // Unless we want to check that all the locals are in
+                        // fact the same we can quit when we find one
+                        break;
+                    }
+                }
+                assert fact.getLocal(local) == null || fact.getLocal(local).equals(firstLocalNode);
+            }
+            assert firstLocalNode != null;
+            newLocals.put(local, firstLocalNode);
+        }
+
+        PDGNode newReturnNode = null;
+        if (bb.isExitBlock()) {
+            newReturnNode = summary.getExceptionNode();
+            for (PDGNode n : returnNodes) {
+                interProc.addEdge(n, newReturnNode, PDGEdgeType.MERGE);
+            }
+        } else {
+            assert false : "There shouldn't be any return nodes entering a block that is not an exit.";
+        }
+
+        PDGNode newExceptionNode = null;
+        if (bb.isExitBlock()) {
+            newExceptionNode = summary.getExceptionNode();
+            for (PDGNode n : exceptionNodes) {
+                interProc.addEdge(n, newExceptionNode, PDGEdgeType.MERGE);
+            }
+        } else if (bb.isCatchBlock()) {
+            // catch block
+            newExceptionNode = getExceptionNodeForCatch(bb);
+            for (PDGNode n : exceptionNodes) {
+                interProc.addEdge(n, newExceptionNode, PDGEdgeType.MERGE);
+            }
+        } else {
+            assert false : "There shouldn't be any exception nodes entering a block that is not a catch or exit.";
+        }
+        
+        return new PDGContext(newLocals, newReturnNode, newExceptionNode);
+    }
+
+    /**
+     * Get the merge node representing the value of an exception entering a
+     * catch block
+     * 
+     * @param catchBlock
+     *            basic block for the entry to the catch block
+     * @return merge node for the exception caught by the catch block
+     */
+    private PDGNode getExceptionNodeForCatch(ISSABasicBlock catchBlock) {
         // TODO Auto-generated method stub
         return null;
     }
