@@ -80,7 +80,7 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
         return existingResults != null && newInput.equals(existingResults.getInput());
     }
 
-    public ReachabilityResults getReachabilityResults() {
+    public ReachabilityResults getAnalysisResults() {
         return results;
     }
 }

@@ -15,6 +15,7 @@ import java.util.Set;
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -32,7 +33,7 @@ import com.ibm.wala.types.TypeReference;
  * Results of a precise exceptions analysis mapping instructions to the set of
  * thrown exceptions
  */
-public class PreciseExceptionResults {
+public class PreciseExceptionResults implements AnalysisResults {
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 

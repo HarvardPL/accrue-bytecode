@@ -40,7 +40,7 @@ public abstract class DataFlow<F> {
      */
     private final boolean forward;
     /**
-     * Map from basic block to record containing analysis results
+     * Map from basic block to record containing analysis input and results
      */
     private final Map<ISSABasicBlock, AnalysisRecord<F>> bbToRecord;
     /**
@@ -84,9 +84,11 @@ public abstract class DataFlow<F> {
             while (changed) {
                 changed = false;
                 for (ISSABasicBlock current : scc) {
-
+                    if (getOutputLevel() >= 4) {
+                        System.err.println("FLOWING: BB" + current.getNumber() + " in " + PrettyPrinter.parseMethod(ir.getMethod()));
+                    }
                     Set<F> inItems = new LinkedHashSet<>(getNumPreds(current, g));
-                    AnalysisRecord<F> previousResults = getOutItems(current);
+                    AnalysisRecord<F> previousResults = getAnalysisRecord(current);
                     Map<ISSABasicBlock, F> oldOutItems = previousResults == null ? null : previousResults.getOutput();
 
                     // If all incoming edges unreachable then this block is
@@ -101,7 +103,7 @@ public abstract class DataFlow<F> {
 
                         boolean isUnreachableEdge = isUnreachable(pred, current);
                         isBasicBlockunreachable &= isUnreachableEdge;
-                        if (isUnreachableEdge || getOutItems(pred) == null) {
+                        if (isUnreachableEdge || getAnalysisRecord(pred) == null) {
                             // There is no input on this edge if current is
                             // unreachable from the predecessor
 
@@ -111,7 +113,7 @@ public abstract class DataFlow<F> {
                             continue;
                         }
 
-                        Map<ISSABasicBlock, F> items = getOutItems(pred).output;
+                        Map<ISSABasicBlock, F> items = getAnalysisRecord(pred).output;
                         F item = items.get(current);
                         inItems.add(item);
                         if (item == null) {
@@ -150,8 +152,24 @@ public abstract class DataFlow<F> {
                     }
 
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
-                        throw new RuntimeException("No input for BB" + current.getGraphNodeId() + " in "
-                                                        + PrettyPrinter.parseMethod(ir.getMethod()));
+                        if (verbose >= 1) {
+                            System.err.print("NO INPUT for BB" + current.getGraphNodeId() + " in "
+                                                        + PrettyPrinter.parseMethod(ir.getMethod())
+                                                        + " SKIPPING. Preds: [");
+                            Iterator<ISSABasicBlock> iter = getPreds(current, g);
+                            ISSABasicBlock first = iter.next();
+                            System.err.print("BB" + first.getNumber());
+                            while (iter.hasNext()) {
+                                System.err.print(", BB" + iter.next().getNumber());
+                            }
+                            System.err.println("]");
+                        }
+                        // This is reachable and there is no input which means
+                        // we are not starting at a BB in this SCC that is
+                        // connected to the previous SCC. Continue looking until
+                        // we do.
+                        // TODO Can a degenerate CFG ever be disconnected?
+                        continue;
                     }
 
                     Map<ISSABasicBlock, F> outItems = flow(inItems, g, current);
@@ -424,7 +442,7 @@ public abstract class DataFlow<F> {
      * 
      * @return input and output data-flow facts for the basic block
      */
-    protected final AnalysisRecord<F> getOutItems(ISSABasicBlock bb) {
+    protected final AnalysisRecord<F> getAnalysisRecord(ISSABasicBlock bb) {
         return bbToRecord.get(bb);
     }
 

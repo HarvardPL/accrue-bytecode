@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import util.WorkQueue;
+import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -156,5 +157,11 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
     @Override
     public Map<ExitType, VarContext<PDGNode>> getResults(CGNode caller, CGNode callee, VarContext<PDGNode> input) {
         throw new UnsupportedOperationException("Get the summary and use that instead.");
+    }
+    
+    @Override
+    public ProgramDependenceGraph getAnalysisResults() {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

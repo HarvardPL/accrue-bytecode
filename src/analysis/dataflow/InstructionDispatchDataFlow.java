@@ -43,14 +43,10 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
  */
 public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     /**
-     * Input facts for each instruction analyzed
+     * Map from Instruction to record containing analysis results
      */
-    protected final Map<SSAInstruction, Set<F>> inputItems = new LinkedHashMap<>();
-    /**
-     * Output fact for each basic block analyzed
-     */
-    protected final Map<ISSABasicBlock, Map<ISSABasicBlock, F>> outputItems = new LinkedHashMap<>();
-    
+    private final Map<SSAInstruction, AnalysisRecord<F>> insToRecord;
+
     /**
      * Data-flow that dispatches based on instruction type
      * 
@@ -58,6 +54,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     public InstructionDispatchDataFlow(boolean forward) {
         super(forward);
+        insToRecord = new LinkedHashMap<>();
     }
 
     /**
@@ -90,6 +87,19 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         facts.add(fact1);
         facts.add(fact2);
         return confluence(facts);
+    }
+    
+    /**
+     * Get a record for a previously run analysis for the given instruction,
+     * returns null if the block has never been analyzed
+     * 
+     * @param i
+     *            instruction to get the record for
+     * 
+     * @return input and output data-flow facts for the instruction
+     */
+    protected AnalysisRecord<F> getAnalysisRecord(SSAInstruction i) {
+        return insToRecord.get(i);
     }
 
     /**
@@ -141,16 +151,17 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        inputItems.put(i, inItems);
-        
         SSAInstruction last = current.getLastInstruction();
+        Map<ISSABasicBlock, F> output;
         if (i == last) {
             // this is the last instruction of the block
-            return flowLastInstruction(i, inItems, cfg, current);
+            output = flowLastInstruction(i, inItems, cfg, current);
         } else {
             // Pass the results of this "flow" into the next
-            return factToMap(flowNonBranchingInstruction(i, inItems, cfg, current), current, cfg);
+            output = factToMap(flowNonBranchingInstruction(i, inItems, cfg, current), current, cfg);
         }
+        insToRecord.put(i, new AnalysisRecord<>(inItems, output));
+        return output;
     }
 
     /**
@@ -289,10 +300,9 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Method called after processing a basic block. By default it ensures that
-     * all reachable successors get results and records output for the basic block
-     * that was just analyzed. 
+     * all reachable successors get results.
      * <p>
-     * Subclasses should override for more functionality.
+     * Subclasses should override for more functionality if desired.
      * 
      * @param inItems
      *            data-flow facts before processing basic block
@@ -308,27 +318,17 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
         for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(justProcessed)) {
             if (outItems.get(normalSucc) == null && !isUnreachable(justProcessed, normalSucc)) {
-                throw new RuntimeException("No fact for normal successor from BB"
-                                                + justProcessed.getGraphNodeId()
-                                                + " to BB"
-                                                + normalSucc.getGraphNodeId()
-                                                + "\n"
-                                                + justProcessed);
+                throw new RuntimeException("No fact for normal successor from BB" + justProcessed.getGraphNodeId()
+                                                + " to BB" + normalSucc.getGraphNodeId() + "\n" + justProcessed);
             }
         }
 
         for (ISSABasicBlock exceptionalSucc : cfg.getExceptionalSuccessors(justProcessed)) {
             if (outItems.get(exceptionalSucc) == null && !isUnreachable(justProcessed, exceptionalSucc)) {
-                throw new RuntimeException("No fact for exceptional successor from BB"
-                                                + justProcessed.getGraphNodeId()
-                                                + " to BB"
-                                                + exceptionalSucc.getGraphNodeId()
-                                                + "\n"
-                                                + justProcessed);
+                throw new RuntimeException("No fact for exceptional successor from BB" + justProcessed.getGraphNodeId()
+                                                + " to BB" + exceptionalSucc.getGraphNodeId() + "\n" + justProcessed);
             }
         }
-
-        outputItems.put(justProcessed, outItems);
     }
 
     /**

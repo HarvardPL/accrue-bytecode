@@ -214,7 +214,6 @@ public class TestMain {
 
         // Gather all the points-to statements
         StatementRegistrationPass pass = new StatementRegistrationPass(util);
-        // Don't print anything
         StatementRegistrationPass.VERBOSE = outputLevel;
         pass.run();
         System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
@@ -329,6 +328,6 @@ public class TestMain {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        return analysis.getReachabilityResults();
+        return analysis.getReachabilityAnalysisResults();
     }
 }

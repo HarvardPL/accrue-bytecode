@@ -39,11 +39,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * TODO do we actually want this to be part of an interprocedural analysis? This
- * has the benefit of automatically analyzing the callees. Since the analysis
- * doesn't actually use the results of analyzing the callee, why not just loop
- * through the call graph once then put together the Interprocedural graph based
- * on the results and the call graph.
+ * Data-flow that builds up the set of nodes in a program dependence graph.
  */
 public class PDGNodeDataflow extends InstructionDispatchDataFlow<VarContext<PDGNode>> {
 
@@ -72,17 +68,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<VarContext<PDGN
 
         // Maybe another pass to add edges rather than the above
     }
-
-    @Override
-    protected void postBasicBlock(Set<VarContext<PDGNode>> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
-                                    Map<ISSABasicBlock, VarContext<PDGNode>> outItems) {
-        // TODO Auto-generated method stub
-
-        // record the results
-        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
-    }
-
+    
     @Override
     protected VarContext<PDGNode> confluence(Set<VarContext<PDGNode>> facts) {
         // TODO Auto-generated method stub

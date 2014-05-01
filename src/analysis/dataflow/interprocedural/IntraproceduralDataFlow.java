@@ -126,7 +126,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         Set<F> normals = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
             if (!isUnreachable(bb, exit)) {
-                normals.add(outputItems.get(bb).get(exit));
+                normals.add(getAnalysisRecord(bb).getOutput().get(exit));
             }
         }
 
@@ -147,7 +147,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         Set<F> exceptions = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
             if (!isUnreachable(bb, exit)) {
-                exceptions.add(outputItems.get(bb).get(exit));
+                exceptions.add(getAnalysisRecord(bb).getOutput().get(exit));
             }
         }
 

@@ -13,6 +13,7 @@ import java.util.Set;
 import types.TypeRepository;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -25,7 +26,7 @@ import com.ibm.wala.ssa.SSAInstruction;
 /**
  * Results of an inter-procedural non-null analysis
  */
-public class NonNullResults {
+public class NonNullResults implements AnalysisResults {
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 

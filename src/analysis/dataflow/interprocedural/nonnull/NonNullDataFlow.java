@@ -231,15 +231,18 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
     @Override
     protected void post(IR ir) {
-        for (SSAInstruction i : inputItems.keySet()) {
-            VarContext<NonNullAbsVal> input = confluence(inputItems.get(i));
-            Set<Integer> nonNulls = new HashSet<>();
-            for (Integer j : input.getLocals()) {
-                if (input.getLocal(j).isNonnull()) {
-                    nonNulls.add(j);
+        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+            for (SSAInstruction i : bb) {
+                VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput());
+                Set<Integer> nonNulls = new HashSet<>();
+                for (Integer j : input.getLocals()) {
+                    if (input.getLocal(j).isNonnull()) {
+                        nonNulls.add(j);
+                    }
                 }
+                ((NonNullInterProceduralDataFlow) interProc).getAnalysisResults().replaceNonNull(nonNulls, i,
+                                                currentNode);
             }
-            ((NonNullInterProceduralDataFlow) interProc).getNonNullResults().replaceNonNull(nonNulls, i, currentNode);
         }
         super.post(ir);
     }

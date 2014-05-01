@@ -122,7 +122,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         for (ISSABasicBlock next : cfg.getExceptionalSuccessors(justProcessed)) {
             if (outItems.get(next) != null) {
                 PreciseExceptionResults results = ((PreciseExceptionInterproceduralDataFlow) interProc)
-                                                .getPreciseExceptionResults();
+                                                .getAnalysisResults();
                 results.replaceExceptions(outItems.get(next).getThrowables(), justProcessed, next, currentNode);
             }
         }

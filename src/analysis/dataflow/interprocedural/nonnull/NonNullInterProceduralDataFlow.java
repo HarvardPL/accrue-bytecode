@@ -118,7 +118,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      * 
      * @return which variables are non-null before each instruction
      */
-    public NonNullResults getNonNullResults() {
+    public NonNullResults getAnalysisResults() {
         return results;
     }
 }

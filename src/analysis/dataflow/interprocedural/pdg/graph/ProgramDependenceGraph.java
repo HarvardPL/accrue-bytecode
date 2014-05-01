@@ -1,5 +1,7 @@
 package analysis.dataflow.interprocedural.pdg.graph;
 
-public class ProgramDependenceGraph {
+import analysis.dataflow.interprocedural.AnalysisResults;
+
+public class ProgramDependenceGraph implements AnalysisResults {
 
 }

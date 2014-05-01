@@ -130,7 +130,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
      * @return the set of exceptions on each edge in each call graph node's
      *         control flow graph
      */
-    public PreciseExceptionResults getPreciseExceptionResults() {
+    public PreciseExceptionResults getAnalysisResults() {
         return preciseEx;
     }
 }

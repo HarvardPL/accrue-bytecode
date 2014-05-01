@@ -367,6 +367,14 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     public ReachabilityResults getReachabilityResults() {
         return reachable;
     }
+    
+    /**
+     * Get the results after running this analysis. These may be unsound until
+     * the analysis has completed.
+     * 
+     * @return results of the inter-procedural analysis
+     */
+    public abstract AnalysisResults getAnalysisResults();
 
     /**
      * Analyze the given node with the given input data-flow fact

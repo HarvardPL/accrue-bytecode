@@ -11,14 +11,15 @@ import java.util.Set;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.AnalysisResults;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 
-public class ReachabilityResults {
-    
+public class ReachabilityResults implements AnalysisResults {
+
     /**
      * Reachability results where everything is reachable
      */
@@ -30,7 +31,8 @@ public class ReachabilityResults {
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
-    public void replaceUnreachable(Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachableEdges, CGNode containingNode) {
+    public void replaceUnreachable(Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachableEdges,
+                                    CGNode containingNode) {
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
             results = new ResultsForNode();
