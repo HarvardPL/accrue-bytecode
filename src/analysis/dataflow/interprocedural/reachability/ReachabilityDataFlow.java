@@ -94,7 +94,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                 }
             }
         }
-        ((ReachabilityInterProceduralDataFlow) interProc).getReachabilityResults().replaceUnreachable(unreachable,
+        ((ReachabilityInterProceduralDataFlow) interProc).getAnalysisResults().replaceUnreachable(unreachable,
                                         currentNode);
 
         super.post(ir);

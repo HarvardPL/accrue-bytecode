@@ -88,7 +88,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         facts.add(fact2);
         return confluence(facts);
     }
-    
+
     /**
      * Get a record for a previously run analysis for the given instruction,
      * returns null if the block has never been analyzed
@@ -115,13 +115,19 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         Map<ISSABasicBlock, F> outItems = null;
         SSAInstruction last = null;
         if (current.getLastInstructionIndex() >= 0) {
-            last = current.getLastInstruction();
+            last = getLastInstruction(current);
         } else {
             // empty block, just pass through the input
             outItems = factToMap(confluence(inItems), current, cfg);
         }
         for (SSAInstruction i : current) {
-            assert last != null : "last instruction is null";
+            if (last == null) {
+                current.getLastInstructionIndex();
+                current.getLastInstruction();
+                System.err.println(current);
+                assert last != null : "last instruction is null";
+            }
+
             if (i == last) {
                 // this is the last instruction of the block
                 outItems = flowInstruction(i, previousItems, cfg, current);
@@ -151,7 +157,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        SSAInstruction last = current.getLastInstruction();
+        SSAInstruction last = getLastInstruction(current);
         Map<ISSABasicBlock, F> output;
         if (i == last) {
             // this is the last instruction of the block

@@ -39,3 +39,8 @@ TODO Need to rework exceptions in statement registrar. instead of check thrown a
 TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process". For now lets just do them all up front, otherwise it gets messy to determine which clinits need to be called when. e.g. a class might be initialized on one branch of an "if" and not on the other, so it still needs to be initialized again if it appears after the "phi".
 
 Do I need exception in VarContext if there is a local for the exception, the local is what I use in the pointer analysis, probably should use it here too.
+
+
+WALA-BUG: getLastInstructionIndex() on ISSABasic block delegates to the Shrike BB, but instruction at some indices are removed in translation, so this instruction might be null (and getLastInstruction() returns null).
+
+WALA-BUG: Using methods from AbstractNumberedGraph in BasicCallGraph breaks the abstraction barrier (for example addNode bipasses the memoization of findOrCreateNode). This should be a delegation relationship not inheritance.

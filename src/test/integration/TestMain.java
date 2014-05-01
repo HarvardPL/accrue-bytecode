@@ -276,7 +276,7 @@ public class TestMain {
         NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, util);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        return analysis.getNonNullResults();
+        return analysis.getAnalysisResults();
     }
 
     /**
@@ -306,7 +306,7 @@ public class TestMain {
                                         util);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        return analysis.getPreciseExceptionResults();
+        return analysis.getAnalysisResults();
     }
 
     /**
@@ -328,6 +328,6 @@ public class TestMain {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
-        return analysis.getReachabilityAnalysisResults();
+        return analysis.getAnalysisResults();
     }
 }

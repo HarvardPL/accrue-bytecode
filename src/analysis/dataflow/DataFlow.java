@@ -21,6 +21,7 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.types.TypeReference;
+import com.ibm.wala.util.collections.ReverseIterator;
 import com.ibm.wala.util.graph.Graph;
 import com.ibm.wala.util.graph.impl.InvertedGraph;
 import com.ibm.wala.util.graph.traverse.SCCIterator;
@@ -85,7 +86,8 @@ public abstract class DataFlow<F> {
                 changed = false;
                 for (ISSABasicBlock current : scc) {
                     if (getOutputLevel() >= 4) {
-                        System.err.println("FLOWING: BB" + current.getNumber() + " in " + PrettyPrinter.parseMethod(ir.getMethod()));
+                        System.err.println("FLOWING: BB" + current.getNumber() + " in "
+                                                        + PrettyPrinter.parseMethod(ir.getMethod()));
                     }
                     Set<F> inItems = new LinkedHashSet<>(getNumPreds(current, g));
                     AnalysisRecord<F> previousResults = getAnalysisRecord(current);
@@ -133,7 +135,8 @@ public abstract class DataFlow<F> {
                         // from any predecessor
                         if (verbose >= 1) {
                             System.err.println("UNREACHABLE basic block:\n"
-                                                            + PrettyPrinter.basicBlockString(ir, current, "\t", "\n") + ir);
+                                                            + PrettyPrinter.basicBlockString(ir, current, "\t", "\n")
+                                                            + ir);
                         }
                         continue;
                     }
@@ -154,8 +157,8 @@ public abstract class DataFlow<F> {
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
                         if (verbose >= 1) {
                             System.err.print("NO INPUT for BB" + current.getGraphNodeId() + " in "
-                                                        + PrettyPrinter.parseMethod(ir.getMethod())
-                                                        + " SKIPPING. Preds: [");
+                                                            + PrettyPrinter.parseMethod(ir.getMethod())
+                                                            + " SKIPPING. Preds: [");
                             Iterator<ISSABasicBlock> iter = getPreds(current, g);
                             ISSABasicBlock first = iter.next();
                             System.err.print("BB" + first.getNumber());
@@ -559,7 +562,7 @@ public abstract class DataFlow<F> {
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
 
         IClass thrown = cha.lookupClass(exType);
-        InstructionType throwerType = InstructionType.forInstruction(current.getLastInstruction());
+        InstructionType throwerType = InstructionType.forInstruction(getLastInstruction(current));
         boolean isCaught = false;
 
         // Find successor catch blocks
@@ -614,6 +617,39 @@ public abstract class DataFlow<F> {
      */
     protected int getOutputLevel() {
         return verbose;
+    }
+
+    /**
+     * Get the last instruction of the given basic block, null if there is are
+     * no instructions in the basic block.
+     * <p>
+     * There are "null" instructions inserted into the SSA basic blocks to keep
+     * the instruction indexes the same as for WALA's stack-based Shrike
+     * intermediate language, so we cannot just call bb.getLastInstruction() as
+     * this might return null if the instruction at the last Shrike index was
+     * translated away when compiling to SSA.
+     * 
+     * @param bb
+     *            basic block to get the last instruction for
+     * @return the last instruction of the basic block, null if the basic block
+     *         contains no instructions (e.g. if it is an entry or exit block).
+     */
+    protected static SSAInstruction getLastInstruction(ISSABasicBlock bb) {
+        SSAInstruction last = null;
+        Iterator<SSAInstruction> iter = bb.iterator();
+        if (!iter.hasNext()) {
+            // There are no instructions return null
+            return null;
+        }
+        Iterator<SSAInstruction> reverse = ReverseIterator.reverse(iter);
+        while (reverse.hasNext()) {
+            last = reverse.next();
+            if (last != null) {
+                return last;
+            }
+        }
+        assert false : "No last instruction in non-empty basic block.";
+        return null;
     }
 
     /**
