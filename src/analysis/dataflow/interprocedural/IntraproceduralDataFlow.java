@@ -135,7 +135,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
             // cannot terminate normally
             output.put(ExitType.NORMAL, null);
         } else {
-            output.put(ExitType.NORMAL, confluence(normals));
+            output.put(ExitType.NORMAL, confluence(normals, exit));
         }
 
         if (cfg.getExceptionalPredecessors(exit).isEmpty()) {
@@ -156,7 +156,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
             // exceptions can be thrown by this procedure
             output.put(ExitType.EXCEPTIONAL, null);
         } else {
-            output.put(ExitType.EXCEPTIONAL, confluence(exceptions));
+            output.put(ExitType.EXCEPTIONAL, confluence(exceptions, exit));
         }
     }
 
@@ -174,7 +174,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
      */
     protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-        F fact = confluence(facts);
+        F fact = confluence(facts, bb);
         return factToMap(fact, bb, cfg);
     }
 

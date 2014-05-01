@@ -86,7 +86,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             // There should be no exceptions on normal exit
             assert out.get(ExitType.NORMAL) == null || out.get(ExitType.NORMAL).isBottom();
 
-            exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTIONAL));
+            exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTIONAL), bb);
         }
 
         if (exceptionResult != null) {
@@ -96,7 +96,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     }
 
     @Override
-    protected PreciseExceptionAbsVal confluence(Set<PreciseExceptionAbsVal> items) {
+    protected PreciseExceptionAbsVal confluence(Set<PreciseExceptionAbsVal> items, ISSABasicBlock bb) {
         assert !items.isEmpty();
         PreciseExceptionAbsVal val = null;
         for (PreciseExceptionAbsVal item : items) {
@@ -133,7 +133,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     @Override
     protected PreciseExceptionAbsVal flowBinaryOp(SSABinaryOpInstruction i, Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
@@ -141,7 +140,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected PreciseExceptionAbsVal flowComparison(SSAComparisonInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
@@ -149,7 +147,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected PreciseExceptionAbsVal flowConversion(SSAConversionInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
@@ -164,7 +161,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     @Override
     protected PreciseExceptionAbsVal flowGetStatic(SSAGetInstruction i, Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
@@ -172,21 +168,18 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected PreciseExceptionAbsVal flowInstanceOf(SSAInstanceofInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
     @Override
     protected PreciseExceptionAbsVal flowPhi(SSAPhiInstruction i, Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
     @Override
     protected PreciseExceptionAbsVal flowPutStatic(SSAPutInstruction i, Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
@@ -194,7 +187,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected PreciseExceptionAbsVal flowUnaryNegation(SSAUnaryOpInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return PreciseExceptionAbsVal.EMPTY;
     }
 
@@ -202,7 +194,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowArrayLength(SSAArrayLengthInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, !nonNullResults.isNonNull(i.getArrayRef(), i, currentNode), cfg, current);
     }
 
@@ -210,7 +201,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowArrayLoad(SSAArrayLoadInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
 
         // handle the array dimensions
@@ -237,7 +227,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
         if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
@@ -261,7 +250,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowCheckCast(SSACheckCastInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
 
         IClass typeOfValue = cha.lookupClass(TypeRepository.getType(i.getVal(), currentNode.getIR()));
@@ -280,7 +268,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, false, cfg, current);
     }
 
@@ -288,7 +275,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowGetField(SSAGetInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode), cfg, current);
     }
 
@@ -296,7 +282,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowInvokeInterface(SSAInvokeInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return call(i, previousItems, cfg, current);
     }
 
@@ -304,7 +289,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowInvokeSpecial(SSAInvokeInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return call(i, previousItems, cfg, current);
     }
 
@@ -312,7 +296,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowInvokeStatic(SSAInvokeInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return call(i, previousItems, cfg, current);
     }
 
@@ -320,7 +303,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowInvokeVirtual(SSAInvokeInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return call(i, previousItems, cfg, current);
     }
 
@@ -328,7 +310,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowGoto(SSAGotoInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, false, cfg, current);
     }
 
@@ -336,7 +317,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowLoadMetadata(SSALoadMetadataInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, false, cfg, current);
     }
 
@@ -344,7 +324,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowMonitor(SSAMonitorInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode), cfg, current);
     }
 
@@ -352,7 +331,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowNewArray(SSANewInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
         boolean constantArraySize = true;
 
@@ -382,7 +360,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowNewObject(SSANewInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, false, cfg, current);
     }
 
@@ -390,7 +367,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowPutField(SSAPutInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode), cfg, current);
     }
 
@@ -398,7 +374,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowReturn(SSAReturnInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, false, cfg, current);
     }
 
@@ -406,7 +381,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowSwitch(SSASwitchInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         return computeResults(i, false, cfg, current);
     }
 
@@ -414,7 +388,6 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowThrow(SSAThrowInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert confluence(previousItems).getThrowables().isEmpty();
         Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
         throwables.add(TypeRepository.getType(i.getException(), currentNode.getIR()));
         return computeResults(i, !nonNullResults.isNonNull(i.getException(), i, currentNode), cfg, current);

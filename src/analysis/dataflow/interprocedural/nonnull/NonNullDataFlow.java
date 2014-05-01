@@ -68,7 +68,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
         boolean isVoid = i.getNumberOfReturnValues() == 0;
 
-        VarContext<NonNullAbsVal> in = confluence(inItems);
+        VarContext<NonNullAbsVal> in = confluence(inItems, bb);
         VarContext<NonNullAbsVal> nonNull = in;
         if (!i.isStatic()) {
             nonNull = in.setLocal(i.getReceiver(), NonNullAbsVal.NON_NULL);
@@ -224,7 +224,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     }
 
     @Override
-    protected VarContext<NonNullAbsVal> confluence(Set<VarContext<NonNullAbsVal>> items) {
+    protected VarContext<NonNullAbsVal> confluence(Set<VarContext<NonNullAbsVal>> items, ISSABasicBlock bb) {
         assert !items.isEmpty();
         return VarContext.join(items);
     }
@@ -233,7 +233,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected void post(IR ir) {
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
             for (SSAInstruction i : bb) {
-                VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput());
+                VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), bb);
                 Set<Integer> nonNulls = new HashSet<>();
                 for (Integer j : input.getLocals()) {
                     if (input.getLocal(j).isNonnull()) {
@@ -252,7 +252,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // no pointers
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
@@ -260,7 +260,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // no pointers
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
@@ -268,14 +268,14 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // no pointers
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected VarContext<NonNullAbsVal> flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         return in.setLocal(i.getException(), NonNullAbsVal.NON_NULL);
     }
 
@@ -284,7 +284,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
 
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             return in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         }
@@ -302,13 +302,13 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // but that comparison isn't handled until there is a branch
         // TODO be smarter about instanceof in NonNull
 
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected VarContext<NonNullAbsVal> flowPhi(SSAPhiInstruction i, Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         NonNullAbsVal val = NonNullAbsVal.NON_NULL;
         for (int j = 0; j < i.getNumberOfUses(); j++) {
@@ -322,7 +322,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected VarContext<NonNullAbsVal> flowPutStatic(SSAPutInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             return in;
         }
@@ -336,14 +336,14 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // no pointers
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowArrayLength(SSAArrayLengthInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getArrayRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
@@ -355,7 +355,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowArrayLoad(SSAArrayLoadInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
         NonNullAbsVal val = null;
@@ -396,7 +396,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowArrayStore(SSAArrayStoreInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
 
@@ -441,7 +441,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowCheckCast(SSACheckCastInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
         // "null" can be cast to anything so if we get a ClassCastException then
         // we know the casted object was not null
@@ -458,7 +458,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                         + PrettyPrinter.instructionString(i, currentNode.getIR()) + " has "
                                         + getNumSuccs(current, cfg);
 
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         // By default both branches are the same as the input
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> out = factToModifiableMap(in, current, cfg);
@@ -507,7 +507,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowGetField(SSAGetInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         NonNullAbsVal newValue = null;
         for (AbstractLocation loc : getLocationsForNonStaticField(i.getRef(), i.getDeclaredField())) {
@@ -561,7 +561,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowLoadMetadata(SSALoadMetadataInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
 
@@ -572,7 +572,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowMonitor(SSAMonitorInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
@@ -584,7 +584,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowNewArray(SSANewInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         VarContext<NonNullAbsVal> exception = in.setExceptionValue(NonNullAbsVal.NON_NULL);
 
@@ -595,7 +595,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowNewObject(SSANewInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normalOut = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
 
         // The exception edge is actually for errors so no value needs to be
@@ -607,7 +607,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowPutField(SSAPutInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
         NonNullAbsVal inVal = in.getLocal(i.getVal());
         for (AbstractLocation loc : getLocationsForNonStaticField(i.getRef(), i.getDeclaredField())) {
@@ -624,7 +624,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowReturn(SSAReturnInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> out = in.setReturnResult(in.getLocal(i.getResult()));
 
         return factToMap(out, current, cfg);
@@ -642,7 +642,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowThrow(SSAThrowInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        VarContext<NonNullAbsVal> in = confluence(previousItems);
+        VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         VarContext<NonNullAbsVal> normal = in.setReturnResult(null);
         normal = normal.setExceptionValue(NonNullAbsVal.NON_NULL);

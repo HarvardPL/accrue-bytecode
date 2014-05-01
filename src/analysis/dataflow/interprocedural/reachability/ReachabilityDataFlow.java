@@ -49,7 +49,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> call(SSAInvokeInstruction i, Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
 
-        ReachabilityAbsVal in = confluence(inItems);
+        ReachabilityAbsVal in = confluence(inItems, bb);
         // Start out assuming successors are unreachable, if
         ReachabilityAbsVal normal = ReachabilityAbsVal.UNREACHABLE;
         ReachabilityAbsVal exceptional = ReachabilityAbsVal.UNREACHABLE;
@@ -101,7 +101,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     }
 
     @Override
-    protected ReachabilityAbsVal confluence(Set<ReachabilityAbsVal> facts) {
+    protected ReachabilityAbsVal confluence(Set<ReachabilityAbsVal> facts, ISSABasicBlock bb) {
         ReachabilityAbsVal result = null;
         for (ReachabilityAbsVal fact : facts) {
             result = fact.join(result);
@@ -112,56 +112,56 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     @Override
     protected ReachabilityAbsVal flowBinaryOp(SSABinaryOpInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowComparison(SSAComparisonInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowConversion(SSAConversionInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowGetStatic(SSAGetInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowInstanceOf(SSAInstanceofInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowPhi(SSAPhiInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowPutStatic(SSAPutInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
     protected ReachabilityAbsVal flowUnaryNegation(SSAUnaryOpInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems);
+        return confluence(previousItems, current);
     }
 
     @Override
@@ -267,7 +267,8 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // There is an error from new Object() but we are not tracking errors
-        return factsToMapWithExceptions(confluence(previousItems), ReachabilityAbsVal.UNREACHABLE, current, cfg);
+        return factsToMapWithExceptions(confluence(previousItems, current), ReachabilityAbsVal.UNREACHABLE, current,
+                                        cfg);
     }
 
     @Override
