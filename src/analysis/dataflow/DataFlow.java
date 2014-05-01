@@ -148,7 +148,8 @@ public abstract class DataFlow<F> {
 
                     if (verbose >= 3) {
                         System.err.print("FLOWING" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
-                        if (current.getLastInstructionIndex() < 0) {
+                        if (!current.iterator().hasNext()) {
+                            // Empty block
                             System.err.println();
                         }
                         System.err.println("\t" + inItems);
@@ -187,7 +188,8 @@ public abstract class DataFlow<F> {
                     if (oldOutItems == null || !oldOutItems.equals(outItems)) {
                         if (verbose >= 3) {
                             System.err.print("FLOWED" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
-                            if (current.getLastInstructionIndex() < 0) {
+                            if (!current.iterator().hasNext()) {
+                                // empty block
                                 System.err.println();
                             }
                             System.err.println("\t" + outItems);

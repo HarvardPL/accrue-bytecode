@@ -779,8 +779,9 @@ public class PrettyPrinter {
         if (m.getNumberOfParameters() > 0) {
             Descriptor d = m.getDescriptor();
             TypeName[] n = d.getParameters();
-            for (TypeName t : n) {
-                s.append(parseType(t.toString()));
+            s.append(parseType(n[0].toString()));
+            for (int j = 1; j < m.getNumberOfParameters(); j++) {
+                s.append(", " + parseType(n[j].toString()));
             }
         }
         s.append(")");

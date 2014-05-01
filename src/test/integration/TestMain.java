@@ -8,6 +8,7 @@ import java.io.Writer;
 import java.util.Arrays;
 
 import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -25,7 +26,6 @@ import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementRegistrar;
 import analysis.pointer.statements.StatementRegistrationPass;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
@@ -39,7 +39,7 @@ import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.util.config.AnalysisScopeReader;
 
 /**
- * Run one of the selected tests, see usage
+ * Run one of the selected analyses or tests, see usage
  */
 public class TestMain {
 
@@ -72,7 +72,6 @@ public class TestMain {
             }
             int outputLevel = Integer.parseInt(args[1]);
             String testName = args[2];
-
             String fileName = entryPoint + "_main";
             WalaAnalysisUtil util;
             Entrypoint entry;
@@ -80,7 +79,7 @@ public class TestMain {
             switch (testName) {
             case "pointsto":
                 util = setUpWala(entryPoint);
-                PointsToGraph g = pointsToTest(util, outputLevel, entryPoint);
+                PointsToGraph g = generatePointsToGraph(util, outputLevel);
                 g.dumpPointsToGraphToFile(fileName + "_ptg", false);
 
                 System.err.println(g.getNodes().size() + " Nodes");
@@ -102,32 +101,37 @@ public class TestMain {
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
                 ir = util.getCache().getIR(entry.getMethod());
-                cfgSingleTest(util, ir, fileName);
+                printSingleCFG(util, ir, fileName);
                 break;
             case "nonnull":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                g = pointsToTest(util, outputLevel, fileName);
-                ReachabilityResults r = reachabilityTest(util, outputLevel, entry.getMethod(), fileName, g);
-                NonNullResults nonNull = nonNullTest(util, outputLevel, entry.getMethod(), fileName, g, r);
+                g = generatePointsToGraph(util, outputLevel);
+                ReachabilityResults r = runReachability(util, outputLevel, g);
+                NonNullResults nonNull = runNonNull(util, outputLevel, g, r);
                 nonNull.writeAllToFiles(r);
                 break;
             case "precise-ex":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                g = pointsToTest(util, outputLevel, fileName);
-                r = reachabilityTest(util, outputLevel, entry.getMethod(), fileName, g);
-                nonNull = nonNullTest(util, outputLevel, entry.getMethod(), fileName, g, r);
-                PreciseExceptionResults preciseEx = preciseExceptionTest(util, outputLevel, entry.getMethod(),
-                                                entryPoint + fileName, g, r, nonNull);
+                g = generatePointsToGraph(util, outputLevel);
+                r = runReachability(util, outputLevel, g);
+                nonNull = runNonNull(util, outputLevel, g, r);
+                PreciseExceptionResults preciseEx = runPreciseExceptions(util, outputLevel, g, r, nonNull);
                 preciseEx.writeAllToFiles(r);
                 break;
             case "reachability":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                g = pointsToTest(util, outputLevel, fileName);
-                r = reachabilityTest(util, outputLevel, entry.getMethod(), fileName, g);
+                g = generatePointsToGraph(util, outputLevel);
+                r = runReachability(util, outputLevel, g);
                 r.writeAllToFiles();
+                break;
+            case "cfg":
+                util = setUpWala(entryPoint);
+                entry = util.getOptions().getEntrypoints().iterator().next();
+                g = generatePointsToGraph(util, outputLevel);
+                printAllCFG(util, g);
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
@@ -136,6 +140,26 @@ public class TestMain {
             System.err.println(usage());
             System.err.println("Actual parameters: " + Arrays.toString(args) + "\n");
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Print the control flow graph for all procedures in the call graph
+     * 
+     * @param util
+     *            utility objects from WALA
+     * @param g
+     *            points to graph
+     * @throws IOException
+     *             file issues
+     */
+    private static void printAllCFG(WalaAnalysisUtil util, PointsToGraph g) throws IOException {
+
+        for (CGNode n : g.getCallGraph()) {
+            String fileName = "cfg_" + PrettyPrinter.parseCGNode(n).replace(" ", "");
+            try (Writer w = new FileWriter(fileName)) {
+                printSingleCFG(util, n.getIR(), fileName);
+            }
         }
     }
 
@@ -194,7 +218,8 @@ public class TestMain {
         sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
         sb.append("\t\"nonnull\" prints the results of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
         sb.append("\t\"precise-ex\" prints the results of an interprocedural precise exception analysis to the tests folder prepended with \"precise_ex_\"\n");
-        sb.append("\t\"reachability\" prints the results of an interprocedural reachability analysis fto the tests folder prepended with \"reachability_\"\n");
+        sb.append("\t\"reachability\" prints the results of an interprocedural reachability analysis to the tests folder prepended with \"reachability_\"\n");
+        sb.append("\t\"cfg\" prints the cfg for the all methods to the tests folder prepended with : \"cfg_\"\n");
         return sb.toString();
     }
 
@@ -206,11 +231,9 @@ public class TestMain {
      *            utility objects from WALA
      * @param outputLevel
      *            print level
-     * @param filename
-     *            name of file to be printed to ("_ptg.dot" will be appended)
      * @return the resulting points-to graph
      */
-    private static PointsToGraph pointsToTest(WalaAnalysisUtil util, int outputLevel, String filename) {
+    private static PointsToGraph generatePointsToGraph(WalaAnalysisUtil util, int outputLevel) {
 
         // Gather all the points-to statements
         StatementRegistrationPass pass = new StatementRegistrationPass(util);
@@ -240,7 +263,7 @@ public class TestMain {
      * @param fileName
      *            file to save the results (appended with "_cfg.dot")
      */
-    private static void cfgSingleTest(WalaAnalysisUtil util, IR ir, String fileName) {
+    private static void printSingleCFG(WalaAnalysisUtil util, IR ir, String fileName) {
         CFGWriter cfg = new CFGWriter(ir);
         String dir = "tests";
         String file = fileName + "_cfg";
@@ -256,23 +279,20 @@ public class TestMain {
     }
 
     /**
-     * Run the non-null analysis without any precise exceptions results, print
-     * the results for the given method.
+     * Run the non-null analysis and return the results
      * 
      * @param util
      *            WALA utility classes
      * @param method
      *            method to print the results for
-     * @param fileName
-     *            file to save the results to (appended with _nonNull.dot)
      * @param g
      *            points-to graph
      * @param r
      *            results of a reachability analysis
      * @return the results of the non-null analysis
      */
-    private static NonNullResults nonNullTest(WalaAnalysisUtil util, int outputLevel, IMethod method, String fileName,
-                                    PointsToGraph g, ReachabilityResults r) {
+    private static NonNullResults runNonNull(WalaAnalysisUtil util, int outputLevel, PointsToGraph g,
+                                    ReachabilityResults r) {
         NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, util);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
@@ -280,18 +300,12 @@ public class TestMain {
     }
 
     /**
-     * Run a precise exceptions analysis and print out the results for the given
-     * method
+     * Run a precise exceptions analysis
      * 
      * @param util
      *            WALA analysis classes
      * @param outputLevel
      *            level of logging
-     * @param method
-     *            method to print the results for
-     * @param fileName
-     *            name of the file to print the results to (the file name will
-     *            be appended with "_preciseEx")
      * @param g
      *            points-to graph
      * @param r
@@ -300,8 +314,8 @@ public class TestMain {
      *            results of a non-null analysis
      * @return the results of the precise exceptions analysis
      */
-    private static PreciseExceptionResults preciseExceptionTest(WalaAnalysisUtil util, int outputLevel, IMethod method,
-                                    String fileName, PointsToGraph g, ReachabilityResults r, NonNullResults nonNull) {
+    private static PreciseExceptionResults runPreciseExceptions(WalaAnalysisUtil util, int outputLevel,
+                                    PointsToGraph g, ReachabilityResults r, NonNullResults nonNull) {
         PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g, nonNull, r,
                                         util);
         analysis.setOutputLevel(outputLevel);
@@ -310,21 +324,16 @@ public class TestMain {
     }
 
     /**
-     * Test the inter-procedural reachability analysis
+     * Run the inter-procedural reachability analysis
      * 
      * @param util
      *            utility WALA classes
      * @param outputLevel
      *            logging level
-     * @param method
-     *            method to print
-     * @param fileName
-     *            name of file to print to
      * @param g
      *            points-to graph
      */
-    private static ReachabilityResults reachabilityTest(WalaAnalysisUtil util, int outputLevel, IMethod method,
-                                    String fileName, PointsToGraph g) {
+    private static ReachabilityResults runReachability(WalaAnalysisUtil util, int outputLevel, PointsToGraph g) {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();

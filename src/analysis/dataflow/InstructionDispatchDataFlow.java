@@ -114,20 +114,14 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         Set<F> previousItems = inItems;
         Map<ISSABasicBlock, F> outItems = null;
         SSAInstruction last = null;
-        if (current.getLastInstructionIndex() >= 0) {
+        if (current.iterator().hasNext()) {
             last = getLastInstruction(current);
         } else {
             // empty block, just pass through the input
             outItems = factToMap(confluence(inItems), current, cfg);
         }
         for (SSAInstruction i : current) {
-            if (last == null) {
-                current.getLastInstructionIndex();
-                current.getLastInstruction();
-                System.err.println(current);
-                assert last != null : "last instruction is null";
-            }
-
+            assert last != null : "last instruction is null";
             if (i == last) {
                 // this is the last instruction of the block
                 outItems = flowInstruction(i, previousItems, cfg, current);

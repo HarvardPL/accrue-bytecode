@@ -87,7 +87,7 @@ public class IRWriter extends DataFlow<Unit> {
 
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
-        if (source.getLastInstructionIndex() >= 0 && getLastInstruction(source) != null
+        if (source.iterator().hasNext()
                                         && InstructionType.forInstruction(getLastInstruction(source)) == InstructionType.NEW_OBJECT) {
             if (ir.getControlFlowGraph().getExceptionalSuccessors(source).contains(target)) {
                 // This is an error edge from a new object allocation and we
