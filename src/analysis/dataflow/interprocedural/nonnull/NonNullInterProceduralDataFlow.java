@@ -93,7 +93,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
     }
 
     @Override
-    protected VarContext<NonNullAbsVal> getInputForRoot() {
+    protected VarContext<NonNullAbsVal> getInputForEntryPoint() {
         return new NonNullVarContext(null, null);
     }
 
@@ -120,10 +120,5 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      */
     public NonNullResults getNonNullResults() {
         return results;
-    }
-
-    @Override
-    protected VarContext<NonNullAbsVal> join(VarContext<NonNullAbsVal> item1, VarContext<NonNullAbsVal> item2) {
-        return VarContext.join(item1, item2);
     }
 }

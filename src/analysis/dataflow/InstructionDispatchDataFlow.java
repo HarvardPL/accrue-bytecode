@@ -1,6 +1,7 @@
 package analysis.dataflow;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +42,15 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
  * <F> Type of data-flow facts this analysis computes
  */
 public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
-
+    /**
+     * Input facts for each instruction analyzed
+     */
+    protected final Map<SSAInstruction, Set<F>> inputItems = new LinkedHashMap<>();
+    /**
+     * Output fact for each basic block analyzed
+     */
+    protected final Map<ISSABasicBlock, Map<ISSABasicBlock, F>> outputItems = new LinkedHashMap<>();
+    
     /**
      * Data-flow that dispatches based on instruction type
      * 
@@ -132,6 +141,8 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        inputItems.put(i, inItems);
+        
         SSAInstruction last = current.getLastInstruction();
         if (i == last) {
             // this is the last instruction of the block
@@ -277,7 +288,11 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     }
 
     /**
-     * Method called after processing a basic block
+     * Method called after processing a basic block. By default it ensures that
+     * all reachable successors get results and records output for the basic block
+     * that was just analyzed. 
+     * <p>
+     * Subclasses should override for more functionality.
      * 
      * @param inItems
      *            data-flow facts before processing basic block
@@ -288,8 +303,33 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * @param outItems
      *            data-flow item for each edge
      */
-    protected abstract void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, F> outItems);
+    protected void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, F> outItems) {
+
+        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(justProcessed)) {
+            if (outItems.get(normalSucc) == null && !isUnreachable(justProcessed, normalSucc)) {
+                throw new RuntimeException("No fact for normal successor from BB"
+                                                + justProcessed.getGraphNodeId()
+                                                + " to BB"
+                                                + normalSucc.getGraphNodeId()
+                                                + "\n"
+                                                + justProcessed);
+            }
+        }
+
+        for (ISSABasicBlock exceptionalSucc : cfg.getExceptionalSuccessors(justProcessed)) {
+            if (outItems.get(exceptionalSucc) == null && !isUnreachable(justProcessed, exceptionalSucc)) {
+                throw new RuntimeException("No fact for exceptional successor from BB"
+                                                + justProcessed.getGraphNodeId()
+                                                + " to BB"
+                                                + exceptionalSucc.getGraphNodeId()
+                                                + "\n"
+                                                + justProcessed);
+            }
+        }
+
+        outputItems.put(justProcessed, outItems);
+    }
 
     /**
      * binary operation on primitives, binary operator {@link IOperator}: ADD,

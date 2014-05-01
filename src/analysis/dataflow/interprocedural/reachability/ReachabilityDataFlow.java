@@ -42,7 +42,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAbsVal> {
 
     public ReachabilityDataFlow(CGNode n, ReachabilityInterProceduralDataFlow interProc) {
-        super(n, interProc, ReachabilityResults.ALWAYS_REACHABLE);
+        super(n, interProc);
     }
 
     @Override

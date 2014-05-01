@@ -58,7 +58,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     private final WalaAnalysisUtil util;
 
     public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc, WalaAnalysisUtil util) {
-        super(currentNode, interProc, interProc.getReachabilityResults());
+        super(currentNode, interProc);
         this.util = util;
     }
 

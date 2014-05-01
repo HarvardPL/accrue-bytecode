@@ -8,8 +8,8 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.dataflow.InstructionDispatchDataFlow;
-import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
+import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -30,16 +30,8 @@ import com.ibm.wala.types.FieldReference;
  * @param <F>
  *            Type of the data-flow facts
  */
-public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchDataFlow<F> {
+public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extends InstructionDispatchDataFlow<F> {
 
-    /**
-     * Input facts for each instruction analyzed
-     */
-    protected final Map<SSAInstruction, Set<F>> inputItems = new LinkedHashMap<>();
-    /**
-     * Output fact for each basic block analyzed
-     */
-    protected final Map<ISSABasicBlock, Map<ISSABasicBlock, F>> outputItems = new LinkedHashMap<>();
     /**
      * Procedure call graph
      */
@@ -65,10 +57,6 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
      * exception
      */
     private Map<ExitType, F> output;
-    /**
-     * Results of a reachability analysis
-     */
-    private final ReachabilityResults reachable;
 
     /**
      * Intra-procedural part of an inter-procedural data-flow analysis
@@ -78,15 +66,13 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
      * @param interProc
      *            used to get results for calls to other call graph nodes
      */
-    public IntraproceduralDataFlow(CGNode currentNode, InterproceduralDataFlow<F> interProc,
-                                    ReachabilityResults reachable) {
+    public IntraproceduralDataFlow(CGNode currentNode, InterproceduralDataFlow<F> interProc) {
         // only forward inter-procedural data-flows are supported
         super(true);
         this.currentNode = currentNode;
         this.interProc = interProc;
         this.cg = interProc.getCallGraph();
         this.ptg = interProc.getPointsToGraph();
-        this.reachable = reachable;
     }
 
     /**
@@ -102,13 +88,6 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
         this.input = initial;
         dataflow(currentNode.getIR());
         return this.output;
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        inputItems.put(i, inItems);
-        return super.flowInstruction(i, inItems, cfg, current);
     }
 
     @Override
@@ -137,43 +116,6 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
      */
     protected abstract Map<ISSABasicBlock, F> call(SSAInvokeInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
-
-    /**
-     * Ensure that all reachable successors get results. Record output for the
-     * basic block that was just analyzed.
-     * <p>
-     * {@inheritDoc}
-     */
-    @Override
-    protected void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, F> outItems) {
-
-        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(justProcessed)) {
-            if (outItems.get(normalSucc) == null && !isUnreachable(justProcessed, normalSucc)) {
-                throw new RuntimeException("No fact for normal successor from BB"
-                                                + justProcessed.getGraphNodeId()
-                                                + " to BB"
-                                                + normalSucc.getGraphNodeId()
-                                                + "\n"
-                                                + PrettyPrinter.basicBlockString(currentNode.getIR(), justProcessed,
-                                                                                "\t", "\n"));
-            }
-        }
-
-        for (ISSABasicBlock exceptionalSucc : cfg.getExceptionalSuccessors(justProcessed)) {
-            if (outItems.get(exceptionalSucc) == null && !isUnreachable(justProcessed, exceptionalSucc)) {
-                throw new RuntimeException("No fact for exceptional successor from BB"
-                                                + justProcessed.getGraphNodeId()
-                                                + " to BB"
-                                                + exceptionalSucc.getGraphNodeId()
-                                                + "\n"
-                                                + PrettyPrinter.basicBlockString(currentNode.getIR(), justProcessed,
-                                                                                "\t", "\n"));
-            }
-        }
-
-        outputItems.put(justProcessed, outItems);
-    }
 
     @Override
     protected void post(IR ir) {
@@ -210,8 +152,8 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
         }
 
         if (exceptions.isEmpty()) {
-            // There are no exceptional predecessors of the exit so this
-            // procedure cannot throw an exception
+            // There are no reachable exception edges into the exit node so no
+            // exceptions can be thrown by this procedure
             output.put(ExitType.EXCEPTIONAL, null);
         } else {
             output.put(ExitType.EXCEPTIONAL, confluence(exceptions));
@@ -300,17 +242,8 @@ public abstract class IntraproceduralDataFlow<F> extends InstructionDispatchData
         return new ReferenceVariableReplica(currentNode.getContext(), rv);
     }
 
-    /**
-     * Results of an inter-procedural reachability analysis
-     * 
-     * @return results of a reachability analysis
-     */
-    protected ReachabilityResults getReachable() {
-        return reachable;
-    }
-
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
-        return getReachable().isUnreachable(source, target, currentNode);
+        return interProc.getReachabilityResults().isUnreachable(source, target, currentNode);
     }
 }

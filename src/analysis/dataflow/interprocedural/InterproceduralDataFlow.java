@@ -11,6 +11,7 @@ import java.util.Set;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
+import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -21,7 +22,7 @@ import com.ibm.wala.ipa.callgraph.CallGraph;
  * 
  * <F> Type of data-flow facts propagated by this analysis
  */
-public abstract class InterproceduralDataFlow<F> {
+public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Procedure call graph
@@ -81,18 +82,13 @@ public abstract class InterproceduralDataFlow<F> {
     }
 
     /**
-     * Run the inter-procedural analysis starting with the root node
+     * Run the inter-procedural analysis
      */
-    public void runAnalysis() {
+    public final void runAnalysis() {
         System.err.println("RUNNING: " + getAnalysisName());
         long start = System.currentTimeMillis();
-        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
 
-        // These are the class initializers
-        q.addAll(entryPoints);
-        // Also add the fake root method (which calls main)
-        q.add(cg.getFakeRootNode());
-
+        preAnalysis(cg, q);
         while (!q.isEmpty()) {
             CGNode current = q.poll();
             if (getOutputLevel() >= 2) {
@@ -101,9 +97,9 @@ public abstract class InterproceduralDataFlow<F> {
             AnalysisRecord<F> results = getLatestResults(current);
 
             F input;
-            if (current.equals(cg.getFakeRootNode()) || entryPoints.contains(current)) {
-                // This is the root node get the root input
-                input = getInputForRoot();
+            if (current.equals(cg.getFakeRootNode()) || cg.getEntrypointNodes().contains(current)) {
+                // This is an entry node
+                input = getInputForEntryPoint();
             } else {
                 input = results.getInput();
             }
@@ -111,7 +107,31 @@ public abstract class InterproceduralDataFlow<F> {
             processCallGraphNode(current, input, results == null ? null : results.getOutput());
         }
 
+        postAnalysis();
+
         System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
+    }
+
+    /**
+     * Initialize the work-queue and Perform other operations before this
+     * inter-procedural data-flow analysis begins.
+     */
+    protected void preAnalysis(CallGraph cg, WorkQueue<CGNode> q) {
+        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
+
+        // These are the class initializers
+        q.addAll(entryPoints);
+        // Also add the fake root method (which calls main)
+        q.add(cg.getFakeRootNode());
+    }
+
+    /**
+     * Perform operations after this inter-procedural data-flow analysis has
+     * completed. This could be used to construct analysis results.
+     */
+    protected void postAnalysis() {
+        // Intentionally blank
+        // Subclasses should override as needed
     }
 
     protected abstract String getAnalysisName();
@@ -219,7 +239,7 @@ public abstract class InterproceduralDataFlow<F> {
                 results = new AnalysisRecord<F>(input, getDefaultOutput(input), false);
             } else {
                 // TODO use widen for back edges
-                results = new AnalysisRecord<F>(join(input, previous.getInput()), previous.output, false);
+                results = new AnalysisRecord<F>(input.join(previous.getInput()), previous.output, false);
             }
 
             if (currentlyProcessing.contains(callee)) {
@@ -335,10 +355,10 @@ public abstract class InterproceduralDataFlow<F> {
      *            node to get results for
      * @return latest results for the given node or null if there are none
      */
-    private final AnalysisRecord<F> getLatestResults(CGNode n) {
+    private AnalysisRecord<F> getLatestResults(CGNode n) {
         return recordedResults.get(n);
     }
-    
+
     /**
      * Results of an inter-procedural reachability analysis
      * 
@@ -387,20 +407,7 @@ public abstract class InterproceduralDataFlow<F> {
      * 
      * @return initial data-flow fact
      */
-    protected abstract F getInputForRoot();
-
-    /**
-     * Compute a single data-flow fact from two facts. This is used to compute
-     * (intra-procedural) analysis input when there are for merges in the call
-     * graph.
-     * 
-     * @param fact1
-     *            first data-flow fact
-     * @param fact2
-     *            second data-flow fact
-     * @return least upper bound of item1 and item2
-     */
-    protected abstract F join(F fact1, F fact2);
+    protected abstract F getInputForEntryPoint();
 
     /**
      * Check whether the output changed after analysis, and dependencies need to

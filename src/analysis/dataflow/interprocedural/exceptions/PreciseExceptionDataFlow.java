@@ -64,7 +64,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
     public PreciseExceptionDataFlow(NonNullResults nonNullResults, CGNode currentNode,
                                     InterproceduralDataFlow<PreciseExceptionAbsVal> interProc, IClassHierarchy cha) {
-        super(currentNode, interProc, interProc.getReachabilityResults());
+        super(currentNode, interProc);
         this.nonNullResults = nonNullResults;
         this.cha = cha;
     }

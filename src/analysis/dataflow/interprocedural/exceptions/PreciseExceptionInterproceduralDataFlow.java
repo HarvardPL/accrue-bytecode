@@ -105,17 +105,8 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
     }
 
     @Override
-    protected PreciseExceptionAbsVal getInputForRoot() {
+    protected PreciseExceptionAbsVal getInputForEntryPoint() {
         return PreciseExceptionAbsVal.EMPTY;
-    }
-
-    @Override
-    protected PreciseExceptionAbsVal join(PreciseExceptionAbsVal fact1, PreciseExceptionAbsVal fact2) {
-        if (fact1 == null) {
-            return fact2;
-        }
-
-        return fact1.join(fact2);
     }
 
     @Override

@@ -18,7 +18,7 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     private final ReachabilityResults results = new ReachabilityResults();
 
     public ReachabilityInterProceduralDataFlow(PointsToGraph ptg) {
-        super(ptg, new ReachabilityResults());
+        super(ptg, ReachabilityResults.ALWAYS_REACHABLE);
     }
 
     @Override
@@ -60,17 +60,9 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     }
 
     @Override
-    protected ReachabilityAbsVal getInputForRoot() {
+    protected ReachabilityAbsVal getInputForEntryPoint() {
         // The root is always reachable!
         return ReachabilityAbsVal.REACHABLE;
-    }
-
-    @Override
-    protected ReachabilityAbsVal join(ReachabilityAbsVal fact1, ReachabilityAbsVal fact2) {
-        if (fact1 == null) {
-            return fact1;
-        }
-        return fact1.join(fact2);
     }
 
     @Override
