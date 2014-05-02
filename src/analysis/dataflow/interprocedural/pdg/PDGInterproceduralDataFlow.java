@@ -5,23 +5,20 @@ import java.util.Iterator;
 import java.util.Map;
 
 import util.WorkQueue;
-import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
-import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
-import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
-import analysis.dataflow.util.VarContext;
+import analysis.dataflow.util.Unit;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 
-public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarContext<PDGNode>> {
+public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     private final ProgramDependenceGraph pdg;
     private final PreciseExceptionResults preciseEx;
@@ -40,40 +37,40 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
     }
 
     @Override
-    protected Map<ExitType, VarContext<PDGNode>> analyze(CGNode n, VarContext<PDGNode> input) {
+    protected Map<ExitType, Unit> analyze(CGNode n, Unit input) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    protected Map<ExitType, VarContext<PDGNode>> analyzeNative(CGNode n, VarContext<PDGNode> input) {
+    protected Map<ExitType, Unit> analyzeNative(CGNode n, Unit input) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    protected Map<ExitType, VarContext<PDGNode>> getDefaultOutput(VarContext<PDGNode> input) {
+    protected Map<ExitType, Unit> getDefaultOutput(Unit input) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    protected VarContext<PDGNode> getInputForEntryPoint() {
+    protected Unit getInputForEntryPoint() {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    protected boolean outputChanged(Map<ExitType, VarContext<PDGNode>> previousOutput,
-                                    Map<ExitType, VarContext<PDGNode>> currentOutput) {
+    protected boolean outputChanged(Map<ExitType, Unit> previousOutput,
+                                    Map<ExitType, Unit> currentOutput) {
         // TODO Auto-generated method stub
         return false;
     }
 
     @Override
     protected boolean existingResultSuitable(
-                                    VarContext<PDGNode> newInput,
-                                    AnalysisRecord<VarContext<PDGNode>> existingResults) {
+                                    Unit newInput,
+                                    AnalysisRecord<Unit> existingResults) {
         // TODO Auto-generated method stub
         return false;
     }
@@ -105,7 +102,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
                     q.add(succ);
                     
                     // Set up initial context
-                    AnalysisRecord<VarContext<PDGNode>> res = new AnalysisRecord<VarContext<PDGNode>>(getInitialContext(succ), null, true);
+                    AnalysisRecord<Unit> res = new AnalysisRecord<Unit>(getInitialContext(succ), null, true);
                     recordedResults.put(succ, res);
                     
                     // Add to the inialization work-queue
@@ -117,7 +114,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
         super.preAnalysis(cg, q);
     }
 
-    private VarContext<PDGNode> getInitialContext(CGNode succ) {
+    private Unit getInitialContext(CGNode succ) {
         // TODO Auto-generated method stub
 
         // PC entry node
@@ -153,26 +150,12 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<VarConte
     }
 
     @Override
-    public Map<ExitType, VarContext<PDGNode>> getResults(CGNode caller, CGNode callee, VarContext<PDGNode> input) {
+    public Map<ExitType, Unit> getResults(CGNode caller, CGNode callee, Unit input) {
         throw new UnsupportedOperationException("Get the summary and use that instead.");
     }
     
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
-    }
-    
-    /**
-     * Add an edge of the given type to the PDG
-     * 
-     * @param source
-     *            source of the new edge
-     * @param target
-     *            target of the new edge
-     * @param type
-     *            type of edge being added
-     */
-    protected void addEdge(PDGNode source, PDGNode target, PDGEdgeType type) {
-        // TODO Auto-generated method stub
     }
 }

@@ -1,26 +1,65 @@
 package analysis.dataflow.interprocedural.pdg;
 
-import java.util.Collections;
-import java.util.Map;
-
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
-import analysis.dataflow.util.AbstractLocation;
-import analysis.dataflow.util.VarContext;
 
-public class PDGContext extends VarContext<PDGNode> {
+public class PDGContext {
 
-    public PDGContext() {
-        this(Collections.<Integer, PDGNode> emptyMap(), null, null);
+    private final PDGNode returnNode;
+    private final PDGNode exceptionNode;
+    private final PDGNode pcNode;
+
+    public PDGContext(PDGNode returnNode, PDGNode exceptionNode, PDGNode pcNode) {
+        this.returnNode = returnNode;
+        this.exceptionNode = exceptionNode;
+        this.pcNode = pcNode;
     }
 
-    protected PDGContext(Map<Integer, PDGNode> locals, PDGNode returnResult, PDGNode exceptionValue) {
-        super(locals, null, returnResult, exceptionValue, false, null);
+    public PDGNode getExceptionNode() {
+        return exceptionNode;
+    }
+    
+    public PDGNode getPCNode() {
+        return pcNode;
+    }
+    
+    public PDGNode getReturnNode() {
+        return returnNode;
     }
 
     @Override
-    public PDGNode getLocation(AbstractLocation loc) {
-        // TODO Memoize locations here?
-        throw new UnsupportedOperationException("Get these from the interproc instead???");
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((exceptionNode == null) ? 0 : exceptionNode.hashCode());
+        result = prime * result + ((pcNode == null) ? 0 : pcNode.hashCode());
+        result = prime * result + ((returnNode == null) ? 0 : returnNode.hashCode());
+        return result;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        PDGContext other = (PDGContext) obj;
+        if (exceptionNode == null) {
+            if (other.exceptionNode != null)
+                return false;
+        } else if (!exceptionNode.equals(other.exceptionNode))
+            return false;
+        if (pcNode == null) {
+            if (other.pcNode != null)
+                return false;
+        } else if (!pcNode.equals(other.pcNode))
+            return false;
+        if (returnNode == null) {
+            if (other.returnNode != null)
+                return false;
+        } else if (!returnNode.equals(other.returnNode))
+            return false;
+        return true;
+    }
 }

@@ -12,11 +12,6 @@ public enum PDGNodeType {
      */
     LOCAL(false, false, false),
     /**
-     * Output expression (language construct added to Java for convenience of
-     * analysis)
-     */
-    OUTPUT(false, false, false),
-    /**
      * Any other kind of expression
      */
     OTHER_EXPRESSION(false, false, false),
@@ -30,12 +25,9 @@ public enum PDGNodeType {
      */
     BASE_VALUE(false, false, false),
     /**
-     * Special merge node for nodes representing the value of an exception. See
-     * {@link PDGNode#isMergeNode()}.
-     */
-    EXCEPTION_MERGE(false, false, false),
-    /**
-     * Representation of a procedure exit in the caller
+     * Representation of a procedure exit in the caller. If there is an assignment
+     * from the return value then the node for the callee exit value is copied into 
+     * this type of node which is then copied into the assignee.
      */
     EXIT_ASSIGNMENT(false, false, false),
     // Path Conditions
