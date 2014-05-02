@@ -220,7 +220,7 @@ public class NonNullResults implements AnalysisResults {
 
                 Set<String> strings = new HashSet<>();
                 for (Integer val : results.getAllNonNull(i)) {
-                    strings.add(PrettyPrinter.valString(n.getIR(), val));
+                    strings.add(PrettyPrinter.valString(val, n.getIR()));
                 }
                 return strings + "\\l";
             }

@@ -2,7 +2,6 @@ package analysis.dataflow;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -67,29 +66,6 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * @return new data-flow item computed by merging the facts in the given set
      */
     protected abstract F confluence(Set<F> facts, ISSABasicBlock bb);
-
-    /**
-     * Join the two given data-flow facts to produce a new fact
-     * 
-     * @param fact1
-     *            first data-flow fact
-     * @param fact2
-     *            second data-flow fact
-     * @return item computed by merging fact1 and fact2
-     */
-    protected final F confluence(F fact1, F fact2, ISSABasicBlock bb) {
-        if (fact1 == null) {
-            return fact2;
-        }
-        if (fact2 == null) {
-            return fact1;
-        }
-
-        Set<F> facts = new LinkedHashSet<>();
-        facts.add(fact1);
-        facts.add(fact2);
-        return confluence(facts, bb);
-    }
 
     /**
      * Get a record for a previously run analysis for the given instruction,

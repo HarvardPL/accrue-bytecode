@@ -40,7 +40,8 @@ TODO need to add in call graph edges for the class initializers in the appropria
 
 Do I need exception in VarContext if there is a local for the exception, the local is what I use in the pointer analysis, probably should use it here too.
 
-
 WALA-BUG: getLastInstructionIndex() on ISSABasic block delegates to the Shrike BB, but instruction at some indices are removed in translation, so this instruction might be null (and getLastInstruction() returns null).
 
 WALA-BUG: Using methods from AbstractNumberedGraph in BasicCallGraph breaks the abstraction barrier (for example addNode bipasses the memoization of findOrCreateNode). This should be a delegation relationship not inheritance.
+
+PDG: Do I need to create extra edges in the PDG for clarity? Could make this an option or something. Maybe significantly smaller PDGs (i.e. don't create a node for a + b and a copy edge to c, but instead create edges from a to c and b to c.)

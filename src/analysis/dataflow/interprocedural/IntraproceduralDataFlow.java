@@ -216,7 +216,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         if (pointsTo.isEmpty()) {
             ptg.getPointsToSet(getReplica(array));
             throw new RuntimeException("Array doesn't point to anything. "
-                                            + PrettyPrinter.valString(currentNode.getIR(), array) + " in "
+                                            + PrettyPrinter.valString(array, currentNode.getIR()) + " in "
                                             + PrettyPrinter.parseCGNode(currentNode));
         }
 

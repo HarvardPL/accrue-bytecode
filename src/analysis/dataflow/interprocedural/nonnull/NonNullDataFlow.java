@@ -66,7 +66,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> call(SSAInvokeInstruction i,
                                     Set<VarContext<NonNullAbsVal>> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-        boolean isVoid = i.getNumberOfReturnValues() == 0;
+        boolean isVoid = i.getDeclaredTarget().getReturnType().equals(TypeReference.Void);
 
         VarContext<NonNullAbsVal> in = confluence(inItems, bb);
         VarContext<NonNullAbsVal> nonNull = in;

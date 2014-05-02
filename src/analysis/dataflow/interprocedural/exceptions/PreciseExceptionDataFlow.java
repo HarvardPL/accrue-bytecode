@@ -86,7 +86,10 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             // There should be no exceptions on normal exit
             assert out.get(ExitType.NORMAL) == null || out.get(ExitType.NORMAL).isBottom();
 
-            exceptionResult = confluence(exceptionResult, out.get(ExitType.EXCEPTIONAL), bb);
+            Set<PreciseExceptionAbsVal> exceptions = new LinkedHashSet<>();
+            exceptions.add(exceptionResult);
+            exceptions.add(out.get(ExitType.EXCEPTIONAL));
+            exceptionResult = confluence(exceptions, bb);
         }
 
         if (exceptionResult != null) {

@@ -34,11 +34,9 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
  */
 public enum InstructionType {
     /**
-     * Unconditional jump, need the control flow graph to obtain the jump target
-     * 
-     * @see SSAGotoInstruction
+     * @see SSAArrayLengthInstruction
      */
-    GOTO,
+    ARRAY_LENGTH,
     /**
      * v = a[i], jvm aaload
      * 
@@ -58,15 +56,9 @@ public enum InstructionType {
      */
     BINARY_OP,
     /**
-     * Unary negation.
-     * 
-     * @see SSAUnaryOpInstruction
+     * @see SSACheckCastInstruction
      */
-    UNARY_NEG_OP,
-    /**
-     * @see SSAConversionInstruction
-     */
-    CONVERSION,
+    CHECK_CAST,
     /**
      * @see SSAComparisonInstruction
      */
@@ -78,13 +70,13 @@ public enum InstructionType {
      */
     CONDITIONAL_BRANCH,
     /**
-     * @see SSASwitchInstruction
+     * @see SSAConversionInstruction
      */
-    SWITCH,
+    CONVERSION,
     /**
-     * @see SSAReturnInstruction
+     * @see SSAGetCaughtExceptionInstruction
      */
-    RETURN,
+    GET_CAUGHT_EXCEPTION,
     /**
      * @see SSAGetInstruction
      */
@@ -94,55 +86,15 @@ public enum InstructionType {
      */
     GET_STATIC,
     /**
-     * @see SSAPutInstruction
+     * Unconditional jump, need the control flow graph to obtain the jump target
+     * 
+     * @see SSAGotoInstruction
      */
-    PUT_FIELD,
-    /**
-     * @see SSAPutInstruction
-     */
-    PUT_STATIC,
-    /**
-     * @see SSANewInstruction
-     */
-    NEW_OBJECT,
-    /**
-     * @see SSANewInstruction
-     */
-    NEW_ARRAY,
-    /**
-     * @see SSAArrayLengthInstruction
-     */
-    ARRAY_LENGTH,
-    /**
-     * @see SSAThrowInstruction
-     */
-    THROW,
-    /**
-     * @see SSACheckCastInstruction
-     */
-    CHECK_CAST,
+    GOTO,
     /**
      * @see SSAInstanceofInstruction
      */
     INSTANCE_OF,
-    /**
-     * @see SSAPhiInstruction
-     */
-    PHI,
-    /**
-     * @see SSAGetCaughtExceptionInstruction
-     */
-    GET_CAUGHT_EXCEPTION,
-    /**
-     * @see SSALoadMetadataInstruction
-     */
-    LOAD_METADATA,
-    /**
-     * Virtual method invocation.
-     * 
-     * @see SSAInvokeInstruction
-     */
-    INVOKE_VIRTUAL,
     /**
      * Invocation of an interface method.
      * 
@@ -162,9 +114,57 @@ public enum InstructionType {
      */
     INVOKE_STATIC,
     /**
+     * Virtual method invocation.
+     * 
+     * @see SSAInvokeInstruction
+     */
+    INVOKE_VIRTUAL,
+    /**
+     * @see SSALoadMetadataInstruction
+     */
+    LOAD_METADATA,
+    /**
      * @see {@link SSAMonitorInstruction}
      */
-    MONITOR;
+    MONITOR,
+    /**
+     * @see SSANewInstruction
+     */
+    NEW_ARRAY,
+    /**
+     * @see SSANewInstruction
+     */
+    NEW_OBJECT,
+    /**
+     * @see SSAPhiInstruction
+     */
+    PHI,
+    /**
+     * @see SSAPutInstruction
+     */
+    PUT_FIELD,
+    /**
+     * @see SSAPutInstruction
+     */
+    PUT_STATIC,
+    /**
+     * @see SSAReturnInstruction
+     */
+    RETURN,
+    /**
+     * @see SSASwitchInstruction
+     */
+    SWITCH,
+    /**
+     * @see SSAThrowInstruction
+     */
+    THROW,
+    /**
+     * Unary negation.
+     * 
+     * @see SSAUnaryOpInstruction
+     */
+    UNARY_NEG_OP;
     // Unexpected types
 //  /**
 //   * @see SSAPiInstruction

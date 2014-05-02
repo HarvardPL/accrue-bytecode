@@ -425,7 +425,7 @@ public class StatementRegistrar {
         ReferenceVariable node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
-            node = new ReferenceVariable(PrettyPrinter.valString(ir, local), type, false);
+            node = new ReferenceVariable(PrettyPrinter.valString(local, ir), type, false);
             locals.put(key, node);
         }
         return node;
@@ -785,7 +785,7 @@ public class StatementRegistrar {
 
         @Override
         public String toString() {
-            return PrettyPrinter.valString(ir, value) + " in " + PrettyPrinter.parseMethod(ir.getMethod());
+            return PrettyPrinter.valString(value, ir) + " in " + PrettyPrinter.parseMethod(ir.getMethod());
         }
     }
 

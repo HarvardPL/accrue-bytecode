@@ -79,15 +79,11 @@ public class MethodSummaryNodes {
         name = PrettyPrinter.parseMethod(ir.getMethod());
 
         TypeReference returnType = ir.getMethod().getReturnType();
-        returnNode = (isVoid(returnType) || returnType.isPrimitiveType()) ? null : new ReferenceVariable(
+        returnNode = (returnType == TypeReference.Void || returnType.isPrimitiveType()) ? null : new ReferenceVariable(
                 name + "-EXIT", returnType, false);
 
         TypeReference throwable = TypeReference.JavaLangThrowable;
         exception = new ReferenceVariable(name + "-EXCEPTION", throwable, false);
-    }
-
-    private boolean isVoid(TypeReference type) {
-        return type == TypeReference.Void;
     }
 
     public ReferenceVariable getThisNode() {
