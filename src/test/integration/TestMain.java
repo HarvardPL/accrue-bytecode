@@ -157,9 +157,7 @@ public class TestMain {
 
         for (CGNode n : g.getCallGraph()) {
             String fileName = "cfg_" + PrettyPrinter.parseCGNode(n).replace(" ", "");
-            try (Writer w = new FileWriter(fileName)) {
-                printSingleCFG(util, n.getIR(), fileName);
-            }
+            printSingleCFG(util, n.getIR(), fileName);
         }
     }
 
@@ -261,13 +259,12 @@ public class TestMain {
      * @param IR
      *            code for the method to be printed
      * @param fileName
-     *            file to save the results (appended with "_cfg.dot")
+     *            file to save the results
      */
     private static void printSingleCFG(WalaAnalysisUtil util, IR ir, String fileName) {
         CFGWriter cfg = new CFGWriter(ir);
         String dir = "tests";
-        String file = fileName + "_cfg";
-        String fullFilename = dir + "/" + file + ".dot";
+        String fullFilename = dir + "/" + fileName + ".dot";
         try {
             Writer out = new BufferedWriter(new FileWriter(fullFilename));
             cfg.writeVerbose(out, "", "\\l");

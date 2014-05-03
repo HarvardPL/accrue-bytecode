@@ -771,9 +771,9 @@ public class PrettyPrinter {
     private String rightSideString(SSAInstruction instruction) {
         InstructionType type = InstructionType.forInstruction(instruction);
         
-        if (!instruction.hasDef() || type.isInvoke()) {
+        if (!instruction.hasDef() && !type.isInvoke()) {
             throw new RuntimeException(type + " has no right hand side or has a local on the right, "
-                                            + instructionString(instruction));
+                                            + instruction);
         }
         
         switch (type) {
