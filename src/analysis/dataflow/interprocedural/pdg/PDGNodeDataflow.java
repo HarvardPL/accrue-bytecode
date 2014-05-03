@@ -8,10 +8,10 @@ import util.print.PrettyPrinter;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
+import analysis.dataflow.interprocedural.pdg.graph.node.ExpressionNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
-import analysis.dataflow.interprocedural.pdg.node.ExpressionNode;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;

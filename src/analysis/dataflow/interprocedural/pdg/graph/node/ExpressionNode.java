@@ -1,10 +1,7 @@
-package analysis.dataflow.interprocedural.pdg.node;
+package analysis.dataflow.interprocedural.pdg.graph.node;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
-import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 
