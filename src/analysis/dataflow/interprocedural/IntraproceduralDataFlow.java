@@ -6,23 +6,17 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import util.print.PrettyPrinter;
 import analysis.dataflow.InstructionDispatchDataFlow;
-import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ReferenceVariable;
-import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
-import com.ibm.wala.types.FieldReference;
 
 /**
  * Intra-procedural part of an inter-procedural data-flow analysis
@@ -158,88 +152,6 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         } else {
             output.put(ExitType.EXCEPTIONAL, confluence(exceptions, exit));
         }
-    }
-
-    /**
-     * Merge given facts to create a new data-flow fact and map each successor
-     * node number to that fact.
-     * 
-     * @param facts
-     *            facts to merge
-     * @param cfg
-     *            current control flow graph
-     * @param bb
-     *            current basic block
-     * @return map with the same merged value for each key
-     */
-    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-        F fact = confluence(facts, bb);
-        return factToMap(fact, bb, cfg);
-    }
-
-    /**
-     * Get the abstract locations for a non-static field
-     * 
-     * @param receiver
-     *            value number for the local variable for the receiver of a
-     *            field access
-     * @param field
-     *            field
-     * @return set of abstract locations for the field
-     */
-    protected Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field) {
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver));
-        if (pointsTo.isEmpty()) {
-            throw new RuntimeException("Field target doesn't point to anything. "
-                                            + PrettyPrinter.parseType(field.getDeclaringClass()) + "."
-                                            + field.getName());
-        }
-
-        Set<AbstractLocation> ret = new LinkedHashSet<>();
-        for (InstanceKey o : pointsTo) {
-            AbstractLocation loc = AbstractLocation.createNonStatic(o, field);
-            ret.add(loc);
-        }
-        return ret;
-    }
-
-    /**
-     * Get the abstract locations for the contents of an array
-     * 
-     * @param arary
-     *            value number for the local variable for the array
-     * @return set of abstract locations for the contents of the array
-     */
-    protected Set<AbstractLocation> getLocationsForArrayContents(int array) {
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array));
-        if (pointsTo.isEmpty()) {
-            ptg.getPointsToSet(getReplica(array));
-            throw new RuntimeException("Array doesn't point to anything. "
-                                            + PrettyPrinter.valString(array, currentNode.getIR()) + " in "
-                                            + PrettyPrinter.parseCGNode(currentNode));
-        }
-
-        Set<AbstractLocation> ret = new LinkedHashSet<>();
-        for (InstanceKey o : pointsTo) {
-            AbstractLocation loc = AbstractLocation.createArrayContents(o);
-            ret.add(loc);
-        }
-        return ret;
-    }
-
-    /**
-     * Get the reference variable replica for the given local variable in the
-     * current context
-     * 
-     * @param local
-     *            value number of the local variable
-     * 
-     * @return Reference variable replica in the current context for the local
-     */
-    protected ReferenceVariableReplica getReplica(int local) {
-        ReferenceVariable rv = ptg.getLocal(local, currentNode.getIR());
-        return new ReferenceVariableReplica(currentNode.getContext(), rv);
     }
 
     @Override

@@ -224,9 +224,10 @@ public class PreciseExceptionResults implements AnalysisResults {
         case INVOKE_VIRTUAL:
             // TODO WrongMethodTypeException
         case MONITOR:
-            // Not handling IllegalMonitorStateException for monitorexit
+            // Not handling IllegalMonitorStateException for monitor
         case PUT_FIELD:
         case THROW: // if the object thrown is null
+            // Not handling IllegalMonitorStateException for throw
             return nullPointerException;
         case CHECK_CAST:
             return classCastException;

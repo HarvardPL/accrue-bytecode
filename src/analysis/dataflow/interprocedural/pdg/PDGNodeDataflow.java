@@ -1,19 +1,28 @@
 package analysis.dataflow.interprocedural.pdg;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
+import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
-import analysis.dataflow.interprocedural.pdg.graph.node.ExpressionNode;
+import analysis.dataflow.interprocedural.pdg.graph.node.AbstractLocationPDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
+import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
+import analysis.dataflow.util.AbstractLocation;
+import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -40,6 +49,7 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Data-flow that builds up the set of nodes in a program dependence graph.
@@ -50,13 +60,20 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     private final PDGInterproceduralDataFlow interProc;
     private final ProcedureSummaryNodes summary;
     private final IR ir;
+    private final CallGraph cg;
+    private final PointsToGraph ptg;
+    private final WalaAnalysisUtil util;
 
-    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, ProcedureSummaryNodes summary) {
+    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, ProcedureSummaryNodes summary,
+                                    WalaAnalysisUtil util) {
         super(true);
         this.currentNode = currentNode;
         this.interProc = interProc;
         this.summary = summary;
         this.ir = currentNode.getIR();
+        this.cg = interProc.getCallGraph();
+        this.ptg = interProc.getPointsToGraph();
+        this.util = util;
     }
 
     @Override
@@ -116,7 +133,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
 
         // Merge the PCNodes
         // TODO only create a new node if necessary
-        PDGNode newPC = ExpressionNode.findOrCreate("PC MERGE", PDGNodeType.PC_MERGE, currentNode, bb);
+        PDGNode newPC = PDGNodeFactory.findOrCreateExpression("PC MERGE", PDGNodeType.PC_MERGE, currentNode, bb);
         for (PDGContext fact : facts) {
             PDGNode inPC = fact.getPCNode();
             addEdge(inPC, newPC, PDGEdgeType.MERGE);
@@ -124,52 +141,12 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         return new PDGContext(null, null, newPC);
     }
 
-    /**
-     * Find the unique node for the local variable or constant used by
-     * instruction, <code>i</code>, in position <code>useNumber</code>. Create
-     * if necessary.
-     * 
-     * @param i
-     *            instruction with at least <code>useNumber</code> + 1 uses
-     * @param useNumber
-     *            valid use index (uses are 0 indexed)
-     * @return PDG node for the use with the given use number in <code>i</code>
-     */
-    private PDGNode findOrCreateUseNode(SSAInstruction i, int useNumber) {
-        assert i.getNumberOfUses() > useNumber;
-        int valueNumber = i.getUse(useNumber);
-        assert valueNumber >= 0;
-        PDGNode n;
-        if (ir.getSymbolTable().isConstant(valueNumber)) {
-            n = ExpressionNode.findOrCreate(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.BASE_VALUE,
-                                            currentNode, valueNumber);
-        } else {
-            n = ExpressionNode.findOrCreate(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.LOCAL, currentNode,
-                                            valueNumber);
-        }
-
-        return n;
-    }
-
-    /**
-     * Find the unique PDG node for the local variable defined by <code>i</code>
-     * . Create if necessary.
-     * 
-     * @param i
-     *            instruction that defines a local variable
-     * @return PDG node for the defined local
-     */
-    private PDGNode findOrCreateDefNode(SSAInstruction i) {
-        assert i.hasDef();
-        return ExpressionNode.findOrCreateLocalDef(i, currentNode);
-    }
-
     @Override
     protected PDGContext flowBinaryOp(SSABinaryOpInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode v0 = findOrCreateUseNode(i, 0);
-        PDGNode v1 = findOrCreateUseNode(i, 1);
-        PDGNode assignee = findOrCreateDefNode(i);
+        PDGNode v0 = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+        PDGNode v1 = PDGNodeFactory.findOrCreateUse(i, 1, currentNode);
+        PDGNode assignee = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
 
         addEdge(v0, assignee, PDGEdgeType.EXP);
         addEdge(v1, assignee, PDGEdgeType.EXP);
@@ -182,9 +159,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     @Override
     protected PDGContext flowComparison(SSAComparisonInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode v0 = findOrCreateUseNode(i, 0);
-        PDGNode v1 = findOrCreateUseNode(i, 1);
-        PDGNode assignee = findOrCreateDefNode(i);
+        PDGNode v0 = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+        PDGNode v1 = PDGNodeFactory.findOrCreateUse(i, 1, currentNode);
+        PDGNode assignee = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
 
         addEdge(v0, assignee, PDGEdgeType.EXP);
         addEdge(v1, assignee, PDGEdgeType.EXP);
@@ -197,8 +174,8 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     @Override
     protected PDGContext flowConversion(SSAConversionInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode converted = findOrCreateUseNode(i, 0);
-        PDGNode result = findOrCreateDefNode(i);
+        PDGNode converted = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
 
         addEdge(converted, result, PDGEdgeType.COPY);
 
@@ -211,7 +188,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected PDGContext flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Merge exceptions
-        PDGNode caughtEx = findOrCreateDefNode(i);
+        PDGNode caughtEx = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
         for (PDGContext fact : previousItems) {
             PDGNode inEx = fact.getExceptionNode();
             addEdge(inEx, caughtEx, PDGEdgeType.MERGE);
@@ -223,50 +200,135 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     @Override
     protected PDGContext flowGetStatic(SSAGetInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        AbstractLocation fieldLoc = AbstractLocation.createStatic(i.getDeclaredField());
+        AbstractLocationPDGNode fieldNode = PDGNodeFactory.findOrCreateAbstractLocation(fieldLoc);
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
+
+        addEdge(fieldNode, result, PDGEdgeType.COPY);
+
+        PDGContext in = confluence(previousItems, current);
+        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
+        return in;
     }
 
     @Override
     protected PDGContext flowInstanceOf(SSAInstanceofInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+
+        boolean instanceOfAlwaysFalse = true;
+        boolean instanceOfAlwaysTrue = true;
+        IClass checked = util.getClassHierarchy().lookupClass(i.getCheckedType());
+        for (InstanceKey hContext : ptg.getPointsToSet(interProc.getReplica(i.getRef(), currentNode))) {
+            IClass actual = hContext.getConcreteType();
+            if (util.getClassHierarchy().isSubclassOf(actual, checked)) {
+                instanceOfAlwaysFalse = false;
+            } else {
+                instanceOfAlwaysTrue = false;
+            }
+
+            if (!instanceOfAlwaysFalse && !instanceOfAlwaysTrue) {
+                break;
+            }
+        }
+
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
+        if (!instanceOfAlwaysFalse && !instanceOfAlwaysTrue) {
+            // This check does not always return the same value so the result
+            // depends on the input.
+            PDGNode refNode = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+            addEdge(refNode, result, PDGEdgeType.EXP);
+        }
+
+        PDGContext in = confluence(previousItems, current);
+        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
+        return in;
     }
 
     @Override
     protected PDGContext flowPhi(SSAPhiInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
+        for (int j = 0; j < i.getNumberOfUses(); j++) {
+            int useNum = i.getUse(j);
+            PDGNode choice = PDGNodeFactory.findOrCreateUse(i, useNum, currentNode);
+            addEdge(choice, result, PDGEdgeType.MERGE);
+        }
+
+        PDGContext in = confluence(previousItems, current);
+        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
+        return in;
     }
 
     @Override
     protected PDGContext flowPutStatic(SSAPutInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        AbstractLocation fieldLoc = AbstractLocation.createStatic(i.getDeclaredField());
+        AbstractLocationPDGNode fieldNode = PDGNodeFactory.findOrCreateAbstractLocation(fieldLoc);
+        PDGNode value = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+
+        // create intermediate node for this assignment
+        String desc = PrettyPrinter.rightSideString(i, currentNode.getIR());
+        PDGNode assignment = PDGNodeFactory.findOrCreateExpression(desc, PDGNodeType.OTHER_EXPRESSION, currentNode, i);
+
+        addEdge(value, assignment, PDGEdgeType.COPY);
+        addEdge(assignment, fieldNode, PDGEdgeType.MERGE);
+
+        PDGContext in = confluence(previousItems, current);
+        // The PC edge is into the assignment node as this is what depends on
+        // reaching the current program point
+        addEdge(in.getPCNode(), assignment, PDGEdgeType.IMPLICIT);
+        return in;
     }
 
     @Override
     protected PDGContext flowUnaryNegation(SSAUnaryOpInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
+        PDGNode value = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+        addEdge(value, result, PDGEdgeType.EXP);
+
+        PDGContext in = confluence(previousItems, current);
+        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
+        return in;
     }
 
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowArrayLength(SSAArrayLengthInstruction i,
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+
+        PDGNode array = PDGNodeFactory.findOrCreateUse(i, 0, currentNode);
+        PDGNode value = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
+        addEdge(array, value, PDGEdgeType.EXP);
+
+        PDGContext in = confluence(previousItems, current);
+        if (mayThrowException(TypeReference.JavaLangNullPointerException, current, cfg)) {
+            String desc = PrettyPrinter.valString(i.getArrayRef(), ir) + " == null";
+            Map<ExitType, PDGContext> afterEx = handleGeneratedException(TypeReference.JavaLangNullPointerException,
+                                            array, in.getPCNode(), desc, i);
+
+            PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
+            PDGContext normal = afterEx.get(ExitType.NORMAL);
+            // The only way the value gets assigned is if no NPE is thrown
+            addEdge(normal.getPCNode(), value, PDGEdgeType.IMPLICIT);
+
+            return factsToMapWithExceptions(normal, npe, current, cfg);
+        } else {
+            addEdge(in.getPCNode(), value, PDGEdgeType.IMPLICIT);
+            return factToMap(in, current, cfg);
+        }
     }
 
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowArrayLoad(SSAArrayLoadInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // Throw NPE
+
+        // If no NPE then AIOOB
+
         return null;
     }
 
@@ -274,6 +336,13 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowArrayStore(SSAArrayStoreInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // Throw NPE
+
+        // If no NPE then AIOOB
+
+        // If no AIOOB then array store
+
         return null;
     }
 
@@ -281,6 +350,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowCheckCast(SSACheckCastInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // throw check cast
+
         return null;
     }
 
@@ -289,6 +361,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // set up PC on both branches use getTrueSuccessor and getFalseSuccessor
+
         return null;
     }
 
@@ -296,6 +371,8 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowGetField(SSAGetInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // Throw NPE
         return null;
     }
 
@@ -303,21 +380,22 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowInvokeInterface(SSAInvokeInstruction i,
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        return flowInvokeVirtual(i, previousItems, cfg, current);
     }
 
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowInvokeSpecial(SSAInvokeInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        return flowInvokeVirtual(i, previousItems, cfg, current);
     }
 
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowInvokeStatic(SSAInvokeInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // throw exceptions declared by callee
+
         return null;
     }
 
@@ -325,14 +403,24 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowInvokeVirtual(SSAInvokeInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // Throw NPE
+
+        // TODO if no NPE throw WrongMethodTypeException
+        
+        // Copy actuals into formals
+
+        // If no NPE (and WrongMethodType) copy callee summary exception value
+        
+        // If no normal termination copy callee summary return value
+
         return null;
     }
 
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowGoto(SSAGotoInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -340,6 +428,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // throw ClassNotFoundException
+
         return null;
     }
 
@@ -347,6 +438,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowMonitor(SSAMonitorInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // throw NPE
+
         return null;
     }
 
@@ -382,6 +476,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowSwitch(SSASwitchInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // throw NegativeArraySize
+
         return null;
     }
 
@@ -389,6 +486,11 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flowThrow(SSAThrowInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO Auto-generated method stub
+
+        // throw NPE
+
+        // if no NPE throw declared exception
+
         return null;
     }
 
@@ -419,5 +521,76 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
      */
     private void addEdge(PDGNode source, PDGNode target, PDGEdgeType type) {
         interProc.getAnalysisResults().addEdge(source, target, type);
+    }
+
+    /**
+     * Check whether an exception of the given type can be thrown by the basic
+     * block (on at least one successor edge).
+     * 
+     * @param type
+     *            type of exception
+     * @param bb
+     *            basic block to check
+     * @param cfg
+     *            control flow graph
+     * @return whether an exception of <code>type</code> can be thrown by
+     *         <code>bb</code>
+     */
+    private boolean mayThrowException(TypeReference type, ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
+            if (interProc.getPreciseExceptionResults().getExceptions(bb, succ, currentNode).contains(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Create nodes and edges in the PDG to capture the dependencies when an
+     * exception is thrown by the JVM (e.g. a {@link NullPointerException})
+     * 
+     * @param exType
+     *            type of exception being thrown
+     * @param cause
+     *            cause of the exception (e.g. possibly null value if an NPE)
+     * @param pcBeforeException
+     *            program counter node for the program point immediately before
+     *            the exception is thrown
+     * @param branchDescription
+     *            description of the condition that causes the exception. The
+     *            condition being true should result in the exception. (e.g. o
+     *            == null for an NPE, index > a.length for an
+     *            ArrayIndexOutOfBoundsException).
+     * @param i
+     *            instruction that could throw the exception
+     * @return Two PDG contexts one for when the exception is not thrown and one
+     *         for when it is thrown.
+     */
+    private Map<ExitType, PDGContext> handleGeneratedException(TypeReference exType, PDGNode cause,
+                                    PDGNode pcBeforeException, String branchDescription, SSAInstruction i) {
+        Map<ExitType, PDGContext> out = new LinkedHashMap<>();
+
+        PDGNode branch = PDGNodeFactory.findOrCreateExpression(branchDescription, PDGNodeType.OTHER_EXPRESSION,
+                                        currentNode, i);
+        addEdge(cause, branch, PDGEdgeType.EXP);
+
+        PDGNode truePC = PDGNodeFactory.findOrCreateExpression(branchDescription, PDGNodeType.BOOLEAN_TRUE_PC,
+                                        currentNode, i);
+        addEdge(branch, truePC, PDGEdgeType.TRUE);
+        addEdge(pcBeforeException, truePC, PDGEdgeType.CONJUNCTION);
+
+        PDGNode falsePC = PDGNodeFactory.findOrCreateExpression(branchDescription, PDGNodeType.BOOLEAN_FALSE_PC,
+                                        currentNode, i);
+        addEdge(branch, falsePC, PDGEdgeType.FALSE);
+        addEdge(pcBeforeException, falsePC, PDGEdgeType.CONJUNCTION);
+
+        PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
+
+        PDGContext ex = new PDGContext(null, exceptionValue, truePC);
+        PDGContext normal = new PDGContext(null, null, falsePC);
+        out.put(ExitType.NORMAL, normal);
+        out.put(ExitType.EXCEPTIONAL, ex);
+        return out;
     }
 }

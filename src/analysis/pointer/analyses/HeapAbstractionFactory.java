@@ -47,7 +47,7 @@ public interface HeapAbstractionFactory {
     Context merge(CallSiteReference callSite, IR ir, InstanceKey receiver, Context callerContext);
 
     /**
-     * Return the initial Context, i.e., to analyze the main method.
+     * Return the initial Context, i.e., to analyze the root method.
      */
     Context initialContext();
 }

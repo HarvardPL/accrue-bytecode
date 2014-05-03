@@ -19,6 +19,7 @@ import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -255,12 +256,23 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
 
-        IClass typeOfValue = cha.lookupClass(TypeRepository.getType(i.getVal(), currentNode.getIR()));
-        IClass checkedType = cha.lookupClass(i.getDeclaredResultTypes()[0]);
-        if (cha.isSubclassOf(typeOfValue, checkedType)
-                                        || currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            // upcasts and casts of null are always safe
-            // TODO track "definitely null" in the non-null analysis
+        // Upcasts and casts of null are always safe, see if either case holds
+        // TODO track "definitely null" in the non-null analysis
+        boolean castAlwaysSucceeds = true;
+        IClass checked = cha.lookupClass(i.getDeclaredResultTypes()[0]);
+        if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
+            for (InstanceKey hContext : ptg.getPointsToSet(interProc.getReplica(i.getVal(), currentNode))) {
+                IClass actual = hContext.getConcreteType();
+                if (!cha.isSubclassOf(actual, checked)) {
+                    castAlwaysSucceeds = false;
+                    break;
+                }
+            }
+        }
+
+        if (castAlwaysSucceeds) {
+            // This is either a cast of the "null" literal or an upcast and
+            // cannot throw a ClassCastException
             throwables = new LinkedHashSet<>(throwables);
             throwables.remove(TypeReference.JavaLangClassCastException);
         }

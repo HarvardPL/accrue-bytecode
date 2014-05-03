@@ -168,42 +168,42 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowArrayLength(SSAArrayLengthInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowArrayLoad(SSAArrayLoadInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowCheckCast(SSACheckCastInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowGetField(SSAGetInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -238,28 +238,28 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowGoto(SSAGotoInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowLoadMetadata(SSALoadMetadataInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowMonitor(SSAMonitorInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowNewArray(SSANewInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -275,21 +275,21 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowPutField(SSAPutInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowReturn(SSAReturnInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowSwitch(SSASwitchInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -298,6 +298,6 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // This cannot terminate normally, but there is no normal termination
         // edge either
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 }

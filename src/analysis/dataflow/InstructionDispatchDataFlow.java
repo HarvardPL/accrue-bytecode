@@ -786,4 +786,21 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     protected abstract Map<ISSABasicBlock, F> flowThrow(SSAThrowInstruction i, Set<F> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
+    /**
+     * Merge given facts to create a new data-flow fact and map each successor
+     * node number to that fact.
+     * 
+     * @param facts
+     *            facts to merge
+     * @param bb
+     *            current basic block
+     * @param cfg
+     *            current control flow graph
+     * @return map with the same merged value for each key
+     */
+    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        F fact = confluence(facts, bb);
+        return factToMap(fact, bb, cfg);
+    }
+
 }

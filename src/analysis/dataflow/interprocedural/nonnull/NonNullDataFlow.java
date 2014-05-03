@@ -359,7 +359,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
         NonNullAbsVal val = null;
-        for (AbstractLocation loc : getLocationsForArrayContents(i.getArrayRef())) {
+        for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
             val = VarContext.safeJoinValues(val, in.getLocation(loc));
         }
         normal = normal.setLocal(i.getDef(), val);
@@ -401,7 +401,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
 
         NonNullAbsVal val = in.getLocal(i.getValue());
-        for (AbstractLocation loc : getLocationsForArrayContents(i.getArrayRef())) {
+        for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
             normal = normal.setLocation(loc, val);
         }
 
@@ -510,7 +510,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         NonNullAbsVal newValue = null;
-        for (AbstractLocation loc : getLocationsForNonStaticField(i.getRef(), i.getDeclaredField())) {
+        for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
+                                        currentNode)) {
             newValue = VarContext.safeJoinValues(newValue, in.getLocation(loc));
         }
 
@@ -526,7 +527,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowGoto(SSAGotoInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -610,7 +611,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
         NonNullAbsVal inVal = in.getLocal(i.getVal());
-        for (AbstractLocation loc : getLocationsForNonStaticField(i.getRef(), i.getDeclaredField())) {
+        for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
+                                        currentNode)) {
             normal = normal.setLocation(loc, inVal);
         }
 
@@ -635,7 +637,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // no pointers
-        return mergeAndCreateMap(previousItems, cfg, current);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -653,7 +655,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
-    
+
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
         return super.isUnreachable(source, target);

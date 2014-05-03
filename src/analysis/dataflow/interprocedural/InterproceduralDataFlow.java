@@ -5,17 +5,23 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
+import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariable;
+import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.types.FieldReference;
 
 /**
  * Manages the running of an inter-procedural data-flow analysis
@@ -367,7 +373,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     public ReachabilityResults getReachabilityResults() {
         return reachable;
     }
-    
+
     /**
      * Get the results after running this analysis. These may be unsound until
      * the analysis has completed.
@@ -513,5 +519,74 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         public String toString() {
             return "INPUT: " + input + " OUTPUT: " + output + " sound? " + isSoundResult;
         }
+    }
+
+    /**
+     * Get the abstract locations for a non-static field
+     * 
+     * @param receiver
+     *            value number for the local variable for the receiver of a
+     *            field access
+     * @param field
+     *            field
+     * @param n
+     *            call graph node giving the method and context for the receiver
+     * @return set of abstract locations for the field
+     */
+    public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
+        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver, n));
+        if (pointsTo.isEmpty()) {
+            throw new RuntimeException("Field target doesn't point to anything. "
+                                            + PrettyPrinter.parseType(field.getDeclaringClass()) + "."
+                                            + field.getName());
+        }
+
+        Set<AbstractLocation> ret = new LinkedHashSet<>();
+        for (InstanceKey o : pointsTo) {
+            AbstractLocation loc = AbstractLocation.createNonStatic(o, field);
+            ret.add(loc);
+        }
+        return ret;
+    }
+
+    /**
+     * Get the abstract locations for the contents of an array
+     * 
+     * @param arary
+     *            value number for the local variable for the array
+     * @param n
+     *            call graph node for the array
+     * @return set of abstract locations for the contents of the array
+     */
+    public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
+        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array, n));
+        if (pointsTo.isEmpty()) {
+            ptg.getPointsToSet(getReplica(array, n));
+            throw new RuntimeException("Array doesn't point to anything. " + PrettyPrinter.valString(array, n.getIR())
+                                            + " in " + PrettyPrinter.parseCGNode(n));
+        }
+
+        Set<AbstractLocation> ret = new LinkedHashSet<>();
+        for (InstanceKey o : pointsTo) {
+            AbstractLocation loc = AbstractLocation.createArrayContents(o);
+            ret.add(loc);
+        }
+        return ret;
+    }
+
+    /**
+     * Get the reference variable replica for the given local variable in the
+     * current context
+     * 
+     * @param local
+     *            value number of the local variable
+     * @param n
+     *            call graph node giving the method and context for the local
+     *            variable
+     * @return Reference variable replica in the current context for the local
+     */
+    public ReferenceVariableReplica getReplica(int local, CGNode n) {
+        ReferenceVariable rv = ptg.getLocal(local, n.getIR());
+        return new ReferenceVariableReplica(n.getContext(), rv);
     }
 }
