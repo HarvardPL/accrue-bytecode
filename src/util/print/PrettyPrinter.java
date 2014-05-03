@@ -569,7 +569,7 @@ public class PrettyPrinter {
     }
 
     private String getCaughtExceptionString(SSAGetCaughtExceptionInstruction instruction) {
-        return instruction.toString(st);
+        return "catch " + valString(instruction.getException());
     }
 
     private String getRight(SSAGetInstruction instruction) {

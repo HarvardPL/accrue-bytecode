@@ -3,7 +3,6 @@ package analysis.dataflow.interprocedural.pdg;
 import java.util.Map;
 import java.util.Set;
 
-import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -117,7 +116,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
 
         // Merge the PCNodes
         // TODO only create a new node if necessary
-        PDGNode newPC = ExpressionNode.create("PC MERGE", PDGNodeType.PC_MERGE, currentNode, bb);
+        PDGNode newPC = ExpressionNode.findOrCreate("PC MERGE", PDGNodeType.PC_MERGE, currentNode, bb);
         for (PDGContext fact : facts) {
             PDGNode inPC = fact.getPCNode();
             addEdge(inPC, newPC, PDGEdgeType.MERGE);
@@ -125,63 +124,86 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         return new PDGContext(null, null, newPC);
     }
 
-    private PDGNode findOrCreateLocalNode(Integer valueNumber) {
+    /**
+     * Find the unique node for the local variable or constant used by
+     * instruction, <code>i</code>, in position <code>useNumber</code>. Create
+     * if necessary.
+     * 
+     * @param i
+     *            instruction with at least <code>useNumber</code> + 1 uses
+     * @param useNumber
+     *            valid use index (uses are 0 indexed)
+     * @return PDG node for the use with the given use number in <code>i</code>
+     */
+    private PDGNode findOrCreateUseNode(SSAInstruction i, int useNumber) {
+        assert i.getNumberOfUses() > useNumber;
+        int valueNumber = i.getUse(useNumber);
+        assert valueNumber >= 0;
         PDGNode n;
         if (ir.getSymbolTable().isConstant(valueNumber)) {
-            n = ExpressionNode.create(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.BASE_VALUE, currentNode,
-                                            valueNumber);
+            n = ExpressionNode.findOrCreate(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.BASE_VALUE,
+                                            currentNode, valueNumber);
         } else {
-            n = ExpressionNode.create(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.LOCAL, currentNode,
+            n = ExpressionNode.findOrCreate(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.LOCAL, currentNode,
                                             valueNumber);
         }
 
         return n;
     }
 
+    /**
+     * Find the unique PDG node for the local variable defined by <code>i</code>
+     * . Create if necessary.
+     * 
+     * @param i
+     *            instruction that defines a local variable
+     * @return PDG node for the defined local
+     */
+    private PDGNode findOrCreateDefNode(SSAInstruction i) {
+        assert i.hasDef();
+        return ExpressionNode.findOrCreateLocalDef(i, currentNode);
+    }
+
     @Override
     protected PDGContext flowBinaryOp(SSABinaryOpInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode binop = nodeForRHS(i);
-        PDGNode v0 = findOrCreateLocalNode(i.getUse(0));
-        PDGNode v1 = findOrCreateLocalNode(i.getUse(1));
-        PDGNode assignee = findOrCreateLocalNode(i.getDef());
+        PDGNode v0 = findOrCreateUseNode(i, 0);
+        PDGNode v1 = findOrCreateUseNode(i, 1);
+        PDGNode assignee = findOrCreateDefNode(i);
 
-        addEdge(v0, binop, PDGEdgeType.EXP);
-        addEdge(v1, binop, PDGEdgeType.EXP);
+        addEdge(v0, assignee, PDGEdgeType.EXP);
+        addEdge(v1, assignee, PDGEdgeType.EXP);
 
         PDGContext in = confluence(previousItems, current);
-        assign(assignee, binop, in.getPCNode(), i);
+        addEdge(in.getPCNode(), assignee, PDGEdgeType.IMPLICIT);
         return in;
     }
 
     @Override
     protected PDGContext flowComparison(SSAComparisonInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode binop = nodeForRHS(i);
-        PDGNode v0 = findOrCreateLocalNode(i.getUse(0));
-        PDGNode v1 = findOrCreateLocalNode(i.getUse(1));
-        PDGNode assignee = findOrCreateLocalNode(i.getDef());
+        PDGNode v0 = findOrCreateUseNode(i, 0);
+        PDGNode v1 = findOrCreateUseNode(i, 1);
+        PDGNode assignee = findOrCreateDefNode(i);
 
-        addEdge(v0, binop, PDGEdgeType.EXP);
-        addEdge(v1, binop, PDGEdgeType.EXP);
-        addEdge(binop, assignee, PDGEdgeType.COPY);
+        addEdge(v0, assignee, PDGEdgeType.EXP);
+        addEdge(v1, assignee, PDGEdgeType.EXP);
 
         PDGContext in = confluence(previousItems, current);
-        assign(assignee, binop, in.getPCNode(), i);
+        addEdge(in.getPCNode(), assignee, PDGEdgeType.IMPLICIT);
         return in;
     }
 
     @Override
     protected PDGContext flowConversion(SSAConversionInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode converted = findOrCreateLocalNode(i.getUse(0));
-        PDGNode conversion = nodeForRHS(i);
-        PDGNode result = findOrCreateLocalNode(i.getDef());
+        PDGNode converted = findOrCreateUseNode(i, 0);
+        PDGNode result = findOrCreateDefNode(i);
 
-        addEdge(converted, conversion, PDGEdgeType.COPY);
+        addEdge(converted, result, PDGEdgeType.COPY);
 
         PDGContext in = confluence(previousItems, current);
-        assign(result, conversion, in.getPCNode(), i);
+        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
         return in;
     }
 
@@ -189,7 +211,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected PDGContext flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Merge exceptions
-        PDGNode caughtEx = findOrCreateLocalNode(i.getException());
+        PDGNode caughtEx = findOrCreateDefNode(i);
         for (PDGContext fact : previousItems) {
             PDGNode inEx = fact.getExceptionNode();
             addEdge(inEx, caughtEx, PDGEdgeType.MERGE);
@@ -397,35 +419,5 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
      */
     private void addEdge(PDGNode source, PDGNode target, PDGEdgeType type) {
         interProc.getAnalysisResults().addEdge(source, target, type);
-    }
-
-    /**
-     * Create a node for the expression on the right hand side of an assignment
-     * instruction
-     * 
-     * @param i
-     *            instruction that assigns to a local
-     * @return PDG node representing the expression being assigned by
-     *         <code>i</code>
-     */
-    private PDGNode nodeForRHS(SSAInstruction i) {
-        return ExpressionNode.create(PrettyPrinter.rightSideString(i, ir), PDGNodeType.OTHER_EXPRESSION, currentNode,
-                                        new OrderedPair<>(i, "RHS"));
-    }
-
-    /**
-     * Create edges and nodes for an assignment into a
-     * 
-     * @param lhs
-     * @param rhs
-     * @param pcNode
-     * @param i
-     */
-    private void assign(PDGNode lhs, PDGNode rhs, PDGNode pcNode, SSAInstruction i) {
-        PDGNode assignment = ExpressionNode.create(lhs + " = " + rhs, PDGNodeType.OTHER_EXPRESSION, currentNode,
-                                        new OrderedPair<>(i, "ASSIGNMENT"));
-        addEdge(rhs, assignment, PDGEdgeType.COPY);
-        addEdge(pcNode, assignment, PDGEdgeType.IMPLICIT);
-        addEdge(assignment, lhs, PDGEdgeType.COPY);
     }
 }
