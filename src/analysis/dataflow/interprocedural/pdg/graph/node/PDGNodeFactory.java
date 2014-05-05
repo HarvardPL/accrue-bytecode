@@ -8,7 +8,6 @@ import analysis.dataflow.util.AbstractLocation;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.types.TypeReference;
 
@@ -42,6 +41,21 @@ public class PDGNodeFactory {
     public static PDGNode findOrCreateUse(SSAInstruction i, int useNumber, CGNode cgNode) {
         assert i.getNumberOfUses() > useNumber;
         int valueNumber = i.getUse(useNumber);
+        return findOrCreateLocal(valueNumber, cgNode);
+    }
+
+    /**
+     * Find the unique node for the local variable or constant given by the
+     * value number. Create if necessary.
+     * 
+     * @param valueNumber
+     *            value number for the local variable
+     * @param cgNode
+     *            call graph node containing the code and context for the local
+     *            variable
+     * @return PDG node for the local variable
+     */
+    public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode) {
         assert valueNumber >= 0;
         IR ir = cgNode.getIR();
         PDGNode n;
@@ -72,7 +86,8 @@ public class PDGNodeFactory {
      *            call graph node containing the code and context for the
      *            expression
      * @param disambuationKey
-     *            key used to distinguish nodes
+     *            key used to distinguish nodes (in addition to the call graph
+     *            node and type)
      * @return unique PDG node of the given type created in the given call graph
      *         node with the given disambiguation key
      */
@@ -105,16 +120,17 @@ public class PDGNodeFactory {
     }
 
     /**
-     * Find a the unique node corresponding to the local variable defined by the
-     * instruction, <code>i</code>. Create this node if it does not already
-     * exist.
+     * Find a the unique node corresponding to the (first) local variable
+     * defined by the instruction, <code>i</code>. Create this node if it does
+     * not already exist.
      * 
      * @param i
      *            instruction that defines a local variable
      * @param n
      *            call graph node containing the code and context the local is
      *            defined in
-     * @return unique node for the local variable defined by <code>i</code>
+     * @return unique node for the (first) local variable defined by
+     *         <code>i</code>
      */
     public static ExpressionNode findOrCreateLocalDef(SSAInstruction i, CGNode n) {
         assert i.hasDef();

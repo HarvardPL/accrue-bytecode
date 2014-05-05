@@ -249,6 +249,14 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
         return computeResults(throwables, cfg, current);
     }
+    
+    @Override
+    protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                    Set<PreciseExceptionAbsVal> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
     @Override
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowCheckCast(SSACheckCastInstruction i,

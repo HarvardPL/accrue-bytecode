@@ -217,6 +217,12 @@ public class StatementRegistrationPass {
             // v[i] = x
             registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir);
             return;
+        
+        case MONITOR: 
+        case ARRAY_LENGTH: 
+        case BINARY_OP_EX: // division or remainder for integers
+            // TODO registrar.registerGeneratedExceptionThrow(i, ir);
+            return;
         case CHECK_CAST:
             // v = (Type) x
             registrar.registerCheckCast((SSACheckCastInstruction) i, ir);
@@ -277,15 +283,13 @@ public class StatementRegistrationPass {
             // throw e
             registrar.registerThrow((SSAThrowInstruction) i, ir);
             return;
-        case ARRAY_LENGTH: // primitive return
-        case BINARY_OP: // not creating nodes for intermediate results
+        case BINARY_OP: // primitive op
         case COMPARISON: // primitive op
         case CONDITIONAL_BRANCH: // computes primitive and branches
         case CONVERSION: // primitive op
         case GET_CAUGHT_EXCEPTION: // handled in PointsToStatement#checkThrown
         case GOTO: // control flow
         case INSTANCE_OF: // results in a primitive
-        case MONITOR: // no effect on pointers
         case SWITCH: // only switch on int
         case UNARY_NEG_OP: // primitive op
             break;

@@ -10,6 +10,7 @@ import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
+import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.Unit;
@@ -157,5 +158,10 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
+    }
+
+    public ProcedureSummaryNodes getProcedureSummary(CGNode callee) {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

@@ -65,6 +65,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      *            Basic block we are merging for
      * @return new data-flow item computed by merging the facts in the given set
      */
+    // TODO change to varargs
     protected abstract F confluence(Set<F> facts, ISSABasicBlock bb);
 
     /**
@@ -181,6 +182,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         case ARRAY_LENGTH:
         case ARRAY_LOAD:
         case ARRAY_STORE:
+        case BINARY_OP_EX:
         case CHECK_CAST:
         case CONDITIONAL_BRANCH:
         case GET_FIELD:
@@ -229,6 +231,8 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
             return flowArrayLoad((SSAArrayLoadInstruction) i, inItems, cfg, current);
         case ARRAY_STORE:
             return flowArrayStore((SSAArrayStoreInstruction) i, inItems, cfg, current);
+        case BINARY_OP_EX:
+            return flowBinaryOpWithException((SSABinaryOpInstruction) i, inItems, cfg, current);
         case CHECK_CAST:
             return flowCheckCast((SSACheckCastInstruction) i, inItems, cfg, current);
         case CONDITIONAL_BRANCH:
@@ -505,6 +509,25 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      *         edge after handling the current instruction
      */
     protected abstract Map<ISSABasicBlock, F> flowArrayStore(SSAArrayStoreInstruction i, Set<F> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
+
+    /**
+     * binary operation on primitives that may throw an arithmetic exception,
+     * the operator ({@link IOperator}) is either DIV or REM and the type is an
+     * integer type.
+     * 
+     * @param i
+     *            instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after handling the current instruction
+     */
+    protected abstract Map<ISSABasicBlock, F> flowBinaryOpWithException(SSABinaryOpInstruction i, Set<F> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
     /**
@@ -798,7 +821,8 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      *            current control flow graph
      * @return map with the same merged value for each key
      */
-    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts, ISSABasicBlock bb, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts, ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         F fact = confluence(facts, bb);
         return factToMap(fact, bb, cfg);
     }

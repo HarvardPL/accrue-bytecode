@@ -47,3 +47,7 @@ WALA-BUG: Using methods from AbstractNumberedGraph in BasicCallGraph breaks the 
 PDG: Do I need to create extra edges in the PDG for clarity? Could make this an option or something. Maybe significantly smaller PDGs (i.e. don't create a node for a + b and a copy edge to c, but instead create edges from a to c and b to c.)
 
 TODO check if mergeAndCreateMap can be used in place of factToMap in some places
+
+TODO handle arithmetic exception in preciseEX
+
+TODO register pointer statements for instructions that throw generated exceptions even if they are primitive operations

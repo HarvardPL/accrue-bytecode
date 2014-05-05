@@ -50,11 +50,19 @@ public enum InstructionType {
      */
     ARRAY_STORE,
     /**
-     * Binary operator {@link IOperator}: ADD, SUB, MUL, DIV, REM, AND, OR, XOR
+     * Binary operation {@link IOperator}: ADD, SUB, MUL, DIV, REM, AND, OR, XOR
      * 
      * @see SSABinaryOpInstruction
      */
     BINARY_OP,
+    /**
+     * Binary operation that can throw an {@link ArithmeticException}. i.e. the
+     * operator {@link IOperator} is either DIV or REM and the type is an
+     * integer type.
+     * 
+     * @see SSABinaryOpInstruction
+     */
+    BINARY_OP_EX,
     /**
      * @see SSACheckCastInstruction
      */
@@ -64,7 +72,8 @@ public enum InstructionType {
      */
     COMPARISON,
     /**
-     * Conditional branch with guard which tests two values according to an operator (EQ, NE, LT, GE, GT, or LE).
+     * Conditional branch with guard which tests two values according to an
+     * operator (EQ, NE, LT, GE, GT, or LE).
      * 
      * @see SSAConditionalBranchInstruction
      */
@@ -187,7 +196,13 @@ public enum InstructionType {
         if (i instanceof SSAGotoInstruction) return GOTO;
         if (i instanceof SSAArrayLoadInstruction) return ARRAY_LOAD;
         if (i instanceof SSAArrayStoreInstruction) return ARRAY_STORE;
-        if (i instanceof SSABinaryOpInstruction) return BINARY_OP;
+        if (i instanceof SSABinaryOpInstruction) {
+            if (i.isPEI()) {
+                // can throw an ArithmeticException
+                return BINARY_OP_EX;
+            }
+            return BINARY_OP;
+        }
         if (i instanceof SSAUnaryOpInstruction) {
             // Unary negation should be the only possibility here
             assert ((SSAUnaryOpInstruction) i).getOpcode() == com.ibm.wala.shrikeBT.IUnaryOpInstruction.Operator.NEG : "Invalid unary operator: "

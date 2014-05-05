@@ -436,6 +436,13 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         return out;
     }
+    
+    @Override
+    protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                    Set<VarContext<NonNullAbsVal>> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return mergeAndCreateMap(previousItems, current, cfg);
+    }
 
     @Override
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowCheckCast(SSACheckCastInstruction i,

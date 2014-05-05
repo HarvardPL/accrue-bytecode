@@ -184,6 +184,13 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return mergeAndCreateMap(previousItems, current, cfg);
     }
+    
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                    Set<ReachabilityAbsVal> previousItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return mergeAndCreateMap(previousItems, current, cfg);
+    }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowCheckCast(SSACheckCastInstruction i,

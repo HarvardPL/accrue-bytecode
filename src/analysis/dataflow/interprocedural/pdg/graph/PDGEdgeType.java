@@ -68,7 +68,13 @@ public enum PDGEdgeType {
      * similar semantics to EXP, but there is no soundness guarantee here (there
      * may be side effects that are not accounted for)
      */
-    MISSING;
+    MISSING, 
+    /**
+     * Edge where the source is a value that the argument to a
+     * <code>switch</code> statement and the target is the PC node representing
+     * the program point the switch jumps to
+     */
+    SWITCH;
     
     /**
      * Short name for display

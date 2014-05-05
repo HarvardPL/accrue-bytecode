@@ -503,34 +503,37 @@ public class PrettyPrinter {
         return valString(instruction.getUse(0)) + " == "
                                         + valString(instruction.getUse(1));
     }
+    
+    /**
+     * Get the string for a given binary comparison operator.
+     * 
+     * @param op
+     *            operator
+     * @return String for the operator
+     */
+    public static String conditionalOperatorString(com.ibm.wala.shrikeBT.IConditionalBranchInstruction.IOperator op) {
+        switch (op.toString()) {
+        case "eq":
+            return "==";
+        case "ne":
+            return "!=";
+        case "lt":
+            return "<";
+        case "ge":
+            return ">=";
+        case "gt":
+            return ">";
+        case "le":
+            return "<=";
+        default:
+            throw new IllegalArgumentException("operator not found " + op.toString());
+        }
+    }
 
     private String conditionalBranchString(SSAConditionalBranchInstruction instruction) {
         StringBuffer sb = new StringBuffer();
         sb.append("if (" + valString(instruction.getUse(0)));
-        String opString = "";
-        switch (instruction.getOperator().toString()) {
-        case "eq":
-            opString = "==";
-            break;
-        case "ne":
-            opString = "!=";
-            break;
-        case "lt":
-            opString = "<";
-            break;
-        case "ge":
-            opString = ">=";
-            break;
-        case "gt":
-            opString = ">";
-            break;
-        case "le":
-            opString = "<=";
-            break;
-        default:
-            throw new IllegalArgumentException("operator not found " + instruction.getOperator().toString() + " for "
-                                            + instruction);
-        }
+        String opString = conditionalOperatorString(instruction.getOperator());
         sb.append(" " + opString + " ");
         sb.append(valString(instruction.getUse(1)) + ")");
         return sb.toString();
@@ -633,6 +636,7 @@ public class PrettyPrinter {
         case ARRAY_LENGTH:
         case ARRAY_LOAD:
         case BINARY_OP:
+        case BINARY_OP_EX:
         case CHECK_CAST:
         case COMPARISON:
         case CONVERSION:
@@ -640,7 +644,6 @@ public class PrettyPrinter {
         case GET_STATIC:
         case INSTANCE_OF:
         case LOAD_METADATA:
-
         case NEW_ARRAY:
         case NEW_OBJECT:
         case PHI:
@@ -782,6 +785,7 @@ public class PrettyPrinter {
         case ARRAY_LOAD:
             return arrayLoadRight((SSAArrayLoadInstruction) instruction);
         case BINARY_OP:
+        case BINARY_OP_EX:
             return binaryOpRight((SSABinaryOpInstruction) instruction);
         case CHECK_CAST:
             return checkCastRight((SSACheckCastInstruction) instruction);

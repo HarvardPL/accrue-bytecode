@@ -253,7 +253,7 @@ public class PreciseExceptionResults implements AnalysisResults {
                 arrayStoreExeptions = Collections.unmodifiableCollection(es);
             }
             return arrayStoreExeptions;
-        case BINARY_OP:
+        case BINARY_OP_EX:
             SSABinaryOpInstruction binop = (SSABinaryOpInstruction) i;
             IOperator opType = binop.getOperator();
             if (binop.mayBeIntegerOp() && (opType == Operator.DIV || opType == Operator.REM)) {
@@ -261,6 +261,7 @@ public class PreciseExceptionResults implements AnalysisResults {
             }
 
             // No implicit exceptions thrown by the following
+        case BINARY_OP:
         case COMPARISON:
         case CONDITIONAL_BRANCH:
         case CONVERSION:
