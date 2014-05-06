@@ -14,6 +14,8 @@ import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterprocedu
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
+import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
+import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.CallSiteSensitive;
@@ -72,7 +74,7 @@ public class TestMain {
             }
             int outputLevel = Integer.parseInt(args[1]);
             String testName = args[2];
-            String fileName = entryPoint + "_main";
+            String fileName = entryPoint;
             WalaAnalysisUtil util;
             Entrypoint entry;
             IR ir;
@@ -101,11 +103,10 @@ public class TestMain {
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
                 ir = util.getCache().getIR(entry.getMethod());
-                printSingleCFG(util, ir, fileName);
+                printSingleCFG(util, ir, fileName + "_main");
                 break;
             case "nonnull":
                 util = setUpWala(entryPoint);
-                entry = util.getOptions().getEntrypoints().iterator().next();
                 g = generatePointsToGraph(util, outputLevel);
                 ReachabilityResults r = runReachability(util, outputLevel, g);
                 NonNullResults nonNull = runNonNull(util, outputLevel, g, r);
@@ -113,7 +114,6 @@ public class TestMain {
                 break;
             case "precise-ex":
                 util = setUpWala(entryPoint);
-                entry = util.getOptions().getEntrypoints().iterator().next();
                 g = generatePointsToGraph(util, outputLevel);
                 r = runReachability(util, outputLevel, g);
                 nonNull = runNonNull(util, outputLevel, g, r);
@@ -122,16 +122,26 @@ public class TestMain {
                 break;
             case "reachability":
                 util = setUpWala(entryPoint);
-                entry = util.getOptions().getEntrypoints().iterator().next();
                 g = generatePointsToGraph(util, outputLevel);
                 r = runReachability(util, outputLevel, g);
                 r.writeAllToFiles();
                 break;
             case "cfg":
                 util = setUpWala(entryPoint);
-                entry = util.getOptions().getEntrypoints().iterator().next();
                 g = generatePointsToGraph(util, outputLevel);
                 printAllCFG(util, g);
+                break;
+            case "pdg":
+                util = setUpWala(entryPoint);
+                g = generatePointsToGraph(util, outputLevel);
+                r = runReachability(util, outputLevel, g);
+                nonNull = runNonNull(util, outputLevel, g, r);
+                preciseEx = runPreciseExceptions(util, outputLevel, g, r, nonNull);
+                ProgramDependenceGraph pdg = runPDG(util, outputLevel, g, r, preciseEx);
+                FileWriter file = new FileWriter("tests/pdg_" + fileName + ".dot");
+                pdg.writeDot(file, true, 1);
+                file.close();
+                System.err.println("DOT written to " + file);
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
@@ -218,6 +228,7 @@ public class TestMain {
         sb.append("\t\"precise-ex\" prints the results of an interprocedural precise exception analysis to the tests folder prepended with \"precise_ex_\"\n");
         sb.append("\t\"reachability\" prints the results of an interprocedural reachability analysis to the tests folder prepended with \"reachability_\"\n");
         sb.append("\t\"cfg\" prints the cfg for the all methods to the tests folder prepended with : \"cfg_\"\n");
+        sb.append("\t\"pdg\" prints the pdg in graphviz dot formattests folder prepended with : \"pdg_\"\n");
         return sb.toString();
     }
 
@@ -332,6 +343,30 @@ public class TestMain {
      */
     private static ReachabilityResults runReachability(WalaAnalysisUtil util, int outputLevel, PointsToGraph g) {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        return analysis.getAnalysisResults();
+    }
+
+    /**
+     * Run an inter-procedural analysis that generates a program dependence
+     * graph
+     * 
+     * @param util
+     *            utility WALA classes
+     * @param outputLevel
+     *            logging level
+     * @param g
+     *            points-to graph
+     * @param r
+     *            results of a reachability analysis
+     * @param preciseEx
+     *            results of a precise exceptions analysis
+     * @return the program dependence graph
+     */
+    private static ProgramDependenceGraph runPDG(WalaAnalysisUtil util, int outputLevel, PointsToGraph g,
+                                    ReachabilityResults r, PreciseExceptionResults preciseEx) {
+        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, util);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();

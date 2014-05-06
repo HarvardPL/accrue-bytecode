@@ -1,18 +1,22 @@
 package analysis.dataflow.interprocedural.pdg;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import util.WorkQueue;
+import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
-import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.Unit;
 import analysis.pointer.graph.PointsToGraph;
 
@@ -23,13 +27,20 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     private final ProgramDependenceGraph pdg;
     private final PreciseExceptionResults preciseEx;
-
+    private final WalaAnalysisUtil util;
+    private static final Map<ExitType, Unit> UNIT_MAP = new HashMap<>();
+    static {
+        UNIT_MAP.put(ExitType.EXCEPTIONAL, Unit.VALUE);
+        UNIT_MAP.put(ExitType.NORMAL, Unit.VALUE);
+    }
+    private final Map<CGNode, ProcedureSummaryNodes> summaries = new LinkedHashMap<>();
+    
     public PDGInterproceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
-                                    ReachabilityResults reachable) {
+                                    ReachabilityResults reachable, WalaAnalysisUtil util) {
         super(ptg, reachable);
         this.pdg = new ProgramDependenceGraph();
         this.preciseEx = preciseEx;
-        // TODO Auto-generated constructor stub
+        this.util = util;
     }
 
     @Override
@@ -39,41 +50,53 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     @Override
     protected Map<ExitType, Unit> analyze(CGNode n, Unit input) {
-        // TODO Auto-generated method stub
-        return null;
+        if (getOutputLevel() >= 2) {
+            System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n));
+        }
+        PDGNodeDataflow df = new PDGNodeDataflow(n, this, getProcedureSummary(n), util);
+        df.dataflow();
+        return UNIT_MAP;
     }
 
     @Override
     protected Map<ExitType, Unit> analyzeNative(CGNode n, Unit input) {
-        // TODO Auto-generated method stub
-        return null;
+        // Create edges from the input context and formals to the output context
+        // This is unsound if the method has heap side effects, but is sound if
+        // it doesn't
+        ProcedureSummaryNodes summary = getProcedureSummary(n);
+        PDGContext entry = summary.getEntryContext();
+        PDGContext normExit = summary.getNormalExitContext();
+        PDGContext exExit = summary.getExceptionalExitContext();
+
+        pdg.addEdge(entry.getPCNode(), normExit.getPCNode(), PDGEdgeType.CONJUNCTION);
+        pdg.addEdge(entry.getPCNode(), exExit.getPCNode(), PDGEdgeType.CONJUNCTION);
+
+        for (PDGNode formal : summary.getFormals()) {
+            pdg.addEdge(formal, normExit.getReturnNode(), PDGEdgeType.MISSING);
+            pdg.addEdge(formal, exExit.getExceptionNode(), PDGEdgeType.MISSING);
+        }
+
+        return UNIT_MAP;
     }
 
     @Override
     protected Map<ExitType, Unit> getDefaultOutput(Unit input) {
-        // TODO Auto-generated method stub
-        return null;
+        return UNIT_MAP;
     }
 
     @Override
     protected Unit getInputForEntryPoint() {
-        // TODO Auto-generated method stub
-        return null;
+        return Unit.VALUE;
     }
 
     @Override
-    protected boolean outputChanged(Map<ExitType, Unit> previousOutput,
-                                    Map<ExitType, Unit> currentOutput) {
-        // TODO Auto-generated method stub
-        return false;
+    protected boolean outputChanged(Map<ExitType, Unit> previousOutput, Map<ExitType, Unit> currentOutput) {
+        return previousOutput == null;
     }
 
     @Override
-    protected boolean existingResultSuitable(
-                                    Unit newInput,
-                                    AnalysisRecord<Unit> existingResults) {
-        // TODO Auto-generated method stub
-        return false;
+    protected boolean existingResultSuitable(Unit newInput, AnalysisRecord<Unit> existingResults) {
+        return existingResults.getOutput() != null;
     }
 
     @Override
@@ -88,7 +111,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
         // Queue used to initialize the data-flow work-queue
         WorkQueue<CGNode> initializationQ = new WorkQueue<>();
-        
+
         initializationQ.addAll(q);
         while (!initializationQ.isEmpty()) {
             CGNode n = initializationQ.poll();
@@ -98,14 +121,14 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
                 if (!q.contains(succ)) {
                     // TODO only add reachable calls
                     // most should be reachable
-                    
+
                     // Add to the data-flow work-queue
                     q.add(succ);
-                    
-                    // Set up initial context
+
+                    // Set up initial record
                     AnalysisRecord<Unit> res = new AnalysisRecord<Unit>(getInitialContext(succ), null, true);
                     recordedResults.put(succ, res);
-                    
+
                     // Add to the inialization work-queue
                     initializationQ.add(succ);
                 }
@@ -116,52 +139,34 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     }
 
     private Unit getInitialContext(CGNode succ) {
-        // TODO Auto-generated method stub
-
-        // PC entry node
-        // PC normal exit
-        // PC exception exit
-        // Formal argument nodes
-        // Return node if not void
-        // Exception node if it can throw one
-
-        // Memoize after creation
-        return null;
+        return Unit.VALUE;
     }
 
     @Override
     protected void postAnalysis() {
-        // TODO Auto-generated method stub
-
-        // Construct the inter-procedural PDG using the intra-procedural summary
-        // nodes and the call-graph.
-
-        // Be careful not to add any unreachable calls (this is a precision
-        // issue not a soundness issue).
         super.postAnalysis();
     }
-    
+
     public PreciseExceptionResults getPreciseExceptionResults() {
         return preciseEx;
     }
 
-    public PDGNode getAbstractLocationNode(AbstractLocation loc) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
     @Override
     public Map<ExitType, Unit> getResults(CGNode caller, CGNode callee, Unit input) {
-        throw new UnsupportedOperationException("Get the summary and use that instead.");
+        return UNIT_MAP;
     }
-    
+
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
     }
 
-    public ProcedureSummaryNodes getProcedureSummary(CGNode callee) {
-        // TODO Auto-generated method stub
-        return null;
+    public ProcedureSummaryNodes getProcedureSummary(CGNode n) {
+        ProcedureSummaryNodes summary = summaries.get(n);
+        if (summary == null) {
+            summary = new ProcedureSummaryNodes(n);
+            summaries.put(n, summary);
+        }
+        return summary;
     }
 }

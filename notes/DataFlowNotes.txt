@@ -48,6 +48,9 @@ PDG: Do I need to create extra edges in the PDG for clarity? Could make this an 
 
 TODO check if mergeAndCreateMap can be used in place of factToMap in some places
 
-TODO handle arithmetic exception in preciseEX
-
 TODO register pointer statements for instructions that throw generated exceptions even if they are primitive operations
+
+what are we losing in the PDG by not having a PC and value for each exception type this could throw? Some edges from the call-site can only carry certain types so we could be more precise there (as we would be in Accrue)
+
+loadMetadata: This can throw a ClassNotFoundException, but this could be known
+statically if all the class files were known so it doesn't affect the PDG

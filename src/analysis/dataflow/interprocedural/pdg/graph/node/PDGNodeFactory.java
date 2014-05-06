@@ -13,7 +13,7 @@ import com.ibm.wala.types.TypeReference;
 
 public class PDGNodeFactory {
     private static final Map<AbstractLocation, AbstractLocationPDGNode> locationNodes = new LinkedHashMap<>();
-    private static final Map<ExpressionNodeKey, ExpressionNode> expressionNodes = new LinkedHashMap<>();;
+    private static final Map<ExpressionNodeKey, ProcedurePDGNode> expressionNodes = new LinkedHashMap<>();;
 
     public static AbstractLocationPDGNode findOrCreateAbstractLocation(AbstractLocation loc) {
         AbstractLocationPDGNode node = locationNodes.get(loc);
@@ -60,11 +60,11 @@ public class PDGNodeFactory {
         IR ir = cgNode.getIR();
         PDGNode n;
         if (ir.getSymbolTable().isConstant(valueNumber)) {
-            n = PDGNodeFactory.findOrCreateExpression(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.BASE_VALUE,
+            n = PDGNodeFactory.findOrCreateOther(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.BASE_VALUE,
                                             cgNode, valueNumber);
         } else {
-            n = PDGNodeFactory.findOrCreateExpression(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.LOCAL,
-                                            cgNode, valueNumber);
+            n = PDGNodeFactory.findOrCreateOther(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.LOCAL, cgNode,
+                                            valueNumber);
         }
 
         return n;
@@ -91,12 +91,11 @@ public class PDGNodeFactory {
      * @return unique PDG node of the given type created in the given call graph
      *         node with the given disambiguation key
      */
-    public static ExpressionNode findOrCreateExpression(String description, PDGNodeType type, CGNode n,
-                                    Object disambuationKey) {
+    public static ProcedurePDGNode findOrCreateOther(String description, PDGNodeType type, CGNode n, Object disambuationKey) {
         ExpressionNodeKey key = new ExpressionNodeKey(type, n, disambuationKey);
-        ExpressionNode node = expressionNodes.get(key);
+        ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {
-            node = new ExpressionNode(description, type, n);
+            node = new ProcedurePDGNode(description, type, n);
             expressionNodes.put(key, node);
         }
         return node;
@@ -116,7 +115,7 @@ public class PDGNodeFactory {
      * @return PDG node for the generated exception
      */
     public static PDGNode findOrCreateGeneratedException(TypeReference type, CGNode n, SSAInstruction i) {
-        return findOrCreateExpression("Gen-" + PrettyPrinter.parseType(type), PDGNodeType.BASE_VALUE, n, i);
+        return findOrCreateOther("Gen-" + PrettyPrinter.parseType(type), PDGNodeType.BASE_VALUE, n, i);
     }
 
     /**
@@ -132,12 +131,12 @@ public class PDGNodeFactory {
      * @return unique node for the (first) local variable defined by
      *         <code>i</code>
      */
-    public static ExpressionNode findOrCreateLocalDef(SSAInstruction i, CGNode n) {
+    public static ProcedurePDGNode findOrCreateLocalDef(SSAInstruction i, CGNode n) {
         assert i.hasDef();
         ExpressionNodeKey key = new ExpressionNodeKey(PDGNodeType.LOCAL, n, i.getDef());
-        ExpressionNode node = expressionNodes.get(key);
+        ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {
-            node = new ExpressionNode(PrettyPrinter.instructionString(i, n.getIR()), PDGNodeType.LOCAL, n);
+            node = new ProcedurePDGNode(PrettyPrinter.instructionString(i, n.getIR()), PDGNodeType.LOCAL, n);
             expressionNodes.put(key, node);
         } else {
             node.setDescription(PrettyPrinter.instructionString(i, n.getIR()));

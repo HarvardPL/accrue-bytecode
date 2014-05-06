@@ -14,4 +14,9 @@ public class AbstractLocationPDGNode extends PDGNode {
     public AbstractLocation getLocation() {
         return loc;
     }
+    
+    @Override
+    public String groupingName() {
+        return "HEAP";
+    }
 }

@@ -2,6 +2,7 @@ package analysis.dataflow.interprocedural.exceptions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -249,13 +250,19 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
         return computeResults(throwables, cfg, current);
     }
-    
+
     @Override
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowBinaryOpWithException(SSABinaryOpInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO Auto-generated method stub
-        return null;
+        Collection<TypeReference> throwables = PreciseExceptionResults.implicitExceptions(i);
+
+        Integer arg = currentNode.getIR().getSymbolTable().isConstant(i.getUse(1)) ? currentNode.getIR()
+                                        .getSymbolTable().getIntValue(i.getUse(1)) : null;
+        if (arg != null && arg != 0) {
+            throwables = Collections.emptySet();
+        }
+        return computeResults(throwables, cfg, current);
     }
 
     @Override
@@ -508,8 +515,8 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             if (dims.get(0) != null) {
                 // constant dimension
                 int size = dims.get(0);
-                int index = !currentNode.getIR().getSymbolTable().isConstant(indexValNumber) ? -1 : currentNode.getIR()
-                                                .getSymbolTable().getIntValue(indexValNumber);
+                int index = currentNode.getIR().getSymbolTable().isConstant(indexValNumber) ? currentNode.getIR()
+                                                .getSymbolTable().getIntValue(indexValNumber) : -1;
                 if (index >= 0 && index < size) {
                     // safe index
                     return true;
