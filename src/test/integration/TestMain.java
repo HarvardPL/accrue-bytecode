@@ -133,15 +133,16 @@ public class TestMain {
                 break;
             case "pdg":
                 util = setUpWala(entryPoint);
-                g = generatePointsToGraph(util, outputLevel);
+                g = generatePointsToGraph(util, 0);
                 r = runReachability(util, outputLevel, g);
-                nonNull = runNonNull(util, outputLevel, g, r);
-                preciseEx = runPreciseExceptions(util, outputLevel, g, r, nonNull);
+                nonNull = runNonNull(util, 0, g, r);
+                preciseEx = runPreciseExceptions(util, 0, g, r, nonNull);
                 ProgramDependenceGraph pdg = runPDG(util, outputLevel, g, r, preciseEx);
-                FileWriter file = new FileWriter("tests/pdg_" + fileName + ".dot");
+                String fullName = "tests/pdg_" + fileName + ".dot";
+                FileWriter file = new FileWriter(fullName);
                 pdg.writeDot(file, true, 1);
                 file.close();
-                System.err.println("DOT written to " + file);
+                System.err.println("DOT written to " + fullName);
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());

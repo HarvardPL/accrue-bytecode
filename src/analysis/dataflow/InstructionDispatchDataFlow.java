@@ -298,14 +298,14 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     protected void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                     ISSABasicBlock justProcessed, Map<ISSABasicBlock, F> outItems) {
 
-        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(justProcessed)) {
+        for (ISSABasicBlock normalSucc : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(normalSucc) == null && !isUnreachable(justProcessed, normalSucc)) {
                 throw new RuntimeException("No fact for normal successor from BB" + justProcessed.getGraphNodeId()
                                                 + " to BB" + normalSucc.getGraphNodeId() + "\n" + justProcessed);
             }
         }
 
-        for (ISSABasicBlock exceptionalSucc : cfg.getExceptionalSuccessors(justProcessed)) {
+        for (ISSABasicBlock exceptionalSucc : getExceptionalSuccs(justProcessed, cfg)) {
             if (outItems.get(exceptionalSucc) == null && !isUnreachable(justProcessed, exceptionalSucc)) {
                 throw new RuntimeException("No fact for exceptional successor from BB" + justProcessed.getGraphNodeId()
                                                 + " to BB" + exceptionalSucc.getGraphNodeId() + "\n" + justProcessed);

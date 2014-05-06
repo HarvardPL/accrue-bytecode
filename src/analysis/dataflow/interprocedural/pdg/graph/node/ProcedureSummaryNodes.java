@@ -7,6 +7,7 @@ import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.pdg.PDGContext;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Summary nodes used when connecting intra-procedural PDGs to form an
@@ -46,10 +47,18 @@ public class ProcedureSummaryNodes {
         entry = new PDGContext(null, null, PDGNodeFactory.findOrCreateOther("ENTRY PC", PDGNodeType.ENTRY_PC_SUMMARY,
                                         n, "ENTRY SUMMARY"));
 
-        PDGNode ret = PDGNodeFactory.findOrCreateOther("NORMAL EXIT", PDGNodeType.EXIT_SUMMARY, n, ExitType.NORMAL);
+        PDGNode ret;
+        if (n.getMethod().getReturnType() != TypeReference.Void) {
+            ret = PDGNodeFactory.findOrCreateOther("NORMAL EXIT", PDGNodeType.EXIT_SUMMARY, n, ExitType.NORMAL);
+        } else {
+            ret = null;
+        }
         normalExit = new PDGContext(ret, null, PDGNodeFactory.findOrCreateOther("NORMAL EXIT PC",
                                         PDGNodeType.EXIT_PC_SUMMARY, n, ExitType.NORMAL));
 
+        // There may not be any exceptions thrown, but we'll create this anyway
+        // since it won't get added to the PDG unless there is an edge to it
+        // (meaning that there is an exception).
         PDGNode ex = PDGNodeFactory.findOrCreateOther("EX EXIT", PDGNodeType.EXIT_SUMMARY, n, ExitType.NORMAL);
         exExit = new PDGContext(null, ex, PDGNodeFactory.findOrCreateOther("EX EXIT PC", PDGNodeType.EXIT_PC_SUMMARY,
                                         n, ExitType.EXCEPTIONAL));

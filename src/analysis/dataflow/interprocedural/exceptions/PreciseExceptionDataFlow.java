@@ -89,9 +89,17 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             assert out.get(ExitType.NORMAL) == null || out.get(ExitType.NORMAL).isBottom();
 
             Set<PreciseExceptionAbsVal> exceptions = new LinkedHashSet<>();
-            exceptions.add(exceptionResult);
-            exceptions.add(out.get(ExitType.EXCEPTIONAL));
-            exceptionResult = confluence(exceptions, bb);
+            if (exceptionResult != null) {
+                exceptions.add(exceptionResult);
+            }
+
+            if (out.get(ExitType.EXCEPTIONAL) != null) {
+                exceptions.add(out.get(ExitType.EXCEPTIONAL));
+            }
+
+            if (!exceptions.isEmpty()) {
+                exceptionResult = confluence(exceptions, bb);
+            }
         }
 
         if (exceptionResult != null) {
@@ -105,6 +113,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         assert !items.isEmpty();
         PreciseExceptionAbsVal val = null;
         for (PreciseExceptionAbsVal item : items) {
+            assert item != null;
             val = item.join(val);
         }
         return val;
@@ -115,7 +124,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
                                     Map<ISSABasicBlock, PreciseExceptionAbsVal> outItems) {
 
-        for (ISSABasicBlock next : cfg.getNormalSuccessors(justProcessed)) {
+        for (ISSABasicBlock next : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(next) != null && !outItems.get(next).isEmpty()) {
                 throw new RuntimeException("Exceptions for normal successor of\n"
                                                 + PrettyPrinter.basicBlockString(currentNode.getIR(), justProcessed,
@@ -124,7 +133,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             }
         }
 
-        for (ISSABasicBlock next : cfg.getExceptionalSuccessors(justProcessed)) {
+        for (ISSABasicBlock next : getExceptionalSuccs(justProcessed, cfg)) {
             if (outItems.get(next) != null) {
                 PreciseExceptionResults results = ((PreciseExceptionInterproceduralDataFlow) interProc)
                                                 .getAnalysisResults();
@@ -478,20 +487,22 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         }
 
         Map<ISSABasicBlock, PreciseExceptionAbsVal> results = new HashMap<>();
-        Collection<ISSABasicBlock> exSuccs = cfg.getExceptionalSuccessors(current);
-        for (ISSABasicBlock succ : exSuccs) {
-            Set<TypeReference> typesForSucc = typesForSuccs.get(succ);
-            if (typesForSucc == null) {
-                // No exceptions on this edges
-                results.put(succ, PreciseExceptionAbsVal.EMPTY);
-            } else {
-                results.put(succ, new PreciseExceptionAbsVal(typesForSucc));
+        for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
+            if (!isUnreachable(current, succ)) {
+                Set<TypeReference> typesForSucc = typesForSuccs.get(succ);
+                if (typesForSucc == null) {
+                    // No exceptions on this edges
+                    results.put(succ, PreciseExceptionAbsVal.EMPTY);
+                } else {
+                    results.put(succ, new PreciseExceptionAbsVal(typesForSucc));
+                }
             }
         }
 
-        Collection<ISSABasicBlock> normalSuccs = cfg.getNormalSuccessors(current);
-        for (ISSABasicBlock succ : normalSuccs) {
-            results.put(succ, PreciseExceptionAbsVal.EMPTY);
+        for (ISSABasicBlock succ : getNormalSuccs(current, cfg)) {
+            if (!isUnreachable(current, succ)) {
+                results.put(succ, PreciseExceptionAbsVal.EMPTY);
+            }
         }
 
         return results;

@@ -369,10 +369,14 @@ public abstract class DataFlow<F> {
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<ISSABasicBlock, F> ret = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
-            ret.put(succ, normalItem);
+            if (!isUnreachable(bb, succ)) {
+                ret.put(succ, normalItem);
+            }
         }
         for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
-            ret.put(succ, exceptionItem);
+            if (!isUnreachable(bb, succ)) {
+                ret.put(succ, exceptionItem);
+            }
         }
         return ret;
     }

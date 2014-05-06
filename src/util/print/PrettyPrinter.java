@@ -194,7 +194,7 @@ public class PrettyPrinter {
     public static String parseCGNode(CGNode n) {
         return PrettyPrinter.parseMethod(n.getMethod()) + " in " + n.getContext();
     }
-    
+
     /**
      * Get a pretty String for the given method
      * 
@@ -441,7 +441,7 @@ public class PrettyPrinter {
         int v0 = instruction.getUse(0);
         int v1 = instruction.getUse(1);
         IOperator op = instruction.getOperator();
-        
+
         // ADD, SUB, MUL, DIV, REM, AND, OR, XOR;
         // SHL, SHR, USHR;
         String opString = "";
@@ -489,7 +489,7 @@ public class PrettyPrinter {
     private String checkCastRight(SSACheckCastInstruction instruction) {
         int value = instruction.getVal();
         StringBuffer s = new StringBuffer();
-        
+
         TypeReference[] types = instruction.getDeclaredResultTypes();
         if (types.length != 1) {
             System.err.println("More than one return type for a cast.");
@@ -500,10 +500,9 @@ public class PrettyPrinter {
     }
 
     private String comparisonRight(SSAComparisonInstruction instruction) {
-        return valString(instruction.getUse(0)) + " == "
-                                        + valString(instruction.getUse(1));
+        return valString(instruction.getUse(0)) + " == " + valString(instruction.getUse(1));
     }
-    
+
     /**
      * Get the string for a given binary comparison operator.
      * 
@@ -607,7 +606,7 @@ public class PrettyPrinter {
             String right = rightSideString(instruction);
             return valString(instruction.getDef()) + " = " + right;
         }
-        
+
         switch (type) {
         case ARRAY_STORE:
             return arrayStoreString((SSAArrayStoreInstruction) instruction);
@@ -675,7 +674,7 @@ public class PrettyPrinter {
         String params = instruction.getNumberOfParameters() == 1 ? "" : paramsString(1, instruction);
         return invokeRight(receiver, params, instruction);
     }
-    
+
     private String invokeStaticRight(SSAInvokeInstruction instruction) {
         // can resolve actual target statically using the class hierarchy;
         // this is the actual invocation though
@@ -771,14 +770,21 @@ public class PrettyPrinter {
         return sb.toString();
     }
 
+    /**
+     * Print the expression assigned to a local variable
+     * 
+     * @param instruction
+     *            Instruction with a right hand side and a local on the left
+     *            hand side
+     * @return String representation of an expression to the right of the equals
+     */
     private String rightSideString(SSAInstruction instruction) {
         InstructionType type = InstructionType.forInstruction(instruction);
-        
+
         if (!instruction.hasDef() && !type.isInvoke()) {
-            throw new RuntimeException(type + " has no right hand side or has a local on the right, "
-                                            + instruction);
+            throw new RuntimeException(type + " has no right hand side or has a local on the right, " + instruction);
         }
-        
+
         switch (type) {
         case ARRAY_LENGTH:
             return arrayLengthRight((SSAArrayLengthInstruction) instruction);
@@ -826,7 +832,8 @@ public class PrettyPrinter {
         case SWITCH:
         case THROW:
             assert !instruction.hasDef();
-            throw new RuntimeException(type + " has no right hand side or has a local on the right. " + instructionString(instruction));
+            throw new RuntimeException(type + " has no right hand side or has a local on the right. "
+                                            + instructionString(instruction));
         }
         throw new RuntimeException("Unexpected instruction type: " + type + " for " + instruction);
     }

@@ -1,6 +1,7 @@
 package analysis.dataflow.util;
 
 import util.print.PrettyPrinter;
+import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
@@ -105,6 +106,9 @@ public class AbstractLocation {
 
     @Override
     public String toString() {
+        if (isArrayContents) {
+            return receiverContext + "." + PointsToGraph.ARRAY_CONTENTS;
+        }
         return PrettyPrinter.parseType(field.getDeclaringClass()) + "." + field.getName()
                                         + (receiverContext == null ? " (static)" : " in " + receiverContext);
     }

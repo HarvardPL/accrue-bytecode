@@ -16,6 +16,7 @@ public class PDGNodeFactory {
     private static final Map<ExpressionNodeKey, ProcedurePDGNode> expressionNodes = new LinkedHashMap<>();;
 
     public static AbstractLocationPDGNode findOrCreateAbstractLocation(AbstractLocation loc) {
+        assert loc != null : "Null location when creating PDGNode";
         AbstractLocationPDGNode node = locationNodes.get(loc);
         if (node == null) {
             node = new AbstractLocationPDGNode(loc);
@@ -39,7 +40,10 @@ public class PDGNodeFactory {
      * @return PDG node for the use with the given use number in <code>i</code>
      */
     public static PDGNode findOrCreateUse(SSAInstruction i, int useNumber, CGNode cgNode) {
-        assert i.getNumberOfUses() > useNumber;
+        assert i.getNumberOfUses() > useNumber : "Use number: " + useNumber + " bigger than the numbe of uses: "
+                                        + i.getNumberOfUses() + " for "
+                                        + PrettyPrinter.instructionString(i, cgNode.getIR()) + "\nIN "
+                                        + PrettyPrinter.parseCGNode(cgNode);
         int valueNumber = i.getUse(useNumber);
         return findOrCreateLocal(valueNumber, cgNode);
     }
@@ -56,7 +60,8 @@ public class PDGNodeFactory {
      * @return PDG node for the local variable
      */
     public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode) {
-        assert valueNumber >= 0;
+        assert valueNumber >= 0 : "negative value number for local " + valueNumber + " for\n"
+                                        + PrettyPrinter.parseCGNode(cgNode);
         IR ir = cgNode.getIR();
         PDGNode n;
         if (ir.getSymbolTable().isConstant(valueNumber)) {
@@ -91,7 +96,8 @@ public class PDGNodeFactory {
      * @return unique PDG node of the given type created in the given call graph
      *         node with the given disambiguation key
      */
-    public static ProcedurePDGNode findOrCreateOther(String description, PDGNodeType type, CGNode n, Object disambuationKey) {
+    public static ProcedurePDGNode findOrCreateOther(String description, PDGNodeType type, CGNode n,
+                                    Object disambuationKey) {
         ExpressionNodeKey key = new ExpressionNodeKey(type, n, disambuationKey);
         ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {
@@ -132,7 +138,8 @@ public class PDGNodeFactory {
      *         <code>i</code>
      */
     public static ProcedurePDGNode findOrCreateLocalDef(SSAInstruction i, CGNode n) {
-        assert i.hasDef();
+        assert i.hasDef() : "Trying to create def node for instruction that has no def "
+                                        + PrettyPrinter.instructionString(i, n.getIR());
         ExpressionNodeKey key = new ExpressionNodeKey(PDGNodeType.LOCAL, n, i.getDef());
         ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {

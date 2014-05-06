@@ -160,9 +160,11 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 normal = updateActuals(newNormalActualValues, actuals, nonNull);
             }
 
-            for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(bb)) {
-                assert normal != null : "Should be non-null if there is a normal successor.";
-                ret.put(normalSucc, normal);
+            for (ISSABasicBlock normalSucc : getNormalSuccs(bb, cfg)) {
+                if (!isUnreachable(bb, normalSucc)) {
+                    assert normal != null : "Should be non-null if there is a normal successor.";
+                    ret.put(normalSucc, normal);
+                }
             }
         }
 
@@ -180,20 +182,24 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             VarContext<NonNullAbsVal> callerExContext = nonNull.setExceptionValue(NonNullAbsVal.NON_NULL);
             callerExContext = updateActuals(newExceptionActualValues, actuals, callerExContext);
 
-            for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
-                if (npeSuccs != null && npeSuccs.contains(exSucc)) {
-                    // If this edge could be an NPE then join it with the
-                    // callerEx
-                    // TODO only join contexts if the callee could throw one
-                    ret.put(exSucc, npe.join(callerExContext));
-                } else {
-                    ret.put(exSucc, nonNull.join(callerExContext));
+            for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
+                if (!isUnreachable(bb, exSucc)) {
+                    if (npeSuccs != null && npeSuccs.contains(exSucc)) {
+                        // If this edge could be an NPE then join it with the
+                        // callerEx
+                        // TODO only join contexts if the callee could throw one
+                        ret.put(exSucc, npe.join(callerExContext));
+                    } else {
+                        ret.put(exSucc, nonNull.join(callerExContext));
+                    }
                 }
             }
         } else {
-            for (ISSABasicBlock exSucc : cfg.getExceptionalSuccessors(bb)) {
-                if (npeSuccs != null && npeSuccs.contains(exSucc)) {
-                    ret.put(exSucc, npe);
+            for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
+                if (!isUnreachable(bb, exSucc)) {
+                    if (npeSuccs != null && npeSuccs.contains(exSucc)) {
+                        ret.put(exSucc, npe);
+                    }
                 }
             }
         }
@@ -365,8 +371,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         normal = normal.setLocal(i.getDef(), val);
 
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> out = new LinkedHashMap<>();
-        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(current)) {
-            out.put(normalSucc, normal);
+        for (ISSABasicBlock normalSucc : getNormalSuccs(current, cfg)) {
+            if (!isUnreachable(current, normalSucc)) {
+                out.put(normalSucc, normal);
+            }
         }
 
         // If not null then may throw an ArrayIndexOutOfBoundsException
@@ -406,8 +414,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         }
 
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> out = new LinkedHashMap<>();
-        for (ISSABasicBlock normalSucc : cfg.getNormalSuccessors(current)) {
-            out.put(normalSucc, normal);
+        for (ISSABasicBlock normalSucc : getNormalSuccs(current, cfg)) {
+            if (!isUnreachable(current, normalSucc)) {
+                out.put(normalSucc, normal);
+            }
         }
 
         // If not null then may throw an ArrayIndexOutOfBoundsException or
@@ -436,7 +446,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         return out;
     }
-    
+
     @Override
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowBinaryOpWithException(SSABinaryOpInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,

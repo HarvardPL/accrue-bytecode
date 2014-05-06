@@ -12,8 +12,8 @@ import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 
 /**
- * Graph combining control flow and data-flow dependency information between
- * entities
+ * Program Dependence Graph combining control flow and data-flow dependency
+ * information between entities
  */
 public class ProgramDependenceGraph implements AnalysisResults {
 
@@ -38,9 +38,9 @@ public class ProgramDependenceGraph implements AnalysisResults {
      * Add an edge to the PDG
      * 
      * @param source
-     *            source of the edge
+     *            source of the edge (non-null)
      * @param target
-     *            target of the edge
+     *            target of the edge (non-null)
      * @param type
      *            type of edge
      */
@@ -61,6 +61,8 @@ public class ProgramDependenceGraph implements AnalysisResults {
      *            label of the call site one of these nodes is a summary for
      */
     public void addEdge(PDGNode source, PDGNode target, PDGEdgeType type, CallSiteEdgeLabel label) {
+        assert source != null : "Null source for edge to " + target + " of type " + type;
+        assert target != null : "Null target for edge from " + source + " of type " + type;
         nodes.add(source);
         nodes.add(target);
         Set<PDGEdge> edgesForType = edges.get(type);
