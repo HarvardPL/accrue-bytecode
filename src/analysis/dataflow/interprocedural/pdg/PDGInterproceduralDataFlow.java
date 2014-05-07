@@ -3,7 +3,6 @@ package analysis.dataflow.interprocedural.pdg;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import util.WorkQueue;
@@ -15,6 +14,7 @@ import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
+import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.Unit;
@@ -22,6 +22,8 @@ import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
+import com.ibm.wala.ssa.ISSABasicBlock;
+import com.ibm.wala.ssa.SSACFG;
 
 public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
@@ -33,8 +35,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         UNIT_MAP.put(ExitType.EXCEPTIONAL, Unit.VALUE);
         UNIT_MAP.put(ExitType.NORMAL, Unit.VALUE);
     }
-    private final Map<CGNode, ProcedureSummaryNodes> summaries = new LinkedHashMap<>();
-    
+
     public PDGInterproceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
                                     ReachabilityResults reachable, WalaAnalysisUtil util) {
         super(ptg, reachable);
@@ -53,7 +54,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n));
         }
-        PDGNodeDataflow df = new PDGNodeDataflow(n, this, getProcedureSummary(n), util);
+        PDGNodeDataflow df = new PDGNodeDataflow(n, this, util);
         df.dataflow();
         return UNIT_MAP;
     }
@@ -63,7 +64,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         // Create edges from the input context and formals to the output context
         // This is unsound if the method has heap side effects, but is sound if
         // it doesn't
-        ProcedureSummaryNodes summary = getProcedureSummary(n);
+        ProcedureSummaryNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(n);
         PDGContext entry = summary.getEntryContext();
         PDGContext normExit = summary.getNormalExitContext();
         PDGContext exExit = summary.getExceptionalExitContext();
@@ -151,6 +152,70 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         return preciseEx;
     }
 
+    /**
+     * Check whether an edge is reachable in the given call graph node
+     * 
+     * @param source
+     *            edge source
+     * @param target
+     *            edge target
+     * @param currentNode
+     *            call graph node representing the method and context for the
+     *            edge
+     * @return true if the given edge is unreachable
+     */
+    protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode currentNode) {
+        // Check whether this is an exception edge with no exceptions
+        boolean unreachableExEdge = false;
+        SSACFG cfg = currentNode.getIR().getControlFlowGraph();
+        PreciseExceptionResults pe = getPreciseExceptionResults();
+        if (cfg.getExceptionalSuccessors(source).contains(target)) {
+            unreachableExEdge = pe.getExceptions(source, target, currentNode).isEmpty();
+        }
+
+        return unreachableExEdge || getReachabilityResults().isUnreachable(source, target, currentNode);
+    }
+
+    /**
+     * Check whether the basic block can terminate normally (on at least one
+     * successor edge).
+     * 
+     * @param bb
+     *            basic block to check
+     * @param n
+     *            call graph node containing the method and context for the
+     *            basic block
+     * @return whether the basic block has a reachable normal successor
+     */
+    protected boolean canTerminateNormally(ISSABasicBlock bb, CGNode n) {
+        for (ISSABasicBlock succ : n.getIR().getControlFlowGraph().getNormalSuccessors(bb)) {
+            if (!isUnreachable(bb, succ, n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Check whether the procedure can terminate normally (in a particular
+     * context).
+     * 
+     * @param n
+     *            call graph node containing the method and context
+     * @return whether the method can terminate normally in the given context
+     */
+    protected boolean canProcedureTerminateNormally(CGNode n) {
+        SSACFG cfg = n.getIR().getControlFlowGraph();
+        ISSABasicBlock exit = cfg.exit();
+        
+        for (ISSABasicBlock pred : cfg.getNormalPredecessors(exit)) {
+            if (!isUnreachable(pred, exit, n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public Map<ExitType, Unit> getResults(CGNode caller, CGNode callee, Unit input) {
         return UNIT_MAP;
@@ -159,14 +224,5 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
-    }
-
-    public ProcedureSummaryNodes getProcedureSummary(CGNode n) {
-        ProcedureSummaryNodes summary = summaries.get(n);
-        if (summary == null) {
-            summary = new ProcedureSummaryNodes(n);
-            summaries.put(n, summary);
-        }
-        return summary;
     }
 }

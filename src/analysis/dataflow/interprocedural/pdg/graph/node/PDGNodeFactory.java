@@ -13,7 +13,8 @@ import com.ibm.wala.types.TypeReference;
 
 public class PDGNodeFactory {
     private static final Map<AbstractLocation, AbstractLocationPDGNode> locationNodes = new LinkedHashMap<>();
-    private static final Map<ExpressionNodeKey, ProcedurePDGNode> expressionNodes = new LinkedHashMap<>();;
+    private static final Map<ExpressionNodeKey, ProcedurePDGNode> expressionNodes = new LinkedHashMap<>();
+    private static final Map<CGNode, ProcedureSummaryNodes> summaries = new LinkedHashMap<>();
 
     public static AbstractLocationPDGNode findOrCreateAbstractLocation(AbstractLocation loc) {
         assert loc != null : "Null location when creating PDGNode";
@@ -149,6 +150,25 @@ public class PDGNodeFactory {
             node.setDescription(PrettyPrinter.instructionString(i, n.getIR()));
         }
         return node;
+    }
+
+    /**
+     * Nodes at the edges of and intra-procedural dependence graph representing
+     * formal arguments, returns, exceptions and control flow into and out of
+     * the method (and context) represented by the call graph node. Create if
+     * necessary.
+     * 
+     * @param n
+     *            call graph node
+     * @return summary nodes
+     */
+    public static ProcedureSummaryNodes findOrCreateProcedureSummary(CGNode n) {
+        ProcedureSummaryNodes summary = summaries.get(n);
+        if (summary == null) {
+            summary = new ProcedureSummaryNodes(n);
+            summaries.put(n, summary);
+        }
+        return summary;
     }
 
     private static class ExpressionNodeKey {

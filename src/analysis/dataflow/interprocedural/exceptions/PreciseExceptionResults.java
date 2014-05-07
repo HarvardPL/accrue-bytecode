@@ -26,6 +26,7 @@ import com.ibm.wala.shrikeBT.IBinaryOpInstruction.Operator;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
+import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.types.TypeReference;
 
@@ -46,7 +47,7 @@ public class PreciseExceptionResults implements AnalysisResults {
      * @param successor
      *            successor basic block
      * @param containingNode
-     *            call graph node containing the instruction
+     *            call graph node containing the basic block
      * @return set of exceptions thrown by the basic block
      */
     public Set<TypeReference> getExceptions(ISSABasicBlock bb, ISSABasicBlock successor, CGNode containingNode) {
@@ -55,6 +56,86 @@ public class PreciseExceptionResults implements AnalysisResults {
             return Collections.emptySet();
         }
         return results.getExceptions(bb, successor);
+    }
+
+    /**
+     * Check whether a basic block can throw exceptions of the given type
+     * @param type
+     *            type to check
+     * @param bb
+     *            basic block
+     * @param n
+     *            call graph node containing the basic block
+     * 
+     * @return true if the basic block can throw the given exception type
+     */
+    public boolean canThrowException(TypeReference type, ISSABasicBlock bb, CGNode n) {
+        SSACFG cfg = n.getIR().getControlFlowGraph();
+        ISSABasicBlock exit = cfg.exit();
+        for (ISSABasicBlock pred : cfg.getExceptionalPredecessors(exit)) {
+            if (getExceptions(pred, exit, n).contains(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check whether a method (in a particular context) can throw exceptions of
+     * the given type
+     * 
+     * @param type
+     *            type to check
+     * @param n
+     *            method and context
+     * @return true if the call graph node can throw the given exception type
+     */
+    public boolean canProcedureThrowException(TypeReference type, CGNode n) {
+        SSACFG cfg = n.getIR().getControlFlowGraph();
+        ISSABasicBlock exit = cfg.exit();
+        for (ISSABasicBlock pred : cfg.getExceptionalPredecessors(exit)) {
+            if (getExceptions(pred, exit, n).contains(type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check whether a basic block can throw exceptions
+     * 
+     * @param bb
+     *            basic block to check
+     * @param n
+     *            call graph node containing the basic block
+     * @return true if the basic block can throw any exception
+     */
+    public boolean canThrowAnyException(ISSABasicBlock bb, CGNode n) {
+        SSACFG cfg = n.getIR().getControlFlowGraph();
+        for (ISSABasicBlock succ : cfg.getExceptionalSuccessors(bb)) {
+            if (!getExceptions(bb, succ, n).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check whether a method (in a particular context) can throw exceptions
+     * 
+     * @param n
+     *            method and context to check
+     * @return true if the call graph node can throw any exception
+     */
+    public boolean canProcedureThrowAnyException(CGNode n) {
+        SSACFG cfg = n.getIR().getControlFlowGraph();
+        ISSABasicBlock exit = cfg.exit();
+        for (ISSABasicBlock pred : cfg.getExceptionalPredecessors(exit)) {
+            if (!getExceptions(pred, exit, n).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected void replaceExceptions(Set<TypeReference> throwTypes, ISSABasicBlock bb, ISSABasicBlock successor,

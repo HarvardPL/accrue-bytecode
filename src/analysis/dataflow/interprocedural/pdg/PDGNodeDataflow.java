@@ -17,9 +17,9 @@ import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
-import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
@@ -53,34 +53,39 @@ import com.ibm.wala.util.graph.dominators.Dominators;
 import com.ibm.wala.util.graph.impl.GraphInverter;
 
 /**
- * Data-flow that builds up the set of nodes in a program dependence graph.
+ * Data-flow that computes nodes entering and leaving instructions and for
+ * exceptional control flow
  */
 public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
 
     private final CGNode currentNode;
     private final PDGInterproceduralDataFlow interProc;
-    private final ProcedureSummaryNodes summary;
     private final IR ir;
     private final WalaAnalysisUtil util;
     private final Dominators<ISSABasicBlock> postDominators;
     private final Dominators<ISSABasicBlock> dominators;
     private final Map<PDGNode, Set<PDGNode>> mergeNodes;
-    private final Map<SSAInvokeInstruction, PDGContext> callSiteExceptionContexts;
+    private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts;
+    private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts;
+    private final Map<CallSiteReference, PDGContext> calleeExceptionContexts;
 
-    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, ProcedureSummaryNodes summary,
-                                    WalaAnalysisUtil util) {
+    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util) {
         super(true);
         this.currentNode = currentNode;
         this.interProc = interProc;
-        this.summary = summary;
         this.ir = currentNode.getIR();
         this.util = util;
+
         // compute post dominators
         SSACFG cfg = ir.getControlFlowGraph();
         Graph<ISSABasicBlock> reverseCFG = GraphInverter.invert(cfg);
         postDominators = Dominators.make(reverseCFG, cfg.exit());
         dominators = Dominators.make(cfg, cfg.entry());
-        callSiteExceptionContexts = new LinkedHashMap<>();
+
+        // data structures to pass to the data-flow that adds the edges
+        trueExceptionContexts = new LinkedHashMap<>();
+        falseExceptionContexts = new LinkedHashMap<>();
+        calleeExceptionContexts = new LinkedHashMap<>();
         mergeNodes = new LinkedHashMap<>();
     }
 
@@ -95,20 +100,20 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     protected Map<ISSABasicBlock, PDGContext> flow(Set<PDGContext> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         if (current.isEntryBlock()) {
-            inItems = Collections.singleton(summary.getEntryContext());
+            inItems = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode).getEntryContext());
         }
         return super.flow(inItems, cfg, current);
     }
 
     @Override
     protected void post(IR ir) {
-        // Turn on the edges and run once more. This allows the set of nodes to
-        // reach a fixed point before adding edges.
+        // Add edges after finishing this analysis. This allows the set of nodes
+        // to reach a fixed point before adding edges.
         if (getOutputLevel() >= 4) {
             System.err.println("Adding edges for " + PrettyPrinter.parseCGNode(currentNode));
         }
-        PDGEdgeDataflow edgeDF = new PDGEdgeDataflow(currentNode, interProc, summary, util, mergeNodes,
-                                        callSiteExceptionContexts, getInputContexts(), getOutputContexts(),
+        PDGEdgeDataflow edgeDF = new PDGEdgeDataflow(currentNode, interProc, util, mergeNodes, trueExceptionContexts,
+                                        falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
                                         getInstructionInput());
         edgeDF.dataflow();
     }
@@ -118,8 +123,14 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
                                     ISSABasicBlock justProcessed, Map<ISSABasicBlock, PDGContext> outItems) {
         super.postBasicBlock(inItems, cfg, justProcessed, outItems);
 
-        // Check the context, make sure that only exit and catch successors have
-        // stuff in the return and exception places respectively
+        // 1. Make sure that the exception node is non-null iff the successor is
+        // an exceptional successor
+
+        // 2. Make sure that the return node is non-null iff this method is
+        // non-void and the successor is the exit
+
+        // 3. Make sure the PC node is never null
+
         for (ISSABasicBlock succ : getExceptionalSuccs(justProcessed, cfg)) {
             if (!isUnreachable(justProcessed, succ)) {
                 PDGContext out = outItems.get(succ);
@@ -239,11 +250,12 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         assert !facts.isEmpty() : "Empty facts in confluence entering\n"
                                         + PrettyPrinter.basicBlockString(ir, bb, "\t", "\n") + "IN "
                                         + PrettyPrinter.parseCGNode(currentNode);
+        PDGContext c;
         if (facts.size() == 1) {
-            return facts.iterator().next();
+            c = facts.iterator().next();
+        } else {
+            c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
         }
-
-        PDGContext c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
 
         PDGNode restorePC = handlePostDominators(bb);
         if (restorePC != null) {
@@ -349,18 +361,13 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
         PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
 
-        PDGContext mergedExContext = null;
-        if (npe != null && aioob != null) {
-            mergedExContext = mergeContexts(i, npe, aioob);
-        }
-
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
             if (!isUnreachable(current, succ)) {
                 Set<TypeReference> exes = pe.getExceptions(current, succ, currentNode);
                 if (exes.contains(TypeReference.JavaLangArrayIndexOutOfBoundsException)
                                                 && exes.contains(TypeReference.JavaLangNullPointerException)) {
                     // Either NPE or AIOOB need to merge
-                    out.put(succ, mergedExContext);
+                    out.put(succ, mergeContexts(i, npe, aioob));
                 } else if (exes.contains(TypeReference.JavaLangArrayIndexOutOfBoundsException)) {
                     // Only AIOOB
                     out.put(succ, aioob);
@@ -494,8 +501,8 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowGetField(SSAGetInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-
         PDGContext in = confluence(previousItems, current);
+
         String desc = PrettyPrinter.valString(i.getRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
                                         desc, current, cfg);
@@ -531,9 +538,23 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         return flowInvoke(i, previousItems, cfg, current);
     }
 
+    /**
+     * Compute exit PDG nodes for a procedure invocation
+     * 
+     * @param i
+     *            invoke instruction
+     * @param previousItems
+     *            input data-flow facts
+     * @param cfg
+     *            control flow graph
+     * @param current
+     *            basic block containing the invocation
+     * @return exit PDG nodes for each of the output edges
+     */
     private Map<ISSABasicBlock, PDGContext> flowInvoke(SSAInvokeInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGContext in = confluence(previousItems, current);
+
         PDGContext npe = null;
         if (!i.isStatic()) {
             // Could throw NPE
@@ -546,35 +567,43 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
             // TODO if no NPE throw WrongMethodTypeException
         }
 
-        // Join the caller PC before the call to the PC after the call
+        boolean canCalleeThrowNPE = false;
+        for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
+            if (interProc.getPreciseExceptionResults().canProcedureThrowException(
+                                            TypeReference.JavaLangNullPointerException, callee)) {
+                canCalleeThrowNPE = true;
+                break;
+            }
+        }
+
+        // Node to representing the join of the caller PC before the call and
+        // the PC after the call
         PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther("EXIT_PC_JOIN", PDGNodeType.EXIT_PC_JOIN, currentNode,
                                         new OrderedPair<>(i, ExitType.NORMAL));
 
         PDGNode exExitPC = PDGNodeFactory.findOrCreateOther("EXIT_PC_JOIN", PDGNodeType.EXIT_PC_JOIN, currentNode,
                                         new OrderedPair<>(i, ExitType.EXCEPTIONAL));
 
-        Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
-
         PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode);
         PDGContext exContext = new PDGContext(null, exValue, exExitPC);
-        callSiteExceptionContexts.put(i, exContext);
+        calleeExceptionContexts.put(i.getCallSite(), exContext);
 
-        PDGContext mergedExContext = null;
-        if (npe != null) {
-            // If this instruction can throw a NPE due to the receiver being
-            // null then we need to merge that context into the exceptional
-            // context for the callee and use that on any edges on which the NPE
-            // can be thrown
-            mergedExContext = mergeContexts(mergeContexts(new OrderedPair<>(i, "NPE_MERGE"), npe, exContext));
+        PDGContext npeExitContext = npe;
+        if (npe != null && canCalleeThrowNPE) {
+            // The receiver could be null AND the callee may throw an NPE. Need
+            // to merge the contexts to use on NPE exit edges.
+            npeExitContext = mergeContexts(new OrderedPair<>(i, "NPE_MERGE"), npe, exContext);
         }
 
         PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
+        Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
             if (!isUnreachable(current, succ)) {
-                boolean canThrowNPE = pe.getExceptions(current, succ, currentNode).contains(
+                boolean hasNPE = pe.getExceptions(current, succ, currentNode).contains(
                                                 TypeReference.JavaLangNullPointerException);
-                if (canThrowNPE && npe != null) {
-                    out.put(succ, mergedExContext);
+                if (hasNPE && npe != null) {
+                    // This edge has an NPE and the receiver may be null
+                    out.put(succ, npeExitContext);
                 } else {
                     out.put(succ, exContext);
                 }
@@ -783,8 +812,8 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         Set<PDGNode> returns = new LinkedHashSet<>();
         Set<PDGNode> pcs = new LinkedHashSet<>();
         for (PDGContext c : contexts) {
-            assert c != null : "empty context array in mergeContexts " + "\n\tIN "
-                                            + PrettyPrinter.parseCGNode(currentNode) + "\nKEY: " + disambiguationKey;
+            assert c != null : "null context in mergeContexts " + "\n\tIN " + PrettyPrinter.parseCGNode(currentNode)
+                                            + "\nKEY: " + disambiguationKey;
             if (c.getExceptionNode() != null) {
                 exceptions.add(c.getExceptionNode());
             }
@@ -795,10 +824,9 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         }
 
         PDGNode newEx = mergeIfNecessary(exceptions, "EX MERGE", PDGNodeType.EXCEPTION_MERGE, disambiguationKey);
-        PDGNode newRet = mergeIfNecessary(exceptions, "RETURN MERGE", PDGNodeType.OTHER_EXPRESSION, disambiguationKey);
-        PDGNode newPC = mergeIfNecessary(exceptions, "PC MERGE", PDGNodeType.PC_MERGE, disambiguationKey);
-        PDGContext result = new PDGContext(newRet, newEx, newPC);
-        return result;
+        PDGNode newRet = mergeIfNecessary(returns, "RETURN MERGE", PDGNodeType.OTHER_EXPRESSION, disambiguationKey);
+        PDGNode newPC = mergeIfNecessary(pcs, "PC MERGE", PDGNodeType.PC_MERGE, disambiguationKey);
+        return new PDGContext(newRet, newEx, newPC);
     }
 
     /**

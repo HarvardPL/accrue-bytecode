@@ -1,6 +1,7 @@
 package analysis.dataflow.interprocedural.pdg.graph.node;
 
 import java.util.LinkedList;
+
 import java.util.List;
 
 import analysis.dataflow.interprocedural.ExitType;
@@ -10,8 +11,9 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Summary nodes used when connecting intra-procedural PDGs to form an
- * inter-procedural PDG.
+ * Nodes at the edges of and intra-procedural dependence graph representing
+ * formal arguments, returns, exceptions and control flow into and out of the
+ * method (and context) represented by the call graph node.
  */
 public class ProcedureSummaryNodes {
 
