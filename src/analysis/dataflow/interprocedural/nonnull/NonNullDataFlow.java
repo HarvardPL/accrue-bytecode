@@ -236,21 +236,23 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     }
 
     @Override
-    protected void post(IR ir) {
-        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-            for (SSAInstruction i : bb) {
-                VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), bb);
-                Set<Integer> nonNulls = new HashSet<>();
-                for (Integer j : input.getLocals()) {
-                    if (input.getLocal(j).isNonnull()) {
-                        nonNulls.add(j);
-                    }
+    protected void postBasicBlock(Set<VarContext<NonNullAbsVal>> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+                                    Map<ISSABasicBlock, VarContext<NonNullAbsVal>> outItems) {
+        for (SSAInstruction i : justProcessed) {
+            assert getAnalysisRecord(i) != null : "No analysis record for "
+                                            + PrettyPrinter.instructionString(i, currentNode.getIR()) + " in "
+                                            + PrettyPrinter.parseCGNode(currentNode);
+            VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), justProcessed);
+            Set<Integer> nonNulls = new HashSet<>();
+            for (Integer j : input.getLocals()) {
+                if (input.getLocal(j).isNonnull()) {
+                    nonNulls.add(j);
                 }
-                ((NonNullInterProceduralDataFlow) interProc).getAnalysisResults().replaceNonNull(nonNulls, i,
-                                                currentNode);
             }
+            ((NonNullInterProceduralDataFlow) interProc).getAnalysisResults().replaceNonNull(nonNulls, i, currentNode);
         }
-        super.post(ir);
+        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
     }
 
     @Override

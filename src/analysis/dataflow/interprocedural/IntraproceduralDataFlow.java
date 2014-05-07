@@ -111,6 +111,18 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
     protected abstract Map<ISSABasicBlock, F> call(SSAInvokeInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
 
+    /**
+     * Join the given (non-empty) set of data-flow facts to get a new item
+     * 
+     * @param facts
+     *            non-empty set of data-flow facts to merge
+     * @param bb
+     *            Basic block we are merging for
+     * @return new data-flow item computed by merging the facts in the given set
+     */
+    // TODO change to varargs
+    protected abstract F confluence(Set<F> facts, ISSABasicBlock bb);
+
     @Override
     protected void post(IR ir) {
         output = new LinkedHashMap<>();
@@ -157,5 +169,29 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
         return interProc.getReachabilityResults().isUnreachable(source, target, currentNode);
+    }
+
+    /**
+     * Merge given facts to create a new data-flow fact and map each successor
+     * node number to that fact.
+     * 
+     * @param facts
+     *            facts to merge
+     * @param bb
+     *            current basic block
+     * @param cfg
+     *            current control flow graph
+     * @return map with the same merged value for each key
+     */
+    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts, ISSABasicBlock bb,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+        F fact = confluence(facts, bb);
+        return factToMap(fact, bb, cfg);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, F> flowEmptyBlock(Set<F> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return mergeAndCreateMap(inItems, current, cfg);
     }
 }

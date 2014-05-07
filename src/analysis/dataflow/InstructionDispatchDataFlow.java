@@ -57,18 +57,6 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     }
 
     /**
-     * Join the given (non-empty) set of data-flow facts to get a new item
-     * 
-     * @param facts
-     *            non-empty set of data-flow facts to merge
-     * @param bb
-     *            Basic block we are merging for
-     * @return new data-flow item computed by merging the facts in the given set
-     */
-    // TODO change to varargs
-    protected abstract F confluence(Set<F> facts, ISSABasicBlock bb);
-
-    /**
      * Get a record for a previously run analysis for the given instruction,
      * returns null if the block has never been analyzed
      * 
@@ -97,7 +85,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
             last = getLastInstruction(current);
         } else {
             // empty block, just pass through the input
-            outItems = factToMap(confluence(inItems, current), current, cfg);
+            outItems = flowEmptyBlock(inItems, cfg, current);
         }
         for (SSAInstruction i : current) {
             assert last != null : "last instruction is null";
@@ -114,7 +102,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         postBasicBlock(inItems, cfg, current, outItems);
         return outItems;
     }
-
+    
     /**
      * Data-flow transfer function for an instruction
      * 
@@ -130,6 +118,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        System.err.println(i + " in " + PrettyPrinter.parseMethod(cfg.getMethod()));
         SSAInstruction last = getLastInstruction(current);
         Map<ISSABasicBlock, F> output;
         if (i == last) {
@@ -809,22 +798,20 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     protected abstract Map<ISSABasicBlock, F> flowThrow(SSAThrowInstruction i, Set<F> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
+
     /**
-     * Merge given facts to create a new data-flow fact and map each successor
-     * node number to that fact.
+     * Compute output facts for an empty basic block
      * 
-     * @param facts
-     *            facts to merge
-     * @param bb
-     *            current basic block
+     * @param inItems
+     *            input data-flow facts
      * @param cfg
-     *            current control flow graph
-     * @return map with the same merged value for each key
+     *            control flow graph
+     * @param current
+     *            current basic block
+     * @return map from target of successor edge to the data-flow fact on that
+     *         edge after analyzing an empty basic block
      */
-    protected Map<ISSABasicBlock, F> mergeAndCreateMap(Set<F> facts, ISSABasicBlock bb,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        F fact = confluence(facts, bb);
-        return factToMap(fact, bb, cfg);
-    }
+    protected abstract Map<ISSABasicBlock, F> flowEmptyBlock(Set<F> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
 
 }

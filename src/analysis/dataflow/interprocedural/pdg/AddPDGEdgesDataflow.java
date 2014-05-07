@@ -211,7 +211,6 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         }
     }
 
-    @Override
     protected Unit confluence(Set<Unit> facts, ISSABasicBlock bb) {
         return Unit.VALUE;
     }
@@ -1000,5 +999,11 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         } else {
             return beforeException;
         }
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, Unit> flowEmptyBlock(Set<Unit> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return factToMap(confluence(inItems, current), current, cfg);
     }
 }

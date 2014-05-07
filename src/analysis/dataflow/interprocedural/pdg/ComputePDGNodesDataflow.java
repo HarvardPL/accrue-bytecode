@@ -246,7 +246,6 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      * <p>
      * {@inheritDoc}
      */
-    @Override
     protected PDGContext confluence(Set<PDGContext> facts, ISSABasicBlock bb) {
         assert !facts.isEmpty() : "Empty facts in confluence entering\n"
                                         + PrettyPrinter.basicBlockString(ir, bb, "\t", "\n") + "IN "
@@ -623,7 +622,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowGoto(SSAGotoInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, current, cfg);
+        return factToMap(confluence(previousItems, current), current, cfg);
     }
 
     @Override
@@ -632,7 +631,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // This can throw a ClassNotFoundException, but this could be known
         // statically if all the class files were known.
-        return mergeAndCreateMap(previousItems, current, cfg);
+        return factToMap(confluence(previousItems, current), current, cfg);
     }
 
     @Override
@@ -665,7 +664,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowNewObject(SSANewInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, current, cfg);
+        return factToMap(confluence(previousItems, current), current, cfg);
     }
 
     @Override
@@ -874,5 +873,11 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             }
         }
         return res;
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, PDGContext> flowEmptyBlock(Set<PDGContext> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return factToMap(confluence(inItems, current), current, cfg);
     }
 }
