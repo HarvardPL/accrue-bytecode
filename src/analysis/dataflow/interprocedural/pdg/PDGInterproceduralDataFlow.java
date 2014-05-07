@@ -173,7 +173,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         if (cfg.getExceptionalSuccessors(source).contains(target)) {
             unreachableExEdge = pe.getExceptions(source, target, currentNode).isEmpty();
         }
-        
+
         return unreachableExEdge || getReachabilityResults().isUnreachable(source, target, currentNode);
     }
 
@@ -196,7 +196,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         }
         return false;
     }
-    
+
     /**
      * Check whether the procedure can terminate normally (in a particular
      * context).
@@ -206,9 +206,14 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
      * @return whether the method can terminate normally in the given context
      */
     protected boolean canProcedureTerminateNormally(CGNode n) {
+        if (n.getMethod().isNative()) {
+            // assume native methods can terminate normally
+            return true;
+        }
+
         SSACFG cfg = n.getIR().getControlFlowGraph();
         ISSABasicBlock exit = cfg.exit();
-        
+
         for (ISSABasicBlock pred : cfg.getNormalPredecessors(exit)) {
             if (!isUnreachable(pred, exit, n)) {
                 return true;

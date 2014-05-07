@@ -666,7 +666,8 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // formals right before the call
         List<PDGNode> formalAssignments = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
-            String s = "formal(" + j + ") = " + PrettyPrinter.valString(i.getUse(j), ir);
+            String s = "formal(" + j + ") = " + PrettyPrinter.valString(i.getUse(j), ir) + " for "
+                                            + PrettyPrinter.parseMethod(i.getDeclaredTarget());
             PDGNode formalAssign = PDGNodeFactory.findOrCreateOther(s, PDGNodeType.FORMAL_ASSIGNMENT, currentNode,
                                             new OrderedPair<>(i, j));
             formalAssignments.add(formalAssign);

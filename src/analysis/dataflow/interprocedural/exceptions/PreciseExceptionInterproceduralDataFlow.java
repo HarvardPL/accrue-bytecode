@@ -57,7 +57,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
     public PreciseExceptionInterproceduralDataFlow(PointsToGraph ptg, NonNullResults nonNull,
                                     ReachabilityResults reachable, WalaAnalysisUtil util) {
         super(ptg, reachable);
-        preciseEx = new PreciseExceptionResults();
+        preciseEx = new PreciseExceptionResults(util.getClassHierarchy());
         this.nonNull = nonNull;
         this.util = util;
     }

@@ -19,10 +19,13 @@ import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.Operator;
+import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
@@ -35,6 +38,12 @@ import com.ibm.wala.types.TypeReference;
  * thrown exceptions
  */
 public class PreciseExceptionResults implements AnalysisResults {
+
+    private final IClassHierarchy cha;
+
+    public PreciseExceptionResults(IClassHierarchy cha) {
+        this.cha = cha;
+    }
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
@@ -60,6 +69,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     /**
      * Check whether a basic block can throw exceptions of the given type
+     * 
      * @param type
      *            type to check
      * @param bb
@@ -91,6 +101,27 @@ public class PreciseExceptionResults implements AnalysisResults {
      * @return true if the call graph node can throw the given exception type
      */
     public boolean canProcedureThrowException(TypeReference type, CGNode n) {
+        if (n.getMethod().isNative()) {
+            IClass exClass = cha.lookupClass(type);
+            if (cha.isSubclassOf(exClass, cha.lookupClass(TypeReference.JavaLangRuntimeException))) {
+                // assume native methods can throw RTE
+                return true;
+            }
+            try {
+                for (TypeReference declEx : n.getMethod().getDeclaredExceptions()) {
+                    IClass declClass = cha.lookupClass(declEx);
+                    if (cha.isSubclassOf(exClass, declClass)) {
+                        // precise throw type could be any subtype of the
+                        // declared exceptions
+                        return true;
+                    }
+                }
+            } catch (UnsupportedOperationException | InvalidClassFileException e) {
+                throw new RuntimeException(e);
+            }
+            return false;
+        }
+
         SSACFG cfg = n.getIR().getControlFlowGraph();
         ISSABasicBlock exit = cfg.exit();
         for (ISSABasicBlock pred : cfg.getExceptionalPredecessors(exit)) {
@@ -128,6 +159,11 @@ public class PreciseExceptionResults implements AnalysisResults {
      * @return true if the call graph node can throw any exception
      */
     public boolean canProcedureThrowAnyException(CGNode n) {
+        if (n.getMethod().isNative()) {
+            // assume native methods can throw something
+            return true;
+        }
+
         SSACFG cfg = n.getIR().getControlFlowGraph();
         ISSABasicBlock exit = cfg.exit();
         for (ISSABasicBlock pred : cfg.getExceptionalPredecessors(exit)) {
@@ -388,7 +424,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/preciseex_" + PrettyPrinter.parseCGNode(n).replace(" ", "") + ".dot";
+            String fileName = "tests/preciseex_" + PrettyPrinter.parseCGNode(n) + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n, reachable);
                 System.err.println("DOT written to " + fileName);

@@ -102,7 +102,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         postBasicBlock(inItems, cfg, current, outItems);
         return outItems;
     }
-    
+
     /**
      * Data-flow transfer function for an instruction
      * 
@@ -118,7 +118,6 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        System.err.println(i + " in " + PrettyPrinter.parseMethod(cfg.getMethod()));
         SSAInstruction last = getLastInstruction(current);
         Map<ISSABasicBlock, F> output;
         if (i == last) {
@@ -797,7 +796,6 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected abstract Map<ISSABasicBlock, F> flowThrow(SSAThrowInstruction i, Set<F> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current);
-
 
     /**
      * Compute output facts for an empty basic block

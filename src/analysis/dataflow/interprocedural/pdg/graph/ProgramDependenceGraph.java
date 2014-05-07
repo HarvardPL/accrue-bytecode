@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural.pdg.graph;
 
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.LinkedHashMap;
@@ -152,7 +153,6 @@ public class ProgramDependenceGraph implements AnalysisResults {
         Map<PDGNode, String> nodeToDot = new LinkedHashMap<PDGNode, String>();
         Map<String, Integer> dotToCount = new LinkedHashMap<String, Integer>();
         Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<String, Set<PDGNode>>();
-        Set<PDGNode> heapNodes = new LinkedHashSet<PDGNode>();
 
         for (PDGNode n : nodes) {
             String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
@@ -177,15 +177,6 @@ public class ProgramDependenceGraph implements AnalysisResults {
             }
         }
         if (cluster) {
-            if (!heapNodes.isEmpty()) {
-                writer.write("\tsubgraph \"cluster_" + "HEAP" + "\"{\n");
-                writer.write("\tlabel=\"" + "HEAP" + "\";\n");
-                for (PDGNode n : heapNodes) {
-                    writer.write("\t\t\"" + nodeToDot.get(n) + "\"\n");
-                }
-                writer.write("\t}\n"); // subgraph close
-            }
-
             for (String c : analysisUnitToNodes.keySet()) {
                 String label = c.replace("\"", "").replace("\\", "\\\\");
                 writer.write("\tsubgraph \"cluster_" + label + "\"{\n");
@@ -217,6 +208,96 @@ public class ProgramDependenceGraph implements AnalysisResults {
         }
 
         writer.write("\n};\n");
+    }
+
+    /**
+     * Write the graph in graphviz dot format
+     * 
+     * @param writer
+     *            writer to write to
+     * @param cluster
+     *            if true then the graph will contain subgraphs for each
+     *            procedure, one for the heap, and other subgraphs for each
+     * @param spread
+     *            Separation between nodes in inches different
+     * @throws IOException
+     *             writer issues
+     */
+    public void intraProcDotToFile(double spread) throws IOException {
+        Set<PDGEdge> edgeSet = new LinkedHashSet<PDGEdge>();
+        for (PDGEdgeType t : edges.keySet()) {
+            edgeSet.addAll(edges.get(t));
+        }
+
+        Map<PDGNode, String> nodeToDot = new LinkedHashMap<PDGNode, String>();
+        Map<String, Integer> dotToCount = new LinkedHashMap<String, Integer>();
+        Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<String, Set<PDGNode>>();
+        Map<String, Set<PDGEdge>> analysisUnitToEdges = new LinkedHashMap<String, Set<PDGEdge>>();
+
+        for (PDGNode n : nodes) {
+            String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
+                                            .replace("\\\\t", "(tab)");
+            Integer count = dotToCount.get(nodeString);
+            if (count == null) {
+                nodeToDot.put(n, nodeString);
+                dotToCount.put(nodeString, 1);
+            } else if (nodeToDot.get(n) == null) {
+                nodeToDot.put(n, nodeString + " (" + count + ")");
+                dotToCount.put(nodeString, count + 1);
+            }
+
+            String groupName = n.groupingName();
+            if (groupName != null) {
+                Set<PDGNode> nodesInContext = analysisUnitToNodes.get(groupName);
+                if (nodesInContext == null) {
+                    nodesInContext = new LinkedHashSet<PDGNode>();
+                    analysisUnitToNodes.put(groupName, nodesInContext);
+                }
+                nodesInContext.add(n);
+            }
+        }
+
+        for (PDGEdge e : edgeSet) {
+            if (e.source.groupingName().equals(e.target.groupingName())) {
+                Set<PDGEdge> es = analysisUnitToEdges.get(e.source.groupingName());
+                if (es == null) {
+                    es = new LinkedHashSet<>();
+                    analysisUnitToEdges.put(e.source.groupingName(), es);
+                }
+                es.add(e);
+            }
+        }
+
+        for (String c : analysisUnitToNodes.keySet()) {
+            String fileName = "tests/pdg_intra_" + c + ".dot";
+            try (Writer writer = new FileWriter(fileName)) {
+                String label = c.replace("\"", "").replace("\\", "\\\\");
+                writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                                                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+                                                + "edge [fontsize=10]" + ";\n" + "label=\"" + label + "\";\n");
+
+                for (PDGNode n : analysisUnitToNodes.get(c)) {
+                    String nodeLabel = "";
+                    if (n.getNodeType().isPathCondition()) {
+                        nodeLabel = "[style=filled, fillcolor=gray95]";
+                    }
+                    writer.write("\t\t\"" + nodeToDot.get(n) + "\" " + nodeLabel + "\n");
+                }
+
+                if (analysisUnitToEdges.get(c) != null) {
+                    for (PDGEdge edge : analysisUnitToEdges.get(c)) {
+                        PDGEdgeType type = edge.type;
+                        String edgeLabel = "[label=\"" + type.shortName()
+                                                        + (edge.label != null ? " " + edge.label : "") + "\"]";
+                        writer.write("\t\"" + nodeToDot.get(edge.source) + "\" -> " + "\"" + nodeToDot.get(edge.target)
+                                                        + "\" " + edgeLabel + ";\n");
+                    }
+                }
+
+                writer.write("\n};\n");
+            }
+            System.err.println("DOT written to " + fileName);
+        }
     }
 
     private Set<PDGEdge> allEdges() {

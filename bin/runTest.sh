@@ -13,12 +13,24 @@ run() {
 	eval java "$vmargs" "$cmmd" "$args"
 }
 
+clean() {
+    for file in tests/*.dot
+    do
+	rm "$file"
+    done
+    cleaned=true
+}
+
 while true; do
     case "$1" in
         "")
             break
             ;;
-        -V)
+        clean)
+	    clean
+	    shift
+	    ;;
+	-V)
             verbose=1
             shift
             ;;
@@ -34,5 +46,11 @@ classpath="$classpath:$dir/lib/wala-core.jar"
 classpath="$classpath:$dir/lib/wala-util.jar"
 classpath="$classpath:$dir/lib/wala-shrike.jar"
 
-run "$args"
+if [[ -n "$args" || -z cleaned ]]
+then
+    run "$args"
+else
+    echo removed files from tests directory
+fi
+
 

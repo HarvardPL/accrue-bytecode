@@ -86,7 +86,7 @@ public class ReachabilityResults implements AnalysisResults {
 
     public void writeAllToFiles() throws IOException {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/reachability_" + PrettyPrinter.parseCGNode(n).replace(" ", "") + ".dot";
+            String fileName = "tests/reachability_" + PrettyPrinter.parseCGNode(n) + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n);
                 System.err.println("DOT written to " + fileName);

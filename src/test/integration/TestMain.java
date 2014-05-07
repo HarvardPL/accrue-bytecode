@@ -64,8 +64,8 @@ public class TestMain {
      */
     public static void main(String[] args) {
         try {
-            if (args.length != 3) {
-                throw new IllegalArgumentException("The test harness takes three arguments, see usage for details.");
+            if (args.length != 3 && args.length != 4) {
+                throw new IllegalArgumentException("The test harness takes three or four arguments, see usage for details.");
             }
             String entryPoint = args[0];
             if (entryPoint.equals("--usage") || entryPoint.equals("--help") || entryPoint.equals("-h")) {
@@ -74,6 +74,11 @@ public class TestMain {
             }
             int outputLevel = Integer.parseInt(args[1]);
             String testName = args[2];
+            
+            int fileLevel = 0;
+            if (args.length > 3) {
+                fileLevel = Integer.parseInt(args[3]);
+            }
             String fileName = entryPoint;
             WalaAnalysisUtil util;
             Entrypoint entry;
@@ -132,17 +137,31 @@ public class TestMain {
                 printAllCFG(util, g);
                 break;
             case "pdg":
+                int otherOutputLevel = 0;
+                if (outputLevel >= 9) {
+                    otherOutputLevel = 9;
+                }
                 util = setUpWala(entryPoint);
-                g = generatePointsToGraph(util, 0);
-                r = runReachability(util, 0, g);
-                nonNull = runNonNull(util, 0, g, r);
-                preciseEx = runPreciseExceptions(util, 0, g, r, nonNull);
+                g = generatePointsToGraph(util, otherOutputLevel);
+                r = runReachability(util, otherOutputLevel, g);
+                nonNull = runNonNull(util, otherOutputLevel, g, r);
+                preciseEx = runPreciseExceptions(util, otherOutputLevel, g, r, nonNull);
                 ProgramDependenceGraph pdg = runPDG(util, outputLevel, g, r, preciseEx);
                 String fullName = "tests/pdg_" + fileName + ".dot";
                 FileWriter file = new FileWriter(fullName);
                 pdg.writeDot(file, true, 1);
                 file.close();
                 System.err.println("DOT written to " + fullName);
+                if (fileLevel >= 1) {
+                    pdg.intraProcDotToFile(1);
+                }
+                
+                if (fileLevel >= 2) {
+                    r.writeAllToFiles();
+                    nonNull.writeAllToFiles(r);
+                    preciseEx.writeAllToFiles(r);
+                    printAllCFG(util, g);
+                }
                 break;
             default:
                 System.err.println(args[2] + " is not a valid test name." + usage());
@@ -168,7 +187,7 @@ public class TestMain {
 
         for (CGNode n : g.getCallGraph()) {
             if (!n.getMethod().isNative()) {
-                String fileName = "cfg_" + PrettyPrinter.parseCGNode(n).replace(" ", "");
+                String fileName = "cfg_" + PrettyPrinter.parseCGNode(n);
                 printSingleCFG(util, n.getIR(), fileName);
             } else {
                 System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
@@ -227,6 +246,7 @@ public class TestMain {
         sb.append("Param 0: The entry point (containing a main method) written as a full class name with packages separated by dots (e.g. java.lang.String)\n");
         sb.append("Param 1: Level of output (higher means more console output)\n");
         sb.append("Param 2: Test name\n");
+        sb.append("Param 3: (optional) File write level (higher means more files will be written)");
         sb.append("\t\"pointsto\" runs the points-to analysis test, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
         sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
         sb.append("\t\"nonnull\" prints the results of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
@@ -285,7 +305,7 @@ public class TestMain {
             Writer out = new BufferedWriter(new FileWriter(fullFilename));
             cfg.writeVerbose(out, "", "\\l");
             out.close();
-            System.err.println("\nDOT written to: " + fullFilename);
+            System.err.println("DOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
