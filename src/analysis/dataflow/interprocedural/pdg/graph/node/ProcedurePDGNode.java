@@ -5,7 +5,8 @@ import util.print.PrettyPrinter;
 import com.ibm.wala.ipa.callgraph.CGNode;
 
 /**
- * Node created for a specific call graph node
+ * Node created for a specific call graph node which represents a procedure and
+ * context
  */
 public class ProcedurePDGNode extends PDGNode {
 

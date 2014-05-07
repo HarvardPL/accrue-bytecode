@@ -15,7 +15,7 @@ import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
-import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
+import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryPDGNodes;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.Unit;
 import analysis.pointer.graph.PointsToGraph;
@@ -54,7 +54,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n));
         }
-        PDGNodeDataflow df = new PDGNodeDataflow(n, this, util);
+        ComputePDGNodesDataflow df = new ComputePDGNodesDataflow(n, this, util);
         df.dataflow();
         return UNIT_MAP;
     }
@@ -64,7 +64,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         // Create edges from the input context and formals to the output context
         // This is unsound if the method has heap side effects, but is sound if
         // it doesn't
-        ProcedureSummaryNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(n);
+        ProcedureSummaryPDGNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(n);
         PDGContext entry = summary.getEntryContext();
         PDGContext normExit = summary.getNormalExitContext();
         PDGContext exExit = summary.getExceptionalExitContext();

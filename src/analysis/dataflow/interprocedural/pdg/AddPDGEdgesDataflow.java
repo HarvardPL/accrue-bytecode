@@ -18,7 +18,7 @@ import analysis.dataflow.interprocedural.pdg.graph.node.AbstractLocationPDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
-import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryNodes;
+import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryPDGNodes;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.Unit;
 
@@ -60,9 +60,9 @@ import com.ibm.wala.types.TypeReference;
  * edges to a program dependence graph (PDG). The nodes at basic block and
  * instruction boundaries and for the program points just after possible
  * exceptions are based on the results of another analysis (e.g.
- * {@link PDGNodeDataflow}.
+ * {@link ComputePDGNodesDataflow}.
  */
-public class PDGEdgeDataflow extends InstructionDispatchDataFlow<Unit> {
+public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Call graph node this data-flow is over
@@ -149,7 +149,7 @@ public class PDGEdgeDataflow extends InstructionDispatchDataFlow<Unit> {
      *            exception node for the program point just after an exception
      *            (of a particular type) is thrown in that basic block
      */
-    public PDGEdgeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util,
+    public AddPDGEdgesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util,
                                     Map<PDGNode, Set<PDGNode>> mergeNodes,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts,
@@ -180,7 +180,7 @@ public class PDGEdgeDataflow extends InstructionDispatchDataFlow<Unit> {
     protected void post(IR ir) {
         // Hook up the exceptions and returns to the summary nodes
         ISSABasicBlock exit = ir.getExitBlock();
-        ProcedureSummaryNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(currentNode);
+        ProcedureSummaryPDGNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(currentNode);
 
         PDGContext exExit = summary.getExceptionalExitContext();
         for (ISSABasicBlock pred : ir.getControlFlowGraph().getExceptionalPredecessors(exit)) {
@@ -681,7 +681,7 @@ public class PDGEdgeDataflow extends InstructionDispatchDataFlow<Unit> {
         Set<PDGNode> calleeNormalPCs = new LinkedHashSet<>();
         Set<PDGNode> calleeExceptionalPCs = new LinkedHashSet<>();
         for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
-            ProcedureSummaryNodes calleeSummary = PDGNodeFactory.findOrCreateProcedureSummary(callee);
+            ProcedureSummaryPDGNodes calleeSummary = PDGNodeFactory.findOrCreateProcedureSummary(callee);
             PDGContext calleeEntry = calleeSummary.getEntryContext();
             addEdge(normal.getPCNode(), calleeEntry.getPCNode(), PDGEdgeType.MERGE, entry);
 

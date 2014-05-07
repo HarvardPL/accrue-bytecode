@@ -14,7 +14,7 @@ import com.ibm.wala.types.TypeReference;
 public class PDGNodeFactory {
     private static final Map<AbstractLocation, AbstractLocationPDGNode> locationNodes = new LinkedHashMap<>();
     private static final Map<ExpressionNodeKey, ProcedurePDGNode> expressionNodes = new LinkedHashMap<>();
-    private static final Map<CGNode, ProcedureSummaryNodes> summaries = new LinkedHashMap<>();
+    private static final Map<CGNode, ProcedureSummaryPDGNodes> summaries = new LinkedHashMap<>();
 
     public static AbstractLocationPDGNode findOrCreateAbstractLocation(AbstractLocation loc) {
         assert loc != null : "Null location when creating PDGNode";
@@ -162,10 +162,10 @@ public class PDGNodeFactory {
      *            call graph node
      * @return summary nodes
      */
-    public static ProcedureSummaryNodes findOrCreateProcedureSummary(CGNode n) {
-        ProcedureSummaryNodes summary = summaries.get(n);
+    public static ProcedureSummaryPDGNodes findOrCreateProcedureSummary(CGNode n) {
+        ProcedureSummaryPDGNodes summary = summaries.get(n);
         if (summary == null) {
-            summary = new ProcedureSummaryNodes(n);
+            summary = new ProcedureSummaryPDGNodes(n);
             summaries.put(n, summary);
         }
         return summary;

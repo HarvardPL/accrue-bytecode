@@ -15,7 +15,7 @@ import com.ibm.wala.types.TypeReference;
  * formal arguments, returns, exceptions and control flow into and out of the
  * method (and context) represented by the call graph node.
  */
-public class ProcedureSummaryNodes {
+public class ProcedureSummaryPDGNodes {
 
     /**
      * Formal summary nodes
@@ -41,7 +41,7 @@ public class ProcedureSummaryNodes {
      * @param n
      *            call graph node
      */
-    public ProcedureSummaryNodes(CGNode n) {
+    public ProcedureSummaryPDGNodes(CGNode n) {
         formals = new LinkedList<>();
         for (int j = 0; j < n.getMethod().getNumberOfParameters(); j++) {
             formals.add(PDGNodeFactory.findOrCreateOther("formal-" + j, PDGNodeType.FORMAL_SUMMARY, n, j));

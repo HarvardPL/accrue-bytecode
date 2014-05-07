@@ -56,7 +56,7 @@ import com.ibm.wala.util.graph.impl.GraphInverter;
  * Data-flow that computes nodes entering and leaving instructions and for
  * exceptional control flow
  */
-public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
+public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGContext> {
 
     private final CGNode currentNode;
     private final PDGInterproceduralDataFlow interProc;
@@ -69,7 +69,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts;
     private final Map<CallSiteReference, PDGContext> calleeExceptionContexts;
 
-    public PDGNodeDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util) {
+    public ComputePDGNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util) {
         super(true);
         this.currentNode = currentNode;
         this.interProc = interProc;
@@ -112,7 +112,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
         if (getOutputLevel() >= 4) {
             System.err.println("Adding edges for " + PrettyPrinter.parseCGNode(currentNode));
         }
-        PDGEdgeDataflow edgeDF = new PDGEdgeDataflow(currentNode, interProc, util, mergeNodes, trueExceptionContexts,
+        AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, util, mergeNodes, trueExceptionContexts,
                                         falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
                                         getInstructionInput());
         edgeDF.dataflow();
@@ -241,7 +241,7 @@ public class PDGNodeDataflow extends InstructionDispatchDataFlow<PDGContext> {
      * facts should be non-empty
      * 
      * Do not call this method except to merge upon entering a basic block. Use
-     * {@link PDGNodeDataflow#mergeContexts()} instead.
+     * {@link ComputePDGNodesDataflow#mergeContexts()} instead.
      * <p>
      * {@inheritDoc}
      */
