@@ -17,11 +17,11 @@ public class PDGContext {
     public PDGNode getExceptionNode() {
         return exceptionNode;
     }
-    
+
     public PDGNode getPCNode() {
         return pcNode;
     }
-    
+
     public PDGNode getReturnNode() {
         return returnNode;
     }
@@ -61,5 +61,10 @@ public class PDGContext {
         } else if (!returnNode.equals(other.returnNode))
             return false;
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return "{" + returnNode + ", " + exceptionNode + ", " + pcNode + "}";
     }
 }

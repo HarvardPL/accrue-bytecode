@@ -85,10 +85,6 @@ public abstract class DataFlow<F> {
             while (changed) {
                 changed = false;
                 for (ISSABasicBlock current : scc) {
-                    if (getOutputLevel() >= 4) {
-                        System.err.println("FLOWING: BB" + current.getNumber() + " in "
-                                                        + PrettyPrinter.parseMethod(ir.getMethod()));
-                    }
                     Set<F> inItems = new LinkedHashSet<>(getNumPreds(current, g));
                     AnalysisRecord<F> previousResults = getAnalysisRecord(current);
                     Map<ISSABasicBlock, F> oldOutItems = previousResults == null ? null : previousResults.getOutput();
@@ -134,9 +130,7 @@ public abstract class DataFlow<F> {
                         // Do not analyze this block if it cannot be reached
                         // from any predecessor
                         if (verbose >= 1) {
-                            System.err.println("UNREACHABLE basic block:\n"
-                                                            + PrettyPrinter.basicBlockString(ir, current, "\t", "\n")
-                                                            + ir);
+                            System.err.println("UNREACHABLE basic block: BB" + current.getNumber());
                         }
                         continue;
                     }
@@ -147,12 +141,11 @@ public abstract class DataFlow<F> {
                     }
 
                     if (verbose >= 3) {
-                        System.err.print("FLOWING" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
-                        if (!current.iterator().hasNext()) {
-                            // Empty block
-                            System.err.println();
-                        }
-                        System.err.println("\t" + inItems);
+
+                        System.err.print("\nFLOWING BB" + current.getNumber() + ": in "
+                                                        + PrettyPrinter.parseMethod(ir.getMethod()) + "\n"
+                                                        + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
+                        System.err.println("INPUT:\t" + inItems);
                     }
 
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
@@ -187,12 +180,7 @@ public abstract class DataFlow<F> {
 
                     if (oldOutItems == null || !oldOutItems.equals(outItems)) {
                         if (verbose >= 3) {
-                            System.err.print("FLOWED" + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
-                            if (!current.iterator().hasNext()) {
-                                // empty block
-                                System.err.println();
-                            }
-                            System.err.println("\t" + outItems);
+                            System.err.println("OUTPUT:\n\t" + outItems);
                         }
                         changed = true;
                     }

@@ -55,6 +55,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n));
         }
         ComputePDGNodesDataflow df = new ComputePDGNodesDataflow(n, this, util);
+        df.setOutputLevel(getOutputLevel());
         df.dataflow();
         return UNIT_MAP;
     }
@@ -172,7 +173,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         if (cfg.getExceptionalSuccessors(source).contains(target)) {
             unreachableExEdge = pe.getExceptions(source, target, currentNode).isEmpty();
         }
-
+        
         return unreachableExEdge || getReachabilityResults().isUnreachable(source, target, currentNode);
     }
 

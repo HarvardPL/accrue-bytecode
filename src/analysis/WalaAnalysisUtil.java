@@ -55,6 +55,11 @@ public class WalaAnalysisUtil {
                 throw new RuntimeException("Missing entry point " + e);
             }
         }
+        // Have to add return to maintain the invariant that two basic blocks
+        // have more than one edge between them. Otherwise the exit basic block
+        // could have an exception edge and normal edge from the same basic
+        // block.
+        fakeRoot.addReturn(-1, false);
     }
 
     /**

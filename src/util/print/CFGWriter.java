@@ -51,6 +51,7 @@ public class CFGWriter {
      *            output will be written to this writer; will not be closed
      */
     public CFGWriter(IR ir) {
+        assert ir != null : "Cannot print CFG for null IR";
         this.ir = ir;
     }
 
@@ -71,7 +72,7 @@ public class CFGWriter {
         this.prefix = prefix;
         this.postfix = postfix;
         double spread = 1.0;
-        writer.write("strict digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep="
+        writer.write("digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep="
                                         + spread + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
                                         + "edge [fontsize=10]" + ";\n");
 

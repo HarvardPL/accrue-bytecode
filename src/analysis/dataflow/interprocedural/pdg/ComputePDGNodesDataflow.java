@@ -110,11 +110,12 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         // Add edges after finishing this analysis. This allows the set of nodes
         // to reach a fixed point before adding edges.
         if (getOutputLevel() >= 4) {
-            System.err.println("Adding edges for " + PrettyPrinter.parseCGNode(currentNode));
+            System.err.println("ADDING EDGES for " + PrettyPrinter.parseCGNode(currentNode));
         }
-        AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, util, mergeNodes, trueExceptionContexts,
-                                        falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
-                                        getInstructionInput());
+        AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, util, mergeNodes,
+                                        trueExceptionContexts, falseExceptionContexts, calleeExceptionContexts,
+                                        getOutputContexts(), getInstructionInput());
+        edgeDF.setOutputLevel(getOutputLevel());
         edgeDF.dataflow();
     }
 
@@ -252,7 +253,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                         + PrettyPrinter.parseCGNode(currentNode);
         PDGContext c;
         if (facts.size() == 1) {
-            c = facts.iterator().next();
+            return facts.iterator().next();
         } else {
             c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
         }
@@ -326,7 +327,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
         String desc = PrettyPrinter.valString(i.getArrayRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
@@ -342,7 +343,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
         String desc = PrettyPrinter.valString(i.getArrayRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         PDGContext npe = afterNPE.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterNPE.get(ExitType.NORMAL);
@@ -352,8 +353,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         String isOOB = PrettyPrinter.valString(i.getIndex(), ir) + " >= "
                                         + PrettyPrinter.valString(i.getArrayRef(), ir) + ".length";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(
-                                        TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current,
-                                        cfg);
+                                        TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current);
 
         PDGContext aioob = afterEx.get(ExitType.EXCEPTIONAL);
         normal = afterEx.get(ExitType.NORMAL);
@@ -397,7 +397,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
         String desc = PrettyPrinter.valString(i.getArrayRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         exContexts.put(TypeReference.JavaLangNullPointerException, afterNPE.get(ExitType.EXCEPTIONAL));
         PDGContext normal = afterNPE.get(ExitType.NORMAL);
@@ -407,8 +407,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         String isOOB = PrettyPrinter.valString(i.getIndex(), ir) + " >= "
                                         + PrettyPrinter.valString(i.getArrayRef(), ir) + ".length";
         Map<ExitType, PDGContext> afterAIOOB = handlePossibleException(
-                                        TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current,
-                                        cfg);
+                                        TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current);
         exContexts.put(TypeReference.JavaLangArrayIndexOutOfBoundsException, afterAIOOB.get(ExitType.EXCEPTIONAL));
         normal = afterAIOOB.get(ExitType.NORMAL);
 
@@ -417,7 +416,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         String arrayStoreDesc = "!" + PrettyPrinter.valString(i.getValue(), ir) + " instanceof "
                                         + PrettyPrinter.valString(i.getArrayRef(), ir) + ".elementType";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangArrayStoreException, normal,
-                                        arrayStoreDesc, current, cfg);
+                                        arrayStoreDesc, current);
         exContexts.put(TypeReference.JavaLangArrayStoreException, afterEx.get(ExitType.EXCEPTIONAL));
         normal = afterEx.get(ExitType.NORMAL);
 
@@ -453,7 +452,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
         String desc = PrettyPrinter.valString(i.getUse(1), ir) + " == 0";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangArithmeticException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         PDGContext ex = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
@@ -469,7 +468,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         String desc = "!" + PrettyPrinter.valString(i.getVal(), ir) + " instanceof "
                                         + PrettyPrinter.parseType(i.getDeclaredResultTypes()[0]);
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassCastException, in, desc,
-                                        current, cfg);
+                                        current);
 
         PDGContext classCast = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
@@ -505,7 +504,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         String desc = PrettyPrinter.valString(i.getRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
@@ -560,7 +559,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             // Could throw NPE
             String desc = PrettyPrinter.valString(i.getReceiver(), ir) + " == null";
             Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                            desc, current, cfg);
+                                            desc, current);
 
             npe = afterEx.get(ExitType.EXCEPTIONAL);
 
@@ -578,10 +577,12 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         // Node to representing the join of the caller PC before the call and
         // the PC after the call
-        PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther("EXIT_PC_JOIN", PDGNodeType.EXIT_PC_JOIN, currentNode,
+        String normalDesc = "NORMAL EXIT-PC-JOIN after " + PrettyPrinter.parseMethod(i.getDeclaredTarget());
+        PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther(normalDesc, PDGNodeType.EXIT_PC_JOIN, currentNode,
                                         new OrderedPair<>(i, ExitType.NORMAL));
 
-        PDGNode exExitPC = PDGNodeFactory.findOrCreateOther("EXIT_PC_JOIN", PDGNodeType.EXIT_PC_JOIN, currentNode,
+        String exDesc = "EX EXIT-PC-JOIN after " + PrettyPrinter.parseMethod(i.getDeclaredTarget());
+        PDGNode exExitPC = PDGNodeFactory.findOrCreateOther(exDesc, PDGNodeType.EXIT_PC_JOIN, currentNode,
                                         new OrderedPair<>(i, ExitType.EXCEPTIONAL));
 
         PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode);
@@ -640,7 +641,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
         String desc = PrettyPrinter.valString(i.getRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
@@ -653,7 +654,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGContext in = confluence(previousItems, current);
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNegativeArraySizeException,
-                                        in, "size < 0", current, cfg);
+                                        in, "size < 0", current);
 
         PDGContext negArraySize = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
@@ -674,7 +675,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
         String desc = PrettyPrinter.valString(i.getRef(), ir) + " == null";
         Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
-                                        desc, current, cfg);
+                                        desc, current);
 
         PDGContext npe = afterNPE.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterNPE.get(ExitType.NORMAL);
@@ -693,7 +694,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowSwitch(SSASwitchInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode newPC = PDGNodeFactory.findOrCreateOther("switch PC", PDGNodeType.PC_OTHER, currentNode, i);
+        PDGNode newPC = PDGNodeFactory.findOrCreateOther("switch-PC in " + PrettyPrinter.parseMethod(ir.getMethod()),
+                                        PDGNodeType.PC_OTHER, currentNode, i);
         return factToMap(new PDGContext(null, null, newPC), current, cfg);
     }
 
@@ -709,40 +711,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
-        // Check whether this is an exception edge with no exceptions
-        boolean unreachableExceptionEdge = false;
-        SSACFG cfg = currentNode.getIR().getControlFlowGraph();
-        if (cfg.getExceptionalSuccessors(source).contains(target)) {
-            PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
-            unreachableExceptionEdge = pe.getExceptions(source, target, currentNode).isEmpty();
-        }
-
-        return unreachableExceptionEdge
-                                        || interProc.getReachabilityResults()
-                                                                        .isUnreachable(source, target, currentNode);
-    }
-
-    /**
-     * Check whether an exception of the given type can be thrown by the basic
-     * block (on at least one successor edge).
-     * 
-     * @param type
-     *            type of exception
-     * @param bb
-     *            basic block to check
-     * @param cfg
-     *            control flow graph
-     * @return whether an exception of <code>type</code> can be thrown by
-     *         <code>bb</code>
-     */
-    private boolean mayThrowException(TypeReference type, ISSABasicBlock bb,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
-            if (interProc.getPreciseExceptionResults().getExceptions(bb, succ, currentNode).contains(type)) {
-                return true;
-            }
-        }
-        return false;
+        return interProc.isUnreachable(source, target, currentNode);
     }
 
     /**
@@ -762,17 +731,14 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      *            ArrayIndexOutOfBoundsException).
      * @param bb
      *            basic block that could throw the exception
-     * @param cfg
-     *            control flow graph
      * @return Two PDG contexts one for when the exception is not thrown and one
      *         for when it is thrown. If the exception cannot be thrown then the
      *         exceptional context will be null.
      */
     private Map<ExitType, PDGContext> handlePossibleException(TypeReference exType, PDGContext beforeException,
-                                    String branchDescription, ISSABasicBlock bb,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+                                    String branchDescription, ISSABasicBlock bb) {
         SSAInstruction i = getLastInstruction(bb);
-        if (mayThrowException(exType, bb, cfg)) {
+        if (interProc.getPreciseExceptionResults().canThrowException(exType, bb, currentNode)) {
             Map<ExitType, PDGContext> out = new LinkedHashMap<>();
             PDGNode truePC = PDGNodeFactory.findOrCreateOther(branchDescription, PDGNodeType.BOOLEAN_TRUE_PC,
                                             currentNode, i);

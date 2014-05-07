@@ -54,3 +54,5 @@ what are we losing in the PDG by not having a PC and value for each exception ty
 
 loadMetadata: This can throw a ClassNotFoundException, but this could be known
 statically if all the class files were known so it doesn't affect the PDG
+
+WALA-BUG: By default the fake root method has no return statement so it had normal and exception edges from a basic block to the exit block.

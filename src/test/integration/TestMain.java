@@ -134,7 +134,7 @@ public class TestMain {
             case "pdg":
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, 0);
-                r = runReachability(util, outputLevel, g);
+                r = runReachability(util, 0, g);
                 nonNull = runNonNull(util, 0, g, r);
                 preciseEx = runPreciseExceptions(util, 0, g, r, nonNull);
                 ProgramDependenceGraph pdg = runPDG(util, outputLevel, g, r, preciseEx);
@@ -167,8 +167,12 @@ public class TestMain {
     private static void printAllCFG(WalaAnalysisUtil util, PointsToGraph g) throws IOException {
 
         for (CGNode n : g.getCallGraph()) {
-            String fileName = "cfg_" + PrettyPrinter.parseCGNode(n).replace(" ", "");
-            printSingleCFG(util, n.getIR(), fileName);
+            if (!n.getMethod().isNative()) {
+                String fileName = "cfg_" + PrettyPrinter.parseCGNode(n).replace(" ", "");
+                printSingleCFG(util, n.getIR(), fileName);
+            } else {
+                System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
+            }
         }
     }
 
