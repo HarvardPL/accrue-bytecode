@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
+import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -67,6 +68,15 @@ public abstract class CallStatement extends PointsToStatement {
         this.actuals = actuals;
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
+    }
+    
+    
+    public boolean processNativeCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
+                                    Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
+        // TODO Auto-generated method stub
+
+        // TODO treat exceptions differently
+        return false;
     }
 
     /**

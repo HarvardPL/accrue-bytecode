@@ -48,11 +48,7 @@ public class LocalToLocalStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
-
-        boolean changed = false;
-        changed |= checkAllThrown(context, g, registrar);
-
-        return changed || g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
+        return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
     }
 
     @Override

@@ -200,12 +200,19 @@ public class StatementRegistrationPass {
         SSAInstruction i = info.instruction;
         IR ir = info.ir;
 
+        assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: "
+                                        + PrettyPrinter.instructionString(i, ir);
+
         // Add any class initializers required before executing this instruction
+        // TODO can be even more precise if we add a LoadClassStatement for each
+        // possible clinit, add that to the list of statements for the method
+        // containing the instruction that could load, and then make sure to
+        // only handle each one once in the pointer analysis
         addClassInitForInstruction(q, i, ir);
 
-        if (i.getNumberOfDefs() > 2) {
-            throw new RuntimeException("More than two defs in instruction: " + i.toString(ir.getSymbolTable()));
-        }
+        // Add statements for any JVM-generated exceptions this instruction
+        // could throw (e.g. NullPointerException)
+        registrar.addStatementsForGeneratedExceptions(i, ir, util.getClassHierarchy());
 
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
@@ -216,12 +223,6 @@ public class StatementRegistrationPass {
         case ARRAY_STORE:
             // v[i] = x
             registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir);
-            return;
-        
-        case MONITOR: 
-        case ARRAY_LENGTH: 
-        case BINARY_OP_EX: // division or remainder for integers
-            // TODO registrar.registerGeneratedExceptionThrow(i, ir);
             return;
         case CHECK_CAST:
             // v = (Type) x
@@ -283,13 +284,16 @@ public class StatementRegistrationPass {
             // throw e
             registrar.registerThrow((SSAThrowInstruction) i, ir);
             return;
+        case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op
+        case BINARY_OP_EX: // primitive op with generated exception
         case COMPARISON: // primitive op
         case CONDITIONAL_BRANCH: // computes primitive and branches
         case CONVERSION: // primitive op
         case GET_CAUGHT_EXCEPTION: // handled in PointsToStatement#checkThrown
         case GOTO: // control flow
         case INSTANCE_OF: // results in a primitive
+        case MONITOR: // generated exception already taken care of
         case SWITCH: // only switch on int
         case UNARY_NEG_OP: // primitive op
             break;

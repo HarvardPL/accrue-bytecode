@@ -75,10 +75,8 @@ public class FieldToLocalStatment extends PointsToStatement {
                 fields.add(fieldHeapContext);
             }
         }
-
-        boolean changed = checkAllThrown(context, g, registrar);
-
-        return changed || g.addEdges(left, fields);
+        
+        return g.addEdges(left, fields);
     }
 
     @Override

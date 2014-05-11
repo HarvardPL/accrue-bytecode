@@ -160,12 +160,10 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return new variable context with the value for the location replaced
      */
     public VarContext<T> setLocation(AbstractLocation loc, T val) {
-        if (val == null) {
-            throw new RuntimeException("Null vallues are not allowed for locations in a VarContext.");
-        }
         if (!trackHeapLocations || val.equals(getLocation(loc))) {
             return this;
         }
+        assert val != null : "No null values for locations";
         Map<AbstractLocation, T> newLocations = new LinkedHashMap<>(locations);
         newLocations.put(loc, val);
         return new VarContext<T>(locals, newLocations, returnResult, exceptionValue, trackHeapLocations,

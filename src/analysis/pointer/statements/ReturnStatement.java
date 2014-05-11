@@ -45,9 +45,7 @@ public class ReturnStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
-
-        // could throw IllegalMonitorStateException
-        return checkAllThrown(context, g, registrar) || g.addEdges(summaryRes, g.getPointsToSetFiltered(returnRes, summaryRes.getExpectedType()));
+        return g.addEdges(summaryRes, g.getPointsToSetFiltered(returnRes, summaryRes.getExpectedType()));
     }
 
     @Override

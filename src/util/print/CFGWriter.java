@@ -72,8 +72,8 @@ public class CFGWriter {
         this.prefix = prefix;
         this.postfix = postfix;
         double spread = 1.0;
-        writer.write("digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep="
-                                        + spread + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+        writer.write("digraph G {\n" + "node [shape=record];\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread
+                                        + ";\n" + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
                                         + "edge [fontsize=10]" + ";\n");
 
         writeGraph(writer);
@@ -152,6 +152,9 @@ public class CFGWriter {
             sb.append("BB" + bb.getNumber() + "\\l");
             if (bb.isEntryBlock()) {
                 sb.append("ENTRY\\l");
+                for (int j = 0; j < ir.getNumberOfParameters(); j++) {
+                    sb.append(PrettyPrinter.valString(ir.getParameter(j), ir) + " = param(" + j + ")\\l");
+                }
             }
             if (bb.isExitBlock()) {
                 sb.append("EXIT\\l");

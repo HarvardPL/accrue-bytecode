@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -11,17 +12,21 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariable;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
+import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
@@ -294,7 +299,9 @@ public class StatementRegistrar {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = getOrCreateLocal(i.getDef(), ir);
 
-        addStatement(new NewStatement(result, i.getNewSite(), cha, ir, i));
+        IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
+        assert klass != null : "No class found for " + PrettyPrinter.parseType(i.getNewSite().getDeclaredType());
+        addStatement(new NewStatement(result, klass, ir, i));
 
         // Handle arrays with multiple dimensions
         ReferenceVariable array = result;
@@ -303,7 +310,10 @@ public class StatementRegistrar {
             ReferenceVariable contents = getLocalForArrayContents(dim, array.getExpectedType().getArrayElementType(),
                                             i, ir);
             // Add an allocation for the contents
-            addStatement(new NewStatement(contents, i.getNewSite(), cha.lookupClass(contents.getExpectedType()), ir, i));
+            IClass arrayklass = cha.lookupClass(contents.getExpectedType());
+            assert arrayklass != null : "No class found for "
+                                            + PrettyPrinter.parseType(i.getNewSite().getDeclaredType());
+            addStatement(new NewStatement(contents, arrayklass, ir, i));
 
             // Add field assign from the field of the outer array to the array
             // contents
@@ -329,7 +339,9 @@ public class StatementRegistrar {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = getOrCreateLocal(i.getDef(), ir);
 
-        addStatement(new NewStatement(result, i.getNewSite(), cha, ir, i));
+        IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
+        assert klass != null : "No class found for " + PrettyPrinter.parseType(i.getNewSite().getDeclaredType());
+        addStatement(new NewStatement(result, klass, ir, i));
     }
 
     /**
@@ -404,7 +416,7 @@ public class StatementRegistrar {
      */
     protected void registerThrow(SSAThrowInstruction i, IR ir) {
         ReferenceVariable exception = getOrCreateLocal(i.getException(), ir);
-        addStatement(new ThrowStatement(exception, ir, i));
+        addAssignmentForThrownException(i, ir, exception);
     }
 
     /**
@@ -859,6 +871,48 @@ public class StatementRegistrar {
             } else if (!ir.equals(other.ir))
                 return false;
             return true;
+        }
+    }
+
+    protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, IClassHierarchy cha) {
+        for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
+            ReferenceVariable ex = getImplicitExceptionNode(exType, i, ir);
+            IClass exClass = cha.lookupClass(exType);
+            assert exClass != null : "No class found for " + PrettyPrinter.parseType(exType);
+            addStatement(NewStatement.newStatementForGeneratedException(ex, exClass, ir, i));
+            addAssignmentForThrownException(i, ir, ex);
+        }
+    }
+
+    /**
+     * Add an assignment from the a thrown exception to any catch block or exit
+     * block exception that exception could reach
+     * 
+     * @param i
+     *            instruction throwing the exception
+     * @param ir
+     *            code containing the instruction that throws
+     * @param thrown
+     *            reference variable representing the value of the exception
+     */
+    private final void addAssignmentForThrownException(SSAInstruction i, IR ir, ReferenceVariable thrown) {
+        Set<TypeReference> notType = new LinkedHashSet<>();
+
+        ISSABasicBlock bb = ir.getBasicBlockForInstruction(i);
+        for (ISSABasicBlock succ : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
+            ReferenceVariable caught;
+            if (succ.isCatchBlock()) {
+                SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) succ.iterator().next();
+                caught = getLocal(catchIns.getException(), ir);
+                Iterator<TypeReference> caughtTypes = bb.getCaughtExceptionTypes();
+                while (caughtTypes.hasNext()) {
+                    notType.add(caughtTypes.next());
+                }
+            } else {
+                assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
+                caught = getSummaryNodes(ir.getMethod()).getException();
+            }
+            addStatement(new ExceptionAssignmentStatement(thrown, caught, i, ir, notType));
         }
     }
 }

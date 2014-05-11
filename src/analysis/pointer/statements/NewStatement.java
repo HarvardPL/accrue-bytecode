@@ -8,11 +8,10 @@ import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
@@ -25,9 +24,9 @@ public class NewStatement extends PointsToStatement {
      */
     private final ReferenceVariable result;
     /**
-     * Constructor call site
+     * Class being created
      */
-    private final NewSiteReference newSite;
+    private final IClass newClass;
     /**
      * Reference variable for this allocation site
      */
@@ -39,8 +38,8 @@ public class NewStatement extends PointsToStatement {
      * 
      * @param result
      *            Points-to graph node for the assignee of the new
-     * @param newSite
-     *            allocation site
+     * @param newClass
+     *            Class being created
      * @param cha
      *            class hierarchy
      * @param ir
@@ -48,53 +47,64 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public NewStatement(ReferenceVariable result, NewSiteReference newSite, IClassHierarchy cha, IR ir, SSANewInstruction i) {
+    public NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i) {
         super(ir, i);
         this.result = result;
-        this.newSite = newSite;
-        IClass instantiated = cha.lookupClass(newSite.getDeclaredType());
-        assert (instantiated != null) : "No class found for " + PrettyPrinter.parseType(newSite.getDeclaredType());
-        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newSite.getDeclaredType()), instantiated, ir
+        this.newClass = newClass;
+        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newClass.getReference()), newClass, ir
                 .getMethod().getDeclaringClass());
     }
     
     /**
-     * Points-to graph statement for the (fake) allocation of the contents (inner array) of a multi-dimensional array
+     * Points-to graph statement for a "new" instruction, e.g. Object o = new
+     * Object()
      * 
      * @param result
      *            Points-to graph node for the assignee of the new
-     * @param newSite
-     *            allocation site for the entire multi-dimensional array
-     * @param arrayContentsClass
-     *            class for the array contents
+     * @param newClass
+     *            Class being created
+     * @param cha
+     *            class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public NewStatement(ReferenceVariable result, NewSiteReference newSite, IClass arrayContentsClass, IR ir, SSANewInstruction i) {
+    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInstruction i) {
         super(ir, i);
         this.result = result;
-        this.newSite = newSite;
-        IClass instantiated = arrayContentsClass;
-        assert (instantiated != null) : "No class found for " + PrettyPrinter.parseType(newSite.getDeclaredType());
-        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(arrayContentsClass.getReference()), instantiated, ir
+        this.newClass = newClass;
+        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newClass.getReference()), newClass, ir
                 .getMethod().getDeclaringClass());
+    }
+    
+    /**
+     * Get a points-to statement representing the allocation of a JVM generated
+     * exception (e.g. NullPointerException), and the assignment of this new
+     * exception to a local variable
+     * 
+     * @param exceptionAssignee
+     *            Reference variable for the local variable the exception is
+     *            assigned to after being created
+     * @param exceptionClass
+     *            Class for the exception
+     * @param ir
+     *            code containing the instruction throwing the exception
+     * @param i
+     *            exception throwing the exception
+     * @return a statement representing the allocation of a JVM generated
+     *         exception to a local variable
+     */
+    public static NewStatement newStatementForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
+                                    IR ir, SSAInstruction i) {
+        return new NewStatement(exceptionAssignee, exceptionClass, ir, i);
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         InstanceKey k = haf.record(context, alloc, getCode());
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
-
-        boolean changed = false;
-        if (alloc.getExpectedType().isArrayType()) {
-            // Arrays can throw negative array size exceptions
-            changed |= checkAllThrown(context, g, registrar);
-        }
-
-        // Add an edge from the assignee to the newly allocated object
-        return changed || g.addEdge(r, k);
+        return g.addEdge(r, k);
     }
 
     @Override
@@ -110,7 +120,7 @@ public class NewStatement extends PointsToStatement {
         final int prime = 31;
         int result = super.hashCode();
         result = prime * result + ((alloc == null) ? 0 : alloc.hashCode());
-        result = prime * result + ((newSite == null) ? 0 : newSite.hashCode());
+        result = prime * result + ((newClass == null) ? 0 : newClass.hashCode());
         result = prime * result + ((this.result == null) ? 0 : this.result.hashCode());
         return result;
     }
@@ -129,10 +139,10 @@ public class NewStatement extends PointsToStatement {
                 return false;
         } else if (!alloc.equals(other.alloc))
             return false;
-        if (newSite == null) {
-            if (other.newSite != null)
+        if (newClass == null) {
+            if (other.newClass != null)
                 return false;
-        } else if (!newSite.equals(other.newSite))
+        } else if (!newClass.equals(other.newClass))
             return false;
         if (result == null) {
             if (other.result != null)

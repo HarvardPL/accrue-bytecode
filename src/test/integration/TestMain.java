@@ -6,6 +6,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -22,16 +24,19 @@ import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
+import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementRegistrar;
 import analysis.pointer.statements.StatementRegistrationPass;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
@@ -44,6 +49,8 @@ import com.ibm.wala.util.config.AnalysisScopeReader;
  * Run one of the selected analyses or tests, see usage
  */
 public class TestMain {
+
+    private static String classPath;
 
     /**
      * Run one of the selected tests
@@ -88,6 +95,7 @@ public class TestMain {
                 util = setUpWala(entryPoint);
                 PointsToGraph g = generatePointsToGraph(util, outputLevel);
                 g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+                ((HafCallGraph)g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
 
                 System.err.println(g.getNodes().size() + " Nodes");
                 int num = 0;
@@ -184,12 +192,13 @@ public class TestMain {
      *             file issues
      */
     private static void printAllCFG(WalaAnalysisUtil util, PointsToGraph g) throws IOException {
-
+        Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
-            if (!n.getMethod().isNative()) {
-                String fileName = "cfg_" + PrettyPrinter.parseCGNode(n);
+            if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
+                String fileName = "cfg_" + PrettyPrinter.parseMethod(n.getMethod());
                 printSingleCFG(util, n.getIR(), fileName);
-            } else {
+                printed.add(n.getMethod());
+            } else if (n.getMethod().isNative()){
                 System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
             }
         }
@@ -210,7 +219,9 @@ public class TestMain {
         /********************************
          * Start of WALA set up code
          ********************************/
-        String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
+        if (classPath == null) {
+            classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
+        }
         File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
 
         AnalysisScope scope = AnalysisScopeReader.makePrimordialScope(exclusions);
@@ -281,9 +292,11 @@ public class TestMain {
         }
         StatementRegistrar registrar = pass.getRegistrar();
 
-        HeapAbstractionFactory context = new CallSiteSensitive();
+        HeapAbstractionFactory context = new CallSiteSensitive(1);
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
         PointsToGraph g = analysis.solve(registrar);
+        System.err.println(g.getNodes().size() + " PTG nodes.");
+        System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
         return g;
     }
 

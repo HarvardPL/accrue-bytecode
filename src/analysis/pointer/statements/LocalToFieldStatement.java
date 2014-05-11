@@ -99,8 +99,6 @@ public class LocalToFieldStatement extends PointsToStatement {
             changed |= g.addEdges(f, localHeapContexts);
         }
 
-        changed |= checkAllThrown(context, g, registrar);
-
         return changed;
     }
 

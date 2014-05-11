@@ -58,8 +58,6 @@ public class ArrayToLocalStatement extends PointsToStatement {
             changed |= g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
         }
 
-        changed |= checkAllThrown(context, g, registrar);
-
         return changed;
     }
 

@@ -1,5 +1,16 @@
 package analysis.pointer.graph;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 
@@ -65,5 +76,71 @@ public class HafCallGraph extends ExplicitCallGraph {
     @Override
     protected CGNode makeFakeRootNode() throws CancelException {
         return findOrCreateNode(fakeRoot, haf.initialContext());
+    }
+    
+    /**
+     * Print the call graph in graphviz dot format to a file
+     * 
+     * @param filename
+     *            name of the file, the file is put in tests/filename.dot
+     * @param addDate
+     *            if true then the date will be added to the filename
+     */
+    public void dumpCallGraphToFile(String filename, boolean addDate) {
+        String dir = "tests";
+        String file = filename;
+        if (addDate) {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
+            Date dateNow = new Date();
+            String now = dateFormat.format(dateNow);
+            file += now;
+        }
+        String fullFilename = dir + "/" + file + ".dot";
+        try {
+            Writer out = new BufferedWriter(new FileWriter(fullFilename));
+            out = dumpCallGraph(out);
+            out.close();
+            System.err.println("\nDOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    private Writer dumpCallGraph(Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                                        + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+                                        + "edge [fontsize=10]" + ";\n");
+
+        Map<String, Integer> dotToCount = new HashMap<>();
+        Map<CGNode, String> n2s = new HashMap<>();
+
+        // Need to differentiate between different nodes with the same string
+        for (CGNode n : this) {
+            String nStr = escape(PrettyPrinter.parseCGNode(n));
+            Integer count = dotToCount.get(nStr);
+            if (count == null) {
+                dotToCount.put(nStr, 1);
+            } else {
+                nStr += " (" + count + ")";
+                dotToCount.put(nStr, count + 1);
+            }
+            n2s.put(n, nStr);
+        }
+
+        for (CGNode source : this) {
+            Iterator<CGNode> iter = this.getSuccNodes(source);
+            while (iter.hasNext()) {
+                CGNode target = iter.next();
+                writer.write("\t\"" + n2s.get(source) + "\" -> \"" + n2s.get(target) + "\";\n");
+            }
+        }
+
+        writer.write("\n};\n");
+        return writer;
+    }
+    
+    private String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

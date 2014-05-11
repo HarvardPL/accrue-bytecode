@@ -64,8 +64,8 @@ public class VirtualCallStatement extends CallStatement {
      *            Instruction that generated this points-to statement
      */
     public VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
-            List<ReferenceVariable> actuals, ReferenceVariable resultNode, ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir,
-            SSAInvokeInstruction i) {
+                                    List<ReferenceVariable> actuals, ReferenceVariable resultNode,
+                                    ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir, SSAInvokeInstruction i) {
         super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.callee = callee;
         this.cha = cha;
@@ -75,7 +75,6 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
-
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             // find the callee.

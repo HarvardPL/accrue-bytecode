@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 import util.OrderedPair;
+import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 
@@ -53,14 +54,17 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         // Start out assuming successors are unreachable, if
         ReachabilityAbsVal normal = ReachabilityAbsVal.UNREACHABLE;
         ReachabilityAbsVal exceptional = ReachabilityAbsVal.UNREACHABLE;
+        assert !cg.getPossibleTargets(currentNode, i.getCallSite()).isEmpty() : "No calls to "
+                                        + PrettyPrinter.parseMethod(i.getDeclaredTarget()) + " from "
+                                        + PrettyPrinter.parseCGNode(currentNode);
         for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
             Map<ExitType, ReachabilityAbsVal> out = interProc.getResults(currentNode, callee, in);
             normal = normal.join(out.get(ExitType.NORMAL));
             exceptional = exceptional.join(out.get(ExitType.EXCEPTIONAL));
         }
-        // If non-static assume exceptional successors are reachable at least
-        // via NPE
-        return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : ReachabilityAbsVal.REACHABLE, bb, cfg);
+        // If non-static assume exceptional successors are as reachable as the in item (reachable at least
+        // via NPE)
+        return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : in.join(exceptional), bb, cfg);
     }
 
     @Override

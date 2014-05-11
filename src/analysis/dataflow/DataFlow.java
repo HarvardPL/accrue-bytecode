@@ -141,10 +141,11 @@ public abstract class DataFlow<F> {
                     }
 
                     if (verbose >= 3) {
-
-                        System.err.print("\nFLOWING BB" + current.getNumber() + ": in "
-                                                        + PrettyPrinter.parseMethod(ir.getMethod()) + "\n"
-                                                        + PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
+                        System.err.println("FLOWING BB" + current.getNumber() + ": in "
+                                                        + PrettyPrinter.parseMethod(ir.getMethod()));
+                    }
+                    if (verbose >= 4) {
+                        System.err.print(PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
                         System.err.println("INPUT:\t" + inItems);
                     }
 
@@ -180,13 +181,13 @@ public abstract class DataFlow<F> {
 
                     if (oldOutItems == null || !oldOutItems.equals(outItems)) {
                         if (verbose >= 3) {
-                            System.err.println("OUTPUT:\n\t" + outItems);
+                            System.err.println("OUTPUT BB" + current.getNumber() + ":\n\t" + outItems);
                         }
                         changed = true;
                     }
                 }
                 iterations++;
-                if (iterations >= 100) {
+                if (iterations >= 5) {
                     throw new RuntimeException("Analyzed the same SCC 100 times for method: "
                                                     + PrettyPrinter.parseMethod(ir.getMethod()));
                 }

@@ -56,7 +56,8 @@ public class SpecialCallStatement extends CallStatement {
      *            Instruction that generated this points-to statement
      */
     public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
-            List<ReferenceVariable> actuals, ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR ir, SSAInvokeInstruction i) {
+                                    List<ReferenceVariable> actuals, ReferenceVariable resultNode,
+                                    ReferenceVariable exceptionNode, IR ir, SSAInvokeInstruction i) {
         super(callSite, actuals, resultNode, exceptionNode, ir, i);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;
@@ -68,6 +69,8 @@ public class SpecialCallStatement extends CallStatement {
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
 
         boolean changed = false;
+        assert !g.getPointsToSet(receiverRep).isEmpty() : "receiver points to nothing in "
+                                        + PrettyPrinter.parseMethod(getCode().getMethod());
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);

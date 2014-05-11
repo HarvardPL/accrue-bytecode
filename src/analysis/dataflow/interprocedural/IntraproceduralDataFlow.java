@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
@@ -132,6 +133,10 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         Set<F> normals = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
             if (!isUnreachable(bb, exit)) {
+                assert getAnalysisRecord(bb) != null : "null record from " + "BB" + bb.getNumber()
+                                                + " to EXIT for " + PrettyPrinter.parseCGNode(currentNode);
+                assert getAnalysisRecord(bb).getOutput() != null : "null output from " + "BB" + bb.getNumber()
+                                                + " to EXIT for " + PrettyPrinter.parseCGNode(currentNode);
                 normals.add(getAnalysisRecord(bb).getOutput().get(exit));
             }
         }
@@ -153,6 +158,10 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         Set<F> exceptions = new LinkedHashSet<>();
         for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
             if (!isUnreachable(bb, exit)) {
+                assert getAnalysisRecord(bb) != null : "null record from " + "BB" + bb.getNumber()
+                                                + " to EXIT for " + PrettyPrinter.parseCGNode(currentNode);
+                assert getAnalysisRecord(bb).getOutput() != null : "null output from " + "BB" + bb.getNumber()
+                                                + " to EXIT for " + PrettyPrinter.parseCGNode(currentNode);
                 exceptions.add(getAnalysisRecord(bb).getOutput().get(exit));
             }
         }

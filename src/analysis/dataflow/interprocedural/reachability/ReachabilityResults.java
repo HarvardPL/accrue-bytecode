@@ -84,12 +84,22 @@ public class ReachabilityResults implements AnalysisResults {
         }
     }
 
-    public void writeAllToFiles() throws IOException {
+    public void writeAllToFiles() {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/reachability_" + PrettyPrinter.parseCGNode(n) + ".dot";
+            if (n.getMethod().isNative()) {
+                System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
+                continue;
+            }
+            String cgString = PrettyPrinter.parseCGNode(n);
+            if(cgString.length() > 200) {
+                cgString = cgString.substring(0, 200);
+            }
+            String fileName = "tests/reachability_" + cgString + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n);
                 System.err.println("DOT written to " + fileName);
+            } catch (IOException e) {
+                assert false;
             }
         }
     }

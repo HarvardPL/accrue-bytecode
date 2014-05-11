@@ -71,6 +71,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * Results of a reachability analysis
      */
     private final ReachabilityResults reachable;
+    /**
+     * debugging map to make sure there are infinite loops
+     */
+    private final Map<CGNode, Integer> requests = new HashMap<>();
 
     /**
      * Construct a new inter-procedural analysis over the given call graph
@@ -156,8 +160,30 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             i = 0;
         }
         i++;
-        if (i >= 5) {
-            throw new RuntimeException("Analyzed the same CG node " + i + " times for method: "
+        iterations.put(n, i);
+        if (i >= 100) {
+            throw new RuntimeException("Analyzed the same CG node " + i + " times: "
+                                            + PrettyPrinter.parseCGNode(n));
+        }
+        return i;
+    }
+    
+    /**
+     * Increment the counter giving the number of times the given node has been
+     * requested (and the request returned the latest results
+     * 
+     * @param n
+     *            node to increment for
+     * @return incremented counter
+     */
+    private int incrementRequestCounter(CGNode n) {
+        Integer i = requests.get(n);
+        if (i == null) {
+            i = 0;
+        }
+        i++;
+        if (i >= 100) {
+            throw new RuntimeException("Requested the same CG node " + i + " times for method: "
                                             + PrettyPrinter.parseCGNode(n));
         }
         return i;
@@ -228,12 +254,12 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * 
      */
     public Map<ExitType, F> getResults(CGNode caller, CGNode callee, F input) {
-        if (getOutputLevel() >= 2) {
+        if (getOutputLevel() >= 4) {
             System.err.println("GETTING:\n\t" + PrettyPrinter.parseCGNode(callee));
             System.err.println("\tFROM: " + PrettyPrinter.parseCGNode(caller));
             System.err.println("\tINPUT: " + input);
         }
-
+        incrementRequestCounter(callee);
         AnalysisRecord<F> previous = getLatestResults(callee);
 
         AnalysisRecord<F> results;
@@ -282,7 +308,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     private void printResults(CGNode n, String typeLabel, Map<ExitType, F> output) {
         if (getOutputLevel() >= 2) {
-            System.err.println("RESULTS:\n\t" + PrettyPrinter.parseCGNode(n));
+            System.err.print("RESULTS:\t" + PrettyPrinter.parseCGNode(n));
             System.err.println("\t" + typeLabel + ": " + output);
         }
     }

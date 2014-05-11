@@ -67,8 +67,6 @@ public class LocalToArrayStatement extends PointsToStatement {
             ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
             changed |= g.addEdges(contents, valHeapContexts);
         }
-        
-        changed |= checkAllThrown(context, g, registrar);
 
         return changed;
     }
