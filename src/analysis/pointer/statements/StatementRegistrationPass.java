@@ -116,11 +116,9 @@ public class StatementRegistrationPass {
             System.err.println(PrettyPrinter.parseMethod(m) + " will be registered.");
         }
         if (VERBOSE >= 2) {
-            Writer writer = new StringWriter();
-            PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-            System.err.print(writer.toString());
-            try {
-                writer.close();
+            try (Writer writer = new StringWriter()) {
+                PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+                System.err.print(writer.toString());
             } catch (IOException e) {
                 throw new RuntimeException();
             }
@@ -169,7 +167,8 @@ public class StatementRegistrationPass {
         return added;
     }
 
-    private void addFromNative(WorkQueue<InstrAndCode> q, IMethod m) {
+    @SuppressWarnings("unused")
+    private static void addFromNative(WorkQueue<InstrAndCode> q, IMethod m) {
         // TODO Statement registration not handling native methods yet
         if (VERBOSE >= 2) {
             System.err.println("\tNot adding statements from native methods yet " + PrettyPrinter.parseMethod(m));
@@ -230,7 +229,7 @@ public class StatementRegistrationPass {
             return;
         case GET_FIELD:
             // v = o.f
-            registrar.registerGetField((SSAGetInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerGetField((SSAGetInstruction) i, ir);
             return;
         case GET_STATIC:
             // v = ClassName.f
@@ -270,7 +269,7 @@ public class StatementRegistrationPass {
             return;
         case PUT_FIELD:
             // o.f = v
-            registrar.registerPutField((SSAPutInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerPutField((SSAPutInstruction) i, ir);
             return;
         case PUT_STATIC:
             // ClassName.f = v
@@ -282,7 +281,7 @@ public class StatementRegistrationPass {
             return;
         case THROW:
             // throw e
-            registrar.registerThrow((SSAThrowInstruction) i, ir);
+            registrar.registerThrow((SSAThrowInstruction) i, ir, util.getClassHierarchy());
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op

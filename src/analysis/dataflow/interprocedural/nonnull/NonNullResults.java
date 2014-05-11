@@ -19,7 +19,6 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 
@@ -66,7 +65,7 @@ public class NonNullResults implements AnalysisResults {
             return false;
         }
 
-        return results.isNonNull(valNum, i, containingNode.getIR());
+        return results.isNonNull(valNum, i);
     }
 
     /**
@@ -100,6 +99,9 @@ public class NonNullResults implements AnalysisResults {
          */
         private final Map<SSAInstruction, Set<Integer>> results = new HashMap<>();
 
+        public ResultsForNode() {
+        }
+
         /**
          * Whether the variable with the given value number is non-null just
          * <i>before</i> executing the given instruction
@@ -108,12 +110,10 @@ public class NonNullResults implements AnalysisResults {
          *            variable value number
          * @param i
          *            instruction
-         * @param ir
-         *            containing code
          * @return true if the variable represented by the value number is
          *         definitely not null
          */
-        public boolean isNonNull(int valNum, SSAInstruction i, IR ir) {
+        public boolean isNonNull(int valNum, SSAInstruction i) {
             Set<Integer> nonNulls = results.get(i);
             if (nonNulls == null) {
                 return false;
@@ -128,7 +128,7 @@ public class NonNullResults implements AnalysisResults {
          *            instruction
          * @return set of non-null value numbers
          */
-        private Set<Integer> getAllNonNull(SSAInstruction i) {
+        protected Set<Integer> getAllNonNull(SSAInstruction i) {
             Set<Integer> res = results.get(i);
             if (res == null) {
                 return Collections.emptySet();
@@ -195,7 +195,7 @@ public class NonNullResults implements AnalysisResults {
             }
         }
     }
-    
+
     public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
             String fileName = "tests/nonnull_" + PrettyPrinter.parseCGNode(n) + ".dot";

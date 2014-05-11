@@ -19,11 +19,11 @@ public class WorkQueue<T> implements Collection<T> {
     /**
      * Internal Q
      */
-    private Deque<T> q = new LinkedBlockingDeque<T>();
+    private Deque<T> q = new LinkedBlockingDeque<>();
     /**
      * Mirror of Q used to quickly check containment
      */
-    private Set<T> qSet = new HashSet<T>();
+    private Set<T> qSet = new HashSet<>();
 
     /**
      * Create an empty queue

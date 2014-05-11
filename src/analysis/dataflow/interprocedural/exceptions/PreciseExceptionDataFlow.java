@@ -120,9 +120,8 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     }
 
     @Override
-    protected void postBasicBlock(Set<PreciseExceptionAbsVal> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
-                                    Map<ISSABasicBlock, PreciseExceptionAbsVal> outItems) {
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, PreciseExceptionAbsVal> outItems) {
 
         for (ISSABasicBlock next : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(next) != null && !outItems.get(next).isEmpty()) {
@@ -141,7 +140,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             }
         }
 
-        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
+        super.postBasicBlock(cfg, justProcessed, outItems);
     }
 
     @Override

@@ -178,7 +178,7 @@ public class CFGWriter {
      *            string to escape
      * @return dot-safe string
      */
-    private String escapeDot(String s) {
+    private static String escapeDot(String s) {
         return s.replace("\"", "\\\"").replace("\n", "\\l");
     }
 
@@ -188,7 +188,7 @@ public class CFGWriter {
      * @param i
      * @return
      */
-    protected String getPostfix(SSAInstruction i) {
+    protected String getPostfix(@SuppressWarnings("unused") SSAInstruction i) {
         return postfix;
     }
 
@@ -198,7 +198,7 @@ public class CFGWriter {
      * @param i
      * @return
      */
-    protected String getPrefix(SSAInstruction i) {
+    protected String getPrefix(@SuppressWarnings("unused") SSAInstruction i) {
         return prefix;
     }
 
@@ -209,6 +209,7 @@ public class CFGWriter {
      * @param cfg
      * @return
      */
+    @SuppressWarnings({ "unused", "static-method" })
     protected Set<ISSABasicBlock> getUnreachableSuccessors(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return Collections.emptySet();
@@ -222,6 +223,7 @@ public class CFGWriter {
      * @param ir
      * @return
      */
+    @SuppressWarnings("unused")
     protected String getExceptionEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
         return ExitType.EXCEPTIONAL.toString();
     }
@@ -234,6 +236,7 @@ public class CFGWriter {
      * @param ir
      * @return
      */
+    @SuppressWarnings("unused")
     protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
         return ExitType.NORMAL.toString();
     }

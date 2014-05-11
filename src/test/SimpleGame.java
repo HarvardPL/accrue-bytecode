@@ -15,7 +15,7 @@ public class SimpleGame {
         }
     }
 
-    private static void output(String outputString) {
+    private static void output(@SuppressWarnings("unused") String outputString) {
         // Output the string
     }
 
@@ -24,6 +24,7 @@ public class SimpleGame {
         return 0;
     }
 
+    @SuppressWarnings("unused")
     private static int getRandom(int i, int j) {
         // Get a random number between i and j
         return 0;

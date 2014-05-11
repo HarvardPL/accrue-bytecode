@@ -4,14 +4,20 @@ import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariable;
+import analysis.pointer.graph.ReferenceVariableReplica;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.types.TypeReference;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
+
+    private final ReferenceVariable thrown;
+    private final ReferenceVariable caught;
+    private final Set<IClass> notType;
 
     /**
      * Statement for the assignment from a thrown exception to a caught
@@ -31,14 +37,18 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      *            types must have been caught by previous catch blocks
      */
     public ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, SSAInstruction i, IR ir,
-                                    Set<TypeReference> notType) {
+                                    Set<IClass> notType) {
         super(ir, i);
+        this.thrown = thrown;
+        this.caught = caught;
+        this.notType = notType;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        // TODO Auto-generated method stub
-        return false;
+        PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
+        PointsToGraphNode r = new ReferenceVariableReplica(context, thrown);
+        return g.addEdges(l, g.getPointsToSetFiltered(r, thrown.getExpectedType(), notType));
     }
 
 }

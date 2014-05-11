@@ -180,6 +180,7 @@ public class PointsToGraph {
             // TODO assuming we have a precise type could be dangerous
             if (cha.isSubclassOf(klass, isClass)) {
                 if (areNotTypes) {
+                    assert notTypes != null;
                     for (IClass notClass : notTypes) {
                         if (cha.isSubclassOf(klass, notClass)) {
                             // klass is a subclass of one of the classes we do
@@ -296,17 +297,15 @@ public class PointsToGraph {
             file += now;
         }
         String fullFilename = dir + "/" + file + ".dot";
-        try {
-            Writer out = new BufferedWriter(new FileWriter(fullFilename));
-            out = dumpPointsToGraph(out);
-            out.close();
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpPointsToGraph(out);
             System.err.println("\nDOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
     }
 
-    private String escape(String s) {
+    private static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
@@ -389,7 +388,7 @@ public class PointsToGraph {
      */
     public Map<IMethod, Set<Context>> getAndClearNewContexts() {
         Map<IMethod, Set<Context>> newC = newContexts;
-        newContexts = new LinkedHashMap<IMethod, Set<Context>>();
+        newContexts = new LinkedHashMap<>();
         return newC;
     }
 

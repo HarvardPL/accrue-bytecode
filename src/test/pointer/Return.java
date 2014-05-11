@@ -10,8 +10,7 @@ public class Return {
     private static Object foo(int x) {
         if (x > 7) {
             return new Object();
-        } else {
-            return new Return();
         }
+        return new Return();
     }
 }

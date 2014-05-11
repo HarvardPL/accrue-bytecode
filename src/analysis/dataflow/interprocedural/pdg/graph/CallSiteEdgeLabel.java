@@ -19,7 +19,7 @@ public class CallSiteEdgeLabel {
      * Map from the call site to ID for the edge, used to correlate call and
      * return sites
      */
-    private static final HashMap<CallSiteKey, Integer> idMap = new HashMap<CallSiteKey, Integer>();
+    private static final HashMap<CallSiteKey, Integer> idMap = new HashMap<>();
 
     /**
      * Counter for unique IDs
@@ -51,7 +51,7 @@ public class CallSiteEdgeLabel {
      * 
      * @return Unique ID for the call site
      */
-    private Integer getID(CallSiteReference site, CGNode n) {
+    private static Integer getID(CallSiteReference site, CGNode n) {
         CallSiteKey key = new CallSiteKey(site, n);
         Integer id = idMap.get(key);
         if (id == null) {

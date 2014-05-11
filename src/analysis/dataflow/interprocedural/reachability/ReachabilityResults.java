@@ -24,9 +24,10 @@ public class ReachabilityResults implements AnalysisResults {
      * Reachability results where everything is reachable
      */
     public static final ReachabilityResults ALWAYS_REACHABLE = new ReachabilityResults() {
+        @Override
         public boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode containingNode) {
             return false;
-        };
+        }
     };
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();

@@ -2,6 +2,7 @@ package test.pointer;
 
 public class StaticFieldSubClass {
     
+    @SuppressWarnings("static-access")
     public static void main(String[] args) {
         @SuppressWarnings("unused")
         Object maino = D.o;
@@ -12,6 +13,6 @@ public class StaticFieldSubClass {
     }
     
     static class D extends C {
-        
+       //foo 
     }
 }

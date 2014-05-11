@@ -162,12 +162,11 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         i++;
         iterations.put(n, i);
         if (i >= 100) {
-            throw new RuntimeException("Analyzed the same CG node " + i + " times: "
-                                            + PrettyPrinter.parseCGNode(n));
+            throw new RuntimeException("Analyzed the same CG node " + i + " times: " + PrettyPrinter.parseCGNode(n));
         }
         return i;
     }
-    
+
     /**
      * Increment the counter giving the number of times the given node has been
      * requested (and the request returned the latest results
@@ -265,13 +264,13 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         AnalysisRecord<F> results;
         if (previous != null && existingResultSuitable(input, previous)) {
             results = previous;
-            printResults(callee, "PREVIOUS", results.output);
+            printResults(callee, "PREVIOUS", results.getOutput());
         } else {
             if (previous == null) {
-                results = new AnalysisRecord<F>(input, getDefaultOutput(input), false);
+                results = new AnalysisRecord<>(input, getDefaultOutput(input), false);
             } else {
                 // TODO use widen for back edges
-                results = new AnalysisRecord<F>(input.join(previous.getInput()), previous.output, false);
+                results = new AnalysisRecord<>(input.join(previous.getInput()), previous.getOutput(), false);
             }
 
             if (currentlyProcessing.contains(callee)) {
@@ -281,7 +280,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
                 recordedResults.put(callee, results);
                 printResults(callee, "LATEST", results.getOutput());
             } else {
-                results = processCallGraphNode(callee, results.input, previous == null ? null : previous.getOutput());
+                results = processCallGraphNode(callee, results.getInput(),
+                                                previous == null ? null : previous.getOutput());
             }
         }
 
@@ -293,7 +293,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         // Record whether sound results will be returned to the caller
         soundResultsSoFar.put(caller, isSoundResultsSoFar(caller) && results.isSoundResult());
-        return results.output;
+        return results.getOutput();
     }
 
     /**
@@ -349,7 +349,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         } else {
             output = analyze(n, input);
         }
-        AnalysisRecord<F> results = new AnalysisRecord<F>(input, output, isSoundResultsSoFar(n));
+        AnalysisRecord<F> results = new AnalysisRecord<>(input, output, isSoundResultsSoFar(n));
         recordedResults.put(n, results);
         currentlyProcessing.remove(n);
 

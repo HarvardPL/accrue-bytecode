@@ -19,6 +19,7 @@ public class SuperCall {
     }
     
     static class SubScratch extends SuperCall {
+        @Override
         public Object foo(Object fooSubArg) {
             Object subLocal = super.foo(fooSubArg);
             return subLocal;

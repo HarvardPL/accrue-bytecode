@@ -70,7 +70,7 @@ public abstract class DataFlow<F> {
         ControlFlowGraph<SSAInstruction, ISSABasicBlock> g = ir.getControlFlowGraph();
         Graph<ISSABasicBlock> flowGraph = g;
         if (!forward) {
-            flowGraph = new InvertedGraph<ISSABasicBlock>(flowGraph);
+            flowGraph = new InvertedGraph<>(flowGraph);
         }
 
         // Compute SCCs and iterate through them
@@ -111,7 +111,7 @@ public abstract class DataFlow<F> {
                             continue;
                         }
 
-                        Map<ISSABasicBlock, F> items = getAnalysisRecord(pred).output;
+                        Map<ISSABasicBlock, F> items = getAnalysisRecord(pred).getOutput();
                         F item = items.get(current);
                         inItems.add(item);
                         if (item == null) {
@@ -518,7 +518,7 @@ public abstract class DataFlow<F> {
         }
 
         assert falseBranch != null && trueBranch != null;
-        return new OrderedPair<ISSABasicBlock, ISSABasicBlock>(trueBranch, falseBranch);
+        return new OrderedPair<>(trueBranch, falseBranch);
     }
 
     /**
@@ -549,7 +549,7 @@ public abstract class DataFlow<F> {
      *            class hierarchy
      * @return set of basic blocks that may
      */
-    protected Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
+    protected static Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current,
                                     IClassHierarchy cha) {
         // TODO redo exception successors in a cleaner way

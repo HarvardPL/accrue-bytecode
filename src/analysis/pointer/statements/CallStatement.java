@@ -1,20 +1,28 @@
 package analysis.pointer.statements;
 
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
-import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.ReferenceVariable;
+import util.print.PrettyPrinter;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
 
 import com.ibm.wala.classLoader.CallSiteReference;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.ISSABasicBlock;
+import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
@@ -62,21 +70,34 @@ public abstract class CallStatement extends PointsToStatement {
      *            Instruction that generated this points-to statement
      */
     public CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-            ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i) {
+                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i) {
         super(callerIR, i);
         this.callSite = callSite;
         this.actuals = actuals;
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
     }
-    
-    
-    public boolean processNativeCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
-                                    Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
-        // TODO Auto-generated method stub
 
-        // TODO treat exceptions differently
-        return false;
+    public boolean processNativeCall(Context callerContext, @SuppressWarnings("unused") InstanceKey receiver,
+                                    IMethod resolvedCallee, Context calleeContext, PointsToGraph g,
+                                    StatementRegistrar registrar) {
+        // TODO Handle native calls more carefully
+        boolean changed = false;
+
+        // Record the call
+        changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
+
+        // ///////////////// Exceptions //////////////////
+
+        // Add edge from the exception in the callee to the exception in the
+        // caller
+        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
+
+        for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
+            // check if the exception is caught or re-thrown by this procedure
+            changed |= checkThrown(exType, callerEx, callerContext, g, registrar);
+        }
+        return changed;
     }
 
     /**
@@ -97,17 +118,30 @@ public abstract class CallStatement extends PointsToStatement {
      * @return true if the points-to graph has changed
      */
     protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
-            Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
+                                    Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
+        if (resolvedCallee.isNative()) {
+            return processNativeCall(callerContext, receiver, resolvedCallee, calleeContext, g, registrar);
+        }
+
         boolean changed = false;
 
         // Record the call
         changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
-        if (resolvedCallee.isNative()) {
-            // TODO Pointer Analysis not handling native methods yet
-            return false;
+
+        // ///////////////// Exceptions //////////////////
+
+        // Add edge from the exception in the callee to the exception in the
+        // caller
+        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
+
+        for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
+            // check if the exception is caught or re-thrown by this procedure
+            changed |= checkThrown(exType, callerEx, callerContext, g, registrar);
         }
 
         MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
+        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
+        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
 
         // add edge from "this" in the callee to the receiver
         // if this is a static call then the receiver will be null
@@ -141,22 +175,9 @@ public abstract class CallStatement extends PointsToStatement {
             assert (calleeSummary.getReturnNode() != null);
             resultRep = getReplica(callerContext, getResultNode());
             ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
-                    calleeSummary.getReturnNode());
+                                            calleeSummary.getReturnNode());
 
             changed |= g.addEdges(resultRep, g.getPointsToSetFiltered(returnValueFormal, resultRep.getExpectedType()));
-        }
-
-        // ///////////////// Exceptions //////////////////
-
-        // Add edge from the exception in the callee to the exception in the
-        // caller
-        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
-        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
-        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
-
-        for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
-            // check if the exception is caught or re-thrown by this procedure
-            changed |= checkThrown(exType, callerEx, callerContext, g, registrar);
         }
 
         return changed;
@@ -196,7 +217,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            reference variable to get replica for
      * @return replica for the given reference variable
      */
-    protected ReferenceVariableReplica getReplica(Context context, ReferenceVariable r) {
+    protected static ReferenceVariableReplica getReplica(Context context, ReferenceVariable r) {
         return new ReferenceVariableReplica(context, r);
     }
 
@@ -215,5 +236,184 @@ public abstract class CallStatement extends PointsToStatement {
      */
     public ReferenceVariable getResultNode() {
         return resultNode;
+    }
+
+    /**
+     * Check if an exception of type <code>currentExType</code> is caught or
+     * re-thrown, and modify the points-to graph accordingly
+     * 
+     * @param currentExType
+     *            type of the exception
+     * @param e
+     *            exception points-to graph node
+     * @param currentContext
+     *            current code context
+     * @param g
+     *            points-to graph (may be modified)
+     * @param registrar
+     *            points-to statement registrar
+     * @return true if the points-to graph changed
+     */
+    protected final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
+                                    PointsToGraph g, StatementRegistrar registrar) {
+        // Find successor catch blocks
+        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), registrar, currentContext);
+
+        IClassHierarchy cha = g.getClassHierarchy();
+        IClass thrown = cha.lookupClass(currentExType);
+        @SuppressWarnings("unused")
+        Set<IClass> alreadyCaught = new LinkedHashSet<IClass>();
+        boolean isRethrown = false;
+        boolean changed = false;
+
+        // See if there is a catch block that catches this exception
+        for (CatchBlock cb : catchBlocks) {
+            while (cb.caughtTypes.hasNext()) {
+                TypeReference caughtType = cb.caughtTypes.next();
+                IClass caught = cha.lookupClass(caughtType);
+                if (cha.isSubclassOf(thrown, caught)) {
+                    return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
+                } else if (cha.isSubclassOf(caught, thrown)) {
+                    // The catch type is a subtype of the exception being thrown
+                    // so it could be caught (due to imprecision (due to
+                    // imprecision for exceptions thrown by native calls))
+
+                    // TODO keep track of imprecise exception types
+
+                    alreadyCaught.add(caught);
+                    changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
+                }
+            }
+        }
+
+        // There may not be a catch block so this exception may be re-thrown
+        Set<TypeReference> throwTypes = TypeRepository.getThrowTypes(getCode().getMethod());
+        for (TypeReference exType : throwTypes) {
+            IClass exClass = cha.lookupClass(exType);
+            if (cha.isSubclassOf(exClass, thrown)) {
+                // may fall under this throw type.
+                // exceptions are often not precisely typed
+                // TODO keep track of when they are not precise
+                // (e.g. implicit exceptions are not precise)
+                isRethrown = true;
+                break;
+            }
+            if (cha.isSubclassOf(thrown, exClass)) {
+                // does fall under this throw type.
+                isRethrown = true;
+                break;
+            }
+        }
+
+        if (!isRethrown) {
+            throw new RuntimeException("Exception of type " + PrettyPrinter.parseType(currentExType)
+                                            + " may not be handled or rethrown.");
+        }
+
+        // add edge if this exception can be rethrown
+        MethodSummaryNodes callerSummary = registrar.getSummaryNodes(getCode().getMethod());
+        ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
+                                        callerSummary.getException());
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
+
+        return changed;
+    }
+
+    /**
+     * Information about a catch block
+     */
+    private static class CatchBlock {
+        /**
+         * Types of exceptions caught by this catch block
+         */
+        protected final Iterator<TypeReference> caughtTypes;
+        /**
+         * Points-to graph node for the formal argument to the catch block
+         */
+        protected final ReferenceVariableReplica formalNode;
+
+        /**
+         * Create a new catch block
+         * 
+         * @param caughtTypes
+         *            iterator for types caught by this catch block
+         * @param formalNode
+         *            Points-to graph node for the formal argument to the catch
+         *            block
+         */
+        public CatchBlock(Iterator<TypeReference> caughtTypes, ReferenceVariableReplica formalNode) {
+            this.caughtTypes = caughtTypes;
+            this.formalNode = formalNode;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((caughtTypes == null) ? 0 : caughtTypes.hashCode());
+            result = prime * result + ((formalNode == null) ? 0 : formalNode.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            CatchBlock other = (CatchBlock) obj;
+            if (caughtTypes == null) {
+                if (other.caughtTypes != null)
+                    return false;
+            } else if (!caughtTypes.equals(other.caughtTypes))
+                return false;
+            if (formalNode == null) {
+                if (other.formalNode != null)
+                    return false;
+            } else if (!formalNode.equals(other.formalNode))
+                return false;
+            return true;
+        }
+    }
+
+    /**
+     * Find catch blocks that are successors of a given block
+     * 
+     * @param fromBlock
+     *            block to get catch block successors of
+     * @param registrar
+     *            points-to statement registrar
+     * @param context
+     *            context the catch blocks occur in
+     * @return List of catch blocks in reachable order (i.e. the first element
+     *         of the list is the first reached)
+     */
+    protected final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, StatementRegistrar registrar,
+                                    Context context) {
+
+        // Find successor catch blocks in the CFG
+        SSACFG cfg = getCode().getControlFlowGraph();
+        List<ISSABasicBlock> catchBasicBlocks = cfg.getExceptionalSuccessors(fromBlock);
+
+        // Find exceptions caught by each successor block
+        List<CatchBlock> catchBlocks = new LinkedList<>();
+        for (ISSABasicBlock bb : catchBasicBlocks) {
+            if (bb.isExitBlock()) {
+                // the exit block considered a catch block, but we handle that
+                // differently in checkThrown by adding edges into summary
+                // exit nodes
+                continue;
+            }
+            Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
+            // The catch instruction is the first instruction in the basic block
+            SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
+            ReferenceVariable formalNode = registrar.getOrCreateLocal(catchIns.getException(), getCode());
+            ReferenceVariableReplica formalRep = new ReferenceVariableReplica(context, formalNode);
+            CatchBlock cb = new CatchBlock(types, formalRep);
+            catchBlocks.add(cb);
+        }
+        return catchBlocks;
     }
 }

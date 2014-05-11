@@ -36,7 +36,6 @@ import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
@@ -72,7 +71,8 @@ public class TestMain {
     public static void main(String[] args) {
         try {
             if (args.length != 3 && args.length != 4) {
-                throw new IllegalArgumentException("The test harness takes three or four arguments, see usage for details.");
+                throw new IllegalArgumentException(
+                                                "The test harness takes three or four arguments, see usage for details.");
             }
             String entryPoint = args[0];
             if (entryPoint.equals("--usage") || entryPoint.equals("--help") || entryPoint.equals("-h")) {
@@ -81,7 +81,7 @@ public class TestMain {
             }
             int outputLevel = Integer.parseInt(args[1]);
             String testName = args[2];
-            
+
             int fileLevel = 0;
             if (args.length > 3) {
                 fileLevel = Integer.parseInt(args[3]);
@@ -95,7 +95,7 @@ public class TestMain {
                 util = setUpWala(entryPoint);
                 PointsToGraph g = generatePointsToGraph(util, outputLevel);
                 g.dumpPointsToGraphToFile(fileName + "_ptg", false);
-                ((HafCallGraph)g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
+                ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
 
                 System.err.println(g.getNodes().size() + " Nodes");
                 int num = 0;
@@ -116,19 +116,19 @@ public class TestMain {
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
                 ir = util.getCache().getIR(entry.getMethod());
-                printSingleCFG(util, ir, fileName + "_main");
+                printSingleCFG(ir, fileName + "_main");
                 break;
             case "nonnull":
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, outputLevel);
-                ReachabilityResults r = runReachability(util, outputLevel, g);
+                ReachabilityResults r = runReachability(outputLevel, g);
                 NonNullResults nonNull = runNonNull(util, outputLevel, g, r);
                 nonNull.writeAllToFiles(r);
                 break;
             case "precise-ex":
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, outputLevel);
-                r = runReachability(util, outputLevel, g);
+                r = runReachability(outputLevel, g);
                 nonNull = runNonNull(util, outputLevel, g, r);
                 PreciseExceptionResults preciseEx = runPreciseExceptions(util, outputLevel, g, r, nonNull);
                 preciseEx.writeAllToFiles(r);
@@ -136,13 +136,13 @@ public class TestMain {
             case "reachability":
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, outputLevel);
-                r = runReachability(util, outputLevel, g);
+                r = runReachability(outputLevel, g);
                 r.writeAllToFiles();
                 break;
             case "cfg":
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, outputLevel);
-                printAllCFG(util, g);
+                printAllCFG(g);
                 break;
             case "pdg":
                 int otherOutputLevel = 0;
@@ -151,7 +151,7 @@ public class TestMain {
                 }
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, otherOutputLevel);
-                r = runReachability(util, otherOutputLevel, g);
+                r = runReachability(otherOutputLevel, g);
                 nonNull = runNonNull(util, otherOutputLevel, g, r);
                 preciseEx = runPreciseExceptions(util, otherOutputLevel, g, r, nonNull);
                 ProgramDependenceGraph pdg = runPDG(util, outputLevel, g, r, preciseEx);
@@ -163,12 +163,12 @@ public class TestMain {
                 if (fileLevel >= 1) {
                     pdg.intraProcDotToFile(1);
                 }
-                
+
                 if (fileLevel >= 2) {
                     r.writeAllToFiles();
                     nonNull.writeAllToFiles(r);
                     preciseEx.writeAllToFiles(r);
-                    printAllCFG(util, g);
+                    printAllCFG(g);
                 }
                 break;
             default:
@@ -188,17 +188,15 @@ public class TestMain {
      *            utility objects from WALA
      * @param g
      *            points to graph
-     * @throws IOException
-     *             file issues
      */
-    private static void printAllCFG(WalaAnalysisUtil util, PointsToGraph g) throws IOException {
+    private static void printAllCFG(PointsToGraph g) {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
             if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
                 String fileName = "cfg_" + PrettyPrinter.parseMethod(n.getMethod());
-                printSingleCFG(util, n.getIR(), fileName);
+                printSingleCFG(n.getIR(), fileName);
                 printed.add(n.getMethod());
-            } else if (n.getMethod().isNative()){
+            } else if (n.getMethod().isNative()) {
                 System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
             }
         }
@@ -303,21 +301,17 @@ public class TestMain {
     /**
      * Print the control flow graph for the given method
      * 
-     * @param util
-     *            WALA utility classes
      * @param IR
      *            code for the method to be printed
      * @param fileName
      *            file to save the results
      */
-    private static void printSingleCFG(WalaAnalysisUtil util, IR ir, String fileName) {
+    private static void printSingleCFG(IR ir, String fileName) {
         CFGWriter cfg = new CFGWriter(ir);
         String dir = "tests";
         String fullFilename = dir + "/" + fileName + ".dot";
-        try {
-            Writer out = new BufferedWriter(new FileWriter(fullFilename));
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             cfg.writeVerbose(out, "", "\\l");
-            out.close();
             System.err.println("DOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
@@ -372,14 +366,12 @@ public class TestMain {
     /**
      * Run the inter-procedural reachability analysis
      * 
-     * @param util
-     *            utility WALA classes
      * @param outputLevel
      *            logging level
      * @param g
      *            points-to graph
      */
-    private static ReachabilityResults runReachability(WalaAnalysisUtil util, int outputLevel, PointsToGraph g) {
+    private static ReachabilityResults runReachability(int outputLevel, PointsToGraph g) {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();

@@ -99,10 +99,11 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected Map<ISSABasicBlock, PDGContext> flow(Set<PDGContext> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        Set<PDGContext> flowInput = inItems;
         if (current.isEntryBlock()) {
-            inItems = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode).getEntryContext());
+            flowInput = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode).getEntryContext());
         }
-        return super.flow(inItems, cfg, current);
+        return super.flow(flowInput, cfg, current);
     }
 
     @Override
@@ -120,9 +121,9 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     }
 
     @Override
-    protected void postBasicBlock(Set<PDGContext> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, PDGContext> outItems) {
-        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+                                    Map<ISSABasicBlock, PDGContext> outItems) {
+        super.postBasicBlock(cfg, justProcessed, outItems);
 
         // 1. Make sure that the exception node is non-null iff the successor is
         // an exceptional successor
@@ -226,16 +227,14 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             if (rec != null) {
                 PDGContext postDomContext = confluence(getAnalysisRecord(postDominated).getInput(), bb);
                 return postDomContext.getPCNode();
-            } else {
-                // Have not analyzed the post-dom yet, must be a back edge, will
-                // restore after it has been analyzed
-                return null;
             }
-        } else {
-            // we can't restore the PC, since there is no unique PC to restore
-            // it to.
+            // Have not analyzed the post-dom yet, must be a back edge, will
+            // restore after it has been analyzed
             return null;
         }
+        // we can't restore the PC, since there is no unique PC to restore
+        // it to.
+        return null;
     }
 
     /**
@@ -253,9 +252,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext c;
         if (facts.size() == 1) {
             return facts.iterator().next();
-        } else {
-            c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
         }
+        c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
 
         PDGNode restorePC = handlePostDominators(bb);
         if (restorePC != null) {
@@ -750,9 +748,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             out.put(ExitType.NORMAL, normal);
             out.put(ExitType.EXCEPTIONAL, ex);
             return out;
-        } else {
-            return Collections.singletonMap(ExitType.NORMAL, beforeException);
         }
+        return Collections.singletonMap(ExitType.NORMAL, beforeException);
     }
 
     /**

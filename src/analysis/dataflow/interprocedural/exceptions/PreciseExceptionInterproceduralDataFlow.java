@@ -85,7 +85,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
         Map<ExitType, PreciseExceptionAbsVal> results = new HashMap<>();
         Set<TypeReference> types;
         try {
-            types = new LinkedHashSet<TypeReference>(Arrays.asList(n.getMethod().getDeclaredExceptions()));
+            types = new LinkedHashSet<>(Arrays.asList(n.getMethod().getDeclaredExceptions()));
         } catch (UnsupportedOperationException | InvalidClassFileException e) {
             throw new RuntimeException("Trouble getting exceptions from method "
                                             + PrettyPrinter.parseMethod(n.getMethod()));
@@ -98,7 +98,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
 
     @Override
     protected Map<ExitType, PreciseExceptionAbsVal> getDefaultOutput(PreciseExceptionAbsVal input) {
-        Map<ExitType, PreciseExceptionAbsVal> res = new HashMap<ExitType, PreciseExceptionAbsVal>();
+        Map<ExitType, PreciseExceptionAbsVal> res = new HashMap<>();
         res.put(ExitType.NORMAL, PreciseExceptionAbsVal.EMPTY);
         res.put(ExitType.EXCEPTIONAL, PreciseExceptionAbsVal.EMPTY);
         return res;
@@ -130,6 +130,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
      * @return the set of exceptions on each edge in each call graph node's
      *         control flow graph
      */
+    @Override
     public PreciseExceptionResults getAnalysisResults() {
         return preciseEx;
     }

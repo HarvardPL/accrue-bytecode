@@ -15,5 +15,7 @@ public class Phi {
         foo(o);
     }
 
-    private static void foo(Object o) {}
+    private static void foo(@SuppressWarnings("unused") Object o) {
+        //foo
+    }
 }

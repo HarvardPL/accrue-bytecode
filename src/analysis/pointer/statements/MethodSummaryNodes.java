@@ -48,9 +48,7 @@ public class MethodSummaryNodes {
      *            IR for the code
      */
     public MethodSummaryNodes(StatementRegistrar registrar, IR ir) {
-        if (ir == null) {
-            System.out.println("IR is null");
-        }
+        assert ir != null : "IR is null";
 
         boolean isStatic = ir.getMethod().isStatic();
         thisNode = isStatic ? null : registrar.getOrCreateLocal(ir.getParameter(0), ir);

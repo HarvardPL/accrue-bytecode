@@ -31,8 +31,8 @@ public class ProgramDependenceGraph implements AnalysisResults {
      * Create a new program dependence graph
      */
     public ProgramDependenceGraph() {
-        nodes = new LinkedHashSet<PDGNode>();
-        edges = new LinkedHashMap<PDGEdgeType, Set<PDGEdge>>();
+        nodes = new LinkedHashSet<>();
+        edges = new LinkedHashMap<>();
     }
 
     /**
@@ -104,7 +104,7 @@ public class ProgramDependenceGraph implements AnalysisResults {
         for (PDGEdgeType t : edges.keySet()) {
             result += edges.get(t).size() + " edges of type " + t + "\n";
         }
-        Map<PDGNodeType, Integer> nodeCounts = new LinkedHashMap<PDGNodeType, Integer>();
+        Map<PDGNodeType, Integer> nodeCounts = new LinkedHashMap<>();
         for (PDGNode n : nodes) {
             Integer count = nodeCounts.get(n.getNodeType());
             if (count == null) {
@@ -142,7 +142,7 @@ public class ProgramDependenceGraph implements AnalysisResults {
      *             writer issues
      */
     public void writeDot(Writer writer, boolean cluster, double spread) throws IOException {
-        Set<PDGEdge> edgeSet = new LinkedHashSet<PDGEdge>();
+        Set<PDGEdge> edgeSet = new LinkedHashSet<>();
         for (PDGEdgeType t : edges.keySet()) {
             edgeSet.addAll(edges.get(t));
         }
@@ -150,9 +150,9 @@ public class ProgramDependenceGraph implements AnalysisResults {
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                                         + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
                                         + "edge [fontsize=10]" + ";\n");
-        Map<PDGNode, String> nodeToDot = new LinkedHashMap<PDGNode, String>();
-        Map<String, Integer> dotToCount = new LinkedHashMap<String, Integer>();
-        Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<String, Set<PDGNode>>();
+        Map<PDGNode, String> nodeToDot = new LinkedHashMap<>();
+        Map<String, Integer> dotToCount = new LinkedHashMap<>();
+        Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<>();
 
         for (PDGNode n : nodes) {
             String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
@@ -170,7 +170,7 @@ public class ProgramDependenceGraph implements AnalysisResults {
             if (groupName != null) {
                 Set<PDGNode> nodesInContext = analysisUnitToNodes.get(groupName);
                 if (nodesInContext == null) {
-                    nodesInContext = new LinkedHashSet<PDGNode>();
+                    nodesInContext = new LinkedHashSet<>();
                     analysisUnitToNodes.put(groupName, nodesInContext);
                 }
                 nodesInContext.add(n);
@@ -224,15 +224,15 @@ public class ProgramDependenceGraph implements AnalysisResults {
      *             writer issues
      */
     public void intraProcDotToFile(double spread) throws IOException {
-        Set<PDGEdge> edgeSet = new LinkedHashSet<PDGEdge>();
+        Set<PDGEdge> edgeSet = new LinkedHashSet<>();
         for (PDGEdgeType t : edges.keySet()) {
             edgeSet.addAll(edges.get(t));
         }
 
-        Map<PDGNode, String> nodeToDot = new LinkedHashMap<PDGNode, String>();
-        Map<String, Integer> dotToCount = new LinkedHashMap<String, Integer>();
-        Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<String, Set<PDGNode>>();
-        Map<String, Set<PDGEdge>> analysisUnitToEdges = new LinkedHashMap<String, Set<PDGEdge>>();
+        Map<PDGNode, String> nodeToDot = new LinkedHashMap<>();
+        Map<String, Integer> dotToCount = new LinkedHashMap<>();
+        Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<>();
+        Map<String, Set<PDGEdge>> analysisUnitToEdges = new LinkedHashMap<>();
 
         for (PDGNode n : nodes) {
             String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
@@ -250,7 +250,7 @@ public class ProgramDependenceGraph implements AnalysisResults {
             if (groupName != null) {
                 Set<PDGNode> nodesInContext = analysisUnitToNodes.get(groupName);
                 if (nodesInContext == null) {
-                    nodesInContext = new LinkedHashSet<PDGNode>();
+                    nodesInContext = new LinkedHashSet<>();
                     analysisUnitToNodes.put(groupName, nodesInContext);
                 }
                 nodesInContext.add(n);
@@ -316,20 +316,20 @@ public class ProgramDependenceGraph implements AnalysisResults {
         /**
          * source of the edge
          */
-        private final PDGNode source;
+        final PDGNode source;
         /**
          * target of the edge
          */
-        private final PDGNode target;
+        final PDGNode target;
         /**
          * type of the edge
          */
-        private final PDGEdgeType type;
+        final PDGEdgeType type;
         /**
          * label of the call site one of these nodes is a summary for, null if
          * this is not an edge to/from a summary node
          */
-        private final CallSiteEdgeLabel label;
+        final CallSiteEdgeLabel label;
 
         /**
          * Create an edge to the PDG (to/from a summary node)
@@ -352,7 +352,7 @@ public class ProgramDependenceGraph implements AnalysisResults {
 
         @Override
         public String toString() {
-            return source + " -> " + target + " [" + type + "]" + label != null ? (" [" + label + "]") : "";
+            return source + " -> " + target + " [" + type + "]" + (label != null ? (" [" + label + "]") : "");
         }
 
         @Override

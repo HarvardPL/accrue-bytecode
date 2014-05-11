@@ -47,7 +47,7 @@ public class WalaAnalysisUtil {
         // Set up the entry points
         fakeRoot = new FakeRootMethod(cha, options, cache);
         for (Iterator<? extends Entrypoint> it = options.getEntrypoints().iterator(); it.hasNext();) {
-            Entrypoint e = (Entrypoint) it.next();
+            Entrypoint e = it.next();
             // Add in the fake root method that sets up the call to main
             SSAAbstractInvokeInstruction call = e.addCall(fakeRoot);
 

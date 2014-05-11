@@ -91,9 +91,6 @@ public class VirtualCallStatement extends CallStatement {
             Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
         }
-
-        changed |= checkAllThrown(context, g, registrar);
-
         return changed;
     }
 

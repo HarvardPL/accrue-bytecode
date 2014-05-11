@@ -7,6 +7,7 @@ public class NewAndCall {
         s.foo();
     }
 
+    @SuppressWarnings("static-method")
     private void foo() {
         @SuppressWarnings("unused")
         NewAndCall s = new NewAndCall();

@@ -185,6 +185,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
                     if (npeSuccs != null && npeSuccs.contains(exSucc)) {
+                        assert npe != null : "Null NPE context when an NPE can be thrown.";
                         // If this edge could be an NPE then join it with the
                         // callerEx
                         // TODO only join contexts if the callee could throw one
@@ -221,12 +222,14 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
      *            context to copy into
      * @return new context with values copied in
      */
-    private VarContext<NonNullAbsVal> updateActuals(List<NonNullAbsVal> newActualValues, List<Integer> actuals,
+    private static VarContext<NonNullAbsVal> updateActuals(List<NonNullAbsVal> newActualValues, List<Integer> actuals,
                                     VarContext<NonNullAbsVal> to) {
+
+        VarContext<NonNullAbsVal> out = to;
         for (int j = 1; j < actuals.size(); j++) {
-            to = to.setLocal(actuals.get(j), newActualValues.get(j));
+            out = out.setLocal(actuals.get(j), newActualValues.get(j));
         }
-        return to;
+        return out;
     }
 
     @Override
@@ -236,8 +239,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     }
 
     @Override
-    protected void postBasicBlock(Set<VarContext<NonNullAbsVal>> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
                                     Map<ISSABasicBlock, VarContext<NonNullAbsVal>> outItems) {
         for (SSAInstruction i : justProcessed) {
             assert getAnalysisRecord(i) != null : "No analysis record for "
@@ -252,7 +254,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             }
             ((NonNullInterProceduralDataFlow) interProc).getAnalysisResults().replaceNonNull(nonNulls, i, currentNode);
         }
-        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
+        super.postBasicBlock(cfg, justProcessed, outItems);
     }
 
     @Override

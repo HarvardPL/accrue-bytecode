@@ -72,10 +72,10 @@ public class OrderedPair<F, S> {
      *            type of second element
      */
     public static <F, S> Set<OrderedPair<F, S>> makeAllPairs(Set<F> firstSet, Set<S> secondSet) {
-        Set<OrderedPair<F, S>> pairs = new HashSet<OrderedPair<F, S>>();
+        Set<OrderedPair<F, S>> pairs = new HashSet<>();
         for (F fst : firstSet) {
             for (S snd : secondSet) {
-                pairs.add(new OrderedPair<F, S>(fst, snd));
+                pairs.add(new OrderedPair<>(fst, snd));
             }
         }
         return pairs;
@@ -95,7 +95,7 @@ public class OrderedPair<F, S> {
      *            type of second item
      */
     public static <F, S> Map<F, S> listToMap(List<OrderedPair<F, S>> list) {
-        LinkedHashMap<F, S> map = new LinkedHashMap<F, S>();
+        LinkedHashMap<F, S> map = new LinkedHashMap<>();
         for (OrderedPair<F, S> p : list) {
             map.put(p.fst, p.snd);
         }
@@ -113,10 +113,10 @@ public class OrderedPair<F, S> {
      * @return set of pairs of type (C,C)
      */
     public static <C> Set<OrderedPair<C, C>> makeIndenticalPairs(Set<C> set) {
-        Set<OrderedPair<C, C>> newSet = new HashSet<OrderedPair<C, C>>();
+        Set<OrderedPair<C, C>> newSet = new HashSet<>();
 
         for (C c : set) {
-            newSet.add(new OrderedPair<C, C>(c, c));
+            newSet.add(new OrderedPair<>(c, c));
         }
 
         return newSet;
@@ -128,7 +128,7 @@ public class OrderedPair<F, S> {
      * @return a pair with the elements swapped
      */
     public OrderedPair<S, F> swap() {
-        return new OrderedPair<S, F>(snd(), fst());
+        return new OrderedPair<>(snd(), fst());
     }
 
     /**

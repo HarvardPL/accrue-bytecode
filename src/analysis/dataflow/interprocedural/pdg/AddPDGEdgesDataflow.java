@@ -211,10 +211,6 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         }
     }
 
-    protected Unit confluence(Set<Unit> facts, ISSABasicBlock bb) {
-        return Unit.VALUE;
-    }
-
     @Override
     protected Unit flowBinaryOp(SSABinaryOpInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
@@ -628,16 +624,16 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Map<ISSABasicBlock, Unit> flowInvokeStatic(SSAInvokeInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return flowInvoke(i, previousItems, cfg, current);
+        return flowInvoke(i, cfg, current);
     }
 
     @Override
     protected Map<ISSABasicBlock, Unit> flowInvokeVirtual(SSAInvokeInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return flowInvoke(i, previousItems, cfg, current);
+        return flowInvoke(i, cfg, current);
     }
 
-    private Map<ISSABasicBlock, Unit> flowInvoke(SSAInvokeInstruction i, Set<Unit> previousItems,
+    private Map<ISSABasicBlock, Unit> flowInvoke(SSAInvokeInstruction i,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Labels for the entry and exit to this particular call these are used
         // to associate call sites with the associated exit (normal or
@@ -997,14 +993,13 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
             // Return normal context
             return falseContext;
-        } else {
-            return beforeException;
         }
+        return beforeException;
     }
 
     @Override
     protected Map<ISSABasicBlock, Unit> flowEmptyBlock(Set<Unit> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return factToMap(confluence(inItems, current), current, cfg);
+        return factToMap(Unit.VALUE, current, cfg);
     }
 }

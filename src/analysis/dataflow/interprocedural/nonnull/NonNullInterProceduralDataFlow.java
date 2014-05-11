@@ -86,7 +86,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
 
     @Override
     protected Map<ExitType, VarContext<NonNullAbsVal>> getDefaultOutput(VarContext<NonNullAbsVal> input) {
-        Map<ExitType, VarContext<NonNullAbsVal>> res = new HashMap<ExitType, VarContext<NonNullAbsVal>>();
+        Map<ExitType, VarContext<NonNullAbsVal>> res = new HashMap<>();
         res.put(ExitType.NORMAL, input.setReturnResult(NonNullAbsVal.MAY_BE_NULL));
         res.put(ExitType.EXCEPTIONAL, input.setExceptionValue(NonNullAbsVal.NON_NULL));
         return res;
@@ -118,6 +118,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      * 
      * @return which variables are non-null before each instruction
      */
+    @Override
     public NonNullResults getAnalysisResults() {
         return results;
     }

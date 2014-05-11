@@ -114,7 +114,7 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
          * @param irs
          *            Code for call sites in new stack
          */
-        private ContextStack(List<CallSiteReference> sites, List<IR> irs) {
+        ContextStack(List<CallSiteReference> sites, List<IR> irs) {
             assert (sites.size() == irs.size());
             this.sites = sites;
             this.irs = irs;
@@ -130,7 +130,7 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
          * @return new context stack with the given call site added
          */
         public ContextStack pushCallSite(CallSiteReference csn, IR ir, int sensitivity) {
-            ArrayList<CallSiteReference> s1 = new ArrayList<CallSiteReference>(sites.size() + 1);
+            ArrayList<CallSiteReference> s1 = new ArrayList<>(sites.size() + 1);
             ArrayList<IR> s2 = new ArrayList<>(sites.size() + 1);
             s1.add(csn);
             s1.addAll(sites);
@@ -194,10 +194,10 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
         @Override
         public ContextItem get(ContextKey name) {
             if (CALL_SITE_STACK_STRING.equals(name)) {
-                return new ContextItem.Value<List<CallSiteReference>>(this.sites);
+                return new ContextItem.Value<>(this.sites);
             }
             if (CALL_SITE_IR_STACK_STRING.equals(name)) {
-                return new ContextItem.Value<List<IR>>(this.irs);
+                return new ContextItem.Value<>(this.irs);
             }
             return null;
         }

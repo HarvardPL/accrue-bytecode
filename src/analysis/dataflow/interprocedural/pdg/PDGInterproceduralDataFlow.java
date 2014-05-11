@@ -128,7 +128,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
                     q.add(succ);
 
                     // Set up initial record
-                    AnalysisRecord<Unit> res = new AnalysisRecord<Unit>(getInitialContext(succ), null, true);
+                    AnalysisRecord<Unit> res = new AnalysisRecord<>(Unit.VALUE, null, true);
                     recordedResults.put(succ, res);
 
                     // Add to the inialization work-queue
@@ -138,10 +138,6 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         }
 
         super.preAnalysis(cg, q);
-    }
-
-    private Unit getInitialContext(CGNode succ) {
-        return Unit.VALUE;
     }
 
     @Override

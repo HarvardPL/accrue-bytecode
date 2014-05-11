@@ -83,7 +83,7 @@ public final class SingletonValueMap<K, V> implements Map<K, V> {
     public Set<java.util.Map.Entry<K, V>> entrySet() {
         Set<Entry<K, V>> entries = new LinkedHashSet<>();
         for (K key : keySet) {
-            entries.add(new AbstractMap.SimpleEntry<K, V>(key, value));
+            entries.add(new AbstractMap.SimpleEntry<>(key, value));
         }
         return Collections.unmodifiableSet(entries);
     }

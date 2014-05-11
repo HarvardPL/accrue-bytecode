@@ -145,7 +145,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
         }
         Map<Integer, T> newLocals = new LinkedHashMap<>(locals);
         newLocals.put(valueNumber, val);
-        return new VarContext<T>(newLocals, locations, returnResult, exceptionValue, trackHeapLocations,
+        return new VarContext<>(newLocals, locations, returnResult, exceptionValue, trackHeapLocations,
                                         untrackedHeapLocationValue);
     }
 
@@ -166,7 +166,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
         assert val != null : "No null values for locations";
         Map<AbstractLocation, T> newLocations = new LinkedHashMap<>(locations);
         newLocations.put(loc, val);
-        return new VarContext<T>(locals, newLocations, returnResult, exceptionValue, trackHeapLocations,
+        return new VarContext<>(locals, newLocations, returnResult, exceptionValue, trackHeapLocations,
                                         untrackedHeapLocationValue);
     }
 
@@ -178,7 +178,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return copy of the variable context with the new return value
      */
     public VarContext<T> setReturnResult(T returnAbsVal) {
-        return new VarContext<T>(locals, locations, returnAbsVal, exceptionValue, trackHeapLocations,
+        return new VarContext<>(locals, locations, returnAbsVal, exceptionValue, trackHeapLocations,
                                         untrackedHeapLocationValue);
     }
 
@@ -190,7 +190,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return copy of the variable context with the new exception value
      */
     public VarContext<T> setExceptionValue(T exceptionAbsVal) {
-        return new VarContext<T>(locals, locations, returnResult, exceptionAbsVal, trackHeapLocations,
+        return new VarContext<>(locals, locations, returnResult, exceptionAbsVal, trackHeapLocations,
                                         untrackedHeapLocationValue);
     }
 
@@ -312,7 +312,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
                                         c2.getReturnResult());
         T newExceptionValue = c1.getException() == null ? c2.getException() : c1.getException().join(c2.getException());
 
-        return new VarContext<T>(newLocals, newLocations, newReturnResult, newExceptionValue, c1.trackHeapLocations,
+        return new VarContext<>(newLocals, newLocations, newReturnResult, newExceptionValue, c1.trackHeapLocations,
                                         c1.untrackedHeapLocationValue);
     }
 
@@ -343,7 +343,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return variable context with no locals and no exits
      */
     public VarContext<T> clearLocalsAndExits() {
-        return new VarContext<T>(new LinkedHashMap<Integer, T>(), locations, null, null, trackHeapLocations,
+        return new VarContext<>(new LinkedHashMap<Integer, T>(), locations, null, null, trackHeapLocations,
                                         untrackedHeapLocationValue);
     }
 

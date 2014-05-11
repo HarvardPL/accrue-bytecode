@@ -68,9 +68,8 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     }
 
     @Override
-    protected void postBasicBlock(Set<ReachabilityAbsVal> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
-                                    Map<ISSABasicBlock, ReachabilityAbsVal> outItems) {
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, ReachabilityAbsVal> outItems) {
 
         for (ISSABasicBlock bb : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(bb) == null) {
@@ -84,7 +83,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
             }
         }
 
-        super.postBasicBlock(inItems, cfg, justProcessed, outItems);
+        super.postBasicBlock(cfg, justProcessed, outItems);
     }
 
     @Override

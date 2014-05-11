@@ -149,7 +149,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    protected void registerGetField(SSAGetInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerGetField(SSAGetInstruction i, IR ir) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
@@ -185,7 +185,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    protected void registerPutField(SSAPutInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerPutField(SSAPutInstruction i, IR ir) {
         if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // Assigning into a primitive field, or assigning null
             return;
@@ -383,6 +383,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing instruction
      */
+    @SuppressWarnings("unused")
     protected void registerReflection(SSALoadMetadataInstruction i, IR ir) {
         // TODO statement registrar not handling reflection yet
     }
@@ -414,9 +415,9 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    protected void registerThrow(SSAThrowInstruction i, IR ir) {
+    protected void registerThrow(SSAThrowInstruction i, IR ir, IClassHierarchy cha) {
         ReferenceVariable exception = getOrCreateLocal(i.getException(), ir);
-        addAssignmentForThrownException(i, ir, exception);
+        addAssignmentForThrownException(i, ir, exception, cha);
     }
 
     /**
@@ -579,7 +580,7 @@ public class StatementRegistrar {
      * @return set of all statements
      */
     public Set<PointsToStatement> getAllStatements() {
-        return new LinkedHashSet<PointsToStatement>(statements);
+        return new LinkedHashSet<>(statements);
     }
 
     /**
@@ -880,7 +881,7 @@ public class StatementRegistrar {
             IClass exClass = cha.lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.parseType(exType);
             addStatement(NewStatement.newStatementForGeneratedException(ex, exClass, ir, i));
-            addAssignmentForThrownException(i, ir, ex);
+            addAssignmentForThrownException(i, ir, ex, cha);
         }
     }
 
@@ -895,8 +896,8 @@ public class StatementRegistrar {
      * @param thrown
      *            reference variable representing the value of the exception
      */
-    private final void addAssignmentForThrownException(SSAInstruction i, IR ir, ReferenceVariable thrown) {
-        Set<TypeReference> notType = new LinkedHashSet<>();
+    private final void addAssignmentForThrownException(SSAInstruction i, IR ir, ReferenceVariable thrown, IClassHierarchy cha) {
+        Set<IClass> notType = new LinkedHashSet<>();
 
         ISSABasicBlock bb = ir.getBasicBlockForInstruction(i);
         for (ISSABasicBlock succ : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
@@ -906,7 +907,7 @@ public class StatementRegistrar {
                 caught = getLocal(catchIns.getException(), ir);
                 Iterator<TypeReference> caughtTypes = bb.getCaughtExceptionTypes();
                 while (caughtTypes.hasNext()) {
-                    notType.add(caughtTypes.next());
+                    notType.add(cha.lookupClass(caughtTypes.next()));
                 }
             } else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";

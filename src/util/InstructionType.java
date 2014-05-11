@@ -263,6 +263,7 @@ public enum InstructionType {
         case INVOKE_STATIC:
         case INVOKE_VIRTUAL:
             return true;
+            //$CASES-OMITTED$
         default:
             return false;
         }

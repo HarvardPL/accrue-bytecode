@@ -40,67 +40,67 @@ import com.ibm.wala.util.config.AnalysisScopeReader;
  */
 public class GenPointsToGraph extends TestCase {
 
-	private static AnalysisScope scope;
+    private static AnalysisScope scope;
 
-	private static IClassHierarchy cha;
+    private static IClassHierarchy cha;
 
     private static AnalysisCache cache;
-    
+
     private static AnalysisOptions options;
 
-	public void setUp() throws Exception {
+    @Override
+    public void setUp() throws Exception {
 
-		String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
-		File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
+        String classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
+        File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
 
-		scope = AnalysisScopeReader.makePrimordialScope(exclusions);
-		AnalysisScopeReader.addClassPathToScope(classPath, scope,
-				ClassLoaderReference.Application);
+        scope = AnalysisScopeReader.makePrimordialScope(exclusions);
+        AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
-		try {
-			long start = System.currentTimeMillis();
-			cha = ClassHierarchy.make(scope);
-			System.out.println(cha.getNumberOfClasses()
-					+ " classes loaded. It took "
-					+ (System.currentTimeMillis() - start) + "ms");
-		} catch (ClassHierarchyException e) {
-			throw new Exception(e);
-		}
-		cache = new AnalysisCache();
-	}
+        try {
+            long start = System.currentTimeMillis();
+            cha = ClassHierarchy.make(scope);
+            System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
+                                            + (System.currentTimeMillis() - start) + "ms");
+        } catch (ClassHierarchyException e) {
+            throw new Exception(e);
+        }
+        cache = new AnalysisCache();
+    }
 
-	public void testScratch() {
-		Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util
-				.makeMainEntrypoints(scope, cha, "Ltest/Scratch");
-		System.out.println("Made entry points");
+    public static void testScratch() {
+        Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha,
+                                        "Ltest/Scratch");
+        System.out.println("Made entry points");
         options = new AnalysisOptions(scope, entrypoints);
-        
-        WalaAnalysisUtil util = new WalaAnalysisUtil(cha, cache, options);
-		StatementRegistrationPass pass = new StatementRegistrationPass(util);
-		pass.run();
-		System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
-		for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-		    System.out.println("\t" + s + " (" + s.getClass().getSimpleName() +")");
-		}
-		StatementRegistrar registrar = pass.getRegistrar();
-		
-		HeapAbstractionFactory context = new CallSiteSensitive();
-		PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
-		PointsToGraph g = analysis.solve(registrar);
-		g.dumpPointsToGraphToFile("pointsTo", false);
 
-		System.out.println(g.getNodes().size() + " Nodes");
-		int num = 0;
-		for (PointsToGraphNode n : g.getNodes()) {
-		    num += g.getPointsToSet(n).size();
-		}
-		System.out.println(num + " Edges");
-		System.out.println(g.getAllHContexts().size() + " HContexts");
-		
+        WalaAnalysisUtil util = new WalaAnalysisUtil(cha, cache, options);
+        StatementRegistrationPass pass = new StatementRegistrationPass(util);
+        pass.run();
+        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
+            System.out.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+        }
+        StatementRegistrar registrar = pass.getRegistrar();
+
+        HeapAbstractionFactory context = new CallSiteSensitive();
+        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
+        PointsToGraph g = analysis.solve(registrar);
+        g.dumpPointsToGraphToFile("pointsTo", false);
+
+        System.out.println(g.getNodes().size() + " Nodes");
+        int num = 0;
+        for (PointsToGraphNode n : g.getNodes()) {
+            num += g.getPointsToSet(n).size();
+        }
+        System.out.println(num + " Edges");
+        System.out.println(g.getAllHContexts().size() + " HContexts");
+
         int numNodes = 0;
-        for (@SuppressWarnings("unused") CGNode n : g.getCallGraph()) {
+        for (@SuppressWarnings("unused")
+        CGNode n : g.getCallGraph()) {
             numNodes++;
         }
         System.out.println(numNodes + " CGNodes");
-	}
+    }
 }

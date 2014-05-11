@@ -262,18 +262,19 @@ public class PrettyPrinter {
      * @return decoded name for the type
      */
     private static String parseType(String type) {
+        String finalType = type;
         String arrayString = "";
-        while (type.startsWith("[")) {
+        while (finalType.startsWith("[")) {
             arrayString += "[]";
-            type = type.substring(1);
+            finalType = finalType.substring(1);
         }
         String baseName = "";
-        switch (type.substring(0, 1)) {
+        switch (finalType.substring(0, 1)) {
         case "B":
             baseName = "byte";
             break;
         case "L":
-            baseName = type.substring(1);
+            baseName = finalType.substring(1);
             break;
         case "C":
             baseName = "char";
@@ -303,7 +304,7 @@ public class PrettyPrinter {
             baseName = "null-type";
             break;
         default:
-            throw new RuntimeException(type.substring(0, 1) + " is an invalid type specifier.");
+            throw new RuntimeException(finalType.substring(0, 1) + " is an invalid type specifier.");
         }
 
         return baseName.replace("/", ".") + arrayString;
@@ -588,7 +589,7 @@ public class PrettyPrinter {
         return sb.toString();
     }
 
-    private String gotoString(SSAGotoInstruction instruction) {
+    private static String gotoString(@SuppressWarnings("unused") SSAGotoInstruction instruction) {
         return "goto ...";
     }
 
@@ -689,7 +690,7 @@ public class PrettyPrinter {
         return invokeRight(receiver, params, instruction);
     }
 
-    private String loadMetadataRight(SSALoadMetadataInstruction instruction) {
+    private static String loadMetadataRight(SSALoadMetadataInstruction instruction) {
         return "load_metadata: " + instruction.getToken() + ", " + instruction.getType();
     }
 
@@ -862,9 +863,8 @@ public class PrettyPrinter {
     private String unaryOpRight(SSAUnaryOpInstruction instruction) {
         if (instruction.getOpcode() == IUnaryOpInstruction.Operator.NEG) {
             return "-" + valString(instruction.getUse(0));
-        } else {
-            throw new RuntimeException("The only unary operation supported is negation.");
         }
+        throw new RuntimeException("The only unary operation supported is negation.");
     }
 
     /**
@@ -905,8 +905,7 @@ public class PrettyPrinter {
 
         if (st.getValue(valueNumber) == null) {
             return "v" + valueNumber;
-        } else {
-            return st.getValue(valueNumber).toString();
         }
+        return st.getValue(valueNumber).toString();
     }
 }

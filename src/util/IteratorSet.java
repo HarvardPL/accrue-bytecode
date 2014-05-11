@@ -14,7 +14,7 @@ public class IteratorSet {
      */
     private IteratorSet() {
         // intentionally blank
-    };
+    }
 
     /**
      * Make a new set containing all the elements of the given iterator

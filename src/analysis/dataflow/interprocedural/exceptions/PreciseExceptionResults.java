@@ -81,9 +81,8 @@ public class PreciseExceptionResults implements AnalysisResults {
      */
     public boolean canThrowException(TypeReference type, ISSABasicBlock bb, CGNode n) {
         SSACFG cfg = n.getIR().getControlFlowGraph();
-        ISSABasicBlock exit = cfg.exit();
-        for (ISSABasicBlock pred : cfg.getExceptionalPredecessors(exit)) {
-            if (getExceptions(pred, exit, n).contains(type)) {
+        for (ISSABasicBlock succ : cfg.getExceptionalSuccessors(bb)) {
+            if (getExceptions(bb, succ, n).contains(type)) {
                 return true;
             }
         }

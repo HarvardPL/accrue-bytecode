@@ -68,7 +68,7 @@ public class HafCallGraph extends ExplicitCallGraph {
     }
 
     @Override
-    protected CGNode makeFakeWorldClinitNode() throws CancelException {
+    protected CGNode makeFakeWorldClinitNode() {
         // We handle class initialization elsewhere.
         return null;
     }
@@ -96,10 +96,8 @@ public class HafCallGraph extends ExplicitCallGraph {
             file += now;
         }
         String fullFilename = dir + "/" + file + ".dot";
-        try {
-            Writer out = new BufferedWriter(new FileWriter(fullFilename));
-            out = dumpCallGraph(out);
-            out.close();
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpCallGraph(out);
             System.err.println("\nDOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
@@ -140,7 +138,7 @@ public class HafCallGraph extends ExplicitCallGraph {
         return writer;
     }
     
-    private String escape(String s) {
+    private static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

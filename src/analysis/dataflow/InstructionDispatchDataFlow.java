@@ -99,7 +99,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         }
 
         assert outItems != null : "Null output for " + current;
-        postBasicBlock(inItems, cfg, current, outItems);
+        postBasicBlock(cfg, current, outItems);
         return outItems;
     }
 
@@ -273,9 +273,6 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * all reachable successors get results.
      * <p>
      * Subclasses should override for more functionality if desired.
-     * 
-     * @param inItems
-     *            data-flow facts before processing basic block
      * @param cfg
      *            control flow graph
      * @param justProcessed
@@ -283,8 +280,8 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * @param outItems
      *            data-flow item for each edge
      */
-    protected void postBasicBlock(Set<F> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, F> outItems) {
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+                                    Map<ISSABasicBlock, F> outItems) {
 
         for (ISSABasicBlock normalSucc : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(normalSucc) == null && !isUnreachable(justProcessed, normalSucc)) {
