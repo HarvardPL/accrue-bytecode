@@ -15,8 +15,9 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.statements.ReferenceVariableFactory;
+import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -611,8 +612,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            variable
      * @return Reference variable replica in the current context for the local
      */
-    public ReferenceVariableReplica getReplica(int local, CGNode n) {
-        ReferenceVariable rv = ptg.getLocal(local, n.getIR());
+    public static ReferenceVariableReplica getReplica(int local, CGNode n) {
+        ReferenceVariable rv = ReferenceVariableFactory.getLocal(local, n.getIR());
         return new ReferenceVariableReplica(n.getContext(), rv);
     }
 }

@@ -2,10 +2,10 @@ package analysis.pointer.statements;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.AllocSiteNode;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
+import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -51,16 +51,15 @@ public class NewStatement extends PointsToStatement {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newClass.getReference()), newClass, ir
-                .getMethod().getDeclaringClass());
+        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i);
     }
-    
+
     /**
-     * Points-to graph statement for a "new" instruction, e.g. Object o = new
-     * Object()
+     * Points-to graph statement for an allocation that does not result from a
+     * new instruction
      * 
      * @param result
-     *            Points-to graph node for the assignee of the new
+     *            Points-to graph node for the assignee of the new allocation
      * @param newClass
      *            Class being created
      * @param cha
@@ -74,10 +73,9 @@ public class NewStatement extends PointsToStatement {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = new AllocSiteNode("new " + PrettyPrinter.parseType(newClass.getReference()), newClass, ir
-                .getMethod().getDeclaringClass());
+        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i);
     }
-    
+
     /**
      * Get a points-to statement representing the allocation of a JVM generated
      * exception (e.g. NullPointerException), and the assignment of this new
@@ -95,9 +93,28 @@ public class NewStatement extends PointsToStatement {
      * @return a statement representing the allocation of a JVM generated
      *         exception to a local variable
      */
-    public static NewStatement newStatementForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
-                                    IR ir, SSAInstruction i) {
+    public static NewStatement newStatementForGeneratedException(ReferenceVariable exceptionAssignee,
+                                    IClass exceptionClass, IR ir, SSAInstruction i) {
         return new NewStatement(exceptionAssignee, exceptionClass, ir, i);
+    }
+
+    /**
+     * Get a points-to statement representing the allocation of a String literal
+     * 
+     * @param local
+     *            Reference variable for the local variable for the string at
+     *            the allocation site
+     * @param ir
+     *            code containing the instruction throwing the exception
+     * @param i
+     *            exception throwing the exception
+     * @param stringClass
+     *            WALA representation of the java.lang.String class
+     * @return a statement representing the allocation of a new string literal
+     */
+    public static NewStatement newStatementForStringLiteral(ReferenceVariable local, IR ir, SSAInstruction i,
+                                    IClass stringClass) {
+        return new NewStatement(local, stringClass, ir, i);
     }
 
     @Override

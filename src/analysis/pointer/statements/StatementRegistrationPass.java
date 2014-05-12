@@ -13,6 +13,7 @@ import util.print.PrettyPrinter;
 import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ssa.IR;
@@ -29,6 +30,7 @@ import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Collect pointer analysis constraints with a pass over the code
@@ -55,6 +57,10 @@ public class StatementRegistrationPass {
      * WALA-defined analysis utilities
      */
     private final WalaAnalysisUtil util;
+    /**
+     * WALA representation of java.lang.String
+     */
+    private final IClass stringClass;
 
     /**
      * Create a pass which will generate points-to statements
@@ -64,6 +70,7 @@ public class StatementRegistrationPass {
      */
     public StatementRegistrationPass(WalaAnalysisUtil util) {
         this.util = util;
+        stringClass = util.getClassHierarchy().lookupClass(TypeReference.JavaLangString);
         registrar = new StatementRegistrar();
     }
 
@@ -110,7 +117,7 @@ public class StatementRegistrationPass {
 
         IR ir = util.getCache().getSSACache()
                                         .findOrCreateIR(m, Everywhere.EVERYWHERE, util.getOptions().getSSAOptions());
-        registrar.recordMethod(m, new MethodSummaryNodes(registrar, ir));
+        registrar.recordMethod(m, new MethodSummaryNodes(ir));
 
         if (VERBOSE >= 1) {
             System.err.println(PrettyPrinter.parseMethod(m) + " will be registered.");
@@ -208,6 +215,9 @@ public class StatementRegistrationPass {
         // containing the instruction that could load, and then make sure to
         // only handle each one once in the pointer analysis
         addClassInitForInstruction(q, i, ir);
+
+        // Add statements for any string literals in the instruction
+        registrar.addStatementsForStringLiterals(i, ir, stringClass);
 
         // Add statements for any JVM-generated exceptions this instruction
         // could throw (e.g. NullPointerException)

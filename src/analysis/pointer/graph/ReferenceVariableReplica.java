@@ -1,5 +1,8 @@
 package analysis.pointer.graph;
 
+import util.print.PrettyPrinter;
+import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
@@ -10,18 +13,17 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
 
     private final Context context;
     private final ReferenceVariable l;
-    
-    
+
     public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
         assert (rv != null);
         assert (context != null);
         this.l = rv;
         this.context = context;
     }
-    
+
     @Override
     public TypeReference getExpectedType() {
-    	return l.getExpectedType();
+        return l.getExpectedType();
     }
 
     @Override
@@ -57,6 +59,6 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
 
     @Override
     public String toString() {
-        return  l + " in " + context;
+        return l + (l.getCode() != null ? " in " + PrettyPrinter.parseMethod(l.getCode().getMethod()) : "") + " Context: " + context;
     }
 }

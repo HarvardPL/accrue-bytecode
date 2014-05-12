@@ -28,9 +28,6 @@ import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
@@ -49,7 +46,6 @@ public class PointsToGraph {
     private final HeapAbstractionFactory haf;
     private final HafCallGraph callGraph;
     private final WalaAnalysisUtil util;
-    private final StatementRegistrar registrar;
     private int outputLevel = 0;
 
     public PointsToGraph(WalaAnalysisUtil util, StatementRegistrar registrar, HeapAbstractionFactory haf) {
@@ -57,7 +53,6 @@ public class PointsToGraph {
         readNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
         classInitializers = new LinkedHashSet<>();
-        this.registrar = registrar;
         this.haf = haf;
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
         this.util = util;
@@ -414,46 +409,6 @@ public class PointsToGraph {
         Set<PointsToGraphNode> c = readNodes;
         readNodes = new LinkedHashSet<>();
         return c;
-    }
-
-    /**
-     * Get the reference variable for the local variable with the given value
-     * number in the given method
-     * 
-     * @param local
-     *            value number for the local variable
-     * @param ir
-     *            method the value is defined in
-     * @return Unique reference variable for the local
-     */
-    public ReferenceVariable getLocal(int local, IR ir) {
-        return registrar.getLocal(local, ir);
-    }
-
-    /**
-     * Get the reference variable for the static field
-     * 
-     * @param field
-     *            static field
-     * @return Unique reference variable for the static field
-     */
-    public ReferenceVariable getStaticField(FieldReference field) {
-        return registrar.getNodeForStaticField(field, util.getClassHierarchy());
-    }
-
-    /**
-     * Get the reference variable for the implicitly thrown exception
-     * 
-     * @param exType
-     *            type of exception thrown
-     * @param ir
-     *            method containing the instruction that throws the exception
-     * @param i
-     *            instruction that throws the exception
-     * @return Unique reference variable for the implicit exception
-     */
-    public ReferenceVariable getImplicitException(TypeReference exType, IR ir, SSAInstruction i) {
-        return registrar.getImplicitExceptionNode(exType, i, ir);
     }
 
     public void setOutputLevel(int outputLevel) {

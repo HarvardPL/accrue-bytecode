@@ -10,8 +10,8 @@ import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -257,7 +257,7 @@ public abstract class CallStatement extends PointsToStatement {
     protected final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
                                     PointsToGraph g, StatementRegistrar registrar) {
         // Find successor catch blocks
-        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), registrar, currentContext);
+        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
 
         IClassHierarchy cha = g.getClassHierarchy();
         IClass thrown = cha.lookupClass(currentExType);
@@ -383,15 +383,12 @@ public abstract class CallStatement extends PointsToStatement {
      * 
      * @param fromBlock
      *            block to get catch block successors of
-     * @param registrar
-     *            points-to statement registrar
      * @param context
      *            context the catch blocks occur in
      * @return List of catch blocks in reachable order (i.e. the first element
      *         of the list is the first reached)
      */
-    protected final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, StatementRegistrar registrar,
-                                    Context context) {
+    protected final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, Context context) {
 
         // Find successor catch blocks in the CFG
         SSACFG cfg = getCode().getControlFlowGraph();
@@ -409,7 +406,8 @@ public abstract class CallStatement extends PointsToStatement {
             Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
             // The catch instruction is the first instruction in the basic block
             SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
-            ReferenceVariable formalNode = registrar.getOrCreateLocal(catchIns.getException(), getCode());
+            ReferenceVariable formalNode = ReferenceVariableFactory
+                                            .getOrCreateLocal(catchIns.getException(), getCode());
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(context, formalNode);
             CatchBlock cb = new CatchBlock(types, formalRep);
             catchBlocks.add(cb);

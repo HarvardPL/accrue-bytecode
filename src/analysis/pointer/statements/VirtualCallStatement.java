@@ -7,8 +7,8 @@ import java.util.Set;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ReferenceVariable;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -75,6 +75,10 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
+        if (PrettyPrinter.parseMethod(callee).contains("length()")) {
+            g.getPointsToSet(receiverRep);
+        }
+
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             // find the callee.

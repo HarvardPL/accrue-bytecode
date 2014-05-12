@@ -5,7 +5,8 @@ import java.util.List;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
-import analysis.pointer.graph.ReferenceVariable;
+import analysis.dataflow.interprocedural.ExitType;
+import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.TypeReference;
@@ -47,11 +48,11 @@ public class MethodSummaryNodes {
      * @param ir
      *            IR for the code
      */
-    public MethodSummaryNodes(StatementRegistrar registrar, IR ir) {
+    public MethodSummaryNodes(IR ir) {
         assert ir != null : "IR is null";
 
         boolean isStatic = ir.getMethod().isStatic();
-        thisNode = isStatic ? null : registrar.getOrCreateLocal(ir.getParameter(0), ir);
+        thisNode = isStatic ? null : ReferenceVariableFactory.getOrCreateLocal(ir.getParameter(0), ir);
 
         formals = new LinkedList<>();
         if (isStatic) {
@@ -61,7 +62,7 @@ public class MethodSummaryNodes {
                 if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
                     formals.add(null);
                 } else {
-                    formals.add(registrar.getOrCreateLocal(ir.getParameter(0), ir));
+                    formals.add(ReferenceVariableFactory.getOrCreateLocal(ir.getParameter(0), ir));
                 }
             }
         }
@@ -70,18 +71,19 @@ public class MethodSummaryNodes {
             if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
                 formals.add(null);
             } else {
-                formals.add(registrar.getOrCreateLocal(ir.getParameter(i), ir));
+                formals.add(ReferenceVariableFactory.getOrCreateLocal(ir.getParameter(i), ir));
             }
         }
 
         name = PrettyPrinter.parseMethod(ir.getMethod());
 
         TypeReference returnType = ir.getMethod().getReturnType();
-        returnNode = (returnType == TypeReference.Void || returnType.isPrimitiveType()) ? null : new ReferenceVariable(
-                name + "-EXIT", returnType, false);
+        returnNode = (returnType == TypeReference.Void || returnType.isPrimitiveType()) ? null
+                                        : ReferenceVariableFactory.getOrCreateMethodExitNode(returnType, ir,
+                                                                        ExitType.NORMAL);
 
         TypeReference throwable = TypeReference.JavaLangThrowable;
-        exception = new ReferenceVariable(name + "-EXCEPTION", throwable, false);
+        exception = ReferenceVariableFactory.getOrCreateMethodExitNode(throwable, ir, ExitType.EXCEPTIONAL);
     }
 
     public ReferenceVariable getThisNode() {
