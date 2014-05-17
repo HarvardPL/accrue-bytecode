@@ -104,7 +104,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             Context c = sac.context;
             g.addClassInitializers(ClassInitFinder.getClassInitializers(util.getClassHierarchy(), s.getInstruction()));
 
-            if (outputLevel >= 5) {
+            if (outputLevel >= 6) {
                 System.err.println("PROCESSING: " + s + " in " + c);
             }
             s.process(c, haf, g, registrar);

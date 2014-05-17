@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import signatures.Signatures;
 import util.InstructionType;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
@@ -185,6 +186,25 @@ public class StatementRegistrationPass {
 
         MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m);
         registrar.recordMethod(m, summaryNodes);
+        
+        // ********** SIGNATURES ************ //
+        SSAInvokeInstruction signature = Signatures.getSyntheticInvoke(callSite);
+        if (signature != null) {
+            // XXX really want to register the signature instead of the real
+            // instruction need to refactor the part of the handle loop that
+            // handles invoke instructions
+            IMethod syntheticMethod = util.getClassHierarchy().resolveMethod(signature.getDeclaredTarget());
+            IR syntheticIR = util.getIR(syntheticMethod);
+
+            for (ISSABasicBlock bb : syntheticIR.getControlFlowGraph()) {
+                for (SSAInstruction ins : bb) {
+                    q.add(new InstrAndCode(ins, syntheticIR));
+                }
+            }
+        } else {
+            System.err.println("NO SIGNATURE FOR " + PrettyPrinter.methodString(m) + " " + m);
+        }
+        // ********** END SIGNATURES ************ //
 
         // Add class initializers for the return type if they haven't already
         // been added

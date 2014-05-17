@@ -160,6 +160,7 @@ public abstract class CallStatement extends PointsToStatement {
         if (resolvedCallee.isNative()) {
             // Native methods don't have "this" and formal parameters in the
             // callee to add edges from
+            // XXX signatures!
             return changed;
         }
 

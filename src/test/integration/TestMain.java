@@ -199,7 +199,13 @@ public class TestMain {
                 printSingleCFG(n.getIR(), fileName);
                 printed.add(n.getMethod());
             } else if (n.getMethod().isNative()) {
-                System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
+                if (n.getIR() != null) {
+                    String fileName = "cfg_native_" + PrettyPrinter.methodString(n.getMethod());
+                    printSingleCFG(n.getIR(), fileName);
+                    printed.add(n.getMethod());
+                } else {
+                    System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
+                }
             }
         }
     }
@@ -223,8 +229,12 @@ public class TestMain {
             classPath = "classes";
         }
         File exclusions = new File("data/Exclusions.txt");
+        // file name for the location of the java standard library and other
+        // standard jars
+        String primordialFilename = "data/primordial.txt";
 
-        AnalysisScope scope = AnalysisScopeReader.makePrimordialScope(exclusions);
+        AnalysisScope scope = AnalysisScopeReader.readJavaScope(primordialFilename, exclusions,
+                                        TestMain.class.getClassLoader());
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
         long start = System.currentTimeMillis();
@@ -257,7 +267,7 @@ public class TestMain {
         sb.append("Param 0: The entry point (containing a main method) written as a full class name with packages separated by dots (e.g. java.lang.String)\n");
         sb.append("Param 1: Level of output (higher means more console output)\n");
         sb.append("Param 2: Test name\n");
-        sb.append("Param 3: (optional) File write level (higher means more files will be written)");
+        sb.append("Param 3: (optional) File write level (higher means more files will be written)\n");
         sb.append("\t\"pointsto\" runs the points-to analysis test, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
         sb.append("\t\"maincfg\" prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
         sb.append("\t\"nonnull\" prints the results of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
@@ -294,6 +304,7 @@ public class TestMain {
 
         HeapAbstractionFactory context = new CallSiteSensitive(1);
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
+        PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
         System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
