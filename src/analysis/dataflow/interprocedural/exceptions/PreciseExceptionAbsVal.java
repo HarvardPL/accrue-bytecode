@@ -79,11 +79,11 @@ public class PreciseExceptionAbsVal implements AbstractValue<PreciseExceptionAbs
         TypeReference t;
         if (iter.hasNext()) {
             t = iter.next();
-            sb.append(PrettyPrinter.parseType(t));
+            sb.append(PrettyPrinter.typeString(t));
         }
         while (iter.hasNext()) {
             t = iter.next();
-            sb.append(", " + PrettyPrinter.parseType(t));
+            sb.append(", " + PrettyPrinter.typeString(t));
         }
         sb.append("]");
         return sb.toString();

@@ -69,7 +69,7 @@ public class FieldToLocalStatment extends PointsToStatement {
         if (DEBUG && g.getPointsToSet(rec).isEmpty()) {
             System.err.println("RECEIVER: " + rec + " for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         Set<InstanceKey> fields = new LinkedHashSet<>();
@@ -79,8 +79,8 @@ public class FieldToLocalStatment extends PointsToStatement {
             if (DEBUG && g.getPointsToSetFiltered(f, left.getExpectedType()).isEmpty()) {
                 System.err.println("FIELD: " + f + " for "
                                                 + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                                + PrettyPrinter.parseMethod(getCode().getMethod()) + " filtered on "
-                                                + PrettyPrinter.parseType(left.getExpectedType()));
+                                                + PrettyPrinter.methodString(getCode().getMethod()) + " filtered on "
+                                                + PrettyPrinter.typeString(left.getExpectedType()));
             }
             for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, left.getExpectedType())) {
                 fields.add(fieldHeapContext);

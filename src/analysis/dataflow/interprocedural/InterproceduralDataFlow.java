@@ -103,7 +103,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         while (!q.isEmpty()) {
             CGNode current = q.poll();
             if (getOutputLevel() >= 2) {
-                System.err.println("QUEUE_POLL: " + PrettyPrinter.parseCGNode(current));
+                System.err.println("QUEUE_POLL: " + PrettyPrinter.cgNodeString(current));
             }
             AnalysisRecord<F> results = getLatestResults(current);
 
@@ -163,7 +163,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         i++;
         iterations.put(n, i);
         if (i >= 100) {
-            throw new RuntimeException("Analyzed the same CG node " + i + " times: " + PrettyPrinter.parseCGNode(n));
+            throw new RuntimeException("Analyzed the same CG node " + i + " times: " + PrettyPrinter.cgNodeString(n));
         }
         return i;
     }
@@ -184,7 +184,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         i++;
         if (i >= 100) {
             throw new RuntimeException("Requested the same CG node " + i + " times for method: "
-                                            + PrettyPrinter.parseCGNode(n));
+                                            + PrettyPrinter.cgNodeString(n));
         }
         return i;
     }
@@ -255,8 +255,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public Map<ExitType, F> getResults(CGNode caller, CGNode callee, F input) {
         if (getOutputLevel() >= 4) {
-            System.err.println("GETTING:\n\t" + PrettyPrinter.parseCGNode(callee));
-            System.err.println("\tFROM: " + PrettyPrinter.parseCGNode(caller));
+            System.err.println("GETTING:\n\t" + PrettyPrinter.cgNodeString(callee));
+            System.err.println("\tFROM: " + PrettyPrinter.cgNodeString(caller));
             System.err.println("\tINPUT: " + input);
         }
         incrementRequestCounter(callee);
@@ -279,8 +279,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
                 // use latest results and process this later with the new input
                 q.add(callee);
                 if (outputLevel >= 4) {
-                    System.err.println("ALREADY PROCESSING: " + PrettyPrinter.parseCGNode(callee) + " requested from "
-                                                    + PrettyPrinter.parseCGNode(caller));
+                    System.err.println("ALREADY PROCESSING: " + PrettyPrinter.cgNodeString(callee) + " requested from "
+                                                    + PrettyPrinter.cgNodeString(caller));
                 }
                 recordedResults.put(callee, results);
                 printResults(callee, "LATEST", results.getOutput());
@@ -313,7 +313,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     private void printResults(CGNode n, String typeLabel, Map<ExitType, F> output) {
         if (getOutputLevel() >= 2) {
-            System.err.print("RESULTS:\t" + PrettyPrinter.parseCGNode(n));
+            System.err.print("RESULTS:\t" + PrettyPrinter.cgNodeString(n));
             System.err.println("\t" + typeLabel + ": " + output);
         }
     }
@@ -362,9 +362,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             // The output changed add dependencies to the queue
             if (outputLevel >= 4) {
                 System.err.println("OUTPUT CHANGED from\n\t" + previousOutput + " TO\n\t" + output);
-                System.err.println("\tFOR: " + PrettyPrinter.parseCGNode(n));
+                System.err.println("\tFOR: " + PrettyPrinter.cgNodeString(n));
                 for (CGNode cgn : getDependencies(n)) {
-                    System.err.println("\tDEP: " + PrettyPrinter.parseCGNode(cgn));
+                    System.err.println("\tDEP: " + PrettyPrinter.cgNodeString(cgn));
                 }
             }
             q.addAll(getDependencies(n));
@@ -575,7 +575,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver, n));
         if (pointsTo.isEmpty()) {
             throw new RuntimeException("Field target doesn't point to anything. "
-                                            + PrettyPrinter.parseType(field.getDeclaringClass()) + "."
+                                            + PrettyPrinter.typeString(field.getDeclaringClass()) + "."
                                             + field.getName());
         }
 
@@ -601,7 +601,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         if (pointsTo.isEmpty()) {
             ptg.getPointsToSet(getReplica(array, n));
             throw new RuntimeException("Array doesn't point to anything. " + PrettyPrinter.valString(array, n.getIR())
-                                            + " in " + PrettyPrinter.parseCGNode(n));
+                                            + " in " + PrettyPrinter.cgNodeString(n));
         }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();

@@ -135,9 +135,9 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         for (ISSABasicBlock bb : cfg.getNormalPredecessors(exit)) {
             if (!isUnreachable(bb, exit)) {
                 assert getAnalysisRecord(bb) != null : "null record from " + "BB" + bb.getNumber() + " to EXIT for "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
                 assert getAnalysisRecord(bb).getOutput() != null : "null output from " + "BB" + bb.getNumber()
-                                                + " to EXIT for " + PrettyPrinter.parseCGNode(currentNode);
+                                                + " to EXIT for " + PrettyPrinter.cgNodeString(currentNode);
                 normals.add(getAnalysisRecord(bb).getOutput().get(exit));
             }
         }
@@ -160,9 +160,9 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
         for (ISSABasicBlock bb : cfg.getExceptionalPredecessors(exit)) {
             if (!isUnreachable(bb, exit)) {
                 assert getAnalysisRecord(bb) != null : "null record from " + "BB" + bb.getNumber() + " to EXIT for "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
                 assert getAnalysisRecord(bb).getOutput() != null : "null output from " + "BB" + bb.getNumber()
-                                                + " to EXIT for " + PrettyPrinter.parseCGNode(currentNode);
+                                                + " to EXIT for " + PrettyPrinter.cgNodeString(currentNode);
                 exceptions.add(getAnalysisRecord(bb).getOutput().get(exit));
             }
         }

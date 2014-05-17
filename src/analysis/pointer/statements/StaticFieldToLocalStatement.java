@@ -57,7 +57,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         if (DEBUG && g.getPointsToSet(r).isEmpty()) {
             System.err.println("STATIC FIELD: " + r + "\n\t"
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         return g.addEdges(l, g.getPointsToSet(r));

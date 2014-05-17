@@ -61,7 +61,7 @@ public class PhiStatement extends PointsToStatement {
             if (DEBUG && g.getPointsToSet(n).isEmpty()) {
                 System.err.println("PHI ARG: " + n + " for "
                                                 + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                                + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                                + PrettyPrinter.methodString(getCode().getMethod()));
             }
             changed |= g.addEdges(a, g.getPointsToSet(n));
         }

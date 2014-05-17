@@ -19,7 +19,7 @@ public class AllocSiteNodeFactory {
         AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i);
         assert !map.containsKey(key) : "Duplicate normal allocation node: " + instantiatedClass + " from "
                                         + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.parseType(instantiatedClass.getReference()),
+        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.typeString(instantiatedClass.getReference()),
                                         instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;
@@ -30,7 +30,7 @@ public class AllocSiteNodeFactory {
         AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i);
         assert !map.containsKey(key) : "Duplicate generated allocation node: " + instantiatedClass + " from "
                                         + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.parseType(instantiatedClass.getReference())
+        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.typeString(instantiatedClass.getReference())
                                         + " (compiler-generated)", instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;
@@ -41,7 +41,7 @@ public class AllocSiteNodeFactory {
         AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, nativeInvoke, type);
         assert !map.containsKey(key) : "Duplicate native allocation node: " + instantiatedClass + " from "
                                         + allocatingClass + " for " + type;
-        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.parseType(instantiatedClass.getReference())
+        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.typeString(instantiatedClass.getReference())
                                         + " (compiler-generated)", instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;

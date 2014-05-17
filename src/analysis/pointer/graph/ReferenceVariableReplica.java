@@ -59,6 +59,6 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
 
     @Override
     public String toString() {
-        return l + (l.getCode() != null ? " in " + PrettyPrinter.parseMethod(l.getCode().getMethod()) : "") + " Context: " + context;
+        return l + (l.getCode() != null ? " in " + PrettyPrinter.methodString(l.getCode().getMethod()) : "") + " Context: " + context;
     }
 }

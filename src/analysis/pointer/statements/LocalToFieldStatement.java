@@ -117,15 +117,15 @@ public class LocalToFieldStatement extends PointsToStatement {
         if (DEBUG && localHeapContexts.isEmpty()) {
             System.err.println("LOCAL: " + local + " for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()) + " filtered on "
-                                            + PrettyPrinter.parseType(field.getFieldType()) + " was "
-                                            + PrettyPrinter.parseType(local.getExpectedType()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()) + " filtered on "
+                                            + PrettyPrinter.typeString(field.getFieldType()) + " was "
+                                            + PrettyPrinter.typeString(local.getExpectedType()));
             g.getPointsToSetFiltered(local, field.getFieldType());
         }
         if (DEBUG && g.getPointsToSet(rec).isEmpty()) {
             System.err.println("RECEIVER: " + rec + " for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         boolean changed = false;

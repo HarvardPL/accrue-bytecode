@@ -45,6 +45,6 @@ public class ProcedurePDGNode extends PDGNode {
 
     @Override
     public String groupingName() {
-        return PrettyPrinter.parseCGNode(n);
+        return PrettyPrinter.cgNodeString(n);
     }
 }

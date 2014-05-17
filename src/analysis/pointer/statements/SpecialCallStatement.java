@@ -75,7 +75,7 @@ public class SpecialCallStatement extends CallStatement {
         if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {
             System.err.println("STATIC FIELD: " + receiverRep + "\n\t"
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         boolean changed = false;
@@ -92,7 +92,7 @@ public class SpecialCallStatement extends CallStatement {
         if (resultNode != null) {
             s.append(resultNode.toString() + " = ");
         }
-        s.append("invokespecial " + PrettyPrinter.parseMethod(resolvedCallee));
+        s.append("invokespecial " + PrettyPrinter.methodString(resolvedCallee));
 
         return s.toString();
     }

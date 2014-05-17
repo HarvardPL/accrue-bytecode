@@ -51,9 +51,9 @@ public class LocalToLocalStatement extends PointsToStatement {
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
         if (DEBUG && g.getPointsToSetFiltered(r, left.getExpectedType()).isEmpty()) {
             System.err.println("LOCAL: " + r + " for " + PrettyPrinter.instructionString(getInstruction(), getCode())
-                                            + " in " + PrettyPrinter.parseMethod(getCode().getMethod())
-                                            + " filtered on " + PrettyPrinter.parseType(left.getExpectedType())
-                                            + " was " + PrettyPrinter.parseType(r.getExpectedType()));
+                                            + " in " + PrettyPrinter.methodString(getCode().getMethod())
+                                            + " filtered on " + PrettyPrinter.typeString(left.getExpectedType())
+                                            + " was " + PrettyPrinter.typeString(r.getExpectedType()));
         }
         return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
     }

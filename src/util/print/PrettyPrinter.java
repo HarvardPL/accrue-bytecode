@@ -191,8 +191,8 @@ public class PrettyPrinter {
      *            node to get a string for
      * @return string for <code>n</code>
      */
-    public static String parseCGNode(CGNode n) {
-        return PrettyPrinter.parseMethod(n.getMethod()) + " in " + n.getContext();
+    public static String cgNodeString(CGNode n) {
+        return PrettyPrinter.methodString(n.getMethod()) + " in " + n.getContext();
     }
 
     /**
@@ -202,8 +202,8 @@ public class PrettyPrinter {
      *            method to get a string for
      * @return String for "m"
      */
-    public static String parseMethod(IMethod m) {
-        return parseMethod(m.getReference());
+    public static String methodString(IMethod m) {
+        return methodString(m.getReference());
     }
 
     /**
@@ -213,17 +213,17 @@ public class PrettyPrinter {
      *            method to get a string for
      * @return String for "m"
      */
-    public static String parseMethod(MethodReference m) {
+    public static String methodString(MethodReference m) {
         StringBuilder s = new StringBuilder();
-        s.append(parseType(m.getDeclaringClass()));
+        s.append(typeString(m.getDeclaringClass()));
         s.append("." + m.getName().toString());
         s.append("(");
         if (m.getNumberOfParameters() > 0) {
             Descriptor d = m.getDescriptor();
             TypeName[] n = d.getParameters();
-            s.append(parseType(n[0].toString()));
+            s.append(typeString(n[0].toString()));
             for (int j = 1; j < m.getNumberOfParameters(); j++) {
-                s.append(", " + parseType(n[j].toString()));
+                s.append(", " + typeString(n[j].toString()));
             }
         }
         s.append(")");
@@ -237,8 +237,8 @@ public class PrettyPrinter {
      *            type to get a string for
      * @return String for "type"
      */
-    public static String parseSimpleType(TypeReference type) {
-        String fullType = parseType(type.getName().toString());
+    public static String simpleTypeString(TypeReference type) {
+        String fullType = typeString(type.getName().toString());
         String[] strings = fullType.split("\\.");
         return strings[strings.length - 1];
     }
@@ -261,7 +261,7 @@ public class PrettyPrinter {
      *            JVM encoding of the type
      * @return decoded name for the type
      */
-    private static String parseType(String type) {
+    private static String typeString(String type) {
         String finalType = type;
         String arrayString = "";
         while (finalType.startsWith("[")) {
@@ -317,8 +317,8 @@ public class PrettyPrinter {
      *            type to get a string for
      * @return String for "type"
      */
-    public static String parseType(TypeReference type) {
-        return parseType(type.getName().toString());
+    public static String typeString(TypeReference type) {
+        return typeString(type.getName().toString());
     }
 
     /**
@@ -495,7 +495,7 @@ public class PrettyPrinter {
         if (types.length != 1) {
             System.err.println("More than one return type for a cast.");
         }
-        s.append("(" + parseType(types[0]) + ")");
+        s.append("(" + typeString(types[0]) + ")");
         s.append(valString(value));
         return s.toString();
     }
@@ -540,7 +540,7 @@ public class PrettyPrinter {
     }
 
     private String conversionRight(SSAConversionInstruction instruction) {
-        String toType = parseType(instruction.getToType());
+        String toType = typeString(instruction.getToType());
         return "(" + toType + ") " + valString(instruction.getUse(0));
     }
 
@@ -565,7 +565,7 @@ public class PrettyPrinter {
             return null;
         }
         if (justForDebug.length > 1) {
-            System.err.println("multiple names for " + valNum + " in " + parseMethod(ir.getMethod()) + ": "
+            System.err.println("multiple names for " + valNum + " in " + methodString(ir.getMethod()) + ": "
                                             + Arrays.toString(justForDebug));
         }
         return justForDebug[0];
@@ -580,7 +580,7 @@ public class PrettyPrinter {
 
         String receiver = null;
         if (instruction.isStatic()) {
-            receiver = parseType(instruction.getDeclaredField().getDeclaringClass().getName().toString());
+            receiver = typeString(instruction.getDeclaredField().getDeclaringClass().getName().toString());
         } else {
             receiver = valString(instruction.getRef());
         }
@@ -596,7 +596,7 @@ public class PrettyPrinter {
     private String instanceofRight(SSAInstanceofInstruction instruction) {
         StringBuilder sb = new StringBuilder();
         sb.append(valString(instruction.getUse(0)) + " instanceof ");
-        sb.append(parseType(instruction.getCheckedType()));
+        sb.append(typeString(instruction.getCheckedType()));
         return sb.toString();
     }
 
@@ -670,7 +670,7 @@ public class PrettyPrinter {
         String receiver = valString(instruction.getReceiver());
         MethodReference mr = instruction.getDeclaredTarget();
         if (mr.isInit()) {
-            receiver = "((" + parseType(instruction.getDeclaredTarget().getDeclaringClass()) + ")" + receiver + ")";
+            receiver = "((" + typeString(instruction.getDeclaredTarget().getDeclaringClass()) + ")" + receiver + ")";
         }
         String params = instruction.getNumberOfParameters() == 1 ? "" : paramsString(1, instruction);
         return invokeRight(receiver, params, instruction);
@@ -679,7 +679,7 @@ public class PrettyPrinter {
     private String invokeStaticRight(SSAInvokeInstruction instruction) {
         // can resolve actual target statically using the class hierarchy;
         // this is the actual invocation though
-        String receiver = parseType(instruction.getDeclaredTarget().getDeclaringClass().getName().toString());
+        String receiver = typeString(instruction.getDeclaredTarget().getDeclaringClass().getName().toString());
         String params = instruction.getNumberOfParameters() == 0 ? "" : paramsString(0, instruction);
         return invokeRight(receiver, params, instruction);
     }
@@ -705,7 +705,7 @@ public class PrettyPrinter {
         while (type.isArrayType()) {
             type = type.getArrayElementType();
         }
-        sb.append(parseType(type.getName().toString()));
+        sb.append(typeString(type.getName().toString()));
 
         for (int i = 0; i < instruction.getNumberOfUses(); i++) {
             sb.append("[" + valString(instruction.getUse(i)) + "]");
@@ -748,7 +748,7 @@ public class PrettyPrinter {
         StringBuilder sb = new StringBuilder();
         String receiver = null;
         if (instruction.isStatic()) {
-            receiver = parseType(instruction.getDeclaredField().getDeclaringClass().getName().toString());
+            receiver = typeString(instruction.getDeclaredField().getDeclaringClass().getName().toString());
         } else {
             receiver = valString(instruction.getRef());
         }

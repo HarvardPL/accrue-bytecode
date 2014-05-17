@@ -183,7 +183,7 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
             for (int i = 0; i <= len; i++) {
                 CallSiteReference site = sites.get(i);
                 IR callSiteCode = irs.get(i);
-                String meth = PrettyPrinter.parseMethod(callSiteCode.getMethod().getReference()) + "@" + site.getProgramCounter();
+                String meth = PrettyPrinter.methodString(callSiteCode.getMethod().getReference()) + "@" + site.getProgramCounter();
                 String sep = (i == len) ? "" : ", ";
                 s.append(meth + sep);
             }

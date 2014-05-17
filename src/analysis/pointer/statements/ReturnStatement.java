@@ -50,7 +50,7 @@ public class ReturnStatement extends PointsToStatement {
         if (DEBUG && g.getPointsToSet(returnRes).isEmpty()) {
             System.err.println("RETURN RES: " + returnRes + " for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         return g.addEdges(summaryRes, g.getPointsToSet(returnRes));

@@ -45,31 +45,31 @@ public class ProcedureSummaryPDGNodes {
         formals = new LinkedList<>();
         for (int j = 0; j < n.getMethod().getNumberOfParameters(); j++) {
             formals.add(PDGNodeFactory.findOrCreateOther(
-                                            "formal-" + j + " (" + PrettyPrinter.parseMethod(n.getMethod())
+                                            "formal-" + j + " (" + PrettyPrinter.methodString(n.getMethod())
                                             + ")", PDGNodeType.FORMAL_SUMMARY, n, j));
         }
         entry = new PDGContext(null, null, PDGNodeFactory.findOrCreateOther(
-                                        "ENTRY-PC " + PrettyPrinter.parseMethod(n.getMethod()),
+                                        "ENTRY-PC " + PrettyPrinter.methodString(n.getMethod()),
                                         PDGNodeType.ENTRY_PC_SUMMARY, n, "ENTRY SUMMARY"));
 
         PDGNode ret;
         if (n.getMethod().getReturnType() != TypeReference.Void) {
-            ret = PDGNodeFactory.findOrCreateOther("NORMAL-EXIT " + PrettyPrinter.parseMethod(n.getMethod()),
+            ret = PDGNodeFactory.findOrCreateOther("NORMAL-EXIT " + PrettyPrinter.methodString(n.getMethod()),
                                             PDGNodeType.EXIT_SUMMARY, n, ExitType.NORMAL);
         } else {
             ret = null;
         }
         normalExit = new PDGContext(ret, null, PDGNodeFactory.findOrCreateOther(
-                                        "NORMAL-EXIT-PC " + PrettyPrinter.parseMethod(n.getMethod()),
+                                        "NORMAL-EXIT-PC " + PrettyPrinter.methodString(n.getMethod()),
                                         PDGNodeType.EXIT_PC_SUMMARY, n, ExitType.NORMAL));
 
         // There may not be any exceptions thrown, but we'll create this anyway
         // since it won't get added to the PDG unless there is an edge to it
         // (meaning that there is an exception).
-        PDGNode ex = PDGNodeFactory.findOrCreateOther("EX-EXIT " + PrettyPrinter.parseMethod(n.getMethod()),
+        PDGNode ex = PDGNodeFactory.findOrCreateOther("EX-EXIT " + PrettyPrinter.methodString(n.getMethod()),
                                         PDGNodeType.EXIT_SUMMARY, n, ExitType.NORMAL);
         exExit = new PDGContext(null, ex, PDGNodeFactory.findOrCreateOther(
-                                        "EX-EXIT-PC " + PrettyPrinter.parseMethod(n.getMethod()),
+                                        "EX-EXIT-PC " + PrettyPrinter.methodString(n.getMethod()),
                                         PDGNodeType.EXIT_PC_SUMMARY, n, ExitType.EXCEPTIONAL));
     }
 

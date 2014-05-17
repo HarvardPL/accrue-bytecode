@@ -44,7 +44,7 @@ public class PDGNodeFactory {
         assert i.getNumberOfUses() > useNumber : "Use number: " + useNumber + " bigger than the numbe of uses: "
                                         + i.getNumberOfUses() + " for "
                                         + PrettyPrinter.instructionString(i, cgNode.getIR()) + "\nIN "
-                                        + PrettyPrinter.parseCGNode(cgNode);
+                                        + PrettyPrinter.cgNodeString(cgNode);
         int valueNumber = i.getUse(useNumber);
         return findOrCreateLocal(valueNumber, cgNode);
     }
@@ -62,7 +62,7 @@ public class PDGNodeFactory {
      */
     public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode) {
         assert valueNumber >= 0 : "negative value number for local " + valueNumber + " for\n"
-                                        + PrettyPrinter.parseCGNode(cgNode);
+                                        + PrettyPrinter.cgNodeString(cgNode);
         IR ir = cgNode.getIR();
         PDGNode n;
         if (ir.getSymbolTable().isConstant(valueNumber)) {
@@ -122,7 +122,7 @@ public class PDGNodeFactory {
      * @return PDG node for the generated exception
      */
     public static PDGNode findOrCreateGeneratedException(TypeReference type, CGNode n, SSAInstruction i) {
-        return findOrCreateOther("Gen-" + PrettyPrinter.parseType(type), PDGNodeType.BASE_VALUE, n, i);
+        return findOrCreateOther("Gen-" + PrettyPrinter.typeString(type), PDGNodeType.BASE_VALUE, n, i);
     }
 
     /**

@@ -78,7 +78,7 @@ public class VirtualCallStatement extends CallStatement {
         if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {
             System.err.println("RECEIVER: " + receiverRep + "\n\t"
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         boolean changed = false;
@@ -106,7 +106,7 @@ public class VirtualCallStatement extends CallStatement {
         if (getResultNode() != null) {
             s.append(getResultNode().toString() + " = ");
         }
-        s.append("invokevirtual " + PrettyPrinter.parseMethod(getCallSite().getDeclaredTarget()));
+        s.append("invokevirtual " + PrettyPrinter.methodString(getCallSite().getDeclaredTarget()));
 
         return s.toString();
     }

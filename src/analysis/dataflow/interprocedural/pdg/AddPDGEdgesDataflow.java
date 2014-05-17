@@ -540,7 +540,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // Possibly throw ClassCastException
         PDGContext in = instructionInput.get(i);
         String desc = "!" + PrettyPrinter.valString(i.getVal(), ir) + " instanceof "
-                                        + PrettyPrinter.parseType(i.getDeclaredResultTypes()[0]);
+                                        + PrettyPrinter.typeString(i.getDeclaredResultTypes()[0]);
         PDGContext normal = handlePossibleException(TypeReference.JavaLangClassCastException, value, in, desc, current);
 
         // If there is no exception then assign
@@ -663,7 +663,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         List<PDGNode> formalAssignments = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
             String s = "formal(" + j + ") = " + PrettyPrinter.valString(i.getUse(j), ir) + " for "
-                                            + PrettyPrinter.parseMethod(i.getDeclaredTarget());
+                                            + PrettyPrinter.methodString(i.getDeclaredTarget());
             PDGNode formalAssign = PDGNodeFactory.findOrCreateOther(s, PDGNodeType.FORMAL_ASSIGNMENT, currentNode,
                                             new OrderedPair<>(i, j));
             formalAssignments.add(formalAssign);

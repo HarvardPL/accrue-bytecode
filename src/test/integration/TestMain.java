@@ -195,11 +195,11 @@ public class TestMain {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
             if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
-                String fileName = "cfg_" + PrettyPrinter.parseMethod(n.getMethod());
+                String fileName = "cfg_" + PrettyPrinter.methodString(n.getMethod());
                 printSingleCFG(n.getIR(), fileName);
                 printed.add(n.getMethod());
             } else if (n.getMethod().isNative()) {
-                System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
+                System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
             }
         }
     }

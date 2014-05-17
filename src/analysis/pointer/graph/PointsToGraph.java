@@ -152,8 +152,8 @@ public class PointsToGraph {
                 // java.lang.Object and vice versa
                 if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
                     if (DEBUG && outputLevel >= 6) {
-                        System.err.println("Removing " + PrettyPrinter.parseType(klass.getReference()) + " for "
-                                                    + PrettyPrinter.parseType(type));
+                        System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
+                                                    + PrettyPrinter.typeString(type));
                     }
                     i.remove();
                 }
@@ -235,8 +235,8 @@ public class PointsToGraph {
             src = callGraph.findOrCreateNode(caller, callerContext);
             dst = callGraph.findOrCreateNode(callee, calleeContext);
         } catch (CancelException e) {
-            throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.parseMethod(caller)
-                                            + " to " + PrettyPrinter.parseMethod(callee));
+            throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.methodString(caller)
+                                            + " to " + PrettyPrinter.methodString(callee));
         }
 
         // We are building a call graph so it is safe to call this "deprecated"
@@ -246,8 +246,8 @@ public class PointsToGraph {
             return false;
         }
         if (outputLevel >= 2) {
-            System.err.println("ADDED\n\t" + PrettyPrinter.parseMethod(caller) + " in " + callerContext + " to\n\t"
-                                            + PrettyPrinter.parseMethod(callee) + " in " + calleeContext);
+            System.err.println("ADDED\n\t" + PrettyPrinter.methodString(caller) + " in " + callerContext + " to\n\t"
+                                            + PrettyPrinter.methodString(callee) + " in " + calleeContext);
         }
 
         recordContext(callee, calleeContext);

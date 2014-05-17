@@ -115,7 +115,7 @@ public class HafCallGraph extends ExplicitCallGraph {
 
         // Need to differentiate between different nodes with the same string
         for (CGNode n : this) {
-            String nStr = escape(PrettyPrinter.parseCGNode(n));
+            String nStr = escape(PrettyPrinter.cgNodeString(n));
             Integer count = dotToCount.get(nStr);
             if (count == null) {
                 dotToCount.put(nStr, 1);

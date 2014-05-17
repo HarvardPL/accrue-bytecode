@@ -55,8 +55,8 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         ReachabilityAbsVal normal = ReachabilityAbsVal.UNREACHABLE;
         ReachabilityAbsVal exceptional = ReachabilityAbsVal.UNREACHABLE;
         assert !cg.getPossibleTargets(currentNode, i.getCallSite()).isEmpty() : "No calls to "
-                                        + PrettyPrinter.parseMethod(i.getDeclaredTarget()) + " from "
-                                        + PrettyPrinter.parseCGNode(currentNode);
+                                        + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
+                                        + PrettyPrinter.cgNodeString(currentNode);
         for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
             Map<ExitType, ReachabilityAbsVal> out = interProc.getResults(currentNode, callee, in);
             normal = normal.join(out.get(ExitType.NORMAL));

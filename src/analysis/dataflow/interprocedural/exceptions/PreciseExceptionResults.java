@@ -423,7 +423,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/preciseex_" + PrettyPrinter.parseCGNode(n) + ".dot";
+            String fileName = "tests/preciseex_" + PrettyPrinter.cgNodeString(n) + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n, reachable);
                 System.err.println("DOT written to " + fileName);
@@ -444,11 +444,11 @@ public class PreciseExceptionResults implements AnalysisResults {
                 TypeReference t;
                 if (iter.hasNext()) {
                     t = iter.next();
-                    sb.append(PrettyPrinter.parseType(t));
+                    sb.append(PrettyPrinter.typeString(t));
                 }
                 while (iter.hasNext()) {
                     t = iter.next();
-                    sb.append(", " + PrettyPrinter.parseType(t));
+                    sb.append(", " + PrettyPrinter.typeString(t));
                 }
                 sb.append("]");
                 return sb.toString();

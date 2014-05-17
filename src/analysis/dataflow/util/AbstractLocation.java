@@ -109,7 +109,7 @@ public class AbstractLocation {
         if (isArrayContents) {
             return receiverContext + "." + PointsToGraph.ARRAY_CONTENTS;
         }
-        return PrettyPrinter.parseType(field.getDeclaringClass()) + "." + field.getName()
+        return PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
                                         + (receiverContext == null ? " (static)" : " in " + receiverContext);
     }
 }

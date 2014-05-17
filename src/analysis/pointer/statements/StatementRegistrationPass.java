@@ -105,7 +105,7 @@ public class StatementRegistrationPass {
 
         if (visitedMethods.contains(m)) {
             if (VERBOSE >= 2) {
-                System.err.println("\tAlready added " + PrettyPrinter.parseMethod(m));
+                System.err.println("\tAlready added " + PrettyPrinter.methodString(m));
             }
             return;
         }
@@ -128,7 +128,7 @@ public class StatementRegistrationPass {
         }
 
         if (VERBOSE >= 1) {
-            System.err.println(PrettyPrinter.parseMethod(m) + " was registered.");
+            System.err.println(PrettyPrinter.methodString(m) + " was registered.");
         }
 
         if (VERBOSE >= 2) {
@@ -156,7 +156,7 @@ public class StatementRegistrationPass {
             IMethod clinit = clinits.get(j);
             if (classInits.add(clinit)) {
                 if (VERBOSE >= 1) {
-                    System.err.println("Adding: " + PrettyPrinter.parseType(clinit.getDeclaringClass().getReference())
+                    System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass().getReference())
                                                     + " initializer");
                 }
                 addFromMethod(q, clinit);
@@ -176,7 +176,7 @@ public class StatementRegistrationPass {
 
         if (visitedMethods.contains(m)) {
             if (VERBOSE >= 2) {
-                System.err.println("\tAlready added native " + PrettyPrinter.parseMethod(m));
+                System.err.println("\tAlready added native " + PrettyPrinter.methodString(m));
             }
             return;
         }
@@ -197,7 +197,7 @@ public class StatementRegistrationPass {
 
         // TODO signatures for native methods
         if (VERBOSE >= 2) {
-            System.err.println("\tAdding statements from native method: " + PrettyPrinter.parseMethod(m));
+            System.err.println("\tAdding statements from native method: " + PrettyPrinter.methodString(m));
         }
     }
 
@@ -275,8 +275,8 @@ public class StatementRegistrationPass {
             Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util.getClassHierarchy());
             for (IMethod m : targets) {
                 if (VERBOSE >= 1) {
-                    System.err.println("Adding: " + PrettyPrinter.parseMethod(m) + " from "
-                                                    + PrettyPrinter.parseMethod(ir.getMethod()) + " for "
+                    System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "
+                                                    + PrettyPrinter.methodString(ir.getMethod()) + " for "
                                                     + PrettyPrinter.instructionString(inv, ir));
                 }
                 if (m.isNative()) {

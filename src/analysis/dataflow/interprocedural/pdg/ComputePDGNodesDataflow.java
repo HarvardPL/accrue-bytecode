@@ -117,7 +117,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         // Add edges after finishing this analysis. This allows the set of nodes
         // to reach a fixed point before adding edges.
         if (getOutputLevel() >= 4) {
-            System.err.println("ADDING EDGES for " + PrettyPrinter.parseCGNode(currentNode));
+            System.err.println("ADDING EDGES for " + PrettyPrinter.cgNodeString(currentNode));
         }
         AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, util, mergeNodes,
                                         trueExceptionContexts, falseExceptionContexts, calleeExceptionContexts,
@@ -145,15 +145,15 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                 assert out.getExceptionNode() != null : "null exception node on exception edge.\n"
                                                 + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                 + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n") + "IN "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
                 assert out.getReturnNode() == null : "non-null return node on exception edge. " + out.getReturnNode()
                                                 + "\n" + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                 + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n") + "IN "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
                 assert out.getPCNode() != null : "null PC node on exception edge.\n"
                                                 + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                 + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n") + "IN "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
             }
         }
 
@@ -164,23 +164,23 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                                 + out.getExceptionNode() + "\n"
                                                 + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                 + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n") + "IN "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
                 if (succ.equals(cfg.exit()) && ir.getMethod().getReturnType() != TypeReference.Void) {
                     // entering the exit block of a non-void method
                     assert out.getReturnNode() != null : "non-null return node on void normal edge.\n"
                                                     + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                     + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n")
-                                                    + "IN " + PrettyPrinter.parseCGNode(currentNode);
+                                                    + "IN " + PrettyPrinter.cgNodeString(currentNode);
                 } else {
                     assert out.getReturnNode() == null : "null return node on non-void normal edge.\n"
                                                     + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                     + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n")
-                                                    + "IN " + PrettyPrinter.parseCGNode(currentNode);
+                                                    + "IN " + PrettyPrinter.cgNodeString(currentNode);
                 }
                 assert out.getPCNode() != null : "null PC node on normal edge.\n"
                                                 + PrettyPrinter.basicBlockString(ir, justProcessed, "\t", "\n")
                                                 + "TO\n" + PrettyPrinter.basicBlockString(ir, succ, "\t", "\n") + "IN "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
             }
         }
     }
@@ -256,7 +256,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected PDGContext confluence(Set<PDGContext> facts, ISSABasicBlock bb) {
         assert !facts.isEmpty() : "Empty facts in confluence entering\n"
                                         + PrettyPrinter.basicBlockString(ir, bb, "\t", "\n") + "IN "
-                                        + PrettyPrinter.parseCGNode(currentNode);
+                                        + PrettyPrinter.cgNodeString(currentNode);
 
         PDGContext c;
         if (facts.size() == 1) {
@@ -480,7 +480,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         // Possibly throw ClassCastException
         PDGContext in = confluence(previousItems, current);
         String desc = "!" + PrettyPrinter.valString(i.getVal(), ir) + " instanceof "
-                                        + PrettyPrinter.parseType(i.getDeclaredResultTypes()[0]);
+                                        + PrettyPrinter.typeString(i.getDeclaredResultTypes()[0]);
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassCastException, in, desc,
                                         current);
 
@@ -591,11 +591,11 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         // Node to representing the join of the caller PC before the call and
         // the PC after the call
-        String normalDesc = "NORMAL EXIT-PC-JOIN after " + PrettyPrinter.parseMethod(i.getDeclaredTarget());
+        String normalDesc = "NORMAL EXIT-PC-JOIN after " + PrettyPrinter.methodString(i.getDeclaredTarget());
         PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther(normalDesc, PDGNodeType.EXIT_PC_JOIN, currentNode,
                                         new OrderedPair<>(i, ExitType.NORMAL));
 
-        String exDesc = "EX EXIT-PC-JOIN after " + PrettyPrinter.parseMethod(i.getDeclaredTarget());
+        String exDesc = "EX EXIT-PC-JOIN after " + PrettyPrinter.methodString(i.getDeclaredTarget());
         PDGNode exExitPC = PDGNodeFactory.findOrCreateOther(exDesc, PDGNodeType.EXIT_PC_JOIN, currentNode,
                                         new OrderedPair<>(i, ExitType.EXCEPTIONAL));
 
@@ -708,7 +708,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowSwitch(SSASwitchInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGNode newPC = PDGNodeFactory.findOrCreateOther("switch-PC in " + PrettyPrinter.parseMethod(ir.getMethod()),
+        PDGNode newPC = PDGNodeFactory.findOrCreateOther("switch-PC in " + PrettyPrinter.methodString(ir.getMethod()),
                                         PDGNodeType.PC_OTHER, currentNode, i);
         return factToMap(new PDGContext(null, null, newPC), current, cfg);
     }
@@ -813,7 +813,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      */
     private PDGContext mergeContexts(Object disambiguationKey, PDGContext... contexts) {
         assert contexts.length > 0 : "empty context array in mergeContexts " + "\n\tIN "
-                                        + PrettyPrinter.parseCGNode(currentNode) + "\nKEY: " + disambiguationKey;
+                                        + PrettyPrinter.cgNodeString(currentNode) + "\nKEY: " + disambiguationKey;
         assert !(disambiguationKey instanceof PDGContext) : "Missing disambiguation key.";
         if (contexts.length == 1) {
             return contexts[0];
@@ -823,7 +823,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         Set<PDGNode> returns = new LinkedHashSet<>();
         Set<PDGNode> pcs = new LinkedHashSet<>();
         for (PDGContext c : contexts) {
-            assert c != null : "null context in mergeContexts " + "\n\tIN " + PrettyPrinter.parseCGNode(currentNode)
+            assert c != null : "null context in mergeContexts " + "\n\tIN " + PrettyPrinter.cgNodeString(currentNode)
                                             + "\nKEY: " + disambiguationKey;
             if (c.getExceptionNode() != null) {
                 exceptions.add(c.getExceptionNode());

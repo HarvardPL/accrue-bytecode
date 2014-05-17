@@ -57,7 +57,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
         if (DEBUG && g.getPointsToSet(a).isEmpty()) {
             System.err.println("ARRAY: " + a + "\n\t for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
@@ -65,7 +65,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             if (DEBUG && g.getPointsToSet(contents).isEmpty()) {
                 System.err.println("ARRAY CONTENTS: " + contents + "\n\t for "
                                                 + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                                + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                                + PrettyPrinter.methodString(getCode().getMethod()));
             }
             changed |= g.addEdges(v, g.getPointsToSet(contents));
         }

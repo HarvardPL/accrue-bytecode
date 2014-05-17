@@ -109,8 +109,8 @@ public abstract class CallStatement extends PointsToStatement {
         boolean changed = false;
         if (DEBUG && PointsToAnalysis.outputLevel >= 6) {
             System.err.println((resolvedCallee.isNative() ? "NATIVE CALL: " : "CALL: ")
-                                            + PrettyPrinter.parseMethod(resolvedCallee) + " from "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(resolvedCallee) + " from "
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         // Record the call in the call graph
@@ -127,8 +127,8 @@ public abstract class CallStatement extends PointsToStatement {
         ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
 
         if (DEBUG && g.getPointsToSet(calleeEx).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
-            System.out.println("EXCEPTION IN CALL: " + calleeEx + "\n\t" + PrettyPrinter.parseMethod(resolvedCallee)
-                                            + " from " + PrettyPrinter.parseMethod(getCode().getMethod()));
+            System.out.println("EXCEPTION IN CALL: " + calleeEx + "\n\t" + PrettyPrinter.methodString(resolvedCallee)
+                                            + " from " + PrettyPrinter.methodString(getCode().getMethod()));
         }
         changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
 
@@ -151,8 +151,8 @@ public abstract class CallStatement extends PointsToStatement {
 
             if (DEBUG && g.getPointsToSet(returnValueFormal).isEmpty()) {
                 System.out.println("CALL RETURN: " + returnValueFormal + "\n\t"
-                                                + PrettyPrinter.parseMethod(resolvedCallee) + " from "
-                                                + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                                + PrettyPrinter.methodString(resolvedCallee) + " from "
+                                                + PrettyPrinter.methodString(getCode().getMethod()));
             }
             changed |= g.addEdges(resultRep, g.getPointsToSet(returnValueFormal));
         }
@@ -196,16 +196,16 @@ public abstract class CallStatement extends PointsToStatement {
             assert util.getClassHierarchy().isAssignableFrom(
                                             util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
                                             util.getClassHierarchy().lookupClass(actual.getExpectedType())) : PrettyPrinter
-                                            .parseType(formalRep.getExpectedType())
+                                            .typeString(formalRep.getExpectedType())
                                             + " := "
-                                            + PrettyPrinter.parseType(actual.getExpectedType()) + " FAILS";
+                                            + PrettyPrinter.typeString(actual.getExpectedType()) + " FAILS";
 
             Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formalRep.getExpectedType());
 
             if (DEBUG && !actual.getExpectedType().isPrimitiveType() && actualHeapContexts.isEmpty()) {
-                System.err.println("ACTUAL: " + actual + "\n\t" + PrettyPrinter.parseMethod(resolvedCallee) + " from "
-                                                + PrettyPrinter.parseMethod(getCode().getMethod()) + " filtered on "
-                                                + PrettyPrinter.parseType(formalRep.getExpectedType()));
+                System.err.println("ACTUAL: " + actual + "\n\t" + PrettyPrinter.methodString(resolvedCallee) + " from "
+                                                + PrettyPrinter.methodString(getCode().getMethod()) + " filtered on "
+                                                + PrettyPrinter.typeString(formalRep.getExpectedType()));
             }
             changed |= g.addEdges(formalRep, actualHeapContexts);
         }
@@ -304,9 +304,9 @@ public abstract class CallStatement extends PointsToStatement {
                 if (cha.isAssignableFrom(thrown, caught)) {
                     if (DEBUG && g.getPointsToSetFiltered(e, caughtType).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
                         System.out.println("EXCEPTION (check thrown): " + e + "\n\t"
-                                                        + PrettyPrinter.parseMethod(resolvedCallee) + " from "
-                                                        + PrettyPrinter.parseMethod(getCode().getMethod())
-                                                        + " filtered on " + PrettyPrinter.parseType(caughtType));
+                                                        + PrettyPrinter.methodString(resolvedCallee) + " from "
+                                                        + PrettyPrinter.methodString(getCode().getMethod())
+                                                        + " filtered on " + PrettyPrinter.typeString(caughtType));
                     }
                     return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
                 } else if (cha.isAssignableFrom(caught, thrown)) {
@@ -322,8 +322,8 @@ public abstract class CallStatement extends PointsToStatement {
                                                     && PointsToAnalysis.outputLevel >= 6) {
                         System.err.println("UNCAUGHT EXCEPTION: " + e + "\n\t"
                                                         + PrettyPrinter.instructionString(getInstruction(), getCode())
-                                                        + " in " + PrettyPrinter.parseMethod(getCode().getMethod())
-                                                        + " caught type: " + PrettyPrinter.parseType(caughtType)
+                                                        + " in " + PrettyPrinter.methodString(getCode().getMethod())
+                                                        + " caught type: " + PrettyPrinter.typeString(caughtType)
                                                         + "\n\tAlready caught: " + alreadyCaught);
                     }
 
@@ -352,7 +352,7 @@ public abstract class CallStatement extends PointsToStatement {
         }
 
         if (!isRethrown) {
-            throw new RuntimeException("Exception of type " + PrettyPrinter.parseType(currentExType)
+            throw new RuntimeException("Exception of type " + PrettyPrinter.typeString(currentExType)
                                             + " may not be handled or rethrown.");
         }
 
@@ -369,8 +369,8 @@ public abstract class CallStatement extends PointsToStatement {
         if (DEBUG && g.getPointsToSetFiltered(e, currentExType, alreadyCaught).isEmpty()
                                         && PointsToAnalysis.outputLevel >= 7) {
             System.err.println("EXCEPTION SUMMARY (check thrown): " + e + "\n\t"
-                                            + PrettyPrinter.parseMethod(resolvedCallee) + " from "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(resolvedCallee) + " from "
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
         changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
         return changed;

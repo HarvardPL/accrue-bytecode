@@ -114,15 +114,15 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                             actualVal = NonNullAbsVal.NON_NULL;
                         }
                     } else {
-                        System.out.println(PrettyPrinter.parseMethod(callee.getMethod()));
+                        System.out.println(PrettyPrinter.methodString(callee.getMethod()));
                         throw new RuntimeException("null NonNullAbsValue for non-primitive non-constant.");
                     }
                 }
                 initial = initial.setLocal(formals[j], actualVal);
             }
             out = interProc.getResults(currentNode, callee, initial);
-            assert out != null : "Null data-flow results for: " + PrettyPrinter.parseCGNode(callee) + "\nFrom "
-                                            + PrettyPrinter.parseCGNode(currentNode);
+            assert out != null : "Null data-flow results for: " + PrettyPrinter.cgNodeString(callee) + "\nFrom "
+                                            + PrettyPrinter.cgNodeString(currentNode);
 
             // join the formals to the previous formals
             VarContext<NonNullAbsVal> normal = out.get(ExitType.NORMAL);
@@ -130,7 +130,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 canTerminateNormally = true;
                 if (!returnAlwaysNonNull) {
                     assert normal.getReturnResult() != null : "null return for "
-                                                    + PrettyPrinter.parseMethod(i.getDeclaredTarget());
+                                                    + PrettyPrinter.methodString(i.getDeclaredTarget());
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
                 for (int j = 0; j < formals.length; j++) {
@@ -248,7 +248,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         for (SSAInstruction i : justProcessed) {
             assert getAnalysisRecord(i) != null : "No analysis record for "
                                             + PrettyPrinter.instructionString(i, currentNode.getIR()) + " in "
-                                            + PrettyPrinter.parseCGNode(currentNode);
+                                            + PrettyPrinter.cgNodeString(currentNode);
             VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), justProcessed);
             Set<Integer> nonNulls = new HashSet<>();
             for (Integer j : input.getLocals()) {
@@ -664,7 +664,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 NonNullAbsVal res = in.getLocal(i.getResult());
                 assert res != null : "null NonNullAbsval for local "
                                                 + PrettyPrinter.instructionString(i, currentNode.getIR()) + " in "
-                                                + PrettyPrinter.parseCGNode(currentNode);
+                                                + PrettyPrinter.cgNodeString(currentNode);
                 out = in.setReturnResult(in.getLocal(i.getResult()));
             }
         }

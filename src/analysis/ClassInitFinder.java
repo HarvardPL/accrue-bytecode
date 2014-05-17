@@ -61,7 +61,7 @@ public class ClassInitFinder {
                 IMethod callee = cha.resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
                     throw new RuntimeException("Trying to get class initializer for " + i + " and could not resolve "
-                                                    + PrettyPrinter.parseMethod(ins.getDeclaredTarget()));
+                                                    + PrettyPrinter.methodString(ins.getDeclaredTarget()));
                 }
                 return getClassInitializersForClass(callee.getDeclaringClass(), cha);
             }
@@ -76,7 +76,7 @@ public class ClassInitFinder {
                     throw new RuntimeException("Trying to get class initializer for "
                                                     + i
                                                     + " and could not resolve "
-                                                    + PrettyPrinter.parseType(ins.getDeclaredField()
+                                                    + PrettyPrinter.typeString(ins.getDeclaredField()
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
@@ -93,7 +93,7 @@ public class ClassInitFinder {
                     throw new RuntimeException("Trying to add class initializer for "
                                                     + i
                                                     + " and could not resolve "
-                                                    + PrettyPrinter.parseType(ins.getDeclaredField()
+                                                    + PrettyPrinter.typeString(ins.getDeclaredField()
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }

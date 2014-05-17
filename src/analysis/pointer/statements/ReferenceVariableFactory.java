@@ -59,7 +59,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected static ReferenceVariable getOrCreateLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
-                                        + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
+                                        + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
         LocalKey key = new LocalKey(local, ir);
         ReferenceVariable node = locals.get(key);
         if (node == null) {
@@ -83,7 +83,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected static ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
         assert !ir.getParameterType(paramNum).isPrimitiveType() : "No reference variables for primitive formals: "
-                                        + PrettyPrinter.parseType(ir.getParameterType(paramNum));
+                                        + PrettyPrinter.typeString(ir.getParameterType(paramNum));
         int local = ir.getParameter(paramNum);
         LocalKey key = new LocalKey(local, ir);
         ReferenceVariable node = locals.get(key);
@@ -107,7 +107,7 @@ public class ReferenceVariableFactory {
      */
     public static ReferenceVariable getLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
-                                        + PrettyPrinter.parseType(TypeRepository.getType(local, ir));
+                                        + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
         LocalKey key = new LocalKey(local, ir);
         assert locals.containsKey(key);
         return locals.get(key);
@@ -143,7 +143,7 @@ public class ReferenceVariableFactory {
         ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
         ReferenceVariable node = implicitThrows.get(key);
         if (node == null) {
-            node = new ReferenceVariable("IMPLICIT-" + PrettyPrinter.parseType(type) + "("
+            node = new ReferenceVariable("IMPLICIT-" + PrettyPrinter.typeString(type) + "("
                                             + PrettyPrinter.instructionString(i, ir) + ")", type, ir);
             implicitThrows.put(key, node);
         }
@@ -165,7 +165,7 @@ public class ReferenceVariableFactory {
         MethodSummaryKey key = new MethodSummaryKey(method, exitType);
         ReferenceVariable node = methodExitSummaries.get(key);
         if (node == null) {
-            String debugString = PrettyPrinter.parseMethod(method) + "-" + exitType;
+            String debugString = PrettyPrinter.methodString(method) + "-" + exitType;
             node = new ReferenceVariable(debugString, type, false);
             methodExitSummaries.put(key, node);
         }
@@ -189,7 +189,7 @@ public class ReferenceVariableFactory {
                                                 "Trying to create reference variable for a static field with a primitive type.");
             }
 
-            node = new ReferenceVariable(PrettyPrinter.parseType(f.getDeclaringClass().getReference()) + "."
+            node = new ReferenceVariable(PrettyPrinter.typeString(f.getDeclaringClass().getReference()) + "."
                                             + f.getName().toString(), f.getFieldTypeReference(), true);
             staticFields.put(f, node);
         }
@@ -467,7 +467,7 @@ public class ReferenceVariableFactory {
 
         @Override
         public String toString() {
-            return PrettyPrinter.valString(value, ir) + " in " + PrettyPrinter.parseMethod(ir.getMethod());
+            return PrettyPrinter.valString(value, ir) + " in " + PrettyPrinter.methodString(ir.getMethod());
         }
     }
 

@@ -256,7 +256,7 @@ public class StatementRegistrar {
                                             resultNode, exceptionNode, util.getClassHierarchy(), ir, i, util));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
-                                            + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
+                                            + PrettyPrinter.methodString(i.getDeclaredTarget()));
         }
     }
 
@@ -276,7 +276,7 @@ public class StatementRegistrar {
         ReferenceVariable result = ReferenceVariableFactory.getOrCreateLocal(i.getDef(), ir);
 
         IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
-        assert klass != null : "No class found for " + PrettyPrinter.parseType(i.getNewSite().getDeclaredType());
+        assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         addStatement(new NewStatement(result, klass, ir, i));
 
         // Handle arrays with multiple dimensions
@@ -288,7 +288,7 @@ public class StatementRegistrar {
             // Add an allocation for the contents
             IClass arrayklass = cha.lookupClass(contents.getExpectedType());
             assert arrayklass != null : "No class found for "
-                                            + PrettyPrinter.parseType(i.getNewSite().getDeclaredType());
+                                            + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
             addStatement(new NewStatement(contents, arrayklass, ir, i));
 
             // Add field assign from the field of the outer array to the array
@@ -316,7 +316,7 @@ public class StatementRegistrar {
         ReferenceVariable result = ReferenceVariableFactory.getOrCreateLocal(i.getDef(), ir);
 
         IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
-        assert klass != null : "No class found for " + PrettyPrinter.parseType(i.getNewSite().getDeclaredType());
+        assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         addStatement(new NewStatement(result, klass, ir, i));
     }
 
@@ -468,7 +468,7 @@ public class StatementRegistrar {
         Set<IMethod> targets = null;
         if (inv.isStatic()) {
             IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
-            assert resolvedMethod != null : "No method found for " + PrettyPrinter.parseMethod(inv.getDeclaredTarget());
+            assert resolvedMethod != null : "No method found for " + PrettyPrinter.methodString(inv.getDeclaredTarget());
             targets = Collections.singleton(resolvedMethod);
         } else if (inv.isSpecial()) {
             IMethod resolvedMethod = cha.resolveMethod(inv.getDeclaredTarget());
@@ -480,7 +480,7 @@ public class StatementRegistrar {
             assert targets != null : "No methods found for " + inv.toString();
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
-                                            + PrettyPrinter.parseMethod(inv.getDeclaredTarget()));
+                                            + PrettyPrinter.methodString(inv.getDeclaredTarget()));
         }
         return targets;
     }
@@ -570,7 +570,7 @@ public class StatementRegistrar {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex = ReferenceVariableFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
             IClass exClass = cha.lookupClass(exType);
-            assert exClass != null : "No class found for " + PrettyPrinter.parseType(exType);
+            assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
             // System.err.println("GENERATED: " +
             // PrettyPrinter.parseType(exType) + " for "

@@ -36,7 +36,7 @@ public class MethodSummaryNodes {
      */
     public MethodSummaryNodes(IMethod method) {
         assert method != null : "method is null";
-        name = PrettyPrinter.parseMethod(method);
+        name = PrettyPrinter.methodString(method);
 
         TypeReference returnType = method.getReturnType();
         if (!method.getReturnType().isPrimitiveType()) {

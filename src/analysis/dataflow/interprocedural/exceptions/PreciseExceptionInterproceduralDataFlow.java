@@ -70,7 +70,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
     @Override
     protected Map<ExitType, PreciseExceptionAbsVal> analyze(CGNode n, PreciseExceptionAbsVal input) {
         if (getOutputLevel() >= 2) {
-            System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
+            System.err.println("\tANALYZING:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
         PreciseExceptionDataFlow df = new PreciseExceptionDataFlow(nonNull, n, this, util.getClassHierarchy());
         df.setOutputLevel(getOutputLevel());
@@ -80,7 +80,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
     @Override
     protected Map<ExitType, PreciseExceptionAbsVal> analyzeNative(CGNode n, PreciseExceptionAbsVal input) {
         if (getOutputLevel() >= 2) {
-            System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
+            System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
         Map<ExitType, PreciseExceptionAbsVal> results = new HashMap<>();
         Set<TypeReference> types;
@@ -88,7 +88,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
             types = new LinkedHashSet<>(Arrays.asList(n.getMethod().getDeclaredExceptions()));
         } catch (UnsupportedOperationException | InvalidClassFileException e) {
             throw new RuntimeException("Trouble getting exceptions from method "
-                                            + PrettyPrinter.parseMethod(n.getMethod()));
+                                            + PrettyPrinter.methodString(n.getMethod()));
         }
         types.add(TypeReference.JavaLangRuntimeException);
         results.put(ExitType.EXCEPTIONAL, new PreciseExceptionAbsVal(types));

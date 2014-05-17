@@ -29,7 +29,7 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     @Override
     protected Map<ExitType, ReachabilityAbsVal> analyze(CGNode n, ReachabilityAbsVal input) {
         if (getOutputLevel() >= 2) {
-            System.err.println("ANALYZING:\t" + PrettyPrinter.parseCGNode(n) + "\tINPUT: " + input);
+            System.err.println("ANALYZING:\t" + PrettyPrinter.cgNodeString(n) + "\tINPUT: " + input);
         }
         ReachabilityDataFlow df = new ReachabilityDataFlow(n, this);
         df.setOutputLevel(getOutputLevel());
@@ -39,7 +39,7 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     @Override
     protected Map<ExitType, ReachabilityAbsVal> analyzeNative(CGNode n, ReachabilityAbsVal input) {
         if (getOutputLevel() >= 2) {
-            System.err.println("ANALYZING NATIVE:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
+            System.err.println("ANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
 
         // Assume all native methods can both terminate normally and throw an

@@ -119,7 +119,7 @@ public abstract class DataFlow<F> {
                             // successors
                             String edgeType = getExceptionalSuccs(pred, g).contains(current) ? "exceptional" : "normal";
                             throw new RuntimeException("null data-flow item in "
-                                                            + PrettyPrinter.parseMethod(ir.getMethod()) + " from BB"
+                                                            + PrettyPrinter.methodString(ir.getMethod()) + " from BB"
                                                             + g.getNumber(pred) + " to BB" + g.getNumber(current)
                                                             + " on " + edgeType + " edge");
                         }
@@ -142,7 +142,7 @@ public abstract class DataFlow<F> {
 
                     if (verbose >= 3) {
                         System.err.println("FLOWING BB" + current.getNumber() + ": in "
-                                                        + PrettyPrinter.parseMethod(ir.getMethod()));
+                                                        + PrettyPrinter.methodString(ir.getMethod()));
                     }
                     if (verbose >= 4) {
                         System.err.print(PrettyPrinter.basicBlockString(ir, current, "\t", "\n"));
@@ -152,7 +152,7 @@ public abstract class DataFlow<F> {
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
                         if (verbose >= 1) {
                             System.err.print("NO INPUT for BB" + current.getGraphNodeId() + " in "
-                                                            + PrettyPrinter.parseMethod(ir.getMethod())
+                                                            + PrettyPrinter.methodString(ir.getMethod())
                                                             + " SKIPPING. Preds: [");
                             Iterator<ISSABasicBlock> iter = getPreds(current, g);
                             ISSABasicBlock first = iter.next();
@@ -189,7 +189,7 @@ public abstract class DataFlow<F> {
                 iterations++;
                 if (iterations >= 5) {
                     throw new RuntimeException("Analyzed the same SCC 100 times for method: "
-                                                    + PrettyPrinter.parseMethod(ir.getMethod()));
+                                                    + PrettyPrinter.methodString(ir.getMethod()));
                 }
             }
         }

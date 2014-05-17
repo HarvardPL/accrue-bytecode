@@ -55,8 +55,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
                                         && PointsToAnalysis.outputLevel >= 6) {
             System.err.println("GENERATED EXCEPTION: " + r + "\n\t"
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()) + " caught type: "
-                                            + PrettyPrinter.parseType(caught.getExpectedType())
+                                            + PrettyPrinter.methodString(getCode().getMethod()) + " caught type: "
+                                            + PrettyPrinter.typeString(caught.getExpectedType())
                                             + "\n\tAlready caught: " + notType);
         }
 
@@ -65,7 +65,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return thrown + " = " + caught + "(" + PrettyPrinter.parseType(caught.getExpectedType()) + " NOT " + notType
+        return thrown + " = " + caught + "(" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
                                         + ")";
     }
 }

@@ -57,7 +57,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
     @Override
     protected Map<ExitType, VarContext<NonNullAbsVal>> analyze(CGNode n, VarContext<NonNullAbsVal> input) {
         if (getOutputLevel() >= 2) {
-            System.err.println("\tANALYZING:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
+            System.err.println("\tANALYZING:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
         NonNullDataFlow df = new NonNullDataFlow(n, this, util);
         df.setOutputLevel(getOutputLevel());
@@ -67,7 +67,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
     @Override
     protected Map<ExitType, VarContext<NonNullAbsVal>> analyzeNative(CGNode n, VarContext<NonNullAbsVal> input) {
         if (getOutputLevel() >= 2) {
-            System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.parseCGNode(n) + "\n\tINPUT: " + input);
+            System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
         // TODO this is unsound if the arguments could change to null
         // We could make this sound by setting all locals in input to

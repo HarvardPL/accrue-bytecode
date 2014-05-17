@@ -66,13 +66,13 @@ public class LocalToArrayStatement extends PointsToStatement {
         if (DEBUG && valHeapContexts.isEmpty()) {
             System.err.println("LOCAL: " + v + "\n\t for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         if (DEBUG && g.getPointsToSet(a).isEmpty()) {
             System.err.println("ARRAY: " + a + "\n\t for "
                                             + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
         }
 
         boolean changed = false;

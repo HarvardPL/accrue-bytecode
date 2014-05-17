@@ -88,10 +88,10 @@ public class ReachabilityResults implements AnalysisResults {
     public void writeAllToFiles() {
         for (CGNode n : allResults.keySet()) {
             if (n.getMethod().isNative()) {
-                System.err.println("No CFG for native " + PrettyPrinter.parseCGNode(n));
+                System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
                 continue;
             }
-            String cgString = PrettyPrinter.parseCGNode(n);
+            String cgString = PrettyPrinter.cgNodeString(n);
             if(cgString.length() > 200) {
                 cgString = cgString.substring(0, 200);
             }
