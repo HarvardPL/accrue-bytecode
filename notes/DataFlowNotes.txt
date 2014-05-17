@@ -29,46 +29,24 @@ A: Skip it
 How about WrongMethodTypeException for virtual methods
 A: check the method name and add it
 
-TODO Priority Queue for interproc?
-DONE: Need overview interprocedural manager
-DONE: Is sound result
-TODO Reasoning about read and write sets
+Q: Do I need exception in VarContext if there is a local for the exception, the local is what I use in the pointer analysis, probably should use it here too.
 
-TODO Need to rework exceptions in statement registrar. instead of check thrown add a statement localToLocal for each catch block and the exit with filtered results.
-
-TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process". For now lets just do them all up front, otherwise it gets messy to determine which clinits need to be called when. e.g. a class might be initialized on one branch of an "if" and not on the other, so it still needs to be initialized again if it appears after the "phi".
-
-Do I need exception in VarContext if there is a local for the exception, the local is what I use in the pointer analysis, probably should use it here too.
+Q: PDG: should we add a PC for the call program point in the caller, what could that help? This would look similar to a "FORMAL_ASSIGNMENT" node
 
 WALA-BUG: getLastInstructionIndex() on ISSABasic block delegates to the Shrike BB, but instruction at some indices are removed in translation, so this instruction might be null (and getLastInstruction() returns null).
 
 WALA-BUG: Using methods from AbstractNumberedGraph in BasicCallGraph breaks the abstraction barrier (for example addNode bipasses the memoization of findOrCreateNode). This should be a delegation relationship not inheritance.
 
-PDG: Do I need to create extra edges in the PDG for clarity? Could make this an option or something. Maybe significantly smaller PDGs (i.e. don't create a node for a + b and a copy edge to c, but instead create edges from a to c and b to c.)
+WALA-BUG: By default the fake root method has no return statement so it had normal and exception edges from a basic block to the exit block.
+
+TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process". For now lets just do them all up front, otherwise it gets messy to determine which clinits need to be called when. e.g. a class might be initialized on one branch of an "if" and not on the other, so it still needs to be initialized again if it appears after the "phi".
 
 TODO check if mergeAndCreateMap can be used in place of factToMap in some places
 
-TODO register pointer statements for instructions that throw generated exceptions even if they are primitive operations
+TODO multiple edges are added to the points to graph for generated exceptions, this might be OK, but it does look like there may be duplicate edges in the PTG maybe from the final check pass? Why isn't hashcode/equals deduping for me
 
-what are we losing in the PDG by not having a PC and value for each exception type this could throw? Some edges from the call-site can only carry certain types so we could be more precise there (as we would be in Accrue)
+TODO change names of parse... PrettyPrinter methods to ...String
 
-loadMetadata: This can throw a ClassNotFoundException, but this could be known
-statically if all the class files were known so it doesn't affect the PDG
-
-WALA-BUG: By default the fake root method has no return statement so it had normal and exception edges from a basic block to the exit block.
-
-TODO should we add a PC for the call program point in the caller, what could that help?
-
-TODO figure out how to change wala.properties path
-
-TODO make sure that static fields get used when they are dereferenced, I think they will because SSA copies them into a local first
-
-TODO multiple edges are added to the points to graph for generated exceptions, this might be OK, but it does look like there are duplicate edges in the PTG maybe from the final check pass? Why isn't hashcode/equals deduping for me
-
-TODO change names of parse... PrettyPrinter methods
-
-DONE Create "signature" for native methods, create assignment from actual arguments to local variables for the formal parameters, no need for summary nodes for formals WALA already has them
-
-TODO Is the fact that Arrays are sometimes Objects in WALA screw things up anywhere? probably in some unexpected way especially since Objects are not subclasses of Arrays, should use isAssignable from everywhere
+TODO Is the fact that Arrays are sometimes Objects in WALA screw things up anywhere? probably in some unexpected way especially since Object is not considerend a subclass of Arrays, should use isAssignable from everywhere
 
 TODO need to be more careful with exception types, Sometimes a filter is getting rid of exceptions from a call since that is "Throwable" and the exceptions could be anything, we can wait for the precise ex to take care of this. Maybe mark certaing refVars as not precise
