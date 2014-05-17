@@ -30,6 +30,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private final Map<PointsToGraphNode, Set<StmtAndContext>> dependencies = new HashMap<>();
 
+    public static boolean DEBUG = false;
+
     /**
      * New pointer analysis engine
      * 
@@ -100,8 +102,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             count++;
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
-            g.addClassInitializers(ClassInitFinder.getClassInitializers(util.getClassHierarchy(), s.getInstruction(),
-                                            s.getCode()));
+            g.addClassInitializers(ClassInitFinder.getClassInitializers(util.getClassHierarchy(), s.getInstruction()));
+
+            if (outputLevel >= 5) {
+                System.err.println("PROCESSING: " + s + " in " + c);
+            }
             s.process(c, haf, g, registrar);
 
             // Get the changes from the graph
@@ -128,14 +133,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 q.addAll(getDependencies(n));
             }
         }
-        
+
         long endTime = System.currentTimeMillis();
         System.err.println("Processed " + count + " (statement, context) pairs. It took " + (endTime - startTime)
-                + "ms.");
+                                        + "ms.");
+
+        if (outputLevel >= 5) {
+            System.err.println("****************************** CHECKING ******************************");
+            PointsToGraph.DEBUG = true;
+            PointsToStatement.DEBUG = true;
+            DEBUG = true;
+            processAllStatements(g, registrar);
+        }
 
         return g;
     }
-    
+
     /**
      * Loop through and process all the points-to statements in the registrar.
      * 

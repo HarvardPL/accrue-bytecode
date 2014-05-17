@@ -11,6 +11,7 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.ExitType;
+import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.CallSiteEdgeLabel;
 import analysis.dataflow.interprocedural.pdg.graph.CallSiteEdgeLabel.SiteType;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
@@ -297,9 +298,9 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // Check if every think the cast object could point to is safe to cast
         IClass checked = cha.lookupClass(i.getCheckedType());
         for (InstanceKey hContext : interProc.getPointsToGraph().getPointsToSet(
-                                        interProc.getReplica(i.getRef(), currentNode))) {
+                                        InterproceduralDataFlow.getReplica(i.getRef(), currentNode))) {
             IClass actual = hContext.getConcreteType();
-            if (cha.isSubclassOf(actual, checked)) {
+            if (cha.isAssignableFrom(actual, checked)) {
                 instanceOfAlwaysFalse = false;
             } else {
                 instanceOfAlwaysTrue = false;
@@ -331,8 +332,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode);
         Set<PDGNode> choices = new LinkedHashSet<>();
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            int useNum = i.getUse(j);
-            choices.add(PDGNodeFactory.findOrCreateUse(i, useNum, currentNode));
+            choices.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode));
         }
 
         PDGContext in = instructionInput.get(i);
@@ -983,6 +983,8 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                             currentNode, new OrderedPair<>(bb, exType));
             addEdge(cause, branch, PDGEdgeType.EXP);
 
+            assert trueExceptionContexts.get(bb) != null;
+            assert trueExceptionContexts.get(bb).get(exType) != null;
             PDGNode truePC = trueExceptionContexts.get(bb).get(exType).getPCNode();
             addEdge(branch, truePC, PDGEdgeType.TRUE);
             addEdge(beforeException.getPCNode(), truePC, PDGEdgeType.CONJUNCTION);

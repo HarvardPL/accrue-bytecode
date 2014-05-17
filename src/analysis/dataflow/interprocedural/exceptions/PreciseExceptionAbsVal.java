@@ -36,7 +36,7 @@ public class PreciseExceptionAbsVal implements AbstractValue<PreciseExceptionAbs
 
     @Override
     public boolean leq(PreciseExceptionAbsVal that) {
-        return that.throwables.contains(throwables);
+        return that.throwables.containsAll(throwables);
     }
 
     @Override
@@ -96,5 +96,30 @@ public class PreciseExceptionAbsVal implements AbstractValue<PreciseExceptionAbs
      */
     public boolean isEmpty() {
         return throwables.isEmpty();
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((throwables == null) ? 0 : throwables.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        PreciseExceptionAbsVal other = (PreciseExceptionAbsVal) obj;
+        if (throwables == null) {
+            if (other.throwables != null)
+                return false;
+        } else if (!throwables.equals(other.throwables))
+            return false;
+        return true;
     }
 }

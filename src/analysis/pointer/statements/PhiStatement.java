@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.List;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -31,7 +32,7 @@ public class PhiStatement extends PointsToStatement {
      * Type of the value assigned into
      */
     private final TypeReference type;
-    
+
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
      * 
@@ -57,17 +58,22 @@ public class PhiStatement extends PointsToStatement {
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
-            changed |= g.addEdges(a, g.getPointsToSetFiltered(n, assignee.getExpectedType()));
+            if (DEBUG && g.getPointsToSet(n).isEmpty()) {
+                System.err.println("PHI ARG: " + n + " for "
+                                                + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                                + PrettyPrinter.parseMethod(getCode().getMethod()));
+            }
+            changed |= g.addEdges(a, g.getPointsToSet(n));
         }
         return changed;
     }
-    
+
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
         s.append(assignee + " = ");
         s.append("phi(");
-        for (int i = 0; i < uses.size() - 1; i ++) {
+        for (int i = 0; i < uses.size() - 1; i++) {
             s.append(uses.get(i) + ", ");
         }
         s.append(uses.get(uses.size() - 1) + ")");

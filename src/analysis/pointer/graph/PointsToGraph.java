@@ -45,8 +45,10 @@ public class PointsToGraph {
 
     private final HeapAbstractionFactory haf;
     private final HafCallGraph callGraph;
-    private final WalaAnalysisUtil util;
     private int outputLevel = 0;
+    private final IClassHierarchy cha;
+
+    public static boolean DEBUG = false;
 
     public PointsToGraph(WalaAnalysisUtil util, StatementRegistrar registrar, HeapAbstractionFactory haf) {
         changedNodes = new LinkedHashSet<>();
@@ -55,8 +57,8 @@ public class PointsToGraph {
         classInitializers = new LinkedHashSet<>();
         this.haf = haf;
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
-        this.util = util;
         callGraph = new HafCallGraph(util, haf);
+        this.cha = util.getClassHierarchy();
     }
 
     /**
@@ -127,20 +129,39 @@ public class PointsToGraph {
         if (graph.containsKey(node)) {
             return new LinkedHashSet<>(graph.get(node));
         }
+        if (DEBUG && outputLevel >= 7) {
+            System.err.println("\tEMPTY POINTS-TO SET for " + node);
+        }
 
         return Collections.emptySet();
     }
 
     public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference type) {
         Set<InstanceKey> s = getPointsToSet(node);
+        if (s.isEmpty()) {
+            return Collections.emptySet();
+        }
         Iterator<InstanceKey> i = s.iterator();
         while (i.hasNext()) {
             InstanceKey k = i.next();
             IClass klass = k.getConcreteType();
-            IClassHierarchy cha = util.getClassHierarchy();
-            if (!cha.isSubclassOf(klass, cha.lookupClass(type))) {
-                i.remove();
+            if (!cha.isAssignableFrom(klass, cha.lookupClass(type))) {
+                // XXX Arrays can sometimes be imprecisely labeled as Object
+                // types. Imprecisely, but soundly don't remove any arrays from
+                // the points-to set if the type we are filtering on is
+                // java.lang.Object and vice versa
+                if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
+                    if (DEBUG && outputLevel >= 6) {
+                        System.err.println("Removing " + PrettyPrinter.parseType(klass.getReference()) + " for "
+                                                    + PrettyPrinter.parseType(type));
+                    }
+                    i.remove();
+                }
             }
+        }
+
+        if (DEBUG && s.isEmpty() && outputLevel >= 6) {
+            System.err.println("\tEMPTY FILTERED POINTS-TO SET for " + node + " filtered on " + type);
         }
         return s;
     }
@@ -166,18 +187,17 @@ public class PointsToGraph {
 
         boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
 
-        IClassHierarchy cha = util.getClassHierarchy();
         IClass isClass = cha.lookupClass(isType);
         Iterator<InstanceKey> iter = s.iterator();
         while (iter.hasNext()) {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
             // TODO assuming we have a precise type could be dangerous
-            if (cha.isSubclassOf(klass, isClass)) {
+            if (cha.isAssignableFrom(klass, isClass)) {
                 if (areNotTypes) {
                     assert notTypes != null;
                     for (IClass notClass : notTypes) {
-                        if (cha.isSubclassOf(klass, notClass)) {
+                        if (cha.isAssignableFrom(klass, notClass)) {
                             // klass is a subclass of one of the classes we do
                             // not want
                             iter.remove();
@@ -186,11 +206,21 @@ public class PointsToGraph {
                     }
                 }
             } else {
-                iter.remove();
+                // XXX Arrays can sometimes be imprecisely labeled as Object
+                // types. Imprecisely, but soundly don't remove any arrays from
+                // the points-to set if the type we are filtering on is
+                // java.lang.Object
+                if (!(klass.isArrayClass() && isType.equals(TypeReference.JavaLangObject))) {
+                    iter.remove();
+                }
             }
 
         }
-
+        if (DEBUG && s.isEmpty() && outputLevel >= 6) {
+            System.err.println("\tEMPTY FILTERED/NOTTED POINTS-TO SET for " + node + " filtered on " + isType
+                                            + " not type "
+                                            + notTypes);
+        }
         return s;
     }
 
@@ -363,7 +393,7 @@ public class PointsToGraph {
      * @return class hierarchy
      */
     public IClassHierarchy getClassHierarchy() {
-        return util.getClassHierarchy();
+        return cha;
     }
 
     /**

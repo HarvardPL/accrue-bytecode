@@ -4,21 +4,45 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.ExitType;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 public class AllocSiteNodeFactory {
 
     private static final Map<AllocSiteKey, AllocSiteNode> map = new LinkedHashMap<>();
 
-    @SuppressWarnings("synthetic-access")
-    protected static AllocSiteNode getAllocationNode(IClass instantiatedClass, IClass containingClass, SSAInstruction i) {
-        AllocSiteKey key = new AllocSiteKey(instantiatedClass, containingClass, i);
-        assert !map.containsKey(key) : "Duplicate allocation node.";
+    protected static AllocSiteNode getAllocationNode(IClass instantiatedClass, IClass allocatingClass, SSAInstruction i) {
+        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i);
+        assert !map.containsKey(key) : "Duplicate normal allocation node: " + instantiatedClass + " from "
+                                        + allocatingClass + " for " + i;
         AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.parseType(instantiatedClass.getReference()),
-                                        instantiatedClass, containingClass);
+                                        instantiatedClass, allocatingClass);
+        map.put(key, n);
+        return n;
+    }
+
+    protected static AllocSiteNode getGeneratedAllocationNode(IClass instantiatedClass, IClass allocatingClass,
+                                    SSAInstruction i) {
+        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i);
+        assert !map.containsKey(key) : "Duplicate generated allocation node: " + instantiatedClass + " from "
+                                        + allocatingClass + " for " + i;
+        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.parseType(instantiatedClass.getReference())
+                                        + " (compiler-generated)", instantiatedClass, allocatingClass);
+        map.put(key, n);
+        return n;
+    }
+
+    protected static AllocSiteNode getAllocationNodeForNative(IClass instantiatedClass, IClass allocatingClass,
+                                    SSAInvokeInstruction nativeInvoke, ExitType type) {
+        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, nativeInvoke, type);
+        assert !map.containsKey(key) : "Duplicate native allocation node: " + instantiatedClass + " from "
+                                        + allocatingClass + " for " + type;
+        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.parseType(instantiatedClass.getReference())
+                                        + " (compiler-generated)", instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;
     }
@@ -27,11 +51,21 @@ public class AllocSiteNodeFactory {
         private final IClass instantiatedClass;
         private final IClass containingClass;
         private final SSAInstruction i;
+        private final ExitType exitType;
 
         public AllocSiteKey(IClass instantiatedClass, IClass containingClass, SSAInstruction i) {
             this.instantiatedClass = instantiatedClass;
             this.containingClass = containingClass;
             this.i = i;
+            this.exitType = null;
+        }
+
+        public AllocSiteKey(IClass instantiatedClass, IClass containingClass, SSAInvokeInstruction nativeCall,
+                                        ExitType exitType) {
+            this.instantiatedClass = instantiatedClass;
+            this.containingClass = containingClass;
+            this.i = nativeCall;
+            this.exitType = exitType;
         }
 
         @Override
@@ -39,6 +73,7 @@ public class AllocSiteNodeFactory {
             final int prime = 31;
             int result = 1;
             result = prime * result + ((containingClass == null) ? 0 : containingClass.hashCode());
+            result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
             result = prime * result + ((i == null) ? 0 : i.hashCode());
             result = prime * result + ((instantiatedClass == null) ? 0 : instantiatedClass.hashCode());
             return result;
@@ -57,6 +92,11 @@ public class AllocSiteNodeFactory {
                 if (other.containingClass != null)
                     return false;
             } else if (!containingClass.equals(other.containingClass))
+                return false;
+            if (exitType == null) {
+                if (other.exitType != null)
+                    return false;
+            } else if (!exitType.equals(other.exitType))
                 return false;
             if (i == null) {
                 if (other.i != null)
@@ -112,7 +152,7 @@ public class AllocSiteNodeFactory {
          * @param containingClass
          *            class where allocation occurs
          */
-        private AllocSiteNode(String debugString, IClass instantiatedClass, IClass containingClass) {
+        protected AllocSiteNode(String debugString, IClass instantiatedClass, IClass containingClass) {
             this.id = ++count;
             this.debugString = debugString;
             this.containingClass = containingClass;

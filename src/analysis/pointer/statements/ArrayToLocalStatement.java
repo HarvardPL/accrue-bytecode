@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -38,7 +39,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
      *            Instruction that generated this points-to statement
      */
     public ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, IR ir,
-            SSAArrayLoadInstruction i) {
+                                    SSAArrayLoadInstruction i) {
         super(ir, i);
         this.value = v;
         this.array = a;
@@ -53,9 +54,20 @@ public class ArrayToLocalStatement extends PointsToStatement {
         boolean changed = false;
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
+        if (DEBUG && g.getPointsToSet(a).isEmpty()) {
+            System.err.println("ARRAY: " + a + "\n\t for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+
         for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
             ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-            changed |= g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
+            if (DEBUG && g.getPointsToSet(contents).isEmpty()) {
+                System.err.println("ARRAY CONTENTS: " + contents + "\n\t for "
+                                                + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                                + PrettyPrinter.parseMethod(getCode().getMethod()));
+            }
+            changed |= g.addEdges(v, g.getPointsToSet(contents));
         }
 
         return changed;

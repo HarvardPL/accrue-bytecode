@@ -3,8 +3,8 @@ package analysis.dataflow.interprocedural.nonnull;
 import analysis.dataflow.util.TwoElementSemiLattice;
 
 public class NonNullAbsVal extends TwoElementSemiLattice<NonNullAbsVal> {
-    protected static NonNullAbsVal NON_NULL = new NonNullAbsVal(true);
-    protected static NonNullAbsVal MAY_BE_NULL = new NonNullAbsVal(false);
+    protected static final NonNullAbsVal NON_NULL = new NonNullAbsVal(true);
+    protected static final NonNullAbsVal MAY_BE_NULL = new NonNullAbsVal(false);
 
     private final boolean notnull;
 

@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -11,7 +12,8 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAGetInstruction;
 
 /**
- * Points-to statement for an assignment from a static field to a local variable, v = o.x
+ * Points-to statement for an assignment from a static field to a local
+ * variable, v = o.x
  */
 public class StaticFieldToLocalStatement extends PointsToStatement {
 
@@ -23,7 +25,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
      * assigned
      */
     private final ReferenceVariable local;
-    
+
     /**
      * Statement for an assignment from a static field to a local, local =
      * ClassName.staticField
@@ -37,7 +39,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IR ir, SSAGetInstruction i) {
+    public StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IR ir,
+                                    SSAGetInstruction i) {
         super(ir, i);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
@@ -47,10 +50,17 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
-        
-        return g.addEdges(l, g.getPointsToSetFiltered(r, local.getExpectedType()));
+
+        if (DEBUG && g.getPointsToSet(r).isEmpty()) {
+            System.err.println("STATIC FIELD: " + r + "\n\t"
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+
+        return g.addEdges(l, g.getPointsToSet(r));
     }
 
     @Override

@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -12,9 +13,11 @@ import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.FieldReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to statement for an assignment into a field, o.f = v
@@ -61,6 +64,30 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     /**
+     * Statement for an assignment into a the value field of a new string
+     * literal
+     * 
+     * @param f
+     *            field assigned to
+     * @param o
+     *            points-to graph node for receiver of field access
+     * @param v
+     *            points-to graph node for value assigned
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
+     */
+    public LocalToFieldStatement(FieldReference f, ReferenceVariable o, ReferenceVariable v, IR ir, SSAInstruction i) {
+        super(ir, i);
+        assert f.getName().toString().equals("value") && f.getDeclaringClass().equals(TypeReference.JavaLangString) : "This constructor should only be called for String.value for a string literal";
+        this.isArrayContents = false;
+        this.field = f;
+        this.receiver = o;
+        this.assigned = v;
+    }
+
+    /**
      * Statement for array contents assigned to a local, a.[contents] = l
      * 
      * @param o
@@ -85,8 +112,21 @@ public class LocalToFieldStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
+        Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, field.getFieldType());
 
-        Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, assigned.getExpectedType());
+        if (DEBUG && localHeapContexts.isEmpty()) {
+            System.err.println("LOCAL: " + local + " for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()) + " filtered on "
+                                            + PrettyPrinter.parseType(field.getFieldType()) + " was "
+                                            + PrettyPrinter.parseType(local.getExpectedType()));
+            g.getPointsToSetFiltered(local, field.getFieldType());
+        }
+        if (DEBUG && g.getPointsToSet(rec).isEmpty()) {
+            System.err.println("RECEIVER: " + rec + " for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
 
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {

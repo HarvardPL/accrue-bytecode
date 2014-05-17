@@ -58,3 +58,17 @@ statically if all the class files were known so it doesn't affect the PDG
 WALA-BUG: By default the fake root method has no return statement so it had normal and exception edges from a basic block to the exit block.
 
 TODO should we add a PC for the call program point in the caller, what could that help?
+
+TODO figure out how to change wala.properties path
+
+TODO make sure that static fields get used when they are dereferenced, I think they will because SSA copies them into a local first
+
+TODO multiple edges are added to the points to graph for generated exceptions, this might be OK, but it does look like there are duplicate edges in the PTG maybe from the final check pass? Why isn't hashcode/equals deduping for me
+
+TODO change names of parse... PrettyPrinter methods
+
+DONE Create "signature" for native methods, create assignment from actual arguments to local variables for the formal parameters, no need for summary nodes for formals WALA already has them
+
+TODO Is the fact that Arrays are sometimes Objects in WALA screw things up anywhere? probably in some unexpected way especially since Objects are not subclasses of Arrays, should use isAssignable from everywhere
+
+TODO need to be more careful with exception types, Sometimes a filter is getting rid of exceptions from a call since that is "Throwable" and the exceptions could be anything, we can wait for the precise ex to take care of this. Maybe mark certaing refVars as not precise

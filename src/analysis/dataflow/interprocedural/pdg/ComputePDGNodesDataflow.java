@@ -1,6 +1,7 @@
 package analysis.dataflow.interprocedural.pdg;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -68,6 +69,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts;
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts;
     private final Map<CallSiteReference, PDGContext> calleeExceptionContexts;
+    private final Map<OrderedPair<Set<PDGContext>, ISSABasicBlock>, PDGContext> confluenceMemo;
+    private final Map<ISSABasicBlock, PDGContext> mostRecentConfluence;
 
     public ComputePDGNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util) {
         super(true);
@@ -87,6 +90,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         falseExceptionContexts = new LinkedHashMap<>();
         calleeExceptionContexts = new LinkedHashMap<>();
         mergeNodes = new LinkedHashMap<>();
+        confluenceMemo = new LinkedHashMap<>();
+        mostRecentConfluence = new LinkedHashMap<>();
     }
 
     /**
@@ -101,7 +106,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Set<PDGContext> flowInput = inItems;
         if (current.isEntryBlock()) {
-            flowInput = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode).getEntryContext());
+            flowInput = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode)
+                                            .getEntryContext());
         }
         return super.flow(flowInput, cfg, current);
     }
@@ -223,9 +229,11 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
             // Restore the PC!
             ISSABasicBlock postDominated = postDoms.iterator().next();
+
+            assert !postDominated.equals(bb);
             AnalysisRecord<PDGContext> rec = getAnalysisRecord(postDominated);
             if (rec != null) {
-                PDGContext postDomContext = confluence(getAnalysisRecord(postDominated).getInput(), bb);
+                PDGContext postDomContext = mostRecentConfluence.get(postDominated);
                 return postDomContext.getPCNode();
             }
             // Have not analyzed the post-dom yet, must be a back edge, will
@@ -238,10 +246,10 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     }
 
     /**
-     * facts should be non-empty
-     * 
      * Do not call this method except to merge upon entering a basic block. Use
      * {@link ComputePDGNodesDataflow#mergeContexts()} instead.
+     * <p>
+     * Facts should be non-empty
      * <p>
      * {@inheritDoc}
      */
@@ -249,10 +257,16 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         assert !facts.isEmpty() : "Empty facts in confluence entering\n"
                                         + PrettyPrinter.basicBlockString(ir, bb, "\t", "\n") + "IN "
                                         + PrettyPrinter.parseCGNode(currentNode);
+
         PDGContext c;
         if (facts.size() == 1) {
             return facts.iterator().next();
         }
+
+        if (confluenceMemo.containsKey(new OrderedPair<>(facts, bb))) {
+            return confluenceMemo.get(new OrderedPair<>(facts, bb));
+        }
+
         c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
 
         PDGNode restorePC = handlePostDominators(bb);
@@ -260,6 +274,9 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             // restore the PC of a post dominator
             c = new PDGContext(c.getReturnNode(), c.getExceptionNode(), restorePC);
         }
+        
+        confluenceMemo.put(new OrderedPair<>(facts, bb), c);
+        mostRecentConfluence.put(bb, c);
         return c;
     }
 
@@ -627,8 +644,8 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected Map<ISSABasicBlock, PDGContext> flowLoadMetadata(SSALoadMetadataInstruction i,
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // This can throw a ClassNotFoundException, but this could be known
-        // statically if all the class files were known.
+        // TODO load metadata can throw a ClassNotFoundException, but this could
+        // be known statically if all the class files were known.
         return factToMap(confluence(previousItems, current), current, cfg);
     }
 
@@ -739,17 +756,49 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             Map<ExitType, PDGContext> out = new LinkedHashMap<>();
             PDGNode truePC = PDGNodeFactory.findOrCreateOther(branchDescription, PDGNodeType.BOOLEAN_TRUE_PC,
                                             currentNode, i);
+
             PDGNode falsePC = PDGNodeFactory.findOrCreateOther(branchDescription, PDGNodeType.BOOLEAN_FALSE_PC,
                                             currentNode, i);
             PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
 
             PDGContext ex = new PDGContext(null, exceptionValue, truePC);
             PDGContext normal = new PDGContext(null, null, falsePC);
+
+            recordExceptionContexts(exType, ex, normal, bb);
             out.put(ExitType.NORMAL, normal);
             out.put(ExitType.EXCEPTIONAL, ex);
             return out;
         }
         return Collections.singletonMap(ExitType.NORMAL, beforeException);
+    }
+
+    /**
+     * Record the contexts computed for the false and true branches of an
+     * (implicit) exception throw
+     * 
+     * @param exType
+     *            type of exception being thrown
+     * @param ex
+     *            context on the branch where the exception is thrown
+     * @param normal
+     *            context on the branch where the exception is NOT thrown
+     * @param bb
+     *            basic block that throws the exception
+     */
+    private void recordExceptionContexts(TypeReference exType, PDGContext ex, PDGContext normal, ISSABasicBlock bb) {
+        Map<TypeReference, PDGContext> trueExes = trueExceptionContexts.get(bb);
+        if (trueExes == null) {
+            trueExes = new HashMap<>();
+            trueExceptionContexts.put(bb, trueExes);
+        }
+        trueExes.put(exType, ex);
+
+        Map<TypeReference, PDGContext> falseExes = falseExceptionContexts.get(bb);
+        if (falseExes == null) {
+            falseExes = new HashMap<>();
+            falseExceptionContexts.put(bb, falseExes);
+        }
+        falseExes.put(exType, normal);
     }
 
     /**

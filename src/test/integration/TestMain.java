@@ -86,6 +86,12 @@ public class TestMain {
             if (args.length > 3) {
                 fileLevel = Integer.parseInt(args[3]);
             }
+
+            int otherOutputLevel = 0;
+            if (outputLevel >= 9) {
+                otherOutputLevel = 9;
+            }
+
             String fileName = entryPoint;
             WalaAnalysisUtil util;
             Entrypoint entry;
@@ -115,27 +121,27 @@ public class TestMain {
             case "maincfg":
                 util = setUpWala(entryPoint);
                 entry = util.getOptions().getEntrypoints().iterator().next();
-                ir = util.getCache().getIR(entry.getMethod());
+                ir = util.getIR(entry.getMethod());
                 printSingleCFG(ir, fileName + "_main");
                 break;
             case "nonnull":
                 util = setUpWala(entryPoint);
-                g = generatePointsToGraph(util, outputLevel);
-                ReachabilityResults r = runReachability(outputLevel, g);
+                g = generatePointsToGraph(util, otherOutputLevel);
+                ReachabilityResults r = runReachability(otherOutputLevel, g);
                 NonNullResults nonNull = runNonNull(util, outputLevel, g, r);
                 nonNull.writeAllToFiles(r);
                 break;
             case "precise-ex":
                 util = setUpWala(entryPoint);
-                g = generatePointsToGraph(util, outputLevel);
-                r = runReachability(outputLevel, g);
-                nonNull = runNonNull(util, outputLevel, g, r);
+                g = generatePointsToGraph(util, otherOutputLevel);
+                r = runReachability(otherOutputLevel, g);
+                nonNull = runNonNull(util, otherOutputLevel, g, r);
                 PreciseExceptionResults preciseEx = runPreciseExceptions(util, outputLevel, g, r, nonNull);
                 preciseEx.writeAllToFiles(r);
                 break;
             case "reachability":
                 util = setUpWala(entryPoint);
-                g = generatePointsToGraph(util, outputLevel);
+                g = generatePointsToGraph(util, otherOutputLevel);
                 r = runReachability(outputLevel, g);
                 r.writeAllToFiles();
                 break;
@@ -145,10 +151,6 @@ public class TestMain {
                 printAllCFG(g);
                 break;
             case "pdg":
-                int otherOutputLevel = 0;
-                if (outputLevel >= 9) {
-                    otherOutputLevel = 9;
-                }
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, otherOutputLevel);
                 r = runReachability(otherOutputLevel, g);
@@ -218,9 +220,9 @@ public class TestMain {
          * Start of WALA set up code
          ********************************/
         if (classPath == null) {
-            classPath = "/Users/mu/Documents/workspace/WALA/walaAnalysis/classes";
+            classPath = "classes";
         }
-        File exclusions = new File("/Users/mu/Documents/workspace/WALA/walaAnalysis/data/Exclusions.txt");
+        File exclusions = new File("data/Exclusions.txt");
 
         AnalysisScope scope = AnalysisScopeReader.makePrimordialScope(exclusions);
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);

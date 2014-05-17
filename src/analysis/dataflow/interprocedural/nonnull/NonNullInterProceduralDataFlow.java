@@ -102,7 +102,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
                                     Map<ExitType, VarContext<NonNullAbsVal>> currentOutput) {
         assert previousOutput != null;
         assert currentOutput != null;
-        return previousOutput.equals(currentOutput);
+        return !previousOutput.equals(currentOutput);
     }
 
     @Override

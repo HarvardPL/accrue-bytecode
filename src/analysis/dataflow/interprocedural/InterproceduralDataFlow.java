@@ -278,6 +278,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
                 // Already processing the callee, this is a recursive call, just
                 // use latest results and process this later with the new input
                 q.add(callee);
+                if (outputLevel >= 4) {
+                    System.err.println("ALREADY PROCESSING: " + PrettyPrinter.parseCGNode(callee) + " requested from "
+                                                    + PrettyPrinter.parseCGNode(caller));
+                }
                 recordedResults.put(callee, results);
                 printResults(callee, "LATEST", results.getOutput());
             } else {
@@ -356,6 +360,13 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         if (previousOutput == null || outputChanged(previousOutput, output)) {
             // The output changed add dependencies to the queue
+            if (outputLevel >= 4) {
+                System.err.println("OUTPUT CHANGED from\n\t" + previousOutput + " TO\n\t" + output);
+                System.err.println("\tFOR: " + PrettyPrinter.parseCGNode(n));
+                for (CGNode cgn : getDependencies(n)) {
+                    System.err.println("\tDEP: " + PrettyPrinter.parseCGNode(cgn));
+                }
+            }
             q.addAll(getDependencies(n));
         }
         printResults(n, "NEW", output);

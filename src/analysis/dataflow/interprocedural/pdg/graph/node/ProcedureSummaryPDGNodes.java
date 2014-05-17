@@ -44,7 +44,9 @@ public class ProcedureSummaryPDGNodes {
     public ProcedureSummaryPDGNodes(CGNode n) {
         formals = new LinkedList<>();
         for (int j = 0; j < n.getMethod().getNumberOfParameters(); j++) {
-            formals.add(PDGNodeFactory.findOrCreateOther("formal-" + j, PDGNodeType.FORMAL_SUMMARY, n, j));
+            formals.add(PDGNodeFactory.findOrCreateOther(
+                                            "formal-" + j + " (" + PrettyPrinter.parseMethod(n.getMethod())
+                                            + ")", PDGNodeType.FORMAL_SUMMARY, n, j));
         }
         entry = new PDGContext(null, null, PDGNodeFactory.findOrCreateOther(
                                         "ENTRY-PC " + PrettyPrinter.parseMethod(n.getMethod()),

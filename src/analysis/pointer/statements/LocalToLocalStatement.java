@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -48,6 +49,12 @@ public class LocalToLocalStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
+        if (DEBUG && g.getPointsToSetFiltered(r, left.getExpectedType()).isEmpty()) {
+            System.err.println("LOCAL: " + r + " for " + PrettyPrinter.instructionString(getInstruction(), getCode())
+                                            + " in " + PrettyPrinter.parseMethod(getCode().getMethod())
+                                            + " filtered on " + PrettyPrinter.parseType(left.getExpectedType())
+                                            + " was " + PrettyPrinter.parseType(r.getExpectedType()));
+        }
         return g.addEdges(l, g.getPointsToSetFiltered(r, left.getExpectedType()));
     }
 

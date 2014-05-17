@@ -1,5 +1,6 @@
 package analysis;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -9,7 +10,6 @@ import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
-import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
@@ -43,14 +43,14 @@ public class ClassInitFinder {
      *         need to be called (i.e. element j is a super class of element
      *         j+1)
      */
-    public static List<IMethod> getClassInitializers(IClassHierarchy cha, SSAInstruction i, IR ir) {
+    public static List<IMethod> getClassInitializers(IClassHierarchy cha, SSAInstruction i) {
         IClass klass = null;
 
         // T is a class and an instance of T is created.
         if (i instanceof SSANewInstruction) {
             SSANewInstruction ins = (SSANewInstruction) i;
             if (!ins.getConcreteType().isArrayType()) {
-                klass = cha.lookupClass(ins.getConcreteType());
+                return getClassInitializersForClass(klass, cha);
             }
         }
 
@@ -60,12 +60,10 @@ public class ClassInitFinder {
             if (ins.isStatic()) {
                 IMethod callee = cha.resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
-                    throw new RuntimeException("Trying to get class initializer for "
-                                                    + PrettyPrinter.instructionString(i, ir)
-                                                    + " and could not resolve "
+                    throw new RuntimeException("Trying to get class initializer for " + i + " and could not resolve "
                                                     + PrettyPrinter.parseMethod(ins.getDeclaredTarget()));
                 }
-                klass = callee.getDeclaringClass();
+                return getClassInitializersForClass(callee.getDeclaringClass(), cha);
             }
         }
 
@@ -76,13 +74,13 @@ public class ClassInitFinder {
                 IField f = cha.resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to get class initializer for "
-                                                    + PrettyPrinter.instructionString(i, ir)
+                                                    + i
                                                     + " and could not resolve "
                                                     + PrettyPrinter.parseType(ins.getDeclaredField()
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
-                klass = f.getDeclaringClass();
+                return getClassInitializersForClass(f.getDeclaringClass(), cha);
             }
         }
 
@@ -93,13 +91,13 @@ public class ClassInitFinder {
                 IField f = cha.resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to add class initializer for "
-                                                    + PrettyPrinter.instructionString(i, ir)
+                                                    + i
                                                     + " and could not resolve "
                                                     + PrettyPrinter.parseType(ins.getDeclaredField()
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
-                klass = f.getDeclaringClass();
+                return getClassInitializersForClass(f.getDeclaringClass(), cha);
             }
         }
 
@@ -108,8 +106,23 @@ public class ClassInitFinder {
         // java.lang.reflect also causes class or interface initialization.
         // TODO handle class initializers for reflection
 
-        LinkedList<IMethod> inits = new LinkedList<>();
+        return Collections.emptyList();
+    }
+
+    /**
+     * Get any classes that have to be initialized when the given class is
+     * initialized (i.e. the superclasses and interfaces)
+     * 
+     * @param clazz
+     *            class to be initialized
+     * @param cha
+     *            class hierarchy
+     * @return List of class init methods that need to be called
+     */
+    public static List<IMethod> getClassInitializersForClass(IClass clazz, IClassHierarchy cha) {
+        IClass klass = clazz;
         if (klass != null) {
+            LinkedList<IMethod> inits = new LinkedList<>();
             // Need to also call clinit for any super classes
             while (!klass.isInterface() && !cha.isRootClass(klass)) {
                 if (klass.getClassInitializer() != null) {
@@ -118,8 +131,8 @@ public class ClassInitFinder {
                 }
                 klass = klass.getSuperclass();
             }
+            return inits;
         }
-                
-        return inits;
+        return Collections.emptyList();
     }
 }

@@ -2,7 +2,9 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -48,7 +50,22 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
         PointsToGraphNode r = new ReferenceVariableReplica(context, thrown);
-        return g.addEdges(l, g.getPointsToSetFiltered(r, thrown.getExpectedType(), notType));
+
+        if (DEBUG && g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).isEmpty()
+                                        && PointsToAnalysis.outputLevel >= 6) {
+            System.err.println("GENERATED EXCEPTION: " + r + "\n\t"
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()) + " caught type: "
+                                            + PrettyPrinter.parseType(caught.getExpectedType())
+                                            + "\n\tAlready caught: " + notType);
+        }
+
+        return g.addEdges(l, g.getPointsToSetFiltered(r, caught.getExpectedType(), notType));
     }
 
+    @Override
+    public String toString() {
+        return thrown + " = " + caught + "(" + PrettyPrinter.parseType(caught.getExpectedType()) + " NOT " + notType
+                                        + ")";
+    }
 }

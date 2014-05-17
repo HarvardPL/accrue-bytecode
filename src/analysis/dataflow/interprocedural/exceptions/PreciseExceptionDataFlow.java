@@ -120,8 +120,8 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     }
 
     @Override
-    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, PreciseExceptionAbsVal> outItems) {
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+                                    Map<ISSABasicBlock, PreciseExceptionAbsVal> outItems) {
 
         for (ISSABasicBlock next : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(next) != null && !outItems.get(next).isEmpty()) {
@@ -224,7 +224,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         // if there are multiple dimensions then the assignee is also an array
         // use the dimensions from the parent array for the assignee
         List<Integer> dims = arrayDimensions.get(i.getArrayRef());
-        if (dims.size() > 1) {
+        if (dims != null && dims.size() > 1) {
             List<Integer> subDims = dims.subList(1, dims.size());
             arrayDimensions.put(i.getDef(), subDims);
         }
@@ -245,9 +245,16 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
 
-        IClass elementType = cha.lookupClass(i.getElementType());
-        IClass storedType = cha.lookupClass(TypeRepository.getType(i.getUse(2), currentNode.getIR()));
-        if (cha.isSubclassOf(storedType, elementType)) {
+        TypeReference elementType = i.getElementType();
+        TypeReference storedType = TypeRepository.getType(i.getUse(2), currentNode.getIR());
+        if (!elementType.isPrimitiveType() && currentNode.getIR().getSymbolTable().isNullConstant(i.getUse(2))) {
+            // Null can be passed into any non-primitive array
+            throwables.remove(TypeReference.JavaLangArrayStoreException);
+        } else if (elementType.isPrimitiveType() && isWideningPrimitiveConversion(storedType, elementType)) {
+            // Implicitly castable primitive
+            throwables.remove(TypeReference.JavaLangArrayStoreException);
+        } else if (!elementType.isPrimitiveType() && cha.isAssignableFrom(cha.lookupClass(storedType), cha.lookupClass(elementType))) {
+            // Storing a subtype
             throwables.remove(TypeReference.JavaLangArrayStoreException);
         }
 
@@ -284,9 +291,9 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         boolean castAlwaysSucceeds = true;
         IClass checked = cha.lookupClass(i.getDeclaredResultTypes()[0]);
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            for (InstanceKey hContext : ptg.getPointsToSet(interProc.getReplica(i.getVal(), currentNode))) {
+            for (InstanceKey hContext : ptg.getPointsToSet(InterproceduralDataFlow.getReplica(i.getVal(), currentNode))) {
                 IClass actual = hContext.getConcreteType();
-                if (!cha.isSubclassOf(actual, checked)) {
+                if (!cha.isAssignableFrom(actual, checked)) {
                     castAlwaysSucceeds = false;
                     break;
                 }
@@ -531,6 +538,76 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                     // safe index
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Is the conversion between primitive types from sourceType to targetType a
+     * widening conversion (meaning it can be done implicitly). See JLS 5.1.2.
+     * <p>
+     * i.e is target = source valid with no cast
+     * <ul>
+     * <li>byte to short, int, long, float, or double</li>
+     * <li>short to int, long, float, or double</li>
+     * <li>char to int, long, float, or double</li>
+     * <li>int to long, float, or double</li>
+     * <li>long to float or double</li>
+     * <li>float to double</li>
+     * </ul>
+     * 
+     * @param targetType
+     *            type of the target variable
+     * @param sourceType
+     *            type of the source expression
+     * @return true if it is safe to assign a primitive of type sourceType to
+     *         one of type targetType with no explicit cast
+     */
+    private static boolean isWideningPrimitiveConversion(TypeReference sourceType, TypeReference targetType) {
+        assert sourceType.isPrimitiveType();
+        assert targetType.isPrimitiveType();
+
+        if (sourceType.equals(targetType)) {
+            return true;
+        }
+
+        if (sourceType == TypeReference.Byte){
+            if (targetType == TypeReference.Short || 
+                targetType == TypeReference.Int || 
+                targetType == TypeReference.Long || 
+                targetType == TypeReference.Float || 
+                targetType == TypeReference.Double) {
+                return true;
+            }
+        }
+
+        if (sourceType.equals(TypeReference.Short)) {
+            if (targetType == TypeReference.Int || 
+                targetType == TypeReference.Long || 
+                targetType == TypeReference.Float || 
+                targetType == TypeReference.Double) {
+                return true;
+            }
+        }
+
+        if (sourceType.equals(TypeReference.Int)) {
+            if (targetType == TypeReference.Long || 
+                targetType == TypeReference.Float || 
+                targetType == TypeReference.Double) {
+                return true;
+            }
+        }
+
+        if (sourceType.equals(TypeReference.Long)) {
+            if (targetType == TypeReference.Float || targetType == TypeReference.Double) {
+                return true;
+            }
+        }
+
+        if (sourceType.equals(TypeReference.Float)) {
+            if (targetType == TypeReference.Double) {
+                return true;
             }
         }
         return false;

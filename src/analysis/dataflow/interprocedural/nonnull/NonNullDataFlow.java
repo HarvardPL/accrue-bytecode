@@ -66,7 +66,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> call(SSAInvokeInstruction i,
                                     Set<VarContext<NonNullAbsVal>> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-        boolean isVoid = i.getDeclaredTarget().getReturnType().equals(TypeReference.Void);
+        boolean returnAlwaysNonNull = i.getDeclaredTarget().getReturnType().isPrimitiveType();
+        
 
         VarContext<NonNullAbsVal> in = confluence(inItems, bb);
         VarContext<NonNullAbsVal> nonNull = in;
@@ -113,6 +114,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                             actualVal = NonNullAbsVal.NON_NULL;
                         }
                     } else {
+                        System.out.println(PrettyPrinter.parseMethod(callee.getMethod()));
                         throw new RuntimeException("null NonNullAbsValue for non-primitive non-constant.");
                     }
                 }
@@ -126,7 +128,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             VarContext<NonNullAbsVal> normal = out.get(ExitType.NORMAL);
             if (normal != null) {
                 canTerminateNormally = true;
-                if (!isVoid) {
+                if (!returnAlwaysNonNull) {
+                    assert normal.getReturnResult() != null : "null return for "
+                                                    + PrettyPrinter.parseMethod(i.getDeclaredTarget());
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
                 for (int j = 0; j < formals.length; j++) {
@@ -153,7 +157,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // Normal return
         if (canTerminateNormally) {
             VarContext<NonNullAbsVal> normal = null;
-            if (!isVoid) {
+            if (!returnAlwaysNonNull) {
                 normal = nonNull.setLocal(i.getReturnValue(0), calleeReturn);
                 normal = updateActuals(newNormalActualValues, actuals, normal);
             } else {
@@ -467,8 +471,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // "null" can be cast to anything so if we get a ClassCastException then
         // we know the casted object was not null
         exception = exception.setLocal(i.getUse(0), NonNullAbsVal.NON_NULL);
+        
+        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(), in.getLocal(i.getUse(0)));
 
-        return factsToMapWithExceptions(in, exception, current, cfg);
+        return factsToMapWithExceptions(out, exception, current, cfg);
     }
 
     @Override
@@ -648,7 +654,21 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
-        VarContext<NonNullAbsVal> out = in.setReturnResult(in.getLocal(i.getResult()));
+        VarContext<NonNullAbsVal> out = in;
+        if (i.getNumberOfUses() > 0) {
+            if (currentNode.getIR().getSymbolTable().isNullConstant(i.getResult())) {
+                out = in.setReturnResult(NonNullAbsVal.MAY_BE_NULL);
+            } else if (i.returnsPrimitiveType()) {
+                out = in.setReturnResult(NonNullAbsVal.NON_NULL);
+            } else {
+                NonNullAbsVal res = in.getLocal(i.getResult());
+                assert res != null : "null NonNullAbsval for local "
+                                                + PrettyPrinter.instructionString(i, currentNode.getIR()) + " in "
+                                                + PrettyPrinter.parseCGNode(currentNode);
+                out = in.setReturnResult(in.getLocal(i.getResult()));
+            }
+        }
+
 
         return factToMap(out, current, cfg);
     }

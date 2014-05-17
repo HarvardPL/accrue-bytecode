@@ -12,10 +12,13 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
+import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
@@ -154,7 +157,7 @@ public class StatementRegistrar {
             return;
         }
         ReferenceVariable assignee = ReferenceVariableFactory.getOrCreateLocal(i.getDef(), ir);
-        ReferenceVariable field = ReferenceVariableFactory.getOrCreateNodeForStaticField(i.getDeclaredField(), cha);
+        ReferenceVariable field = ReferenceVariableFactory.getOrCreateStaticField(i.getDeclaredField(), cha);
         addStatement(new StaticFieldToLocalStatement(assignee, field, ir, i));
     }
 
@@ -195,7 +198,7 @@ public class StatementRegistrar {
 
         FieldReference f = i.getDeclaredField();
         ReferenceVariable assignedValue = ReferenceVariableFactory.getOrCreateLocal(i.getVal(), ir);
-        ReferenceVariable fieldNode = ReferenceVariableFactory.getOrCreateNodeForStaticField(f, cha);
+        ReferenceVariable fieldNode = ReferenceVariableFactory.getOrCreateStaticField(f, cha);
         addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir, i));
 
     }
@@ -207,10 +210,10 @@ public class StatementRegistrar {
      *            invoke instruction
      * @param ir
      *            code for the method containing the instruction (the caller)
-     * @param cha
-     *            Class hierarchy, used to resolve method calls
+     * @param util
+     *            WALA utilities, like the class hierarchy, and IR repository
      */
-    protected void registerInvoke(SSAInvokeInstruction i, IR ir, IClassHierarchy cha) {
+    protected void registerInvoke(SSAInvokeInstruction i, IR ir, WalaAnalysisUtil util) {
         assert (i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1);
 
         ReferenceVariable resultNode = null;
@@ -222,17 +225,7 @@ public class StatementRegistrar {
         }
 
         List<ReferenceVariable> actuals = new LinkedList<>();
-        // actuals
-        if (i.isStatic() && i.getNumberOfParameters() > 0) {
-            // for non-static methods param(0) is the target
-            // for static it is the first argument
-            if (TypeRepository.getType(i.getUse(0), ir).isPrimitiveType()) {
-                actuals.add(null);
-            } else {
-                actuals.add(ReferenceVariableFactory.getOrCreateLocal(i.getUse(0), ir));
-            }
-        }
-        for (int j = 1; j < i.getNumberOfParameters(); j++) {
+        for (int j = 0; j < i.getNumberOfParameters(); j++) {
             if (TypeRepository.getType(i.getUse(j), ir).isPrimitiveType()) {
                 actuals.add(null);
             } else {
@@ -246,21 +239,21 @@ public class StatementRegistrar {
         ReferenceVariable receiver = i.isStatic() ? null : ReferenceVariableFactory.getOrCreateLocal(i.getReceiver(),
                                         ir);
 
-        Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, cha);
+        Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util.getClassHierarchy());
         if (i.isStatic()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(new StaticCallStatement(i.getCallSite(), resolvedMethod, actuals, resultNode, exceptionNode,
-                                            ir, i));
+                                            ir, i, util));
         } else if (i.isSpecial()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(new SpecialCallStatement(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
-                                            exceptionNode, ir, i));
+                                            exceptionNode, ir, i, util));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             addStatement(new VirtualCallStatement(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
-                                            resultNode, exceptionNode, cha, ir, i));
+                                            resultNode, exceptionNode, util.getClassHierarchy(), ir, i, util));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
                                             + PrettyPrinter.parseMethod(i.getDeclaredTarget()));
@@ -290,8 +283,8 @@ public class StatementRegistrar {
         ReferenceVariable array = result;
         for (int dim = 1; dim < i.getNumberOfUses(); dim++) {
             // Create local for array contents
-            ReferenceVariable contents = ReferenceVariableFactory.getOrCreateLocalForArrayContents(dim, array
-                                            .getExpectedType().getArrayElementType(), i, ir);
+            ReferenceVariable contents = ReferenceVariableFactory.getOrCreateArrayContents(dim, array.getExpectedType()
+                                            .getArrayElementType(), i, ir);
             // Add an allocation for the contents
             IClass arrayklass = cha.lookupClass(contents.getExpectedType());
             assert arrayklass != null : "No class found for "
@@ -510,6 +503,24 @@ public class StatementRegistrar {
     }
 
     /**
+     * Add a new statement to the registrar
+     * 
+     * @param s
+     *            statement to add
+     * @param nativeMethod
+     *            method we are adding the statement for
+     */
+    private void addStatementForNative(PointsToStatement s, IMethod nativeMethod) {
+        statements.add(s);
+        Set<PointsToStatement> ss = statementsForMethod.get(nativeMethod);
+        if (ss == null) {
+            ss = new LinkedHashSet<>();
+            statementsForMethod.put(nativeMethod, ss);
+        }
+        ss.add(s);
+    }
+
+    /**
      * Get all the statements for a particular method
      * 
      * @param m
@@ -525,11 +536,46 @@ public class StatementRegistrar {
         return Collections.emptySet();
     }
 
+    /**
+     * Add points-to statements for a String constant
+     * 
+     * @param valueNumber
+     *            value number for the constant
+     * @param ir
+     *            IR containing the constant
+     * @param i
+     *            instruction using the string literal
+     * @param stringClass
+     *            representation of the class {@link java.lang.String}
+     * @param stringValueClass
+     *            representation of the byte array type
+     */
+    protected void addStatementsForStringLit(int valueNumber, IR ir, SSAInstruction i, IClass stringClass,
+                                    IClass stringValueClass) {
+
+        ReferenceVariable newStringLit = ReferenceVariableFactory.getOrCreateLocal(valueNumber, ir);
+        // v = new String
+        addStatement(NewStatement.newStatementForStringLiteral(newStringLit, ir, i, stringClass));
+        for (IField f : stringClass.getAllFields()) {
+            if (f.getName().toString().equals("value")) {
+                // This is the value field
+                ReferenceVariable stringValue = ReferenceVariableFactory.getOrCreateStringLitField(valueNumber, i, ir);
+                addStatement(NewStatement.newStatementForStringField(stringValue, ir, i, stringValueClass));
+                addStatement(new LocalToFieldStatement(f.getReference(), newStringLit, stringValue, ir, i));
+            }
+        }
+    }
+
     protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, IClassHierarchy cha) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex = ReferenceVariableFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
             IClass exClass = cha.lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.parseType(exType);
+
+            // System.err.println("GENERATED: " +
+            // PrettyPrinter.parseType(exType) + " for "
+            // + PrettyPrinter.instructionString(i, ir) + " in "
+            // + PrettyPrinter.parseMethod(ir.getMethod()));
             addStatement(NewStatement.newStatementForGeneratedException(ex, exClass, ir, i));
             addAssignmentForThrownException(i, ir, ex, cha);
         }
@@ -569,24 +615,46 @@ public class StatementRegistrar {
     }
 
     /**
-     * Look for String literals in the instruction and create allocation sites
-     * for them
+     * Add points-to statements using a simple signature for native methods,
+     * where the return value and exception are newly allocated objects.
+     * <p>
+     * this is unsound if the method modifies an input, returns an input, or has
+     * heap side effects
      * 
-     * @param i
-     *            instruction to create string literals for
+     * @param m
+     *            native method
+     * @param summaryNodes
+     *            Method summary nodes for the
      * @param ir
-     *            code containing the instruction
-     * @param stringClass
-     *            WALA representation of the java.lang.String class
+     *            IR containing the invocation
+     * @param nativeCall
+     *            invocation of the native method
+     * @param cha
+     *            class hierarchy
      */
-    public void addStatementsForStringLiterals(SSAInstruction i, IR ir, IClass stringClass) {
-        for (int j = 0; j < i.getNumberOfUses(); j++) {
-            int use = i.getUse(j);
-            if (ir.getSymbolTable().isStringConstant(use)) {
-                ReferenceVariable newStringLit = ReferenceVariableFactory.getOrCreateLocal(use, ir);
-                addStatement(NewStatement.newStatementForStringLiteral(newStringLit, ir, i, stringClass));
-            }
+    protected void addStatementsForNative(IMethod m, MethodSummaryNodes summaryNodes, IR ir,
+                                    SSAInvokeInstruction nativeCall, IClassHierarchy cha) {
+
+        TypeReference returnType = m.getReturnType();
+        if (!returnType.isPrimitiveType()) {
+            // Add a new allocation for the return and an assignment into the
+            // method summary return node
+            IClass returnClass = cha.lookupClass(m.getReturnType());
+            addStatementForNative(NewStatement.newStatementForNativeExit(summaryNodes.getReturnNode(), ir, nativeCall,
+                                            returnClass, ExitType.NORMAL), m);
         }
 
+        // Add a new allocation for the exception and an assignment into the
+        // method summary exception node
+        IClass exClass = cha.lookupClass(TypeReference.JavaLangThrowable);
+        addStatementForNative(NewStatement.newStatementForNativeExit(summaryNodes.getException(), ir, nativeCall,
+                                        exClass, ExitType.EXCEPTIONAL), m);
+
+        // TODO for native could maybe add pointer from the formals to the
+        // return if the types line up would then need to add local to local for
+        // the formals
+
+        // TODO for native how can we simulate a call to the <init> for the
+        // newly allocated object?
     }
 }

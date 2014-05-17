@@ -2,11 +2,14 @@ package analysis;
 
 import java.util.Iterator;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
+import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 
 /**
@@ -96,5 +99,17 @@ public class WalaAnalysisUtil {
      */
     public FakeRootMethod getFakeRoot() {
         return fakeRoot;
+    }
+
+    /**
+     * Get the IR for the given method, do not call for native methods
+     * 
+     * @param resolvedCallee
+     *            method to get the IR for
+     * @return the code for the given method
+     */
+    public IR getIR(IMethod resolvedCallee) {
+        assert !resolvedCallee.isNative() : "Native methods do not have IR.";
+        return cache.getSSACache().findOrCreateIR(resolvedCallee, Everywhere.EVERYWHERE, options.getSSAOptions());
     }
 }

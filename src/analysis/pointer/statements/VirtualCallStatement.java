@@ -1,17 +1,15 @@
 package analysis.pointer.statements;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -65,8 +63,9 @@ public class VirtualCallStatement extends CallStatement {
      */
     public VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir, SSAInvokeInstruction i) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i);
+                                    ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir,
+                                    SSAInvokeInstruction i, WalaAnalysisUtil util) {
+        super(callSite, actuals, resultNode, exceptionNode, ir, i, util);
         this.callee = callee;
         this.cha = cha;
         this.receiver = receiver;
@@ -75,8 +74,11 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
-        if (PrettyPrinter.parseMethod(callee).contains("length()")) {
-            g.getPointsToSet(receiverRep);
+
+        if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {
+            System.err.println("RECEIVER: " + receiverRep + "\n\t"
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
         }
 
         boolean changed = false;
@@ -96,26 +98,6 @@ public class VirtualCallStatement extends CallStatement {
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
         }
         return changed;
-    }
-
-    /**
-     * Get all the targets of the callee in the given calling context
-     * 
-     * @param context
-     *            Caller context
-     * @param g
-     *            points-to graph
-     * @return Set of targets of this call
-     */
-    public Set<IClass> getTargets(Context context, PointsToGraph g) {
-        ReferenceVariableReplica receiverRep = getReplica(context, receiver);
-
-        Set<IClass> targets = new LinkedHashSet<>();
-        for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
-            IMethod resolvedCallee = cha.resolveMethod(recHeapContext.getConcreteType(), callee.getSelector());
-            targets.add(resolvedCallee.getDeclaringClass());
-        }
-        return targets;
     }
 
     @Override

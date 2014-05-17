@@ -8,6 +8,8 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -47,6 +49,10 @@ public abstract class CallStatement extends PointsToStatement {
      * Node representing the exception thrown by this call (if any)
      */
     private final ReferenceVariable exceptionNode;
+    /**
+     * Cache used to lookup the IR for the callee
+     */
+    private final WalaAnalysisUtil util;
 
     /**
      * Points-to statement for a special method invocation.
@@ -70,34 +76,14 @@ public abstract class CallStatement extends PointsToStatement {
      *            Instruction that generated this points-to statement
      */
     public CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i) {
+                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
+                                    WalaAnalysisUtil util) {
         super(callerIR, i);
         this.callSite = callSite;
         this.actuals = actuals;
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
-    }
-
-    public boolean processNativeCall(Context callerContext, @SuppressWarnings("unused") InstanceKey receiver,
-                                    IMethod resolvedCallee, Context calleeContext, PointsToGraph g,
-                                    StatementRegistrar registrar) {
-        // TODO Handle native calls more carefully
-        boolean changed = false;
-
-        // Record the call
-        changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
-
-        // ///////////////// Exceptions //////////////////
-
-        // Add edge from the exception in the callee to the exception in the
-        // caller
-        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
-
-        for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
-            // check if the exception is caught or re-thrown by this procedure
-            changed |= checkThrown(exType, callerEx, callerContext, g, registrar);
-        }
-        return changed;
+        this.util = util;
     }
 
     /**
@@ -119,65 +105,109 @@ public abstract class CallStatement extends PointsToStatement {
      */
     protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
                                     Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
-        if (resolvedCallee.isNative()) {
-            return processNativeCall(callerContext, receiver, resolvedCallee, calleeContext, g, registrar);
-        }
 
         boolean changed = false;
+        if (DEBUG && PointsToAnalysis.outputLevel >= 6) {
+            System.err.println((resolvedCallee.isNative() ? "NATIVE CALL: " : "CALL: ")
+                                            + PrettyPrinter.parseMethod(resolvedCallee) + " from "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
 
-        // Record the call
+        // Record the call in the call graph
+        assert getCode().getMethod() != null;
+        assert resolvedCallee != null;
         changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
+
+        MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
 
         // ///////////////// Exceptions //////////////////
 
-        // Add edge from the exception in the callee to the exception in the
-        // caller
         ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
+
+        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
+
+        if (DEBUG && g.getPointsToSet(calleeEx).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
+            System.out.println("EXCEPTION IN CALL: " + calleeEx + "\n\t" + PrettyPrinter.parseMethod(resolvedCallee)
+                                            + " from " + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
 
         for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
             // check if the exception is caught or re-thrown by this procedure
-            changed |= checkThrown(exType, callerEx, callerContext, g, registrar);
+            changed |= checkThrown(exType, callerEx, callerContext, g, registrar, resolvedCallee);
         }
 
-        MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
-        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
-        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
-
-        // add edge from "this" in the callee to the receiver
-        // if this is a static call then the receiver will be null
-        if (receiver != null) {
-            ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext, calleeSummary.getThisNode());
-            changed |= g.addEdge(thisRep, receiver);
-        }
-
-        // add edges from the formal arguments to the actual arguments
-        List<ReferenceVariableReplica> actualReps = getReplicas(callerContext, actuals);
-        List<ReferenceVariable> formals = calleeSummary.getFormals();
-        for (int i = 0; i < actuals.size(); i++) {
-            ReferenceVariableReplica actual = actualReps.get(i);
-            ReferenceVariable formal = formals.get(i);
-            if (actual == null || formal == null) {
-                // Not a reference type or null actual
-                continue;
-            }
-
-            ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext, formal);
-
-            Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formal.getExpectedType());
-            changed |= g.addEdges(formalRep, actualHeapContexts);
-        }
+        // ////////////////// Return //////////////////
 
         // Add edge from the return formal to the result
         // If the result Node is null then either this is void return, there is
         // no assignment after the call, or the return type is not a reference
         ReferenceVariableReplica resultRep = null;
         if (resultNode != null) {
-            assert (calleeSummary.getReturnNode() != null);
             resultRep = getReplica(callerContext, getResultNode());
+
             ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
                                             calleeSummary.getReturnNode());
 
-            changed |= g.addEdges(resultRep, g.getPointsToSetFiltered(returnValueFormal, resultRep.getExpectedType()));
+            if (DEBUG && g.getPointsToSet(returnValueFormal).isEmpty()) {
+                System.out.println("CALL RETURN: " + returnValueFormal + "\n\t"
+                                                + PrettyPrinter.parseMethod(resolvedCallee) + " from "
+                                                + PrettyPrinter.parseMethod(getCode().getMethod()));
+            }
+            changed |= g.addEdges(resultRep, g.getPointsToSet(returnValueFormal));
+        }
+
+        if (resolvedCallee.isNative()) {
+            // Native methods don't have "this" and formal parameters in the
+            // callee to add edges from
+            return changed;
+        }
+
+        IR calleeIR = util.getIR(resolvedCallee);
+
+        // ////////////////// Receiver //////////////////
+
+        // add edge from "this" in the callee to the receiver
+        // if this is a static call then the receiver will be null
+        if (!resolvedCallee.isStatic()) {
+            ReferenceVariable thisVar = ReferenceVariableFactory.getOrCreateLocal(calleeIR.getParameter(0), calleeIR);
+            ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext, thisVar);
+            changed |= g.addEdge(thisRep, receiver);
+        }
+
+        // ////////////////// Formals //////////////////
+
+        // The first formal for a virtual call is the receiver which is handled
+        // specially above
+        int firstFormal = resolvedCallee.isStatic() ? 0 : 1;
+
+        // add edges from local variables (formals) in the callee to the
+        // actual arguments
+        List<ReferenceVariableReplica> actualReps = getReplicas(callerContext, actuals);
+        for (int i = firstFormal; i < actuals.size(); i++) {
+            ReferenceVariableReplica actual = actualReps.get(i);
+            if (actual == null) {
+                // Not a reference type or null actual
+                continue;
+            }
+            ReferenceVariable formalParamVar = ReferenceVariableFactory.getOrCreateFormalParameter(i, calleeIR);
+            ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext, formalParamVar);
+
+            assert util.getClassHierarchy().isAssignableFrom(
+                                            util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
+                                            util.getClassHierarchy().lookupClass(actual.getExpectedType())) : PrettyPrinter
+                                            .parseType(formalRep.getExpectedType())
+                                            + " := "
+                                            + PrettyPrinter.parseType(actual.getExpectedType()) + " FAILS";
+
+            Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formalRep.getExpectedType());
+
+            if (DEBUG && !actual.getExpectedType().isPrimitiveType() && actualHeapContexts.isEmpty()) {
+                System.err.println("ACTUAL: " + actual + "\n\t" + PrettyPrinter.parseMethod(resolvedCallee) + " from "
+                                                + PrettyPrinter.parseMethod(getCode().getMethod()) + " filtered on "
+                                                + PrettyPrinter.parseType(formalRep.getExpectedType()));
+            }
+            changed |= g.addEdges(formalRep, actualHeapContexts);
         }
 
         return changed;
@@ -255,7 +285,7 @@ public abstract class CallStatement extends PointsToStatement {
      * @return true if the points-to graph changed
      */
     protected final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
-                                    PointsToGraph g, StatementRegistrar registrar) {
+                                    PointsToGraph g, StatementRegistrar registrar, IMethod resolvedCallee) {
         // Find successor catch blocks
         List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
 
@@ -271,9 +301,15 @@ public abstract class CallStatement extends PointsToStatement {
             while (cb.caughtTypes.hasNext()) {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (cha.isSubclassOf(thrown, caught)) {
+                if (cha.isAssignableFrom(thrown, caught)) {
+                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
+                        System.out.println("EXCEPTION (check thrown): " + e + "\n\t"
+                                                        + PrettyPrinter.parseMethod(resolvedCallee) + " from "
+                                                        + PrettyPrinter.parseMethod(getCode().getMethod())
+                                                        + " filtered on " + PrettyPrinter.parseType(caughtType));
+                    }
                     return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
-                } else if (cha.isSubclassOf(caught, thrown)) {
+                } else if (cha.isAssignableFrom(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision (due to
                     // imprecision for exceptions thrown by native calls))
@@ -281,6 +317,16 @@ public abstract class CallStatement extends PointsToStatement {
                     // TODO keep track of imprecise exception types
 
                     alreadyCaught.add(caught);
+
+                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType, alreadyCaught).isEmpty()
+                                                    && PointsToAnalysis.outputLevel >= 6) {
+                        System.err.println("UNCAUGHT EXCEPTION: " + e + "\n\t"
+                                                        + PrettyPrinter.instructionString(getInstruction(), getCode())
+                                                        + " in " + PrettyPrinter.parseMethod(getCode().getMethod())
+                                                        + " caught type: " + PrettyPrinter.parseType(caughtType)
+                                                        + "\n\tAlready caught: " + alreadyCaught);
+                    }
+
                     changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
                 }
             }
@@ -290,7 +336,7 @@ public abstract class CallStatement extends PointsToStatement {
         Set<TypeReference> throwTypes = TypeRepository.getThrowTypes(getCode().getMethod());
         for (TypeReference exType : throwTypes) {
             IClass exClass = cha.lookupClass(exType);
-            if (cha.isSubclassOf(exClass, thrown)) {
+            if (cha.isAssignableFrom(exClass, thrown)) {
                 // may fall under this throw type.
                 // exceptions are often not precisely typed
                 // TODO keep track of when they are not precise
@@ -298,7 +344,7 @@ public abstract class CallStatement extends PointsToStatement {
                 isRethrown = true;
                 break;
             }
-            if (cha.isSubclassOf(thrown, exClass)) {
+            if (cha.isAssignableFrom(thrown, exClass)) {
                 // does fall under this throw type.
                 isRethrown = true;
                 break;
@@ -310,12 +356,23 @@ public abstract class CallStatement extends PointsToStatement {
                                             + " may not be handled or rethrown.");
         }
 
+        if (cha.isAssignableFrom(thrown, cha.lookupClass(TypeReference.JavaLangError))) {
+            // TODO Don't propagate errors
+            return changed;
+        }
+
         // add edge if this exception can be rethrown
         MethodSummaryNodes callerSummary = registrar.getSummaryNodes(getCode().getMethod());
         ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
                                         callerSummary.getException());
-        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
 
+        if (DEBUG && g.getPointsToSetFiltered(e, currentExType, alreadyCaught).isEmpty()
+                                        && PointsToAnalysis.outputLevel >= 7) {
+            System.err.println("EXCEPTION SUMMARY (check thrown): " + e + "\n\t"
+                                            + PrettyPrinter.parseMethod(resolvedCallee) + " from "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
         return changed;
     }
 

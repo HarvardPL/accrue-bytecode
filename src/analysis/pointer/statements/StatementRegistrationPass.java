@@ -15,7 +15,6 @@ import analysis.WalaAnalysisUtil;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
@@ -61,6 +60,14 @@ public class StatementRegistrationPass {
      * WALA representation of java.lang.String
      */
     private final IClass stringClass;
+    /**
+     * WALA representation of char[]
+     */
+    private final IClass stringValueClass;
+    /**
+     * Class initializers that are called for java.lang.String
+     */
+    private final List<IMethod> strInits;
 
     /**
      * Create a pass which will generate points-to statements
@@ -71,7 +78,9 @@ public class StatementRegistrationPass {
     public StatementRegistrationPass(WalaAnalysisUtil util) {
         this.util = util;
         stringClass = util.getClassHierarchy().lookupClass(TypeReference.JavaLangString);
+        stringValueClass = util.getClassHierarchy().lookupClass(TypeReference.JavaLangObject);
         registrar = new StatementRegistrar();
+        strInits = ClassInitFinder.getClassInitializersForClass(stringClass, util.getClassHierarchy());
     }
 
     /**
@@ -88,13 +97,9 @@ public class StatementRegistrationPass {
      * 
      * @param q
      *            work queue containing instructions to be processed
-     * 
      * @param m
      *            method to process
-     * @param addClassInit
-     *            if true then a class initializer will be added if needed
-     *            (should be false if <code>m</code> is WALA's fake root method
-     *            which has no class initializer)
+     * 
      */
     private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
 
@@ -110,18 +115,22 @@ public class StatementRegistrationPass {
         }
 
         visitedMethods.add(m);
-        if (m.isNative()) {
-            addFromNative(q, m);
-            return;
-        }
 
-        IR ir = util.getCache().getSSACache()
-                                        .findOrCreateIR(m, Everywhere.EVERYWHERE, util.getOptions().getSSAOptions());
-        registrar.recordMethod(m, new MethodSummaryNodes(ir));
+        MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m);
+        registrar.recordMethod(m, summaryNodes);
+
+        IR ir = util.getIR(m);
+
+        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+            for (SSAInstruction ins : bb) {
+                q.add(new InstrAndCode(ins, ir));
+            }
+        }
 
         if (VERBOSE >= 1) {
-            System.err.println(PrettyPrinter.parseMethod(m) + " will be registered.");
+            System.err.println(PrettyPrinter.parseMethod(m) + " was registered.");
         }
+
         if (VERBOSE >= 2) {
             try (Writer writer = new StringWriter()) {
                 PrettyPrinter.writeIR(ir, writer, "\t", "\n");
@@ -130,32 +139,21 @@ public class StatementRegistrationPass {
                 throw new RuntimeException();
             }
         }
-
-        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-            for (SSAInstruction ins : bb) {
-                q.add(new InstrAndCode(ins, ir));
-            }
-        }
     }
 
     /**
-     * As defined in JLS 12.4.1, add class initializers for the given
-     * instruction if needed.
+     * Add the given class initializers if they haven't already been added
      * 
-     * @param q
-     *            work queue for instructions
-     * @param i
-     *            current instruction
-     * @param ir
-     *            code for method containing instruction
-     * @return true if any class initializers were added
+     * @param clinits
+     *            class initialization methods that might need to be called in
+     *            the order they need to be called (i.e. element j is a super
+     *            class of element j+1)
+     * @return true if any new class initializer was seen
      */
-    private boolean addClassInitForInstruction(WorkQueue<InstrAndCode> q, SSAInstruction i, IR ir) {
-        List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), i, ir);
-
+    private boolean addClassInitializers(WorkQueue<InstrAndCode> q, List<IMethod> clinits) {
         boolean added = false;
-        for (int j = inits.size() - 1; j >= 0; j--) {
-            IMethod clinit = inits.get(j);
+        for (int j = clinits.size() - 1; j >= 0; j--) {
+            IMethod clinit = clinits.get(j);
             if (classInits.add(clinit)) {
                 if (VERBOSE >= 1) {
                     System.err.println("Adding: " + PrettyPrinter.parseType(clinit.getDeclaringClass().getReference())
@@ -174,11 +172,32 @@ public class StatementRegistrationPass {
         return added;
     }
 
-    @SuppressWarnings("unused")
-    private static void addFromNative(WorkQueue<InstrAndCode> q, IMethod m) {
-        // TODO Statement registration not handling native methods yet
+    private void addFromNative(IMethod m, SSAInvokeInstruction callSite, IR ir, WorkQueue<InstrAndCode> q) {
+
+        if (visitedMethods.contains(m)) {
+            if (VERBOSE >= 2) {
+                System.err.println("\tAlready added native " + PrettyPrinter.parseMethod(m));
+            }
+            return;
+        }
+
+        visitedMethods.add(m);
+
+        MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m);
+        registrar.recordMethod(m, summaryNodes);
+
+        // Add class initializers for the return type if they haven't already
+        // been added
+        IClass returnClass = util.getClassHierarchy().lookupClass(m.getReturnType());
+        List<IMethod> clinits = ClassInitFinder.getClassInitializersForClass(returnClass, util.getClassHierarchy());
+        addClassInitializers(q, clinits);
+
+        // Add points-to statements
+        registrar.addStatementsForNative(m, summaryNodes, ir, callSite, util.getClassHierarchy());
+
+        // TODO signatures for native methods
         if (VERBOSE >= 2) {
-            System.err.println("\tNot adding statements from native methods yet " + PrettyPrinter.parseMethod(m));
+            System.err.println("\tAdding statements from native method: " + PrettyPrinter.parseMethod(m));
         }
     }
 
@@ -214,10 +233,11 @@ public class StatementRegistrationPass {
         // possible clinit, add that to the list of statements for the method
         // containing the instruction that could load, and then make sure to
         // only handle each one once in the pointer analysis
-        addClassInitForInstruction(q, i, ir);
+        List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), i);
+        addClassInitializers(q, inits);
 
         // Add statements for any string literals in the instruction
-        registrar.addStatementsForStringLiterals(i, ir, stringClass);
+        addStatementsForStringLiterals(i, ir, stringClass, stringValueClass, q);
 
         // Add statements for any JVM-generated exceptions this instruction
         // could throw (e.g. NullPointerException)
@@ -256,11 +276,16 @@ public class StatementRegistrationPass {
             for (IMethod m : targets) {
                 if (VERBOSE >= 1) {
                     System.err.println("Adding: " + PrettyPrinter.parseMethod(m) + " from "
-                                                    + PrettyPrinter.parseMethod(ir.getMethod()));
+                                                    + PrettyPrinter.parseMethod(ir.getMethod()) + " for "
+                                                    + PrettyPrinter.instructionString(inv, ir));
                 }
-                addFromMethod(q, m);
+                if (m.isNative()) {
+                    addFromNative(m, inv, ir, q);
+                } else {
+                    addFromMethod(q, m);
+                }
             }
-            registrar.registerInvoke(inv, ir, util.getClassHierarchy());
+            registrar.registerInvoke(inv, ir, util);
             return;
         case LOAD_METADATA:
             // Reflection
@@ -360,5 +385,31 @@ public class StatementRegistrationPass {
      */
     public StatementRegistrar getRegistrar() {
         return registrar;
+    }
+
+    /**
+     * Look for String literals in the instruction and create allocation sites
+     * for them
+     * 
+     * @param i
+     *            instruction to create string literals for
+     * @param ir
+     *            code containing the instruction
+     * @param stringClass
+     *            WALA representation of the java.lang.String class
+     */
+    private void addStatementsForStringLiterals(SSAInstruction i, IR ir, IClass stringClass, IClass stringValueClass,
+                                    WorkQueue<InstrAndCode> q) {
+
+        for (int j = 0; j < i.getNumberOfUses(); j++) {
+            int use = i.getUse(j);
+            if (ir.getSymbolTable().isStringConstant(use)) {
+                // add class initializers if needed
+                addClassInitializers(q, strInits);
+                // add points to statements to simulate the allocation
+                registrar.addStatementsForStringLit(use, ir, i, stringClass, stringValueClass);
+            }
+        }
+
     }
 }

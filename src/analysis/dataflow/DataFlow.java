@@ -573,10 +573,10 @@ public abstract class DataFlow<F> {
             while (caughtTypes.hasNext()) {
                 TypeReference caughtType = caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (cha.isSubclassOf(thrown, caught)) {
+                if (cha.isAssignableFrom(thrown, caught)) {
                     result.add(cb);
                     isCaught = true;
-                } else if (throwerType.isInvoke() && cha.isSubclassOf(caught, thrown)) {
+                } else if (throwerType.isInvoke() && cha.isAssignableFrom(caught, thrown)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision for exceptions
                     // thrown by native calls)

@@ -23,6 +23,11 @@ public abstract class PointsToAnalysis {
     protected final WalaAnalysisUtil util;
 
     /**
+     * Effects the amount of debugging output
+     */
+    public static int outputLevel = 0;
+
+    /**
      * Create a new analysis with the given abstraction
      */
     public PointsToAnalysis(HeapAbstractionFactory haf, WalaAnalysisUtil util) {

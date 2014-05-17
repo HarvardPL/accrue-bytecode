@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -45,7 +46,14 @@ public class ReturnStatement extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
-        return g.addEdges(summaryRes, g.getPointsToSetFiltered(returnRes, summaryRes.getExpectedType()));
+
+        if (DEBUG && g.getPointsToSet(returnRes).isEmpty()) {
+            System.err.println("RETURN RES: " + returnRes + " for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+
+        return g.addEdges(summaryRes, g.getPointsToSet(returnRes));
     }
 
     @Override

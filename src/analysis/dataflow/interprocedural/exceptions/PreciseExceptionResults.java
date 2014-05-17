@@ -102,14 +102,14 @@ public class PreciseExceptionResults implements AnalysisResults {
     public boolean canProcedureThrowException(TypeReference type, CGNode n) {
         if (n.getMethod().isNative()) {
             IClass exClass = cha.lookupClass(type);
-            if (cha.isSubclassOf(exClass, cha.lookupClass(TypeReference.JavaLangRuntimeException))) {
+            if (cha.isAssignableFrom(exClass, cha.lookupClass(TypeReference.JavaLangRuntimeException))) {
                 // assume native methods can throw RTE
                 return true;
             }
             try {
                 for (TypeReference declEx : n.getMethod().getDeclaredExceptions()) {
                     IClass declClass = cha.lookupClass(declEx);
-                    if (cha.isSubclassOf(exClass, declClass)) {
+                    if (cha.isAssignableFrom(exClass, declClass)) {
                         // precise throw type could be any subtype of the
                         // declared exceptions
                         return true;

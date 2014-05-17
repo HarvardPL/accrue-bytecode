@@ -69,9 +69,9 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
     }
 
     @Override
-    public Context merge(CallSiteReference callSite, IR ir, InstanceKey receiver, Context callerContext) {
+    public Context merge(CallSiteReference callSite, IR callSiteCode, InstanceKey receiver, Context callerContext) {
         ContextStack caller = (ContextStack) callerContext;
-        return caller.pushCallSite(callSite, ir, sensitivity);
+        return caller.pushCallSite(callSite, callSiteCode, sensitivity);
     }
 
     @Override

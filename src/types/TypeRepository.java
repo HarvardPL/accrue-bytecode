@@ -133,7 +133,8 @@ public class TypeRepository {
             et.add(TypeReference.JavaLangRuntimeException);
             et.add(TypeReference.JavaLangError);
             if (m instanceof FakeRootMethod) {
-                // The top level doesn't declare anything, but can throw anything main can
+                // The top level doesn't declare anything, but can throw
+                // anything main can
                 // We'll be conservative and assume it can throw any Throwable
                 et.add(TypeReference.JavaLangThrowable);
             }

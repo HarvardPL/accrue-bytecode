@@ -1,14 +1,10 @@
 package analysis.pointer.statements;
 
-import java.util.LinkedList;
-import java.util.List;
-
-import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
-import com.ibm.wala.ssa.IR;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -16,16 +12,6 @@ import com.ibm.wala.types.TypeReference;
  * formal arguments (including "this"), and return value.
  */
 public class MethodSummaryNodes {
-
-    /**
-     * Node for "this" or null if this is a static call
-     */
-    private final ReferenceVariable thisNode;
-    /**
-     * Node for the formal arguments (a formal will be null if it has a
-     * primitive type)
-     */
-    private final List<ReferenceVariable> formals;
     /**
      * node for the return value, will be null if void or if the return value
      * has a primitive type
@@ -45,53 +31,22 @@ public class MethodSummaryNodes {
      * 
      * @param registrar
      *            points-to statement registrar
-     * @param ir
-     *            IR for the code
+     * @param method
+     *            method these are the summary nodes for
      */
-    public MethodSummaryNodes(IR ir) {
-        assert ir != null : "IR is null";
+    public MethodSummaryNodes(IMethod method) {
+        assert method != null : "method is null";
+        name = PrettyPrinter.parseMethod(method);
 
-        boolean isStatic = ir.getMethod().isStatic();
-        thisNode = isStatic ? null : ReferenceVariableFactory.getOrCreateLocal(ir.getParameter(0), ir);
-
-        formals = new LinkedList<>();
-        if (isStatic) {
-            if (ir.getNumberOfParameters() > 0) {
-                // if static then the first argument is the 0th parameter
-                int arg = ir.getParameter(0);
-                if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
-                    formals.add(null);
-                } else {
-                    formals.add(ReferenceVariableFactory.getOrCreateLocal(ir.getParameter(0), ir));
-                }
-            }
-        }
-        for (int i = 1; i < ir.getNumberOfParameters(); i++) {
-            int arg = ir.getParameter(i);
-            if (TypeRepository.getType(arg, ir).isPrimitiveType()) {
-                formals.add(null);
-            } else {
-                formals.add(ReferenceVariableFactory.getOrCreateLocal(ir.getParameter(i), ir));
-            }
+        TypeReference returnType = method.getReturnType();
+        if (!method.getReturnType().isPrimitiveType()) {
+            returnNode = ReferenceVariableFactory.getOrCreateMethodExitNode(returnType, method, ExitType.NORMAL);
+        } else {
+            returnNode = null;
         }
 
-        name = PrettyPrinter.parseMethod(ir.getMethod());
-
-        TypeReference returnType = ir.getMethod().getReturnType();
-        returnNode = (returnType == TypeReference.Void || returnType.isPrimitiveType()) ? null
-                                        : ReferenceVariableFactory.getOrCreateMethodExitNode(returnType, ir,
-                                                                        ExitType.NORMAL);
-
-        TypeReference throwable = TypeReference.JavaLangThrowable;
-        exception = ReferenceVariableFactory.getOrCreateMethodExitNode(throwable, ir, ExitType.EXCEPTIONAL);
-    }
-
-    public ReferenceVariable getThisNode() {
-        return thisNode;
-    }
-
-    public List<ReferenceVariable> getFormals() {
-        return formals;
+        exception = ReferenceVariableFactory.getOrCreateMethodExitNode(TypeReference.JavaLangThrowable, method,
+                                        ExitType.EXCEPTIONAL);
     }
 
     public ReferenceVariable getReturnNode() {
@@ -112,10 +67,8 @@ public class MethodSummaryNodes {
         final int prime = 31;
         int result = 1;
         result = prime * result + ((exception == null) ? 0 : exception.hashCode());
-        result = prime * result + ((formals == null) ? 0 : formals.hashCode());
         result = prime * result + ((name == null) ? 0 : name.hashCode());
         result = prime * result + ((returnNode == null) ? 0 : returnNode.hashCode());
-        result = prime * result + ((thisNode == null) ? 0 : thisNode.hashCode());
         return result;
     }
 
@@ -133,11 +86,6 @@ public class MethodSummaryNodes {
                 return false;
         } else if (!exception.equals(other.exception))
             return false;
-        if (formals == null) {
-            if (other.formals != null)
-                return false;
-        } else if (!formals.equals(other.formals))
-            return false;
         if (name == null) {
             if (other.name != null)
                 return false;
@@ -147,11 +95,6 @@ public class MethodSummaryNodes {
             if (other.returnNode != null)
                 return false;
         } else if (!returnNode.equals(other.returnNode))
-            return false;
-        if (thisNode == null) {
-            if (other.thisNode != null)
-                return false;
-        } else if (!thisNode.equals(other.thisNode))
             return false;
         return true;
     }

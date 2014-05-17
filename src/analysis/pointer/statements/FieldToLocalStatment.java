@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -49,8 +50,7 @@ public class FieldToLocalStatment extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public FieldToLocalStatment(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir,
-            SSAGetInstruction i) {
+    public FieldToLocalStatment(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir, SSAGetInstruction i) {
         super(ir, i);
         this.declaredField = f;
         this.receiver = o;
@@ -66,16 +66,27 @@ public class FieldToLocalStatment extends PointsToStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
+        if (DEBUG && g.getPointsToSet(rec).isEmpty()) {
+            System.err.println("RECEIVER: " + rec + " for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
 
         Set<InstanceKey> fields = new LinkedHashSet<>();
         for (InstanceKey recHeapContext : g.getPointsToSet(rec)) {
             ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
-                    declaredField.getFieldType());
-            for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, assignee.getExpectedType())) {
+                                            declaredField.getFieldType());
+            if (DEBUG && g.getPointsToSetFiltered(f, left.getExpectedType()).isEmpty()) {
+                System.err.println("FIELD: " + f + " for "
+                                                + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                                + PrettyPrinter.parseMethod(getCode().getMethod()) + " filtered on "
+                                                + PrettyPrinter.parseType(left.getExpectedType()));
+            }
+            for (InstanceKey fieldHeapContext : g.getPointsToSetFiltered(f, left.getExpectedType())) {
                 fields.add(fieldHeapContext);
             }
         }
-        
+
         return g.addEdges(left, fields);
     }
 

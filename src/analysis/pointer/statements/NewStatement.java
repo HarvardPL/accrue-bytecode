@@ -1,6 +1,6 @@
 package analysis.pointer.statements;
 
-import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -12,6 +12,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
@@ -73,7 +74,32 @@ public class NewStatement extends PointsToStatement {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i);
+        alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i);
+    }
+
+    /**
+     * Points-to graph statement for an allocation synthesized for the exit to a
+     * native method
+     * 
+     * @param result
+     *            Points-to graph node for the assignee of the new allocation
+     * @param newClass
+     *            Class being created
+     * @param cha
+     *            class hierarchy
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
+     * @param exitType
+     *            Type this node is for normal return or exceptional
+     */
+    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInvokeInstruction i, ExitType exitType) {
+        super(ir, i);
+        this.result = result;
+        this.newClass = newClass;
+        alloc = AllocSiteNodeFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i,
+                                        exitType);
     }
 
     /**
@@ -117,19 +143,58 @@ public class NewStatement extends PointsToStatement {
         return new NewStatement(local, stringClass, ir, i);
     }
 
+    /**
+     * Get a points-to statement representing the exit from a native method
+     * 
+     * @param summaryNode
+     *            Reference variable for the method exit summary node
+     * @param ir
+     *            code containing the native method invocation
+     * @param i
+     *            native method invocation
+     * @param exitClass
+     *            WALA representation of the the return type class
+     * @param exitType
+     *            whether this node is for exceptional or normal exit
+     * @return a statement representing the allocation of a new
+     */
+    public static NewStatement newStatementForNativeExit(ReferenceVariable summaryNode, IR ir, SSAInvokeInstruction i,
+                                    IClass exitClass, ExitType exitType) {
+        return new NewStatement(summaryNode, exitClass, ir, i, exitType);
+    }
+
+    /**
+     * Get a points-to statement representing the allocation of the value field
+     * of a string
+     * 
+     * @param local
+     *            Reference variable for the local variable for the string at
+     *            the allocation site
+     * @param ir
+     *            code containing the instruction throwing the exception
+     * @param i
+     *            exception throwing the exception
+     * @param charArrayClass
+     *            WALA representation of a char[]
+     * @return a statement representing the allocation of a new string literal's
+     *         value field
+     */
+    public static NewStatement newStatementForStringField(ReferenceVariable local, IR ir, SSAInstruction i,
+                                    IClass charArrayClass) {
+        return new NewStatement(local, charArrayClass, ir, i);
+    }
+
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         InstanceKey k = haf.record(context, alloc, getCode());
+        assert k != null;
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
         return g.addEdge(r, k);
     }
 
     @Override
     public String toString() {
-        StringBuilder s = new StringBuilder();
-        s.append(result.toString() + " = new ");
-        s.append(PrettyPrinter.parseType(alloc.getExpectedType()));
-        return s.toString();
+        return result + " = " + alloc;
     }
 
     @Override

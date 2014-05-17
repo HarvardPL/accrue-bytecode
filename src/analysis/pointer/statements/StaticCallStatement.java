@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
@@ -39,14 +40,17 @@ public class StaticCallStatement extends CallStatement {
      *            there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
-     * @param ir
+     * @param callerIR
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
+     * @param util
+     *            Code for the callee of this invocation
      */
     public StaticCallStatement(CallSiteReference callSite, IMethod callee, List<ReferenceVariable> actuals,
-            ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR ir, SSAInvokeInstruction i) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i);
+                                    ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR callerIR,
+                                    SSAInvokeInstruction i, WalaAnalysisUtil util) {
+        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util);
         this.callee = callee;
     }
 

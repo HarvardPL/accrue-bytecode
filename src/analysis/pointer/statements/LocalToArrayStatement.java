@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -48,7 +49,7 @@ public class LocalToArrayStatement extends PointsToStatement {
      *            Instruction that generated this points-to statement
      */
     public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IR ir,
-            SSAArrayStoreInstruction i) {
+                                    SSAArrayStoreInstruction i) {
         super(ir, i);
         this.array = a;
         this.value = v;
@@ -60,7 +61,19 @@ public class LocalToArrayStatement extends PointsToStatement {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
-        Set<InstanceKey> valHeapContexts = g.getPointsToSetFiltered(v, baseType);
+        Set<InstanceKey> valHeapContexts = g.getPointsToSet(v);
+
+        if (DEBUG && valHeapContexts.isEmpty()) {
+            System.err.println("LOCAL: " + v + "\n\t for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+
+        if (DEBUG && g.getPointsToSet(a).isEmpty()) {
+            System.err.println("ARRAY: " + a + "\n\t for "
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
 
         boolean changed = false;
         for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {

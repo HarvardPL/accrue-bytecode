@@ -24,6 +24,7 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.types.TypeReference;
 
 public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
@@ -74,7 +75,9 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         pdg.addEdge(entry.getPCNode(), exExit.getPCNode(), PDGEdgeType.CONJUNCTION);
 
         for (PDGNode formal : summary.getFormals()) {
-            pdg.addEdge(formal, normExit.getReturnNode(), PDGEdgeType.MISSING);
+            if (!n.getMethod().getReturnType().equals(TypeReference.Void)) {
+                pdg.addEdge(formal, normExit.getReturnNode(), PDGEdgeType.MISSING);
+            }
             pdg.addEdge(formal, exExit.getExceptionNode(), PDGEdgeType.MISSING);
         }
 

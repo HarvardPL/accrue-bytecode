@@ -24,6 +24,8 @@ public abstract class PointsToStatement {
      * Basic block this points-to statement was generated in
      */
     private ISSABasicBlock bb = null;
+    
+    public static boolean DEBUG = false;
 
     /**
      * Create a new points-to statement

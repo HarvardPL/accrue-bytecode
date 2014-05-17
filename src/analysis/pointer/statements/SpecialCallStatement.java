@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -50,15 +51,18 @@ public class SpecialCallStatement extends CallStatement {
      * @param exceptionNode
      *            Node representing the exception thrown by the callee and
      *            implicit exceptions
-     * @param ir
+     * @param callerIR
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
+     * @param util
+     *            Used to create the IR for the callee
      */
     public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR ir, SSAInvokeInstruction i) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i);
+                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
+                                    WalaAnalysisUtil util) {
+        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;
         this.receiver = receiver;
@@ -68,9 +72,13 @@ public class SpecialCallStatement extends CallStatement {
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
 
+        if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {
+            System.err.println("STATIC FIELD: " + receiverRep + "\n\t"
+                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+                                            + PrettyPrinter.parseMethod(getCode().getMethod()));
+        }
+
         boolean changed = false;
-        assert !g.getPointsToSet(receiverRep).isEmpty() : "receiver points to nothing in "
-                                        + PrettyPrinter.parseMethod(getCode().getMethod());
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
