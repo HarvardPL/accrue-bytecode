@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import signatures.Signatures;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
@@ -148,7 +149,7 @@ public class TestMain {
             case "cfg":
                 util = setUpWala(entryPoint);
                 g = generatePointsToGraph(util, outputLevel);
-                printAllCFG(g);
+                printAllCFG(util, g);
                 break;
             case "pdg":
                 util = setUpWala(entryPoint);
@@ -170,7 +171,7 @@ public class TestMain {
                     r.writeAllToFiles();
                     nonNull.writeAllToFiles(r);
                     preciseEx.writeAllToFiles(r);
-                    printAllCFG(g);
+                    printAllCFG(util, g);
                 }
                 break;
             default:
@@ -191,7 +192,7 @@ public class TestMain {
      * @param g
      *            points to graph
      */
-    private static void printAllCFG(PointsToGraph g) {
+    private static void printAllCFG(WalaAnalysisUtil util, PointsToGraph g) {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
             if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
@@ -199,9 +200,10 @@ public class TestMain {
                 printSingleCFG(n.getIR(), fileName);
                 printed.add(n.getMethod());
             } else if (n.getMethod().isNative()) {
-                if (n.getIR() != null) {
-                    String fileName = "cfg_native_" + PrettyPrinter.methodString(n.getMethod());
-                    printSingleCFG(n.getIR(), fileName);
+                IR sigIR = Signatures.getSignatureIR(n.getMethod(), util);
+                if (sigIR != null) {
+                    String fileName = "cfg_sig_" + PrettyPrinter.methodString(n.getMethod());
+                    printSingleCFG(sigIR, fileName);
                     printed.add(n.getMethod());
                 } else {
                     System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));

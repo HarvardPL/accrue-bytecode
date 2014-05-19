@@ -300,7 +300,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         for (InstanceKey hContext : interProc.getPointsToGraph().getPointsToSet(
                                         InterproceduralDataFlow.getReplica(i.getRef(), currentNode))) {
             IClass actual = hContext.getConcreteType();
-            if (cha.isAssignableFrom(actual, checked)) {
+            if (cha.isAssignableFrom(checked, actual)) {
                 instanceOfAlwaysFalse = false;
             } else {
                 instanceOfAlwaysTrue = false;

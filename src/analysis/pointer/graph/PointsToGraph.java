@@ -145,7 +145,7 @@ public class PointsToGraph {
         while (i.hasNext()) {
             InstanceKey k = i.next();
             IClass klass = k.getConcreteType();
-            if (!cha.isAssignableFrom(klass, cha.lookupClass(type))) {
+            if (!cha.isAssignableFrom(cha.lookupClass(type), klass)) {
                 // XXX Arrays can sometimes be imprecisely labeled as Object
                 // types. Imprecisely, but soundly don't remove any arrays from
                 // the points-to set if the type we are filtering on is
@@ -193,11 +193,11 @@ public class PointsToGraph {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
             // TODO assuming we have a precise type could be dangerous
-            if (cha.isAssignableFrom(klass, isClass)) {
+            if (cha.isAssignableFrom(isClass, klass)) {
                 if (areNotTypes) {
                     assert notTypes != null;
                     for (IClass notClass : notTypes) {
-                        if (cha.isAssignableFrom(klass, notClass)) {
+                        if (cha.isAssignableFrom(notClass, klass)) {
                             // klass is a subclass of one of the classes we do
                             // not want
                             iter.remove();

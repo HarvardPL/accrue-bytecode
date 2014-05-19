@@ -1,5 +1,7 @@
 package util.print;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Collections;
@@ -25,8 +27,7 @@ public class CFGWriter {
      */
     private final IR ir;
     /**
-     * If true then code will be included in CFG, otherwise it will just be
-     * basic block numbers
+     * If true then code will be included in CFG, otherwise it will just be basic block numbers
      */
     private boolean verbose;
     /**
@@ -63,8 +64,7 @@ public class CFGWriter {
      * @param prefix
      *            prepended to each instruction (e.g. "\t" to indent)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      * @throws IOException
      *             writer issues
      */
@@ -82,16 +82,33 @@ public class CFGWriter {
     }
 
     /**
-     * Write out the control flow graph in graphviz dot format with the code for
-     * the basic block written on each node.
+     * Write the cfg for the given IR to a dot file in the "tests" directory with the filename equal to the method name
+     * prepended with "cfg_"
+     * 
+     * @param ir
+     *            to write
+     */
+    public static final void writeToFile(IR ir) {
+        CFGWriter cfg = new CFGWriter(ir);
+        String dir = "tests";
+        String fullFilename = dir + "/cfg_" + PrettyPrinter.methodString(ir.getMethod()) + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            cfg.writeVerbose(out, "", "\\l");
+            System.err.println("DOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    /**
+     * Write out the control flow graph in graphviz dot format with the code for the basic block written on each node.
      * 
      * @param writer
      *            writer to write the code to
      * @param prefix
      *            prepended to each instruction (e.g. "\t" to indent)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      * @throws IOException
      *             writer issues
      */

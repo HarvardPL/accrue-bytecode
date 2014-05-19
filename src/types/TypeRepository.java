@@ -76,8 +76,12 @@ public class TypeRepository {
                 // This is an unknown exception/error type
                 return TypeReference.JavaLangThrowable;
             }
-            System.err.println("No type for " + ir.getSymbolTable().getValueString(valNum) + " in "
-                    + ir.getMethod().getSignature());
+            throw new RuntimeException("No type for "
+                                            + ir.getSymbolTable().getValueString(valNum)
+                                            + " in "
+                                            + ir.getMethod().getSignature()
+                                            + " Probably an element of an array that was set to Object at some point. "
+                                            + "Set it to double since anything can cast up to it. I guess.");
         }
         return tr;
     }
@@ -142,5 +146,13 @@ public class TypeRepository {
             exceptionTypes.put(m, et);
         }
         return et;
+    }
+
+    /**
+     * @param code
+     */
+    public static void printTypes(IR code) {
+        System.err.println("Types for " + PrettyPrinter.methodString(code.getMethod()));
+        System.err.println(types.get(code));
     }
 }

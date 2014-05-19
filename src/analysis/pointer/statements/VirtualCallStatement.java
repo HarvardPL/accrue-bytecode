@@ -84,11 +84,15 @@ public class VirtualCallStatement extends CallStatement {
         boolean changed = false;
         for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
             // find the callee.
-            // The receiver is recHeapContext, and we want to find a method that
-            // matches selector
+            // The receiver is recHeapContext, and we want to find a method that matches selector
             // callee.getSelector() in class recHeapContext.getConcreteType() or
             // a superclass.
             IMethod resolvedCallee = cha.resolveMethod(recHeapContext.getConcreteType(), callee.getSelector());
+            if (resolvedCallee == null) {
+                // XXX Try the type of the reference variable instead
+                // This is probably a variable created for the return of a native method, then cast down
+                resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverRep.getExpectedType()), callee.getSelector());
+            }
 
             // If we wanted to be very robust, check to make sure that
             // resolvedCallee overrides

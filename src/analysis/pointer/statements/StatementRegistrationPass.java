@@ -10,6 +10,7 @@ import java.util.Set;
 import signatures.Signatures;
 import util.InstructionType;
 import util.WorkQueue;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
@@ -40,7 +41,7 @@ public class StatementRegistrationPass {
     /**
      * Output level
      */
-    public static int VERBOSE = 2;
+    public static int VERBOSE = 0;
     /**
      * Container and manager of points-to statements
      */
@@ -111,7 +112,9 @@ public class StatementRegistrationPass {
             return;
         }
         if (m.isAbstract()) {
-            System.err.println("No need to analyze abstract methods: " + m.getSignature());
+            if (VERBOSE >= 2) {
+                System.err.println("No need to analyze abstract methods: " + m.getSignature());
+            }
             return;
         }
 
@@ -121,6 +124,8 @@ public class StatementRegistrationPass {
         registrar.recordMethod(m, summaryNodes);
 
         IR ir = util.getIR(m);
+        if (false)
+            CFGWriter.writeToFile(ir);
 
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
             for (SSAInstruction ins : bb) {
@@ -186,23 +191,34 @@ public class StatementRegistrationPass {
 
         MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m);
         registrar.recordMethod(m, summaryNodes);
-        
-        // ********** SIGNATURES ************ //
-        SSAInvokeInstruction signature = Signatures.getSyntheticInvoke(callSite);
-        if (signature != null) {
-            // XXX really want to register the signature instead of the real
-            // instruction need to refactor the part of the handle loop that
-            // handles invoke instructions
-            IMethod syntheticMethod = util.getClassHierarchy().resolveMethod(signature.getDeclaredTarget());
-            IR syntheticIR = util.getIR(syntheticMethod);
 
-            for (ISSABasicBlock bb : syntheticIR.getControlFlowGraph()) {
+        // ********** SIGNATURES ************ //
+        IR sigIR = Signatures.getSignatureIR(m, util);
+        if (sigIR != null) {
+            IMethod sigMethod = sigIR.getMethod();
+            registrar.recordMethod(sigMethod, new MethodSummaryNodes(sigMethod));
+            for (ISSABasicBlock bb : sigIR.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
-                    q.add(new InstrAndCode(ins, syntheticIR));
+                    q.add(new InstrAndCode(ins, sigIR));
+                }
+            }
+
+            if (VERBOSE >= 1) {
+                System.err.println(PrettyPrinter.methodString(sigMethod) + " signature registered");
+            }
+
+            if (VERBOSE >= 2) {
+                try (Writer writer = new StringWriter()) {
+                    PrettyPrinter.writeIR(sigIR, writer, "\t", "\n");
+                    System.err.print(writer.toString());
+                } catch (IOException e) {
+                    throw new RuntimeException();
                 }
             }
         } else {
-            System.err.println("NO SIGNATURE FOR " + PrettyPrinter.methodString(m) + " " + m);
+            if (VERBOSE >= 3) {
+                System.err.println("NO SIGNATURE FOR " + PrettyPrinter.methodString(m) + " " + m);
+            }
         }
         // ********** END SIGNATURES ************ //
 
@@ -225,6 +241,7 @@ public class StatementRegistrationPass {
      * Run the pass
      */
     public void run() {
+        long start = System.currentTimeMillis();
         final WorkQueue<InstrAndCode> q = new WorkQueue<>();
         init(q);
 
@@ -232,6 +249,8 @@ public class StatementRegistrationPass {
             InstrAndCode info = q.poll();
             handle(q, info);
         }
+        System.err.println("Registered " + registrar.getAllStatements().size() + " statements.");
+        System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
     }
 
     /**
@@ -292,7 +311,7 @@ public class StatementRegistrationPass {
             // procedure calls, instance initializers, constructor invocation
             SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
 
-            Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util.getClassHierarchy());
+            Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util);
             for (IMethod m : targets) {
                 if (VERBOSE >= 1) {
                     System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "

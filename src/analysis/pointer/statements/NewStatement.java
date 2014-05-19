@@ -8,6 +8,7 @@ import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
@@ -52,7 +53,8 @@ public class NewStatement extends PointsToStatement {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i);
+        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i,
+                                        "Normal Allocation");
     }
 
     /**
@@ -74,7 +76,7 @@ public class NewStatement extends PointsToStatement {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i);
+        alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i, result);
     }
 
     /**
@@ -94,12 +96,13 @@ public class NewStatement extends PointsToStatement {
      * @param exitType
      *            Type this node is for normal return or exceptional
      */
-    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInvokeInstruction i, ExitType exitType) {
+    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInvokeInstruction i, ExitType exitType,
+                                    IMethod m) {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
         alloc = AllocSiteNodeFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i,
-                                        exitType);
+                                        exitType, m);
     }
 
     /**
@@ -156,11 +159,13 @@ public class NewStatement extends PointsToStatement {
      *            WALA representation of the the return type class
      * @param exitType
      *            whether this node is for exceptional or normal exit
+     * @param resolved
+     *            resolved method this is a node for
      * @return a statement representing the allocation of a new
      */
     public static NewStatement newStatementForNativeExit(ReferenceVariable summaryNode, IR ir, SSAInvokeInstruction i,
-                                    IClass exitClass, ExitType exitType) {
-        return new NewStatement(summaryNode, exitClass, ir, i, exitType);
+                                    IClass exitClass, ExitType exitType, IMethod resolved) {
+        return new NewStatement(summaryNode, exitClass, ir, i, exitType, resolved);
     }
 
     /**

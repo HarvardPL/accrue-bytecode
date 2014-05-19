@@ -187,7 +187,7 @@ public abstract class DataFlow<F> {
                     }
                 }
                 iterations++;
-                if (iterations >= 5) {
+                if (iterations >= 100) {
                     throw new RuntimeException("Analyzed the same SCC 100 times for method: "
                                                     + PrettyPrinter.methodString(ir.getMethod()));
                 }
@@ -573,10 +573,10 @@ public abstract class DataFlow<F> {
             while (caughtTypes.hasNext()) {
                 TypeReference caughtType = caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (cha.isAssignableFrom(thrown, caught)) {
+                if (cha.isAssignableFrom(caught, thrown)) {
                     result.add(cb);
                     isCaught = true;
-                } else if (throwerType.isInvoke() && cha.isAssignableFrom(caught, thrown)) {
+                } else if (throwerType.isInvoke() && cha.isAssignableFrom(thrown, caught)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision for exceptions
                     // thrown by native calls)

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -27,7 +28,6 @@ import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
-
 /**
  * Points-to statement for a call to a method
  */
@@ -84,6 +84,7 @@ public abstract class CallStatement extends PointsToStatement {
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
         this.util = util;
+        CFGWriter c;
     }
 
     /**
@@ -114,8 +115,10 @@ public abstract class CallStatement extends PointsToStatement {
         }
 
         // Record the call in the call graph
-        assert getCode().getMethod() != null;
-        assert resolvedCallee != null;
+        assert getCode().getMethod() != null : "Null method in IR for "
+                                        + PrettyPrinter.instructionString(getInstruction(), getCode());
+        assert resolvedCallee != null : "null callee for "
+                                        + PrettyPrinter.instructionString(getInstruction(), getCode());
         changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
 
         MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
@@ -302,7 +305,7 @@ public abstract class CallStatement extends PointsToStatement {
             while (cb.caughtTypes.hasNext()) {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (cha.isAssignableFrom(thrown, caught)) {
+                if (cha.isAssignableFrom(caught, thrown)) {
                     if (DEBUG && g.getPointsToSetFiltered(e, caughtType).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
                         System.out.println("EXCEPTION (check thrown): " + e + "\n\t"
                                                         + PrettyPrinter.methodString(resolvedCallee) + " from "
@@ -310,7 +313,7 @@ public abstract class CallStatement extends PointsToStatement {
                                                         + " filtered on " + PrettyPrinter.typeString(caughtType));
                     }
                     return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
-                } else if (cha.isAssignableFrom(caught, thrown)) {
+                } else if (cha.isAssignableFrom(thrown, caught)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision (due to
                     // imprecision for exceptions thrown by native calls))
@@ -337,7 +340,7 @@ public abstract class CallStatement extends PointsToStatement {
         Set<TypeReference> throwTypes = TypeRepository.getThrowTypes(getCode().getMethod());
         for (TypeReference exType : throwTypes) {
             IClass exClass = cha.lookupClass(exType);
-            if (cha.isAssignableFrom(exClass, thrown)) {
+            if (cha.isAssignableFrom(thrown, exClass)) {
                 // may fall under this throw type.
                 // exceptions are often not precisely typed
                 // TODO keep track of when they are not precise
@@ -345,7 +348,7 @@ public abstract class CallStatement extends PointsToStatement {
                 isRethrown = true;
                 break;
             }
-            if (cha.isAssignableFrom(thrown, exClass)) {
+            if (cha.isAssignableFrom(exClass, thrown)) {
                 // does fall under this throw type.
                 isRethrown = true;
                 break;
@@ -357,7 +360,7 @@ public abstract class CallStatement extends PointsToStatement {
                                             + " may not be handled or rethrown.");
         }
 
-        if (cha.isAssignableFrom(thrown, cha.lookupClass(TypeReference.JavaLangError))) {
+        if (cha.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangError), thrown)) {
             // TODO Don't propagate errors
             return changed;
         }

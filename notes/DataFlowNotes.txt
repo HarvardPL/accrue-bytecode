@@ -46,3 +46,6 @@ TODO multiple edges are added to the points to graph for generated exceptions, t
 TODO Is the fact that Arrays are sometimes Objects in WALA screw things up anywhere? probably in some unexpected way especially since Object is not considerend a subclass of Arrays, should use isAssignable from everywhere
 
 TODO need to be more careful with exception types, Sometimes a filter is getting rid of exceptions from a call since that is "Throwable" and the exceptions could be anything, we can wait for the precise ex to take care of this. Maybe mark certaing refVars as not precise
+
+TODO create "ClassLoadStatement" and use that to load classes, still need to add the statements to the registrar, so I'm not sure how much this helps
+

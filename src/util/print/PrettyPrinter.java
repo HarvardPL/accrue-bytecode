@@ -5,6 +5,7 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import util.InstructionType;
@@ -103,18 +104,19 @@ public class PrettyPrinter {
      * @return line number
      */
     public static int getApproxLineNumber(IR ir, SSAInstruction i) {
-        ISSABasicBlock bb = ir.getBasicBlockForInstruction(i);
-        int first = bb.getFirstInstructionIndex();
+        PrettyPrinter pp = getPrinter(ir);
+        Integer index = pp.normalInstructionIndices.get(i);
+        if (index == null) {
+            return -1;
+        }
         if (ir.getMethod() instanceof IBytecodeMethod) {
             IBytecodeMethod method = (IBytecodeMethod) ir.getMethod();
-            int bytecodeIndex = -1;
             try {
-                bytecodeIndex = method.getBytecodeIndex(first);
+                int bytecodeIndex = method.getBytecodeIndex(index);
+                return method.getLineNumber(bytecodeIndex);
             } catch (InvalidClassFileException e) {
                 return -1;
             }
-            int sourceLineNum = method.getLineNumber(bytecodeIndex);
-            return sourceLineNum;
         }
         return -1;
     }
@@ -407,6 +409,10 @@ public class PrettyPrinter {
      * IR associated with this pretty printer
      */
     private final IR ir;
+    /**
+     * Indices of the instructions if any
+     */
+    private final Map<SSAInstruction, Integer> normalInstructionIndices;
 
     /**
      * Create a new pretty printer
@@ -417,6 +423,14 @@ public class PrettyPrinter {
     private PrettyPrinter(IR ir) {
         this.ir = ir;
         this.st = ir.getSymbolTable();
+        this.normalInstructionIndices = new HashMap<>();
+
+        Iterator<SSAInstruction> iter = ir.iterateNormalInstructions();
+        int index = 0;
+        while (iter.hasNext()) {
+            normalInstructionIndices.put(iter.next(), index);
+            index++;
+        }
     }
 
     private String arrayLengthRight(SSAArrayLengthInstruction instruction) {
@@ -603,7 +617,7 @@ public class PrettyPrinter {
     private String instructionString(SSAInstruction instruction) {
         InstructionType type = InstructionType.forInstruction(instruction);
 
-        if (instruction.hasDef()) {
+        if (instruction.hasDef() && !(instruction instanceof SSAGetCaughtExceptionInstruction)) {
             String right = rightSideString(instruction);
             return valString(instruction.getDef()) + " = " + right;
         }
@@ -832,9 +846,8 @@ public class PrettyPrinter {
         case RETURN:
         case SWITCH:
         case THROW:
-            assert !instruction.hasDef();
-            throw new RuntimeException(type + " has no right hand side or has a local on the right. "
-                                            + instructionString(instruction));
+            assert !instruction.hasDef() : type + " has no right hand side or has a local on the right. " + instruction;
+            throw new RuntimeException(type + " has no right hand side or has a local on the right. " + instruction);
         }
         throw new RuntimeException("Unexpected instruction type: " + type + " for " + instruction);
     }

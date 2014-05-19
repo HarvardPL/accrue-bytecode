@@ -1,56 +1,97 @@
 package signatures;
 
-import com.ibm.wala.classLoader.CallSiteReference;
-import com.ibm.wala.classLoader.Language;
-import com.ibm.wala.shrikeBT.IInvokeInstruction;
-import com.ibm.wala.ssa.SSAInstructionFactory;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
+import java.util.HashMap;
+import java.util.Map;
+
+import signatures.synthetic.SyntheticIR;
+import util.print.PrettyPrinter;
+import analysis.WalaAnalysisUtil;
+
+import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.ClassLoaderReference;
-import com.ibm.wala.types.Descriptor;
 import com.ibm.wala.types.MethodReference;
-import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
-import com.ibm.wala.util.strings.Atom;
 
 public class Signatures {
 
-    private final static TypeReference SYNTHETIC_SYSTEM = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                    TypeName.string2TypeName("Lcom/ibm/wala/model/java/lang/System"));
+    private static final ClassLoaderReference CLASS_LOADER = ClassLoaderReference.Application;
+    // private static final ClassLoaderReference PRIMORDIAL_CLASS_LOADER = ClassLoaderReference.Primordial;
 
-    public final static Atom arraycopyAtom = Atom.findOrCreateUnicodeAtom("arraycopy");
+    // private static final SSAInstructionFactory INSTRUCTION_FACTORY = Language.JAVA.instructionFactory();
 
-    private final static Descriptor arraycopyDescSynthetic = Descriptor
-                                    .findOrCreateUTF8("(Ljava/lang/Object;Ljava/lang/Object;)V");
+    // private static final Map<IMethod, IR> syntheticIR = new HashMap<>();
+    //
+    // /**
+    // * Get the IR for a method created synthetically in this class
+    // *
+    // * @param resolvedMethod
+    // * synthetic method to get the IR for (if it exists)
+    // * @return the IR for the synthetic method
+    // */
+    // public static IR getSyntheticIR(IMethod resolvedMethod) {
+    // assert resolvedMethod.isSynthetic();
+    // return syntheticIR.get(resolvedMethod);
+    // }
+    
+    private static final Map<IMethod, IR> signatures = new HashMap<>();
 
-    private final static Descriptor arraycopyDesc = Descriptor
-                                    .findOrCreateUTF8("(Ljava/lang/Object;Ljava/lang/Object;)V");
-
-    private final static MethodReference SYNTHETIC_ARRAYCOPY = MethodReference.findOrCreate(SYNTHETIC_SYSTEM,
-                                    arraycopyAtom, arraycopyDescSynthetic);
-
-    private final static TypeReference ACTUAL_SYSTEM = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                    TypeName.string2TypeName("Ljava/lang/System"));
-    private final static MethodReference ACTUAL_ARRAYCOPY = MethodReference.findOrCreate(ACTUAL_SYSTEM, arraycopyAtom,
-                                    arraycopyDesc);
-
-    private final static SSAInstructionFactory INSTRUCTION_FACTORY = Language.JAVA.instructionFactory();
-
-    private static SSAInvokeInstruction getSyntheticArrayCopy(SSAInvokeInstruction actualArrayCopy) {
-        // generate a synthetic arraycopy from this (v.n. 1) to the clone
-        int[] params = new int[2];
-        params[0] = actualArrayCopy.getUse(0);
-        params[1] = actualArrayCopy.getUse(2);
-        // note that the synthetic one has just 2 arguments and always copies
-        // probably need to rewrite it
-        CallSiteReference callSite = CallSiteReference.make(actualArrayCopy.getProgramCounter(), SYNTHETIC_ARRAYCOPY,
-                                        IInvokeInstruction.Dispatch.STATIC);
-        return INSTRUCTION_FACTORY.InvokeInstruction(params, actualArrayCopy.getException(), callSite);
-    }
-
-    public static SSAInvokeInstruction getSyntheticInvoke(SSAInvokeInstruction actualInvoke) {
-        if (actualInvoke.getDeclaredTarget().equals(ACTUAL_ARRAYCOPY)) {
-            return getSyntheticArrayCopy(actualInvoke);
+    @SuppressWarnings("deprecation")
+    public static IR getSignatureIR(IMethod actualMethod, WalaAnalysisUtil util) {
+        if (signatures.containsKey(actualMethod)) {
+            return signatures.get(actualMethod);
         }
-        return null;
+
+        MethodReference actual = actualMethod.getReference();
+
+        TypeReference sigTarget = TypeReference.findOrCreate(CLASS_LOADER, "Lsignatures/"
+                                        + actual.getDeclaringClass().getName().toString().substring(1));
+        MethodReference sigMethod = MethodReference.findOrCreate(sigTarget, actual.getName(), actual.getDescriptor());
+
+        try {
+            IR sigIR = util.getIR(util.getClassHierarchy().resolveMethod(sigMethod));
+            sigIR = new SyntheticIR(actualMethod, sigIR.getInstructions(), sigIR.getSymbolTable(),
+                                            sigIR.getControlFlowGraph(), sigIR.getOptions());
+            System.err.println("Using signature for: " + PrettyPrinter.methodString(actualMethod));
+            signatures.put(actualMethod, sigIR);
+            return sigIR;
+        } catch (RuntimeException e) {
+            // Any exceptions means that no signature was found
+            return null;
+        }
     }
+
+    // Lets not do this, there is something more fundamentally wrong with TreeMap
+    // public static IR synthesizeStaticAccessIR(String fieldName, IClass klass, MethodReference mr, AnalysisOptions
+    // opts) {
+    // IMethod method = new SyntheticMethod(mr, klass, true, false);
+    // if (syntheticIR.containsKey(method)) {
+    // return syntheticIR.get(method);
+    // }
+    //
+    // FieldReference field = null;
+    // for (IField f : klass.getAllFields()) {
+    // if (f.getName().toString().contains(fieldName)) {
+    // field = f.getReference();
+    // break;
+    // }
+    // }
+    // assert field != null : "Couldn't find " + fieldName + " for "
+    // + PrettyPrinter.typeString(klass.getReference());
+    //
+    // SymbolTable symbolTable = new SymbolTable(0);
+    // int assignee = symbolTable.newSymbol();
+    // SSAInstruction[] instructions = new SSAInstruction[2];
+    // instructions[0] = INSTRUCTION_FACTORY.GetInstruction(assignee, field);
+    // instructions[1] = INSTRUCTION_FACTORY.ReturnInstruction(assignee, true);
+    //
+    // StraightLineCFG cfg = new StraightLineCFG(method);
+    // SimpleBasicBlock bb = new SimpleBasicBlock(0, Arrays.asList(instructions), 1, method, false);
+    // cfg.addNode(bb);
+    //
+    // SSACFG ssacfg = new SSACFG(method, cfg, instructions);
+    // IR ir = new SyntheticIR(method, instructions, symbolTable, ssacfg, opts.getSSAOptions());
+    // syntheticIR.put(method, ir);
+    // return ir;
+    // }
 }

@@ -2,6 +2,8 @@ package analysis;
 
 import java.util.Iterator;
 
+import signatures.Signatures;
+
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
@@ -104,12 +106,23 @@ public class WalaAnalysisUtil {
     /**
      * Get the IR for the given method, do not call for native methods
      * 
-     * @param resolvedCallee
+     * @param resolvedMethod
      *            method to get the IR for
      * @return the code for the given method
      */
-    public IR getIR(IMethod resolvedCallee) {
-        assert !resolvedCallee.isNative() : "Native methods do not have IR.";
-        return cache.getSSACache().findOrCreateIR(resolvedCallee, Everywhere.EVERYWHERE, options.getSSAOptions());
+    public IR getIR(IMethod resolvedMethod) {
+        IR sigIR = Signatures.getSignatureIR(resolvedMethod, this);
+        if (sigIR != null) {
+            return sigIR;
+        }
+
+        // if (resolvedMethod.isSynthetic()) {
+        // sigIR = Signatures.getSyntheticIR(resolvedMethod);
+        // if (sigIR != null) {
+        // return sigIR;
+        // }
+        // }
+
+        return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
     }
 }
