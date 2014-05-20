@@ -116,13 +116,6 @@ public class WalaAnalysisUtil {
             return sigIR;
         }
 
-        // if (resolvedMethod.isSynthetic()) {
-        // sigIR = Signatures.getSyntheticIR(resolvedMethod);
-        // if (sigIR != null) {
-        // return sigIR;
-        // }
-        // }
-
         return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
     }
 }

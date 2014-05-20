@@ -1,0 +1,23 @@
+Any class in the signatures.library package will be used to create signatures for "real" library classes.
+
+For example signatures.library.java.lang.System will be used to replace methods in java.lang.System.
+
+Only methods in the signature class will replace those in the "real" class.
+
+How this works:
+
+1. During analysis when requesting IR for a resolved method, before asking WALA for the IR look for a corresponding 
+   signature for that method
+2. If there is a signature for the given method then get the IR for the signature
+3. If there are any field accesses or method invocations where the receiver is a signature type then replace that 
+   method with the corresponding "real" type if that "real" type has the same field or method with the same signature.
+   This means that we can initialize fields in a signature class and the results will reflect on the field in the "real" 
+   class. It also means that we can use methods and fields in the signature class and they will be changed to the "real"
+   fields and methods.
+4. Recreate the IR using the "real" method and instructions from 3.
+
+Gotchas:
+
+1. Don't use anonymous classes in signatures they will end up being replaced with anonymous classes from the "real" class
+2. If you "cast" or use "instanceof" with types from the signature library, the types will not be replaced.
+3. If you have fields with types from the signature library, these will not be replaced.

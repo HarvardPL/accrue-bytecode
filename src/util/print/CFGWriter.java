@@ -101,6 +101,26 @@ public class CFGWriter {
     }
 
     /**
+     * Write the cfg for the given IR to a dot file in the tests directory with the given name
+     * 
+     * @param ir
+     *            to write
+     * @param filename
+     *            file to be saved in "tests" directory with .dot appended
+     */
+    public static final void writeToFile(IR ir, String filename) {
+        CFGWriter cfg = new CFGWriter(ir);
+        String dir = "tests";
+        String fullFilename = dir + "/" + filename + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            cfg.writeVerbose(out, "", "\\l");
+            System.err.println("DOT written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    /**
      * Write out the control flow graph in graphviz dot format with the code for the basic block written on each node.
      * 
      * @param writer

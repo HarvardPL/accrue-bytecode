@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -84,7 +83,6 @@ public abstract class CallStatement extends PointsToStatement {
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
         this.util = util;
-        CFGWriter c;
     }
 
     /**

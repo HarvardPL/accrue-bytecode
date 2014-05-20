@@ -8,8 +8,9 @@
  * Contributors:
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
-package signatures.java.lang;
+package signatures.library.java.lang;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -22,37 +23,20 @@ public class System {
     private static void registerNatives() {
         // intentionally blank
     }
+
     static {
         registerNatives();
     }
 
-    public final static InputStream in = new InputStream() {
-        @Override
-        public int read() {
-            // TODO is -1 going to cause problems?
-            // We are probably not precise enough for it to be an issue
-            return -1;
-        }
-    };
-    public final static PrintStream out = new PrintStream(new OutputStream() {
-        @Override
-        public void write(int b) {
-            // intentionally left blank
-        }
-    });
-    public final static PrintStream err = new PrintStream(new OutputStream() {
-        @Override
-        public void write(int b) {
-            // intentionally left blank
-        }
-    });
+    public final static InputStream in = new MockInputStream();
+    public final static PrintStream out = new MockPrintStream(new MockOutputStream());
+    public final static PrintStream err = new MockPrintStream(new MockOutputStream());
+
     @SuppressWarnings("unused")
     private static volatile SecurityManager security = null;
 
     /**
-     * Java implementation of
-     * {@link System#arraycopy(Object, int, Object, int, int)} used as an
-     * analysis signature
+     * Java implementation of {@link System#arraycopy(Object, int, Object, int, int)} used as an analysis signature
      * 
      * @param src
      *            source array
@@ -216,5 +200,43 @@ public class System {
 
     public static void exit(@SuppressWarnings("unused") int i) {
         // intentionally left blank
+    }
+
+    /**
+     * Input stream that does nothing used to System.in
+     */
+    private static class MockInputStream extends InputStream {
+        public MockInputStream() {
+        }
+
+        @SuppressWarnings("unused")
+        @Override
+        public int read() throws IOException {
+            return -1;
+        }
+    }
+
+    /**
+     * Print stream that does nothing used to System.out and System.err
+     */
+    public static class MockPrintStream extends PrintStream {
+        public MockPrintStream(OutputStream out) {
+            super(out);
+        }
+    }
+
+    /**
+     * Output stream that does nothing
+     */
+    private static class MockOutputStream extends OutputStream {
+
+        public MockOutputStream() {
+        }
+
+        @SuppressWarnings("unused")
+        @Override
+        public void write(int b) throws IOException {
+            // intentionally left blank
+        }
     }
 }
