@@ -48,6 +48,10 @@ public class Signatures {
      * Memoization map for signature so they do not have to be recomputed
      */
     private static final Map<IMethod, IR> signatures = new HashMap<>();
+    /**
+     * Flag for printing debug messages
+     */
+    private static final boolean DEBUG = false;
 
     /**
      * Get the IR for a method that has a signature
@@ -105,7 +109,9 @@ public class Signatures {
      * @return IR with signature types replaced with the "real" versions when they can be found
      */
     private static IR update(IR sigIR, IMethod actualMethod, IClassHierarchy cha) {
-        CFGWriter.writeToFile(sigIR, "sig_" + PrettyPrinter.methodString(sigIR.getMethod()));
+        if (DEBUG) {
+            CFGWriter.writeToFile(sigIR, "sig_" + PrettyPrinter.methodString(sigIR.getMethod()));
+        }
         // does not include phi instructions, but these do not need to be converted
         @SuppressWarnings("deprecation")
         SSAInstruction[] allInstructions = sigIR.getInstructions();
@@ -167,7 +173,9 @@ public class Signatures {
 
         IR newIR = new SyntheticIR(actualMethod, allInstructions, sigIR.getSymbolTable(), sigIR.getControlFlowGraph(),
                                         sigIR.getOptions());
-        CFGWriter.writeToFile(newIR, "sig_rewrite_" + PrettyPrinter.methodString(sigIR.getMethod()));
+        if (DEBUG) {
+            CFGWriter.writeToFile(newIR, "sig_rewrite_" + PrettyPrinter.methodString(newIR.getMethod()));
+        }
         return newIR;
     }
 

@@ -94,5 +94,9 @@ public abstract class PointsToAnalysis {
             return true;
         }
 
+        @Override
+        public String toString() {
+            return stmt + " in " + context;
+        }
     }
 }

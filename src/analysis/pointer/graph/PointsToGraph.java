@@ -239,8 +239,7 @@ public class PointsToGraph {
                                             + " to " + PrettyPrinter.methodString(callee));
         }
 
-        // We are building a call graph so it is safe to call this "deprecated"
-        // method
+        // We are building a call graph so it is safe to call this "deprecated" method
         if (!src.addTarget(callSite, dst)) {
             // not a new target
             return false;
@@ -449,14 +448,16 @@ public class PointsToGraph {
      * Add class initialization methods
      * 
      * @param classInits
-     *            list of class initializer is initialization order (i.e.
-     *            element j is a super class of element j+1)
+     *            list of class initializer is initialization order (i.e. element j is a super class of element j+1)
+     * @return true if the call graph changed as a result of this call, false otherwise
      */
-    public void addClassInitializers(List<IMethod> classInits) {
+    public boolean addClassInitializers(List<IMethod> classInits) {
+        boolean cgChanged = false;
         for (int j = classInits.size() - 1; j >= 0; j--) {
             IMethod clinit = classInits.get(j);
             if (classInitializers.add(clinit)) {
                 // new initializer
+                cgChanged = true;
                 Context c = haf.initialContext();
                 CGNode initNode;
                 try {
@@ -467,12 +468,15 @@ public class PointsToGraph {
                 recordContext(clinit, c);
                 callGraph.registerEntrypoint(initNode);
             } else {
-                // Already added an initializer and thus must have added
-                // initializers for super classes. These are all that are left
-                // to process since we are adding from sub class to super class
-                // order
-                break;
+                // Already added an initializer and thus must have added initializers for super classes. These are all
+                // that are left to process since we are adding from sub class to super class order
+
+                // If any were added then j would have been decremented
+                return cgChanged;
             }
         }
+        // Should always be true
+        assert cgChanged : "Reached the end of the loop without adding any clinits " + classInits;
+        return cgChanged;
     }
 }

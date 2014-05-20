@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -15,6 +16,7 @@ import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
+import com.ibm.wala.analysis.typeInference.TypeInference;
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -27,6 +29,7 @@ import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
+
 /**
  * Points-to statement for a call to a method
  */
@@ -63,12 +66,10 @@ public abstract class CallStatement extends PointsToStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if
-     *            there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
-     *            Node in the caller representing the exception thrown by this
-     *            call (if any) also exceptions implicitly thrown by this
-     *            statement
+     *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
+     *            thrown by this statement
      * @param ir
      *            IR for the caller method
      * @param i
@@ -195,13 +196,17 @@ public abstract class CallStatement extends PointsToStatement {
             ReferenceVariable formalParamVar = ReferenceVariableFactory.getOrCreateFormalParameter(i, calleeIR);
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext, formalParamVar);
 
-            assert util.getClassHierarchy().isAssignableFrom(
+            if (!util.getClassHierarchy().isAssignableFrom(
                                             util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
-                                            util.getClassHierarchy().lookupClass(actual.getExpectedType())) : PrettyPrinter
-                                            .typeString(formalRep.getExpectedType())
-                                            + " := "
-                                            + PrettyPrinter.typeString(actual.getExpectedType()) + " FAILS";
-
+                                            util.getClassHierarchy().lookupClass(actual.getExpectedType()))) {
+                System.err.println("formal-" + i + "(" + PrettyPrinter.typeString(formalRep.getExpectedType())
+                                                + ") FROM " + actual.toString() + "("
+                                                + PrettyPrinter.typeString(actual.getExpectedType()) + ") FAILS");
+                TypeRepository.printTypes(getCode());
+                CFGWriter.writeToFile(getCode());
+                TypeInference.make(getCode(), true);
+                System.err.println("WTF");
+            }
             Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formalRep.getExpectedType());
 
             if (DEBUG && !actual.getExpectedType().isPrimitiveType() && actualHeapContexts.isEmpty()) {
@@ -216,8 +221,7 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     /**
-     * Get reference variable replicas in the given context for each element of
-     * the list of Reference variables
+     * Get reference variable replicas in the given context for each element of the list of Reference variables
      * 
      * @param context
      *            Context the replicas will be created in
@@ -240,8 +244,7 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     /**
-     * Get reference variable replica in the given context for a reference
-     * variable
+     * Get reference variable replica in the given context for a reference variable
      * 
      * @param context
      *            Context the replica will be created in
@@ -261,8 +264,7 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     /**
-     * Result of the call if any, null if void or primitive return or if the
-     * return result is not assigned
+     * Result of the call if any, null if void or primitive return or if the return result is not assigned
      * 
      * @return return result node (in the caller)
      */
@@ -271,8 +273,8 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     /**
-     * Check if an exception of type <code>currentExType</code> is caught or
-     * re-thrown, and modify the points-to graph accordingly
+     * Check if an exception of type <code>currentExType</code> is caught or re-thrown, and modify the points-to graph
+     * accordingly
      * 
      * @param currentExType
      *            type of the exception
@@ -397,8 +399,7 @@ public abstract class CallStatement extends PointsToStatement {
          * @param caughtTypes
          *            iterator for types caught by this catch block
          * @param formalNode
-         *            Points-to graph node for the formal argument to the catch
-         *            block
+         *            Points-to graph node for the formal argument to the catch block
          */
         public CatchBlock(Iterator<TypeReference> caughtTypes, ReferenceVariableReplica formalNode) {
             this.caughtTypes = caughtTypes;
@@ -444,8 +445,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            block to get catch block successors of
      * @param context
      *            context the catch blocks occur in
-     * @return List of catch blocks in reachable order (i.e. the first element
-     *         of the list is the first reached)
+     * @return List of catch blocks in reachable order (i.e. the first element of the list is the first reached)
      */
     protected final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, Context context) {
 

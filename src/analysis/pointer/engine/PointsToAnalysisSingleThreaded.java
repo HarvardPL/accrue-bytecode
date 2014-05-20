@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Set;
 
 import util.WorkQueue;
-import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
@@ -95,6 +94,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 q.add(new StmtAndContext(s, c));
             }
         }
+        System.err.println("INTIAL Q:\n" + q);
 
         int count = 0;
         while (!q.isEmpty()) {
@@ -102,7 +102,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             count++;
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
-            g.addClassInitializers(ClassInitFinder.getClassInitializers(util.getClassHierarchy(), s.getInstruction()));
 
             if (outputLevel >= 6) {
                 System.err.println("PROCESSING: " + s + " in " + c);

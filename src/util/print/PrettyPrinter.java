@@ -217,6 +217,7 @@ public class PrettyPrinter {
      */
     public static String methodString(MethodReference m) {
         StringBuilder s = new StringBuilder();
+        s.append(typeString(m.getReturnType()) + " ");
         s.append(typeString(m.getDeclaringClass()));
         s.append("." + m.getName().toString());
         s.append("(");

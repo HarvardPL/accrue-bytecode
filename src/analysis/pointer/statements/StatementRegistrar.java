@@ -697,4 +697,19 @@ public class StatementRegistrar {
         // TODO for native how can we simulate a call to the <init> for the
         // newly allocated object?
     }
+
+    /**
+     * Add points-to statements for the given list of class initializers
+     * 
+     * @param trigger
+     *            instruction that triggered the class init
+     * @param containingCode
+     *            code containing the instruction that triggered
+     * @param clinits
+     *            class initialization methods that might need to be called in the order they need to be called (i.e.
+     *            element j is a super class of element j+1)
+     */
+    protected void addStatementsForClassInitializer(SSAInstruction trigger, IR containingCode, List<IMethod> clinits) {
+        addStatement(new ClassInitStatement(clinits, containingCode, trigger));
+    }
 }

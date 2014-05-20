@@ -10,7 +10,6 @@ import java.util.Set;
 import signatures.Signatures;
 import util.InstructionType;
 import util.WorkQueue;
-import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
@@ -50,10 +49,10 @@ public class StatementRegistrationPass {
      * Methods we have already added statements for
      */
     private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
-    /**
-     * <clinit> methods that have already been added
-     */
-    private final Set<IMethod> classInits = new LinkedHashSet<>();
+    // /**
+    // * <clinit> methods that have already been added
+    // */
+    // private final Set<IMethod> classInits = new LinkedHashSet<>();
     /**
      * WALA-defined analysis utilities
      */
@@ -94,28 +93,27 @@ public class StatementRegistrationPass {
     }
 
     /**
-     * Add instructions to the work queue for the given method, if this method
-     * has not already been processed.
+     * Add instructions to the work queue for the given method, if this method has not already been processed.
      * 
      * @param q
      *            work queue containing instructions to be processed
      * @param m
      *            method to process
-     * 
+     * @return true if this method has been added yet, false otherwise
      */
-    private void addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
+    private boolean addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
 
         if (visitedMethods.contains(m)) {
             if (VERBOSE >= 2) {
                 System.err.println("\tAlready added " + PrettyPrinter.methodString(m));
             }
-            return;
+            return false;
         }
         if (m.isAbstract()) {
             if (VERBOSE >= 2) {
                 System.err.println("No need to analyze abstract methods: " + m.getSignature());
             }
-            return;
+            return false;
         }
 
         visitedMethods.add(m);
@@ -124,8 +122,6 @@ public class StatementRegistrationPass {
         registrar.recordMethod(m, summaryNodes);
 
         IR ir = util.getIR(m);
-        if (false)
-            CFGWriter.writeToFile(ir);
 
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
             for (SSAInstruction ins : bb) {
@@ -145,36 +141,34 @@ public class StatementRegistrationPass {
                 throw new RuntimeException();
             }
         }
+        return true;
     }
 
     /**
-     * Add the given class initializers if they haven't already been added
+     * Add statements given class initializers
      * 
+     * @param trigger
+     *            instruction that triggered the clinit
+     * @param containingCode
+     *            code containing the instruction that triggered the clinit
      * @param clinits
-     *            class initialization methods that might need to be called in
-     *            the order they need to be called (i.e. element j is a super
-     *            class of element j+1)
+     *            class initialization methods that might need to be called in the order they need to be called (i.e.
+     *            element j is a super class of element j+1)
      * @return true if any new class initializer was seen
      */
-    private boolean addClassInitializers(WorkQueue<InstrAndCode> q, List<IMethod> clinits) {
+    private boolean addClassInitializers(SSAInstruction trigger, IR containingCode, WorkQueue<InstrAndCode> q,
+                                    List<IMethod> clinits) {
         boolean added = false;
         for (int j = clinits.size() - 1; j >= 0; j--) {
             IMethod clinit = clinits.get(j);
-            if (classInits.add(clinit)) {
-                if (VERBOSE >= 1) {
-                    System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass().getReference())
-                                                    + " initializer");
-                }
-                addFromMethod(q, clinit);
-                added = true;
-            } else {
-                // we have reached a class in the list that has already been
-                // initialized the rest are super classes that must have already
-                // been initialized
-                break;
+            boolean oneAdded = addFromMethod(q, clinit);
+            if (oneAdded && VERBOSE >= 1) {
+                System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass().getReference())
+                                                + " initializer");
             }
+            added |= oneAdded;
         }
-
+        registrar.addStatementsForClassInitializer(trigger, containingCode, clinits);
         return added;
     }
 
@@ -222,12 +216,6 @@ public class StatementRegistrationPass {
         }
         // ********** END SIGNATURES ************ //
 
-        // Add class initializers for the return type if they haven't already
-        // been added
-        IClass returnClass = util.getClassHierarchy().lookupClass(m.getReturnType());
-        List<IMethod> clinits = ClassInitFinder.getClassInitializersForClass(returnClass, util.getClassHierarchy());
-        addClassInitializers(q, clinits);
-
         // Add points-to statements
         registrar.addStatementsForNative(m, summaryNodes, ir, callSite, util.getClassHierarchy());
 
@@ -273,7 +261,9 @@ public class StatementRegistrationPass {
         // containing the instruction that could load, and then make sure to
         // only handle each one once in the pointer analysis
         List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), i);
-        addClassInitializers(q, inits);
+        if (!inits.isEmpty()) {
+            addClassInitializers(i, ir, q, inits);
+        }
 
         // Add statements for any string literals in the instruction
         addStatementsForStringLiterals(i, ir, stringClass, stringValueClass, q);
@@ -444,7 +434,7 @@ public class StatementRegistrationPass {
             int use = i.getUse(j);
             if (ir.getSymbolTable().isStringConstant(use)) {
                 // add class initializers if needed
-                addClassInitializers(q, strInits);
+                addClassInitializers(i, ir, q, strInits);
                 // add points to statements to simulate the allocation
                 registrar.addStatementsForStringLit(use, ir, i, stringClass, stringValueClass);
             }
