@@ -48,23 +48,38 @@ import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Pretty printer for WALA code (SSA), types, and methods. Finds variable names
- * from the original code (if any exists) and constructs strings that are closer
- * to Java code than JVM byte code.
+ * Pretty printer for WALA code (SSA), types, and methods. Finds variable names from the original code (if any exists)
+ * and constructs strings that are closer to Java code than JVM byte code.
  */
 public class PrettyPrinter {
 
     /**
-     * If true then this class records the pretty printer used for a given IR
-     * and returns the same one on each request
+     * If true then this class records the pretty printer used for a given IR and returns the same one on each request
      */
     private static final boolean MEMOIZE = true;
 
     /**
-     * If {@value PrettyPrinter#MEMOIZE} is true store the pretty printers here
-     * so that there is a single printer per method.
+     * If {@value PrettyPrinter#MEMOIZE} is true store the pretty printers here so that there is a single printer per
+     * method.
      */
     private static final Map<IR, PrettyPrinter> memo = new HashMap<>();
+
+    /**
+     * canonical copies of strings
+     */
+    private static final Map<String, String> stringMemo = new HashMap<>();
+    /**
+     * Map from type to pretty printed name
+     */
+    private static final Map<TypeReference, String> typeMemo = new HashMap<>();
+    /**
+     * Map from method to pretty printed name
+     */
+    private static final Map<MethodReference, String> methodMemo = new HashMap<>();
+    /**
+     * Map from instruction and IR to pretty printed name
+     */
+    private static final Map<InstructionKey, String> instructionMemo = new HashMap<>();
 
     /**
      * Get a string for the basic block
@@ -74,11 +89,9 @@ public class PrettyPrinter {
      * @param bb
      *            Basic block to write out
      * @param prefix
-     *            prepend this string to each instruction (e.g. "\t" for
-     *            indentation)
+     *            prepend this string to each instruction (e.g. "\t" for indentation)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      * @return String for pretty printed basic block
      */
     public static String basicBlockString(IR ir, ISSABasicBlock bb, String prefix, String postfix) {
@@ -91,11 +104,9 @@ public class PrettyPrinter {
     }
 
     /**
-     * Get the line number for the first instruction in the basic block
-     * containing <code>i</code>.
+     * Get the line number for the first instruction in the basic block containing <code>i</code>.
      * <p>
-     * TODO this seems to be the best we can do for line numbers without an
-     * instruction index
+     * TODO this seems to be the best we can do for line numbers without an instruction index
      * 
      * @param ir
      *            IR for method containing the instruction
@@ -146,22 +157,26 @@ public class PrettyPrinter {
     }
 
     /**
-     * Get the class name for the given instruction. If the class is anonymous
-     * this will give the named superclass.
+     * Get the class name for the given instruction. If the class is anonymous this will give the named superclass.
      * 
      * @param i
      *            instruction to get the class name for
-     * @return name of i's class, if o is anonymous then the name of i's
-     *         superclass
+     * @return name of i's class, if o is anonymous then the name of i's superclass
      */
     public static String getSimpleClassName(SSAInstruction i) {
         Class<?> c = i.getClass();
-        return c.isAnonymousClass() ? c.getSuperclass().getSimpleName() : c.getSimpleName();
+        return getCanonical(c.isAnonymousClass() ? c.getSuperclass().getSimpleName() : c.getSimpleName());
     }
 
     public static String instructionString(SSAInstruction instruction, IR ir) {
-        PrettyPrinter pp = getPrinter(ir);
-        return pp.instructionString(instruction);
+        InstructionKey key = new InstructionKey(instruction, ir);
+        String name = instructionMemo.get(key);
+        if (name == null) {
+            PrettyPrinter pp = getPrinter(ir);
+            name = getCanonical(pp.instructionString(instruction));
+            instructionMemo.put(key, name);
+        }
+        return name;
     }
 
     /**
@@ -170,11 +185,9 @@ public class PrettyPrinter {
      * @param ir
      *            code to print
      * @param prefix
-     *            prepend this string to each instruction (e.g. "\t" for
-     *            indentation)
+     *            prepend this string to each instruction (e.g. "\t" for indentation)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      */
     public static String irString(IR ir, String prefix, String postfix) {
         try (StringWriter writer = new StringWriter()) {
@@ -186,15 +199,15 @@ public class PrettyPrinter {
     }
 
     /**
-     * Get the string representation of the given call graph node, this prints
-     * the method and context that define the node
+     * Get the string representation of the given call graph node, this prints the method and context that define the
+     * node
      * 
      * @param n
      *            node to get a string for
      * @return string for <code>n</code>
      */
     public static String cgNodeString(CGNode n) {
-        return PrettyPrinter.methodString(n.getMethod()) + " in " + n.getContext();
+        return getCanonical(PrettyPrinter.methodString(n.getMethod()) + " in " + n.getContext());
     }
 
     /**
@@ -216,21 +229,26 @@ public class PrettyPrinter {
      * @return String for "m"
      */
     public static String methodString(MethodReference m) {
-        StringBuilder s = new StringBuilder();
-        s.append(typeString(m.getReturnType()) + " ");
-        s.append(typeString(m.getDeclaringClass()));
-        s.append("." + m.getName().toString());
-        s.append("(");
-        if (m.getNumberOfParameters() > 0) {
-            Descriptor d = m.getDescriptor();
-            TypeName[] n = d.getParameters();
-            s.append(typeString(n[0].toString()));
-            for (int j = 1; j < m.getNumberOfParameters(); j++) {
-                s.append(", " + typeString(n[j].toString()));
+        String name = methodMemo.get(m);
+        if (name == null) {
+            StringBuilder s = new StringBuilder();
+            s.append(typeString(m.getReturnType()) + " ");
+            s.append(typeString(m.getDeclaringClass()));
+            s.append("." + m.getName().toString());
+            s.append("(");
+            if (m.getNumberOfParameters() > 0) {
+                Descriptor d = m.getDescriptor();
+                TypeName[] n = d.getParameters();
+                s.append(typeString(n[0].toString()));
+                for (int j = 1; j < m.getNumberOfParameters(); j++) {
+                    s.append(", " + typeString(n[j].toString()));
+                }
             }
+            s.append(")");
+            name = getCanonical(s.toString());
+            methodMemo.put(m, name);
         }
-        s.append(")");
-        return s.toString();
+        return name;
     }
 
     /**
@@ -243,7 +261,7 @@ public class PrettyPrinter {
     public static String simpleTypeString(TypeReference type) {
         String fullType = typeString(type.getName().toString());
         String[] strings = fullType.split("\\.");
-        return strings[strings.length - 1];
+        return getCanonical(strings[strings.length - 1]);
     }
 
     /**
@@ -267,50 +285,50 @@ public class PrettyPrinter {
     private static String typeString(String type) {
         String finalType = type;
         String arrayString = "";
-        while (finalType.startsWith("[")) {
-            arrayString += "[]";
+        while (finalType.startsWith(getCanonical("["))) {
+            arrayString += getCanonical("[]");
             finalType = finalType.substring(1);
         }
         String baseName = "";
         switch (finalType.substring(0, 1)) {
         case "B":
-            baseName = "byte";
+            baseName = getCanonical("byte");
             break;
         case "L":
-            baseName = finalType.substring(1);
+            baseName = getCanonical(finalType.substring(1));
             break;
         case "C":
-            baseName = "char";
+            baseName = getCanonical("char");
             break;
         case "D":
-            baseName = "double";
+            baseName = getCanonical("double");
             break;
         case "F":
-            baseName = "float";
+            baseName = getCanonical("float");
             break;
         case "I":
-            baseName = "int";
+            baseName = getCanonical("int");
             break;
         case "J":
-            baseName = "long";
+            baseName = getCanonical("long");
             break;
         case "S":
-            baseName = "short";
+            baseName = getCanonical("short");
             break;
         case "Z":
-            baseName = "boolean";
+            baseName = getCanonical("boolean");
             break;
         case "V":
-            baseName = "void";
+            baseName = getCanonical("void");
             break;
         case "n":
-            baseName = "null-type";
+            baseName = getCanonical("null-type");
             break;
         default:
             throw new RuntimeException(finalType.substring(0, 1) + " is an invalid type specifier.");
         }
 
-        return baseName.replace("/", ".") + arrayString;
+        return getCanonical(baseName.replace("/", ".") + arrayString);
     }
 
     /**
@@ -321,13 +339,17 @@ public class PrettyPrinter {
      * @return String for "type"
      */
     public static String typeString(TypeReference type) {
-        return typeString(type.getName().toString());
+        String name = typeMemo.get(type);
+        if (name == null) {
+            name = typeString(type.getName().toString());
+            typeMemo.put(type, name);
+        }
+        return name;
     }
 
     /**
-     * Print the part of the instruction to the right of the assignment operator
-     * "=". Only valid for instructions that assign to local variable (i.e. not
-     * for arraystore, putfield, or putstatic)
+     * Print the part of the instruction to the right of the assignment operator "=". Only valid for instructions that
+     * assign to local variable (i.e. not for arraystore, putfield, or putstatic)
      * 
      * @param instruction
      *            instruction with local def to print the right side of
@@ -344,11 +366,9 @@ public class PrettyPrinter {
      * Get a String name for the variable represented by the given value number
      * 
      * @param valueNumber
-     *            value number for the variable to get the string representation
-     *            for
+     *            value number for the variable to get the string representation for
      * @param ir
-     *            IR for the method containing the variable represented by the
-     *            value number
+     *            IR for the method containing the variable represented by the value number
      * @return name of the given value
      */
     public static String valString(int valueNumber, IR ir) {
@@ -366,11 +386,9 @@ public class PrettyPrinter {
      * @param writer
      *            string will be written to this writer
      * @param prefix
-     *            prepend this string to each instruction (e.g. "\t" for
-     *            indentation)
+     *            prepend this string to each instruction (e.g. "\t" for indentation)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      */
     public static void writeBasicBlock(IR ir, ISSABasicBlock bb, Writer writer, String prefix, String postfix) {
         PrettyPrinter pp = getPrinter(ir);
@@ -391,11 +409,9 @@ public class PrettyPrinter {
      * @param writer
      *            string will be written to this writer
      * @param prefix
-     *            prepend this string to each instruction (e.g. "\t" for
-     *            indentation)
+     *            prepend this string to each instruction (e.g. "\t" for indentation)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      */
     public static void writeIR(IR ir, Writer writer, String prefix, String postfix) {
         new IRWriter(ir).write(writer, prefix, postfix);
@@ -463,37 +479,37 @@ public class PrettyPrinter {
         String opString = "";
         switch (op.toString()) {
         case "add":
-            opString = "+";
+            opString = getCanonical("+");
             break;
         case "sub":
-            opString = "-";
+            opString = getCanonical("-");
             break;
         case "mul":
-            opString = "*";
+            opString = getCanonical("*");
             break;
         case "div":
-            opString = "/";
+            opString = getCanonical("/");
             break;
         case "rem":
-            opString = "%";
+            opString = getCanonical("%");
             break;
         case "and":
-            opString = "&";
+            opString = getCanonical("&");
             break;
         case "or":
-            opString = "|";
+            opString = getCanonical("|");
             break;
         case "xor":
-            opString = "^";
+            opString = getCanonical("^");
             break;
         case "SHL":
-            opString = "<<";
+            opString = getCanonical("<<");
             break;
         case "SHR":
-            opString = ">>";
+            opString = getCanonical(">>");
             break;
         case "USHR":
-            opString = ">>>";
+            opString = getCanonical(">>>");
             break;
         default:
             throw new IllegalArgumentException("Urecognized binary operator " + op);
@@ -516,7 +532,7 @@ public class PrettyPrinter {
     }
 
     private String comparisonRight(SSAComparisonInstruction instruction) {
-        return valString(instruction.getUse(0)) + " == " + valString(instruction.getUse(1));
+        return valString(instruction.getUse(0)) + getCanonical(" == ") + valString(instruction.getUse(1));
     }
 
     /**
@@ -529,17 +545,17 @@ public class PrettyPrinter {
     public static String conditionalOperatorString(com.ibm.wala.shrikeBT.IConditionalBranchInstruction.IOperator op) {
         switch (op.toString()) {
         case "eq":
-            return "==";
+            return getCanonical("==");
         case "ne":
-            return "!=";
+            return getCanonical("!=");
         case "lt":
-            return "<";
+            return getCanonical("<");
         case "ge":
-            return ">=";
+            return getCanonical(">=");
         case "gt":
-            return ">";
+            return getCanonical(">");
         case "le":
-            return "<=";
+            return getCanonical("<=");
         default:
             throw new IllegalArgumentException("operator not found " + op.toString());
         }
@@ -572,7 +588,7 @@ public class PrettyPrinter {
         String[] justForDebug = ir.getLocalNames(lastInstructionNum, valNum);
         if (justForDebug == null) {
             if (!ir.getMethod().isStatic() && valNum == 1) {
-                return "this";
+                return getCanonical("this");
             }
             return null;
         }
@@ -583,11 +599,11 @@ public class PrettyPrinter {
             System.err.println("multiple names for " + valNum + " in " + methodString(ir.getMethod()) + ": "
                                             + Arrays.toString(justForDebug));
         }
-        return justForDebug[0];
+        return getCanonical(justForDebug[0]);
     }
 
     private String getCaughtExceptionString(SSAGetCaughtExceptionInstruction instruction) {
-        return "catch " + valString(instruction.getException());
+        return getCanonical("catch " + valString(instruction.getException()));
     }
 
     private String getRight(SSAGetInstruction instruction) {
@@ -605,7 +621,7 @@ public class PrettyPrinter {
     }
 
     private static String gotoString(@SuppressWarnings("unused") SSAGotoInstruction instruction) {
-        return "goto ...";
+        return getCanonical("goto ...");
     }
 
     private String instanceofRight(SSAInstanceofInstruction instruction) {
@@ -706,7 +722,7 @@ public class PrettyPrinter {
     }
 
     private static String loadMetadataRight(SSALoadMetadataInstruction instruction) {
-        return "load_metadata: " + instruction.getToken() + ", " + instruction.getType();
+        return getCanonical("load_metadata: ") + instruction.getToken() + ", " + instruction.getType();
     }
 
     private String monitorString(SSAMonitorInstruction instruction) {
@@ -715,7 +731,7 @@ public class PrettyPrinter {
 
     private String newRight(SSANewInstruction instruction) {
         StringBuilder sb = new StringBuilder();
-        sb.append("new ");
+        sb.append(getCanonical("new "));
         TypeReference type = instruction.getConcreteType();
         while (type.isArrayType()) {
             type = type.getArrayElementType();
@@ -736,8 +752,7 @@ public class PrettyPrinter {
      *            index of first parameter in "use" array
      * @param instruction
      *            invocation instruction
-     * @return String containing the parameters to the invoked method separated
-     *         by ", "
+     * @return String containing the parameters to the invoked method separated by ", "
      */
     private String paramsString(int startIndex, SSAInvokeInstruction instruction) {
         StringBuilder sb = new StringBuilder();
@@ -750,7 +765,7 @@ public class PrettyPrinter {
 
     private String phiRight(SSAPhiInstruction instruction) {
         StringBuilder s = new StringBuilder();
-        s.append("phi" + "(");
+        s.append(getCanonical("phi" + "("));
         int uses = instruction.getNumberOfUses();
         for (int i = 0; i < uses - 1; i++) {
             s.append(valString(instruction.getUse(i)) + ", ");
@@ -775,7 +790,7 @@ public class PrettyPrinter {
 
     private String returnString(SSAReturnInstruction instruction) {
         StringBuilder sb = new StringBuilder();
-        sb.append("return");
+        sb.append(getCanonical("return"));
 
         int result = instruction.getResult();
         if (result != -1) {
@@ -790,8 +805,7 @@ public class PrettyPrinter {
      * Print the expression assigned to a local variable
      * 
      * @param instruction
-     *            Instruction with a right hand side and a local on the left
-     *            hand side
+     *            Instruction with a right hand side and a local on the left hand side
      * @return String representation of an expression to the right of the equals
      */
     private String rightSideString(SSAInstruction instruction) {
@@ -885,14 +899,13 @@ public class PrettyPrinter {
      * Get a String for the given value number
      * 
      * @param valueNumber
-     *            value number for the variable to get the string representation
-     *            for
+     *            value number for the variable to get the string representation for
      * @return String for the given value
      */
     private String valString(int valueNumber) {
         if (!ir.getMethod().isStatic() && st.getParameter(0) == valueNumber) {
             // The first parameter of non-static methods is "this"
-            return "this";
+            return getCanonical("this");
         }
 
         if (st.isConstant(valueNumber)) {
@@ -909,17 +922,74 @@ public class PrettyPrinter {
                 // the boolean case does not trigger, they are just integers
                 assert false;
             }
-            return c;
+            return getCanonical(c);
         }
 
         String ret = getActualName(valueNumber);
         if (ret != null) {
-            return ret;
+            return getCanonical(ret);
         }
 
         if (st.getValue(valueNumber) == null) {
-            return "v" + valueNumber;
+            return getCanonical("v" + valueNumber);
         }
-        return st.getValue(valueNumber).toString();
+        return getCanonical(st.getValue(valueNumber).toString());
+    }
+
+    /**
+     * Get the canonical version of a string
+     * 
+     * @param s
+     *            string to get
+     * @return String that is .equal to the string passed in, but is the canonical version
+     */
+    private static String getCanonical(String s) {
+        String canonical = stringMemo.get(s);
+        if (canonical == null) {
+            canonical = s;
+            stringMemo.put(canonical, canonical);
+        }
+        return canonical;
+    }
+
+    public static class InstructionKey {
+        private final SSAInstruction i;
+        private final IR ir;
+
+        public InstructionKey(SSAInstruction i, IR ir) {
+            this.i = i;
+            this.ir = ir;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((i == null) ? 0 : i.hashCode());
+            result = prime * result + ((ir == null) ? 0 : ir.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            InstructionKey other = (InstructionKey) obj;
+            if (i == null) {
+                if (other.i != null)
+                    return false;
+            } else if (!i.equals(other.i))
+                return false;
+            if (ir == null) {
+                if (other.ir != null)
+                    return false;
+            } else if (!ir.equals(other.ir))
+                return false;
+            return true;
+        }
     }
 }
