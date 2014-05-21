@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -126,9 +127,14 @@ public class PointsToGraph {
     public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
         readNodes.add(node);
 
-        if (graph.containsKey(node)) {
-            return new LinkedHashSet<>(graph.get(node));
+        Set<InstanceKey> s = graph.get(node);
+        if (s != null) {
+            if (DEBUG && s.isEmpty() && outputLevel >= 7) {
+                System.err.println("\tEMPTY POINTS-TO SET for " + node);
+            }
+            return Collections.unmodifiableSet(s);
         }
+
         if (DEBUG && outputLevel >= 7) {
             System.err.println("\tEMPTY POINTS-TO SET for " + node);
         }
@@ -137,11 +143,16 @@ public class PointsToGraph {
     }
 
     public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference type) {
+        readNodes.add(node);
+
         Set<InstanceKey> s = getPointsToSet(node);
+
         if (s.isEmpty()) {
-            return Collections.emptySet();
+            return s;
         }
+
         Iterator<InstanceKey> i = s.iterator();
+        Set<InstanceKey> toRemove = new HashSet<>();
         while (i.hasNext()) {
             InstanceKey k = i.next();
             IClass klass = k.getConcreteType();
@@ -155,7 +166,7 @@ public class PointsToGraph {
                         System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
                                                     + PrettyPrinter.typeString(type));
                     }
-                    i.remove();
+                    toRemove.add(k);
                 }
             }
         }
@@ -163,7 +174,13 @@ public class PointsToGraph {
         if (DEBUG && s.isEmpty() && outputLevel >= 6) {
             System.err.println("\tEMPTY FILTERED POINTS-TO SET for " + node + " filtered on " + type);
         }
-        return s;
+
+        if (toRemove.isEmpty()) {
+            return s;
+        }
+        Set<InstanceKey> toRetain = new HashSet<>(s);
+        toRetain.removeAll(toRemove);
+        return Collections.unmodifiableSet(toRetain);
     }
 
     /**
@@ -182,13 +199,14 @@ public class PointsToGraph {
     public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference isType, Set<IClass> notTypes) {
         Set<InstanceKey> s = getPointsToSet(node);
         if (s.isEmpty()) {
-            return Collections.emptySet();
+            return s;
         }
 
         boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
 
         IClass isClass = cha.lookupClass(isType);
         Iterator<InstanceKey> iter = s.iterator();
+        Set<InstanceKey> toRemove = new HashSet<>();
         while (iter.hasNext()) {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
@@ -200,7 +218,7 @@ public class PointsToGraph {
                         if (cha.isAssignableFrom(notClass, klass)) {
                             // klass is a subclass of one of the classes we do
                             // not want
-                            iter.remove();
+                            toRemove.add(k);
                             break;
                         }
                     }
@@ -211,17 +229,24 @@ public class PointsToGraph {
                 // the points-to set if the type we are filtering on is
                 // java.lang.Object
                 if (!(klass.isArrayClass() && isType.equals(TypeReference.JavaLangObject))) {
-                    iter.remove();
+                    toRemove.add(k);
                 }
             }
 
         }
         if (DEBUG && s.isEmpty() && outputLevel >= 6) {
             System.err.println("\tEMPTY FILTERED/NOTTED POINTS-TO SET for " + node + " filtered on " + isType
-                                            + " not type "
-                                            + notTypes);
+                                            + " not type " + notTypes);
         }
-        return s;
+
+        if (toRemove.isEmpty()) {
+            // Nothing to remove
+            return s;
+        }
+
+        Set<InstanceKey> toRetain = new HashSet<>(s);
+        toRetain.removeAll(toRemove);
+        return Collections.unmodifiableSet(toRetain);
     }
 
     @SuppressWarnings("deprecation")
