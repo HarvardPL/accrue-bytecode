@@ -7,6 +7,7 @@ import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 
@@ -17,8 +18,8 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
 
     private final ReachabilityResults results = new ReachabilityResults();
 
-    public ReachabilityInterProceduralDataFlow(PointsToGraph ptg) {
-        super(ptg, ReachabilityResults.ALWAYS_REACHABLE);
+    public ReachabilityInterProceduralDataFlow(PointsToGraph ptg, ReferenceVariableCache rvCache) {
+        super(ptg, ReachabilityResults.ALWAYS_REACHABLE, rvCache);
     }
 
     @Override

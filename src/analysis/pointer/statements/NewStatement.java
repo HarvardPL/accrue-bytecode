@@ -35,8 +35,7 @@ public class NewStatement extends PointsToStatement {
     private final AllocSiteNode alloc;
 
     /**
-     * Points-to graph statement for a "new" instruction, e.g. Object o = new
-     * Object()
+     * Points-to graph statement for a "new" instruction, e.g. Object o = new Object()
      * 
      * @param result
      *            Points-to graph node for the assignee of the new
@@ -49,17 +48,16 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i) {
+    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i,
+                                    AllocSiteNodeFactory asnFactory) {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i,
-                                        "Normal Allocation");
+        alloc = asnFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i, "Normal Allocation");
     }
 
     /**
-     * Points-to graph statement for an allocation that does not result from a
-     * new instruction
+     * Points-to graph statement for an allocation that does not result from a new instruction
      * 
      * @param result
      *            Points-to graph node for the assignee of the new allocation
@@ -72,16 +70,39 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInstruction i) {
+    private NewStatement(String name, ReferenceVariable result, IClass newClass, IR ir, SSAInstruction i,
+                                    AllocSiteNodeFactory asnFactory) {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i, result);
+        alloc = asnFactory.getGeneratedAllocationNode(name, newClass, ir.getMethod().getDeclaringClass(), i, result);
+
     }
 
     /**
-     * Points-to graph statement for an allocation synthesized for the exit to a
-     * native method
+     * Points-to graph statement for an allocation that does not result from a new instruction
+     * 
+     * @param result
+     *            Points-to graph node for the assignee of the new allocation
+     * @param newClass
+     *            Class being created
+     * @param cha
+     *            class hierarchy
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
+     */
+    private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInstruction i,
+                                    AllocSiteNodeFactory asnFactory) {
+        super(ir, i);
+        this.result = result;
+        this.newClass = newClass;
+        alloc = asnFactory.getGeneratedExceptionNode(newClass, ir.getMethod().getDeclaringClass(), i, result);
+    }
+
+    /**
+     * Points-to graph statement for an allocation synthesized for the exit to a native method
      * 
      * @param result
      *            Points-to graph node for the assignee of the new allocation
@@ -97,42 +118,56 @@ public class NewStatement extends PointsToStatement {
      *            Type this node is for normal return or exceptional
      */
     private NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInvokeInstruction i, ExitType exitType,
-                                    IMethod m) {
+                                    IMethod m, AllocSiteNodeFactory asnFactory) {
         super(ir, i);
         this.result = result;
         this.newClass = newClass;
-        alloc = AllocSiteNodeFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i,
-                                        exitType, m);
+        alloc = asnFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i, exitType, m);
     }
 
     /**
-     * Get a points-to statement representing the allocation of a JVM generated
-     * exception (e.g. NullPointerException), and the assignment of this new
-     * exception to a local variable
+     * Points-to graph statement for a "new" instruction, e.g. Object o = new Object()
+     * 
+     * @param result
+     *            Points-to graph node for the assignee of the new
+     * @param newClass
+     *            Class being created
+     * @param cha
+     *            class hierarchy
+     * @param ir
+     *            Code for the method the points-to statement came from
+     * @param i
+     *            Instruction that generated this points-to statement
+     */
+    public static NewStatement newStatementForNormalAlloc(ReferenceVariable result, IClass newClass, IR ir,
+                                    SSANewInstruction i, AllocSiteNodeFactory asnFactory) {
+        return new NewStatement(result, newClass, ir, i, asnFactory);
+    }
+
+    /**
+     * Get a points-to statement representing the allocation of a JVM generated exception (e.g. NullPointerException),
+     * and the assignment of this new exception to a local variable
      * 
      * @param exceptionAssignee
-     *            Reference variable for the local variable the exception is
-     *            assigned to after being created
+     *            Reference variable for the local variable the exception is assigned to after being created
      * @param exceptionClass
      *            Class for the exception
      * @param ir
      *            code containing the instruction throwing the exception
      * @param i
      *            exception throwing the exception
-     * @return a statement representing the allocation of a JVM generated
-     *         exception to a local variable
+     * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
     public static NewStatement newStatementForGeneratedException(ReferenceVariable exceptionAssignee,
-                                    IClass exceptionClass, IR ir, SSAInstruction i) {
-        return new NewStatement(exceptionAssignee, exceptionClass, ir, i);
+                                    IClass exceptionClass, IR ir, SSAInstruction i, AllocSiteNodeFactory asnFactory) {
+        return new NewStatement(exceptionAssignee, exceptionClass, ir, i, asnFactory);
     }
 
     /**
      * Get a points-to statement representing the allocation of a String literal
      * 
      * @param local
-     *            Reference variable for the local variable for the string at
-     *            the allocation site
+     *            Reference variable for the local variable for the string at the allocation site
      * @param ir
      *            code containing the instruction throwing the exception
      * @param i
@@ -141,9 +176,9 @@ public class NewStatement extends PointsToStatement {
      *            WALA representation of the java.lang.String class
      * @return a statement representing the allocation of a new string literal
      */
-    public static NewStatement newStatementForStringLiteral(ReferenceVariable local, IR ir, SSAInstruction i,
-                                    IClass stringClass) {
-        return new NewStatement(local, stringClass, ir, i);
+    public static NewStatement newStatementForStringLiteral(String name, ReferenceVariable local, IR ir,
+                                    SSAInstruction i, IClass stringClass, AllocSiteNodeFactory asnFactory) {
+        return new NewStatement(name, local, stringClass, ir, i, asnFactory);
     }
 
     /**
@@ -164,29 +199,27 @@ public class NewStatement extends PointsToStatement {
      * @return a statement representing the allocation of a new
      */
     public static NewStatement newStatementForNativeExit(ReferenceVariable summaryNode, IR ir, SSAInvokeInstruction i,
-                                    IClass exitClass, ExitType exitType, IMethod resolved) {
-        return new NewStatement(summaryNode, exitClass, ir, i, exitType, resolved);
+                                    IClass exitClass, ExitType exitType, IMethod resolved,
+                                    AllocSiteNodeFactory asnFactory) {
+        return new NewStatement(summaryNode, exitClass, ir, i, exitType, resolved, asnFactory);
     }
 
     /**
-     * Get a points-to statement representing the allocation of the value field
-     * of a string
+     * Get a points-to statement representing the allocation of the value field of a string
      * 
      * @param local
-     *            Reference variable for the local variable for the string at
-     *            the allocation site
+     *            Reference variable for the local variable for the string at the allocation site
      * @param ir
      *            code containing the instruction throwing the exception
      * @param i
      *            exception throwing the exception
      * @param charArrayClass
      *            WALA representation of a char[]
-     * @return a statement representing the allocation of a new string literal's
-     *         value field
+     * @return a statement representing the allocation of a new string literal's value field
      */
-    public static NewStatement newStatementForStringField(ReferenceVariable local, IR ir, SSAInstruction i,
-                                    IClass charArrayClass) {
-        return new NewStatement(local, charArrayClass, ir, i);
+    public static NewStatement newStatementForStringField(String name, ReferenceVariable local, IR ir,
+                                    SSAInstruction i, IClass charArrayClass, AllocSiteNodeFactory asnFactory) {
+        return new NewStatement(name, local, charArrayClass, ir, i, asnFactory);
     }
 
     @Override

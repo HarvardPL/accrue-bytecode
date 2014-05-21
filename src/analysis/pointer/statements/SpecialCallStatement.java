@@ -46,23 +46,23 @@ public class SpecialCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if
-     *            there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
-     *            Node representing the exception thrown by the callee and
-     *            implicit exceptions
+     *            Node representing the exception thrown by the callee and implicit exceptions
      * @param callerIR
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
      * @param util
      *            Used to create the IR for the callee
+     * @param rvFactory
+     *            factory for managing the creation of reference variables for local variables and static fields
      */
     public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    WalaAnalysisUtil util) {
-        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util);
+                                    WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
+        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util, rvFactory);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;
         this.receiver = receiver;

@@ -19,8 +19,7 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.MethodReference;
 
 /**
- * Points-to statement for a call to a virtual method (either a class or
- * interface method).
+ * Points-to statement for a call to a virtual method (either a class or interface method).
  */
 public class VirtualCallStatement extends CallStatement {
 
@@ -50,8 +49,7 @@ public class VirtualCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if
-     *            there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
      * @param cha
@@ -60,12 +58,14 @@ public class VirtualCallStatement extends CallStatement {
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
+     * @param rvFactory
+     *            factory for managing the creation of reference variables for local variables and static fields
      */
     public VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir,
-                                    SSAInvokeInstruction i, WalaAnalysisUtil util) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i, util);
+                                    SSAInvokeInstruction i, WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
+        super(callSite, actuals, resultNode, exceptionNode, ir, i, util, rvFactory);
         this.callee = callee;
         this.cha = cha;
         this.receiver = receiver;

@@ -10,13 +10,13 @@ import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Inter-procedureal data-flow manager for an analysis that determines when
- * local variable are non-null
+ * Inter-procedureal data-flow manager for an analysis that determines when local variable are non-null
  */
 public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
@@ -25,8 +25,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      */
     private final WalaAnalysisUtil util;
     /**
-     * Results of the analysis, namely which local variables are null and when
-     * are put here
+     * Results of the analysis, namely which local variables are null and when are put here
      */
     private final NonNullResults results = new NonNullResults();
     /**
@@ -44,8 +43,8 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      * @param util
      *            WALA analysis classes
      */
-    public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable, WalaAnalysisUtil util) {
-        super(ptg, reachable);
+    public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable, WalaAnalysisUtil util, ReferenceVariableCache rvCache) {
+        super(ptg, reachable, rvCache);
         this.util = util;
     }
 
@@ -112,8 +111,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
     }
 
     /**
-     * Get the results after running this inter-procedural analysis, these may
-     * be unsound while the analysis is running
+     * Get the results after running this inter-procedural analysis, these may be unsound while the analysis is running
      * 
      * 
      * @return which variables are non-null before each instruction

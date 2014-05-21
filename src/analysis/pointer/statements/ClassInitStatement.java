@@ -4,6 +4,7 @@ import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -48,13 +49,15 @@ public class ClassInitStatement extends PointsToStatement {
         // this would be very imprecise and could blow up the call graph and points-to graph.
         // As a compromise we don't do anything here, and use this statement only to trigger the analysis of the
         // statements in the clinit method
-        if (added) {
-            System.err.println(PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
+        if (PointsToAnalysis.outputLevel >= 1 && added) {
+            System.err.println("CLINIT: " + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
                                             + PrettyPrinter.methodString(getCode().getMethod()) + " in context: "
                                             + context);
+
             for (IMethod m : clinits) {
                 System.err.println("\t" + PrettyPrinter.methodString(m));
             }
+
         }
 
         return false;

@@ -36,8 +36,7 @@ public class StaticCallStatement extends CallStatement {
      * @param actuals
      *            Actual arguments to the call
      * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if
-     *            there is none or if it is a primitive
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
      * @param callerIR
@@ -49,8 +48,8 @@ public class StaticCallStatement extends CallStatement {
      */
     public StaticCallStatement(CallSiteReference callSite, IMethod callee, List<ReferenceVariable> actuals,
                                     ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR callerIR,
-                                    SSAInvokeInstruction i, WalaAnalysisUtil util) {
-        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util);
+                                    SSAInvokeInstruction i, WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
+        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util, rvFactory);
         this.callee = callee;
     }
 

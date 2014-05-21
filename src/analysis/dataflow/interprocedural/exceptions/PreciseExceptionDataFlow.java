@@ -291,7 +291,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         boolean castAlwaysSucceeds = true;
         IClass checked = cha.lookupClass(i.getDeclaredResultTypes()[0]);
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            for (InstanceKey hContext : ptg.getPointsToSet(InterproceduralDataFlow.getReplica(i.getVal(), currentNode))) {
+            for (InstanceKey hContext : ptg.getPointsToSet(interProc.getReplica(i.getVal(), currentNode))) {
                 IClass actual = hContext.getConcreteType();
                 if (!cha.isAssignableFrom(checked, actual)) {
                     castAlwaysSucceeds = false;

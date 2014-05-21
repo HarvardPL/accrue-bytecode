@@ -11,7 +11,6 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.ExitType;
-import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.CallSiteEdgeLabel;
 import analysis.dataflow.interprocedural.pdg.graph.CallSiteEdgeLabel.SiteType;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
@@ -57,11 +56,9 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Part of an inter-procedural data-flow, this intra-procedural data-flow adds
- * edges to a program dependence graph (PDG). The nodes at basic block and
- * instruction boundaries and for the program points just after possible
- * exceptions are based on the results of another analysis (e.g.
- * {@link ComputePDGNodesDataflow}.
+ * Part of an inter-procedural data-flow, this intra-procedural data-flow adds edges to a program dependence graph
+ * (PDG). The nodes at basic block and instruction boundaries and for the program points just after possible exceptions
+ * are based on the results of another analysis (e.g. {@link ComputePDGNodesDataflow}.
  */
 public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
@@ -70,9 +67,8 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      */
     private final CGNode currentNode;
     /**
-     * Inter-procedural analysis managing the queue of call graph nodes and
-     * holding data structures that persist over the analysis of a multiple call
-     * graph nodes
+     * Inter-procedural analysis managing the queue of call graph nodes and holding data structures that persist over
+     * the analysis of a multiple call graph nodes
      */
     private final PDGInterproceduralDataFlow interProc;
     /**
@@ -84,35 +80,30 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      */
     private final IClassHierarchy cha;
     /**
-     * Map from basic block to the computed data-flow facts (PCNode, nodes for
-     * exceptions and return values) for each exit edge
+     * Map from basic block to the computed data-flow facts (PCNode, nodes for exceptions and return values) for each
+     * exit edge
      */
     private final Map<ISSABasicBlock, Map<ISSABasicBlock, PDGContext>> outputFacts;
     /**
-     * Input PC, return, and exception nodes for each instruction (after merging
-     * if there are multiple incoming edges)
+     * Input PC, return, and exception nodes for each instruction (after merging if there are multiple incoming edges)
      */
     private final Map<SSAInstruction, PDGContext> instructionInput;
     /**
-     * Map from basic block to context holding the PC node and exception node
-     * for the program point just after an exception (of a particular type) is
-     * thrown in that basic block
+     * Map from basic block to context holding the PC node and exception node for the program point just after an
+     * exception (of a particular type) is thrown in that basic block
      */
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts;
     /**
-     * Map from basic block to context holding the PC node for the program point
-     * just after an exception (of a particular type) that could be thrown is
-     * NOT thrown
+     * Map from basic block to context holding the PC node for the program point just after an exception (of a
+     * particular type) that could be thrown is NOT thrown
      */
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts;
     /**
-     * Map from a merge node to the nodes that were merged when creating that
-     * node
+     * Map from a merge node to the nodes that were merged when creating that node
      */
     private final Map<PDGNode, Set<PDGNode>> mergeNodes;
     /**
-     * Context created for the program point just after a callee throws an
-     * exception
+     * Context created for the program point just after a callee throws an exception
      */
     private final Map<CallSiteReference, PDGContext> calleeExceptionContexts;
 
@@ -122,33 +113,26 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      * @param currentNode
      *            node this analysis is over
      * @param interProc
-     *            Inter-procedural analysis managing the queue of call graph
-     *            nodes and holding data structures that persist over the
-     *            analysis of a multiple call graph nodes
+     *            Inter-procedural analysis managing the queue of call graph nodes and holding data structures that
+     *            persist over the analysis of a multiple call graph nodes
      * @param util
-     *            Class hierarchy produced by WALA and other utility classes
-     *            common to a number of analyses
+     *            Class hierarchy produced by WALA and other utility classes common to a number of analyses
      * @param mergeNodes
-     *            Map from a merge node to the nodes that were merged when
-     *            creating that node
+     *            Map from a merge node to the nodes that were merged when creating that node
      * @param trueExceptionContexts
-     *            Map from basic block to context holding the PC node and
-     *            exception node for the program point just after an exception
-     *            (of a particular type) is thrown in that basic block
+     *            Map from basic block to context holding the PC node and exception node for the program point just
+     *            after an exception (of a particular type) is thrown in that basic block
      * @param falseExceptionContexts
-     *            Map from basic block to context holding the PC node for the
-     *            program point just after an exception (of a particular type)
-     *            that could be thrown is NOT thrown
+     *            Map from basic block to context holding the PC node for the program point just after an exception (of
+     *            a particular type) that could be thrown is NOT thrown
      * @param calleeExceptionContexts
-     *            Context created for the program point just after a callee
-     *            throws an exception
+     *            Context created for the program point just after a callee throws an exception
      * @param outputFacts
-     *            Map from basic block to the computed data-flow facts (PCNode,
-     *            nodes for exceptions and return values) for each exit edge
+     *            Map from basic block to the computed data-flow facts (PCNode, nodes for exceptions and return values)
+     *            for each exit edge
      * @param instructionInput
-     *            Map from basic block to context holding the PC node and
-     *            exception node for the program point just after an exception
-     *            (of a particular type) is thrown in that basic block
+     *            Map from basic block to context holding the PC node and exception node for the program point just
+     *            after an exception (of a particular type) is thrown in that basic block
      */
     public AddPDGEdgesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util,
                                     Map<PDGNode, Set<PDGNode>> mergeNodes,
@@ -295,10 +279,10 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         boolean instanceOfAlwaysFalse = true;
         boolean instanceOfAlwaysTrue = true;
 
-        // Check if every think the cast object could point to is safe to cast
+        // Check if everything the cast object could point to is safe to cast (or unsafe)
         IClass checked = cha.lookupClass(i.getCheckedType());
         for (InstanceKey hContext : interProc.getPointsToGraph().getPointsToSet(
-                                        InterproceduralDataFlow.getReplica(i.getRef(), currentNode))) {
+                                        interProc.getReplica(i.getRef(), currentNode))) {
             IClass actual = hContext.getConcreteType();
             if (cha.isAssignableFrom(checked, actual)) {
                 instanceOfAlwaysFalse = false;
@@ -880,8 +864,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     }
 
     /**
-     * Add an edge of the given type from/to a procdure summary node for a
-     * callee
+     * Add an edge of the given type from/to a procdure summary node for a callee
      * 
      * @param source
      *            source of the new edge
@@ -921,8 +904,8 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      *            type of the new merge node
      * @param disambiguationKey
      *            key to disambiguate the new merge node
-     * @return new merge node if any, if the set contains only one node then
-     *         that node is returned, null if the set of nodes is empty
+     * @return new merge node if any, if the set contains only one node then that node is returned, null if the set of
+     *         nodes is empty
      */
     private PDGNode mergeIfNecessary(Set<PDGNode> nodesToMerge, String mergeNodeDesc, PDGNodeType mergeNodeType,
                                     Object disambiguationKey) {
@@ -955,22 +938,18 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     }
 
     /**
-     * Determine whether a exception of the given type can be thrown and create
-     * nodes and edges in the PDG to capture the dependencies when an exception
-     * is thrown by the JVM (e.g. a {@link NullPointerException}).
+     * Determine whether a exception of the given type can be thrown and create nodes and edges in the PDG to capture
+     * the dependencies when an exception is thrown by the JVM (e.g. a {@link NullPointerException}).
      * 
      * @param exType
      *            type of exception being thrown
      * @param cause
      *            cause of the exception (e.g. possibly null value if an NPE)
      * @param beforeException
-     *            context (including the PC node) immediately before the
-     *            exception is thrown
+     *            context (including the PC node) immediately before the exception is thrown
      * @param branchDescription
-     *            description of the condition that causes the exception. The
-     *            condition being true should result in the exception. (e.g. o
-     *            == null for an NPE, index > a.length for an
-     *            ArrayIndexOutOfBoundsException).
+     *            description of the condition that causes the exception. The condition being true should result in the
+     *            exception. (e.g. o == null for an NPE, index > a.length for an ArrayIndexOutOfBoundsException).
      * @param bb
      *            basic block that could throw the exception
      * 

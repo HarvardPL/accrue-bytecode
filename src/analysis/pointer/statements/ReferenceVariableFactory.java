@@ -4,9 +4,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import types.TypeRepository;
+import util.ImplicitEx;
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
@@ -20,35 +23,34 @@ import com.ibm.wala.types.TypeReference;
 public class ReferenceVariableFactory {
 
     /**
-     * Points-to graph nodes for local variables representing the contents of
-     * the inner dimensions of multi-dimensional arrays
+     * Points-to graph nodes for local variables representing the contents of the inner dimensions of multi-dimensional
+     * arrays
      */
-    private static final Map<ArrayContentsKey, ReferenceVariable> arrayContentsTemps = new LinkedHashMap<>();
+    private final Map<ArrayContentsKey, ReferenceVariable> arrayContentsTemps = new LinkedHashMap<>();
     /**
      * Points-to graph nodes for implicit exceptions and errors
      */
-    private static final Map<ImplicitThrowKey, ReferenceVariable> implicitThrows = new LinkedHashMap<>();
+    private final Map<ImplicitThrowKey, ReferenceVariable> implicitThrows = new LinkedHashMap<>();
     /**
      * Points-to graph nodes for static fields
      */
-    private static final Map<IField, ReferenceVariable> staticFields = new LinkedHashMap<>();
+    private final Map<IField, ReferenceVariable> staticFields = new LinkedHashMap<>();
     /**
      * Points-to graph nodes for synthesized fields for String.value (literals)
      */
-    private static final Map<StringValueKey, ReferenceVariable> stringValueFields = new LinkedHashMap<>();
+    private final Map<StringValueKey, ReferenceVariable> stringValueFields = new LinkedHashMap<>();
     /**
      * Nodes for local variables
      */
-    private static final Map<LocalKey, ReferenceVariable> locals = new LinkedHashMap<>();
+    private final Map<OrderedPair<Integer, IR>, ReferenceVariable> locals = new LinkedHashMap<>();
     /**
      * Nodes for method exit
      */
-    private static final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries = new LinkedHashMap<>();
+    private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries = new LinkedHashMap<>();
 
     /**
-     * Get the reference variable for the given local in the given IR. The local
-     * should not have a primitive type or null. Create a reference variable if
-     * one does not already exist
+     * Get the reference variable for the given local in the given IR. The local should not have a primitive type or
+     * null. Create a reference variable if one does not already exist
      * 
      * @param local
      *            local ID, the type of this should not be primitive or null
@@ -57,10 +59,10 @@ public class ReferenceVariableFactory {
      * @return points-to graph node for the local
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateLocal(int local, IR ir) {
+    protected ReferenceVariable getOrCreateLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
                                         + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
-        LocalKey key = new LocalKey(local, ir);
+        OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
         ReferenceVariable node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
@@ -71,8 +73,7 @@ public class ReferenceVariableFactory {
     }
 
     /**
-     * Get the reference variable for the given formal parameter in the method
-     * given by the IR
+     * Get the reference variable for the given formal parameter in the method given by the IR
      * 
      * @param local
      *            parameter index
@@ -81,11 +82,11 @@ public class ReferenceVariableFactory {
      * @return points-to graph node for the formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
+    protected ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
         assert !ir.getParameterType(paramNum).isPrimitiveType() : "No reference variables for primitive formals: "
                                         + PrettyPrinter.typeString(ir.getParameterType(paramNum));
         int local = ir.getParameter(paramNum);
-        LocalKey key = new LocalKey(local, ir);
+        OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
         ReferenceVariable node = locals.get(key);
         if (node == null) {
             TypeReference type = TypeRepository.getType(local, ir);
@@ -95,26 +96,8 @@ public class ReferenceVariableFactory {
         return node;
     }
 
-    /**
-     * Get the reference variable for the given local in the given IR. The local
-     * should not have a primitive type or null.
-     * 
-     * @param local
-     *            local ID, the type of this should not be primitive or null
-     * @param ir
-     *            method intermediate representation
-     * @return reference variable for the local
-     */
-    public static ReferenceVariable getLocal(int local, IR ir) {
-        assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
-                                        + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
-        LocalKey key = new LocalKey(local, ir);
-        assert locals.containsKey(key);
-        return locals.get(key);
-    }
-
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateArrayContents(int dim, TypeReference type, SSANewInstruction i, IR ir) {
+    protected ReferenceVariable getOrCreateArrayContents(int dim, TypeReference type, SSANewInstruction i, IR ir) {
         // Need to create one for the inner and use it to get the outer or it
         // doesn't work
         ArrayContentsKey key = new ArrayContentsKey(dim, i, ir);
@@ -127,8 +110,7 @@ public class ReferenceVariableFactory {
     }
 
     /**
-     * Get a reference variable for an implicitly thrown exception/error, create
-     * it if it does not already exist
+     * Get a reference variable for an implicitly thrown exception/error, create it if it does not already exist
      * 
      * @param type
      *            type of the exception
@@ -139,20 +121,18 @@ public class ReferenceVariableFactory {
      * @return reference variable for an implicit throwable
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
+    protected ReferenceVariable getOrCreateImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
         ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
         ReferenceVariable node = implicitThrows.get(key);
         if (node == null) {
-            node = new ReferenceVariable("IMPLICIT-" + PrettyPrinter.typeString(type) + "("
-                                            + PrettyPrinter.instructionString(i, ir) + ")", type, ir);
+            node = new ReferenceVariable(ImplicitEx.fromType(type).toString(), type, ir);
             implicitThrows.put(key, node);
         }
         return node;
     }
 
     /**
-     * Get a reference variable for a method exit summary node, create it if it
-     * does not already exist
+     * Get a reference variable for a method exit summary node, create it if it does not already exist
      * 
      * @param type
      *            type of the exception
@@ -161,7 +141,7 @@ public class ReferenceVariableFactory {
      * @return reference variable for an implicit throwable
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateMethodExitNode(TypeReference type, IMethod method, ExitType exitType) {
+    protected ReferenceVariable getOrCreateMethodExitNode(TypeReference type, IMethod method, ExitType exitType) {
         MethodSummaryKey key = new MethodSummaryKey(method, exitType);
         ReferenceVariable node = methodExitSummaries.get(key);
         if (node == null) {
@@ -180,7 +160,7 @@ public class ReferenceVariableFactory {
      * @return reference variable for the static field
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateStaticField(FieldReference field, IClassHierarchy cha) {
+    protected ReferenceVariable getOrCreateStaticField(FieldReference field, IClassHierarchy cha) {
         IField f = cha.resolveField(field);
         ReferenceVariable node = staticFields.get(f);
         if (node == null) {
@@ -208,13 +188,23 @@ public class ReferenceVariableFactory {
      * @return Reference variable for the value field of a String literal
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable getOrCreateStringLitField(int local, SSAInstruction i, IR ir) {
+    protected ReferenceVariable getOrCreateStringLitField(int local, SSAInstruction i, IR ir) {
         StringValueKey key = new StringValueKey(local, ir, i);
         if (!stringValueFields.containsKey(key)) {
-            stringValueFields.put(key, new ReferenceVariable("String.value (compiler-generated)",
-                                            TypeReference.JavaLangObject, ir));
+            // TODO was java.lang.Object
+            stringValueFields.put(key, new ReferenceVariable(StatementRegistrar.STRING_LIT_FIELD_DESC,
+                                            TypeReference.CharArray, ir));
         }
         return stringValueFields.get(key);
+    }
+
+    /**
+     * Get the mapping from local variable to unique reference variable
+     * 
+     * @return Cache of reference variables for each local variable
+     */
+    public ReferenceVariableCache getAllLocals() {
+        return new ReferenceVariableCache(locals);
     }
 
     /**
@@ -412,74 +402,12 @@ public class ReferenceVariableFactory {
     }
 
     /**
-     * Key uniquely identifying a local variable.
-     */
-    private static class LocalKey {
-        /**
-         * local ID
-         */
-        private final int value;
-        /**
-         * Code
-         */
-        private final IR ir;
-
-        /**
-         * Create a new key
-         * 
-         * @param value
-         *            local variable ID
-         * @param ir
-         *            code
-         */
-        public LocalKey(int value, IR ir) {
-            this.value = value;
-            this.ir = ir;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ir.hashCode();
-            result = prime * result + value;
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            LocalKey other = (LocalKey) obj;
-            if (ir == null) {
-                if (other.ir != null)
-                    return false;
-            } else if (ir != other.ir)
-                return false;
-            if (value != other.value)
-                return false;
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return PrettyPrinter.valString(value, ir) + " in " + PrettyPrinter.methodString(ir.getMethod());
-        }
-    }
-
-    /**
-     * Key into the array containing temporary local variables created to
-     * represent the contents of the inner dimensions of multi-dimensional
-     * arrays
+     * Key into the array containing temporary local variables created to represent the contents of the inner dimensions
+     * of multi-dimensional arrays
      */
     private static class ArrayContentsKey {
         /**
-         * Dimension (counted from the outside in) e.g. 1 is the contents of the
-         * actual declared multi-dimensional array
+         * Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared multi-dimensional array
          */
         private final int dim;
         /**
@@ -492,12 +420,11 @@ public class ReferenceVariableFactory {
         private final IR ir;
 
         /**
-         * Create a new key for the contents of the inner dimensions of
-         * multi-dimensional arrays
+         * Create a new key for the contents of the inner dimensions of multi-dimensional arrays
          * 
          * @param dim
-         *            Dimension (counted from the outside in) e.g. 1 is the
-         *            contents of the actual declared multi-dimensional array
+         *            Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared
+         *            multi-dimensional array
          * @param i
          *            instruction for new array
          * @param ir
@@ -554,10 +481,6 @@ public class ReferenceVariableFactory {
          */
         private final boolean isSingleton;
         /**
-         * Unique ID
-         */
-        private final int id;
-        /**
          * String used for debugging
          */
         private final String debugString;
@@ -569,14 +492,9 @@ public class ReferenceVariableFactory {
          * Code the reference variable was created in
          */
         private final IR ir;
-        /**
-         * counter for unique IDs
-         */
-        private static int count;
 
         /**
-         * Create a new (unique) reference variable for a local variable, do not
-         * call this outside the pointer analysis
+         * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis
          * 
          * @param debugString
          *            String used for debugging and printing
@@ -587,7 +505,6 @@ public class ReferenceVariableFactory {
          */
         private ReferenceVariable(String debugString, TypeReference expectedType, IR ir) {
             assert (!expectedType.isPrimitiveType());
-            this.id = ++count;
             this.debugString = debugString;
             this.expectedType = expectedType;
             this.isSingleton = false;
@@ -601,8 +518,7 @@ public class ReferenceVariableFactory {
         }
 
         /**
-         * Create a new (unique) reference variable for a static field, do not
-         * call this outside the pointer analysis
+         * Create a new (unique) reference variable for a static field, do not call this outside the pointer analysis
          * 
          * @param debugString
          *            String used for debugging and printing
@@ -613,7 +529,6 @@ public class ReferenceVariableFactory {
          */
         private ReferenceVariable(String debugString, TypeReference expectedType, boolean isStatic) {
             assert (!expectedType.isPrimitiveType());
-            this.id = ++count;
             this.debugString = debugString;
             this.expectedType = expectedType;
             this.isSingleton = isStatic;
@@ -637,16 +552,7 @@ public class ReferenceVariableFactory {
 
         @Override
         public final boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            ReferenceVariable other = (ReferenceVariable) obj;
-            if (id != other.id)
-                return false;
-            return true;
+            return this == obj;
         }
 
         @Override
@@ -664,12 +570,10 @@ public class ReferenceVariableFactory {
         }
 
         /**
-         * Is this graph base node a singleton? That is, should there be only a
-         * single ReferenceVariableReplica for it? This should return true for
-         * reference variables that represent e.g., static fields. Because there
-         * is only one location represented by the static field, there should
-         * not be multiple replicas of the reference variable that represents
-         * the static field.
+         * Is this graph base node a singleton? That is, should there be only a single ReferenceVariableReplica for it?
+         * This should return true for reference variables that represent e.g., static fields. Because there is only one
+         * location represented by the static field, there should not be multiple replicas of the reference variable
+         * that represents the static field.
          * 
          * @return true if this is a static variable
          */

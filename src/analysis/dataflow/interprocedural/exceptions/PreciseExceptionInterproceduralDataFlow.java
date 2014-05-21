@@ -13,15 +13,15 @@ import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Inter-procedural data-flow coordinator for a precise exceptions analysis.
- * This analysis more precisely determines which exceptions can actually be
- * thrown by a basic block (possibly using a previously run non-null analysis).
+ * Inter-procedural data-flow coordinator for a precise exceptions analysis. This analysis more precisely determines
+ * which exceptions can actually be thrown by a basic block (possibly using a previously run non-null analysis).
  */
 public class PreciseExceptionInterproceduralDataFlow extends InterproceduralDataFlow<PreciseExceptionAbsVal> {
 
@@ -55,8 +55,8 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
      *            WALA utilities
      */
     public PreciseExceptionInterproceduralDataFlow(PointsToGraph ptg, NonNullResults nonNull,
-                                    ReachabilityResults reachable, WalaAnalysisUtil util) {
-        super(ptg, reachable);
+                                    ReachabilityResults reachable, WalaAnalysisUtil util, ReferenceVariableCache rvCache) {
+        super(ptg, reachable, rvCache);
         preciseEx = new PreciseExceptionResults(util.getClassHierarchy());
         this.nonNull = nonNull;
         this.util = util;
@@ -124,11 +124,9 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
     }
 
     /**
-     * Get the results for the analysis (these may be unsound during the
-     * analysis)
+     * Get the results for the analysis (these may be unsound during the analysis)
      * 
-     * @return the set of exceptions on each edge in each call graph node's
-     *         control flow graph
+     * @return the set of exceptions on each edge in each call graph node's control flow graph
      */
     @Override
     public PreciseExceptionResults getAnalysisResults() {

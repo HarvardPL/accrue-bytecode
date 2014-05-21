@@ -1,8 +1,9 @@
 package analysis.pointer.statements;
 
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
+import util.ImplicitEx;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 
@@ -13,39 +14,70 @@ import com.ibm.wala.types.TypeReference;
 
 public class AllocSiteNodeFactory {
 
-    private static final Map<AllocSiteKey, AllocSiteNode> map = new LinkedHashMap<>();
+    private final Map<AllocSiteKey, AllocSiteNode> map = new HashMap<>();
+    private final Map<String, String> stringMemo = new HashMap<>();
 
-    protected static AllocSiteNode getAllocationNode(IClass instantiatedClass, IClass allocatingClass,
+    protected AllocSiteNode getAllocationNode(IClass instantiatedClass, IClass allocatingClass,
                                     SSAInstruction i, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i, disambiguationKey);
         assert !map.containsKey(key) : "Duplicate normal allocation node: " + instantiatedClass + " from "
                                         + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.typeString(instantiatedClass.getReference()),
+        AllocSiteNode n = new AllocSiteNode(getCanonical("new "
+                                        + PrettyPrinter.typeString(instantiatedClass.getReference())),
                                         instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;
     }
 
-    protected static AllocSiteNode getGeneratedAllocationNode(IClass instantiatedClass, IClass allocatingClass,
+    protected AllocSiteNode getGeneratedAllocationNode(String name, IClass instantiatedClass,
+                                    IClass allocatingClass,
                                     SSAInstruction i, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i, disambiguationKey);
         assert !map.containsKey(key) : "Duplicate generated allocation node: " + instantiatedClass + " from "
                                         + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.typeString(instantiatedClass.getReference())
-                                        + " (compiler-generated)", instantiatedClass, allocatingClass);
+        AllocSiteNode n = new AllocSiteNode(name, instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;
     }
 
-    protected static AllocSiteNode getAllocationNodeForNative(IClass instantiatedClass, IClass allocatingClass,
+    protected AllocSiteNode getGeneratedExceptionNode(IClass instantiatedClass, IClass allocatingClass,
+                                    SSAInstruction i, Object disambiguationKey) {
+        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i, disambiguationKey);
+        assert !map.containsKey(key) : "Duplicate generated allocation node: " + instantiatedClass + " from "
+                                        + allocatingClass + " for " + i;
+        AllocSiteNode n = new AllocSiteNode(ImplicitEx.fromType(instantiatedClass.getReference()).toString(),
+                                        instantiatedClass,
+                                        allocatingClass);
+        map.put(key, n);
+        return n;
+    }
+
+    protected AllocSiteNode getAllocationNodeForNative(IClass instantiatedClass, IClass allocatingClass,
                                     SSAInvokeInstruction nativeInvoke, ExitType type, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, nativeInvoke, type, disambiguationKey);
         assert !map.containsKey(key) : "Duplicate native allocation node: " + instantiatedClass + " from "
                                         + allocatingClass + " for " + type;
-        AllocSiteNode n = new AllocSiteNode("new " + PrettyPrinter.typeString(instantiatedClass.getReference())
-                                        + " (compiler-generated-native)", instantiatedClass, allocatingClass);
+        AllocSiteNode n = new AllocSiteNode(getCanonical("new "
+                                        + PrettyPrinter.typeString(instantiatedClass.getReference())
+                                        + " (compiler-generated-native)"), instantiatedClass, allocatingClass);
         map.put(key, n);
         return n;
+    }
+
+    /**
+     * Get the canonical version of a string
+     * 
+     * @param s
+     *            string to get
+     * @return String that is .equal to the string passed in, but is the canonical version
+     */
+    private String getCanonical(String s) {
+        String canonical = stringMemo.get(s);
+        if (canonical == null) {
+            canonical = s;
+            stringMemo.put(canonical, canonical);
+        }
+        return canonical;
     }
 
     private static class AllocSiteKey {

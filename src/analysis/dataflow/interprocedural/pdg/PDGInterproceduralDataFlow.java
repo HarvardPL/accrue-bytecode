@@ -19,6 +19,7 @@ import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryPDGNodes
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.Unit;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -38,8 +39,8 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     }
 
     public PDGInterproceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
-                                    ReachabilityResults reachable, WalaAnalysisUtil util) {
-        super(ptg, reachable);
+                                    ReachabilityResults reachable, WalaAnalysisUtil util, ReferenceVariableCache rvCache) {
+        super(ptg, reachable, rvCache);
         this.pdg = new ProgramDependenceGraph();
         this.preciseEx = preciseEx;
         this.util = util;
@@ -160,8 +161,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
      * @param target
      *            edge target
      * @param currentNode
-     *            call graph node representing the method and context for the
-     *            edge
+     *            call graph node representing the method and context for the edge
      * @return true if the given edge is unreachable
      */
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target, CGNode currentNode) {
@@ -177,14 +177,12 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     }
 
     /**
-     * Check whether the basic block can terminate normally (on at least one
-     * successor edge).
+     * Check whether the basic block can terminate normally (on at least one successor edge).
      * 
      * @param bb
      *            basic block to check
      * @param n
-     *            call graph node containing the method and context for the
-     *            basic block
+     *            call graph node containing the method and context for the basic block
      * @return whether the basic block has a reachable normal successor
      */
     protected boolean canTerminateNormally(ISSABasicBlock bb, CGNode n) {
@@ -197,8 +195,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     }
 
     /**
-     * Check whether the procedure can terminate normally (in a particular
-     * context).
+     * Check whether the procedure can terminate normally (in a particular context).
      * 
      * @param n
      *            call graph node containing the method and context

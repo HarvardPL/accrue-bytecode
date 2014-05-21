@@ -55,6 +55,10 @@ public abstract class CallStatement extends PointsToStatement {
      * Cache used to lookup the IR for the callee
      */
     private final WalaAnalysisUtil util;
+    /**
+     * factory for managing the creation of reference variables for local variables and static fields
+     */
+    private final ReferenceVariableFactory rvFactory;
 
     /**
      * Points-to statement for a special method invocation.
@@ -74,16 +78,19 @@ public abstract class CallStatement extends PointsToStatement {
      *            IR for the caller method
      * @param i
      *            Instruction that generated this points-to statement
+     * @param rvFactory
+     *            factory for managing the creation of reference variables for local variables and static fields
      */
     public CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    WalaAnalysisUtil util) {
+                                    WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
         super(callerIR, i);
         this.callSite = callSite;
         this.actuals = actuals;
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
         this.util = util;
+        this.rvFactory = rvFactory;
     }
 
     /**
@@ -173,7 +180,7 @@ public abstract class CallStatement extends PointsToStatement {
         // add edge from "this" in the callee to the receiver
         // if this is a static call then the receiver will be null
         if (!resolvedCallee.isStatic()) {
-            ReferenceVariable thisVar = ReferenceVariableFactory.getOrCreateLocal(calleeIR.getParameter(0), calleeIR);
+            ReferenceVariable thisVar = rvFactory.getOrCreateLocal(calleeIR.getParameter(0), calleeIR);
             ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext, thisVar);
             changed |= g.addEdge(thisRep, receiver);
         }
@@ -193,7 +200,7 @@ public abstract class CallStatement extends PointsToStatement {
                 // Not a reference type or null actual
                 continue;
             }
-            ReferenceVariable formalParamVar = ReferenceVariableFactory.getOrCreateFormalParameter(i, calleeIR);
+            ReferenceVariable formalParamVar = rvFactory.getOrCreateFormalParameter(i, calleeIR);
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext, formalParamVar);
 
             if (!util.getClassHierarchy().isAssignableFrom(
@@ -465,8 +472,7 @@ public abstract class CallStatement extends PointsToStatement {
             Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
             // The catch instruction is the first instruction in the basic block
             SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
-            ReferenceVariable formalNode = ReferenceVariableFactory
-                                            .getOrCreateLocal(catchIns.getException(), getCode());
+            ReferenceVariable formalNode = rvFactory.getOrCreateLocal(catchIns.getException(), getCode());
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(context, formalNode);
             CatchBlock cb = new CatchBlock(types, formalRep);
             catchBlocks.add(cb);

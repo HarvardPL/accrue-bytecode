@@ -8,13 +8,12 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Summary for a particular method. Contains the reference variables for the
- * formal arguments (including "this"), and return value.
+ * Summary for a particular method. Contains the reference variables for the formal arguments (including "this"), and
+ * return value.
  */
 public class MethodSummaryNodes {
     /**
-     * node for the return value, will be null if void or if the return value
-     * has a primitive type
+     * node for the return value, will be null if void or if the return value has a primitive type
      */
     private final ReferenceVariable returnNode;
     /**
@@ -34,19 +33,18 @@ public class MethodSummaryNodes {
      * @param method
      *            method these are the summary nodes for
      */
-    public MethodSummaryNodes(IMethod method) {
+    public MethodSummaryNodes(IMethod method, ReferenceVariableFactory rvFactory) {
         assert method != null : "method is null";
         name = PrettyPrinter.methodString(method);
 
         TypeReference returnType = method.getReturnType();
         if (!method.getReturnType().isPrimitiveType()) {
-            returnNode = ReferenceVariableFactory.getOrCreateMethodExitNode(returnType, method, ExitType.NORMAL);
+            returnNode = rvFactory.getOrCreateMethodExitNode(returnType, method, ExitType.NORMAL);
         } else {
             returnNode = null;
         }
 
-        exception = ReferenceVariableFactory.getOrCreateMethodExitNode(TypeReference.JavaLangThrowable, method,
-                                        ExitType.EXCEPTIONAL);
+        exception = rvFactory.getOrCreateMethodExitNode(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
     }
 
     public ReferenceVariable getReturnNode() {

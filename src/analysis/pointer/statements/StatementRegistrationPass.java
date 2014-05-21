@@ -13,6 +13,7 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
+import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -42,6 +43,10 @@ public class StatementRegistrationPass {
      */
     public static int VERBOSE = 0;
     /**
+     * Set to true if in profiling mode, inserts breaks to allow for inspection
+     */
+    public static final boolean PROFILE = false;
+    /**
      * Container and manager of points-to statements
      */
     private final StatementRegistrar registrar;
@@ -49,10 +54,6 @@ public class StatementRegistrationPass {
      * Methods we have already added statements for
      */
     private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
-    // /**
-    // * <clinit> methods that have already been added
-    // */
-    // private final Set<IMethod> classInits = new LinkedHashSet<>();
     /**
      * WALA-defined analysis utilities
      */
@@ -69,12 +70,20 @@ public class StatementRegistrationPass {
      * Class initializers that are called for java.lang.String
      */
     private final List<IMethod> strInits;
+    /**
+     * Factory for finding and creating reference variable (local variable and static fields)
+     */
+    private final ReferenceVariableFactory rvFactory = new ReferenceVariableFactory();
+    /**
+     * Factory for finding and creating allocation sites
+     */
+    private final AllocSiteNodeFactory asnFactory = new AllocSiteNodeFactory();
 
     /**
      * Create a pass which will generate points-to statements
      * 
      * @param util
-     *            utility class containing WALA classes needed by this analyssi
+     *            utility class containing WALA classes needed by this analysis
      */
     public StatementRegistrationPass(WalaAnalysisUtil util) {
         this.util = util;
@@ -118,7 +127,7 @@ public class StatementRegistrationPass {
 
         visitedMethods.add(m);
 
-        MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m);
+        MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m, rvFactory);
         registrar.recordMethod(m, summaryNodes);
 
         IR ir = util.getIR(m);
@@ -183,14 +192,14 @@ public class StatementRegistrationPass {
 
         visitedMethods.add(m);
 
-        MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m);
+        MethodSummaryNodes summaryNodes = new MethodSummaryNodes(m, rvFactory);
         registrar.recordMethod(m, summaryNodes);
 
         // ********** SIGNATURES ************ //
         IR sigIR = Signatures.getSignatureIR(m, util);
         if (sigIR != null) {
             IMethod sigMethod = sigIR.getMethod();
-            registrar.recordMethod(sigMethod, new MethodSummaryNodes(sigMethod));
+            registrar.recordMethod(sigMethod, new MethodSummaryNodes(sigMethod, rvFactory));
             for (ISSABasicBlock bb : sigIR.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
                     q.add(new InstrAndCode(ins, sigIR));
@@ -217,9 +226,8 @@ public class StatementRegistrationPass {
         // ********** END SIGNATURES ************ //
 
         // Add points-to statements
-        registrar.addStatementsForNative(m, summaryNodes, ir, callSite, util.getClassHierarchy());
+        registrar.addStatementsForNative(m, summaryNodes, ir, callSite, util.getClassHierarchy(), asnFactory);
 
-        // TODO signatures for native methods
         if (VERBOSE >= 2) {
             System.err.println("\tAdding statements from native method: " + PrettyPrinter.methodString(m));
         }
@@ -239,11 +247,18 @@ public class StatementRegistrationPass {
         }
         System.err.println("Registered " + registrar.getAllStatements().size() + " statements.");
         System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
+        if (PROFILE) {
+            System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
+            try {
+                System.in.read();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
-     * Handle a particular instruction, this dispatches on the type of the
-     * instruction
+     * Handle a particular instruction, this dispatches on the type of the instruction
      * 
      * @param info
      *            instruction and IR to handle
@@ -270,29 +285,29 @@ public class StatementRegistrationPass {
 
         // Add statements for any JVM-generated exceptions this instruction
         // could throw (e.g. NullPointerException)
-        registrar.addStatementsForGeneratedExceptions(i, ir, util.getClassHierarchy());
+        registrar.addStatementsForGeneratedExceptions(i, ir, util.getClassHierarchy(), rvFactory, asnFactory);
 
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
         case ARRAY_LOAD:
             // x = v[i]
-            registrar.registerArrayLoad((SSAArrayLoadInstruction) i, ir);
+            registrar.registerArrayLoad((SSAArrayLoadInstruction) i, ir, rvFactory);
             return;
         case ARRAY_STORE:
             // v[i] = x
-            registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir);
+            registrar.registerArrayStore((SSAArrayStoreInstruction) i, ir, rvFactory);
             return;
         case CHECK_CAST:
             // v = (Type) x
-            registrar.registerCheckCast((SSACheckCastInstruction) i, ir);
+            registrar.registerCheckCast((SSACheckCastInstruction) i, ir, rvFactory);
             return;
         case GET_FIELD:
             // v = o.f
-            registrar.registerGetField((SSAGetInstruction) i, ir);
+            registrar.registerGetField((SSAGetInstruction) i, ir, rvFactory);
             return;
         case GET_STATIC:
             // v = ClassName.f
-            registrar.registerGetStatic((SSAGetInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerGetStatic((SSAGetInstruction) i, ir, util.getClassHierarchy(), rvFactory);
             return;
         case INVOKE_INTERFACE:
         case INVOKE_SPECIAL:
@@ -314,38 +329,38 @@ public class StatementRegistrationPass {
                     addFromMethod(q, m);
                 }
             }
-            registrar.registerInvoke(inv, ir, util);
+            registrar.registerInvoke(inv, ir, util, rvFactory);
             return;
         case LOAD_METADATA:
             // Reflection
-            registrar.registerReflection((SSALoadMetadataInstruction) i, ir);
+            registrar.registerReflection((SSALoadMetadataInstruction) i, ir, rvFactory);
             return;
         case NEW_ARRAY:
-            registrar.registerNewArray((SSANewInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerNewArray((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory, asnFactory);
             return;
         case NEW_OBJECT:
             // v = new Foo();
-            registrar.registerNewObject((SSANewInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerNewObject((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory, asnFactory);
             return;
         case PHI:
             // v = phi(x_1,x_2)
-            registrar.registerPhiAssignment((SSAPhiInstruction) i, ir);
+            registrar.registerPhiAssignment((SSAPhiInstruction) i, ir, rvFactory);
             return;
         case PUT_FIELD:
             // o.f = v
-            registrar.registerPutField((SSAPutInstruction) i, ir);
+            registrar.registerPutField((SSAPutInstruction) i, ir, rvFactory);
             return;
         case PUT_STATIC:
             // ClassName.f = v
-            registrar.registerPutStatic((SSAPutInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerPutStatic((SSAPutInstruction) i, ir, util.getClassHierarchy(), rvFactory);
             return;
         case RETURN:
             // return v
-            registrar.registerReturn((SSAReturnInstruction) i, ir);
+            registrar.registerReturn((SSAReturnInstruction) i, ir, rvFactory);
             return;
         case THROW:
             // throw e
-            registrar.registerThrow((SSAThrowInstruction) i, ir, util.getClassHierarchy());
+            registrar.registerThrow((SSAThrowInstruction) i, ir, util.getClassHierarchy(), rvFactory);
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op
@@ -417,8 +432,7 @@ public class StatementRegistrationPass {
     }
 
     /**
-     * Look for String literals in the instruction and create allocation sites
-     * for them
+     * Look for String literals in the instruction and create allocation sites for them
      * 
      * @param i
      *            instruction to create string literals for
@@ -436,9 +450,19 @@ public class StatementRegistrationPass {
                 // add class initializers if needed
                 addClassInitializers(i, ir, q, strInits);
                 // add points to statements to simulate the allocation
-                registrar.addStatementsForStringLit(use, ir, i, stringClass, stringValueClass);
+                registrar.addStatementsForStringLit(use, ir, i, stringClass, stringValueClass, rvFactory, asnFactory);
             }
         }
 
+    }
+
+    /**
+     * Map from local variable to reference variable. This is not complete until the statement registration pass has
+     * completed.
+     * 
+     * @return map from local variable to unique reference variable
+     */
+    public ReferenceVariableCache getAllLocals() {
+        return rvFactory.getAllLocals();
     }
 }

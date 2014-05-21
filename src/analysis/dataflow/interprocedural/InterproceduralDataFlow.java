@@ -15,8 +15,8 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.statements.ReferenceVariableFactory;
 import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -56,8 +56,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     private final Map<CGNode, Set<CGNode>> dependencyMap = new HashMap<>();
     /**
-     * Whether the analysis results for the given CGNode were soundly computed
-     * i.e. they did not use unsound results for a recursive call
+     * Whether the analysis results for the given CGNode were soundly computed i.e. they did not use unsound results for
+     * a recursive call
      */
     private final Map<CGNode, Boolean> soundResultsSoFar = new HashMap<>();
     /**
@@ -76,6 +76,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * debugging map to make sure there are infinite loops
      */
     private final Map<CGNode, Integer> requests = new HashMap<>();
+    /**
+     * Mapping from local variable to reference variable
+     */
+    private final ReferenceVariableCache rvCache;
 
     /**
      * Construct a new inter-procedural analysis over the given call graph
@@ -84,12 +88,15 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            call graph this analysis will be over
      * @param ptg
      *            points-to graph
+     * @param rvCache
+     *            Mapping from local variable to reference variable
      */
-    public InterproceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable) {
+    public InterproceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable, ReferenceVariableCache rvCache) {
         this.cg = ptg.getCallGraph();
         this.ptg = ptg;
         this.q = new WorkQueue<>();
         this.reachable = reachable;
+        this.rvCache = rvCache;
     }
 
     /**
@@ -124,8 +131,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Initialize the work-queue and Perform other operations before this
-     * inter-procedural data-flow analysis begins.
+     * Initialize the work-queue and Perform other operations before this inter-procedural data-flow analysis begins.
      */
     protected void preAnalysis(CallGraph cg, WorkQueue<CGNode> q) {
         Collection<CGNode> entryPoints = cg.getEntrypointNodes();
@@ -137,8 +143,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Perform operations after this inter-procedural data-flow analysis has
-     * completed. This could be used to construct analysis results.
+     * Perform operations after this inter-procedural data-flow analysis has completed. This could be used to construct
+     * analysis results.
      */
     protected void postAnalysis() {
         // Intentionally blank
@@ -148,8 +154,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     protected abstract String getAnalysisName();
 
     /**
-     * Increment the counter giving the number of times the given node has been
-     * analyzed
+     * Increment the counter giving the number of times the given node has been analyzed
      * 
      * @param n
      *            node to increment for
@@ -169,8 +174,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Increment the counter giving the number of times the given node has been
-     * requested (and the request returned the latest results
+     * Increment the counter giving the number of times the given node has been requested (and the request returned the
+     * latest results
      * 
      * @param n
      *            node to increment for
@@ -190,13 +195,11 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Get any nodes that have to be reanalyzed if the result of analyzing n
-     * changes
+     * Get any nodes that have to be reanalyzed if the result of analyzing n changes
      * 
      * @param n
      *            call graph node to get the dependencies for
-     * @return set of nodes that need to be reanalyzed if the result of
-     *         analyzing n changes
+     * @return set of nodes that need to be reanalyzed if the result of analyzing n changes
      */
     private Set<CGNode> getDependencies(CGNode n) {
         Set<CGNode> deps = dependencyMap.get(n);
@@ -319,9 +322,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Check if the results computed for the given node have only used sound
-     * results so far. This could be false if there are recursive calls for
-     * which we had to use unsound results.
+     * Check if the results computed for the given node have only used sound results so far. This could be false if
+     * there are recursive calls for which we had to use unsound results.
      * 
      * @param n
      *            node to check
@@ -333,16 +335,15 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Process the given node using the given input, record the results. If the
-     * output changes then add dependencies to the work-queue.
+     * Process the given node using the given input, record the results. If the output changes then add dependencies to
+     * the work-queue.
      * 
      * @param n
      *            node to process
      * @param input
      *            input to the data-flow for the node
      * @param previousOutput
-     *            previous analysis results, used to determine if the output
-     *            changed
+     *            previous analysis results, used to determine if the output changed
      * @return output after analyzing the given node with the given input
      */
     private AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
@@ -413,8 +414,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Get the results after running this analysis. These may be unsound until
-     * the analysis has completed.
+     * Get the results after running this analysis. These may be unsound until the analysis has completed.
      * 
      * @return results of the inter-procedural analysis
      */
@@ -443,34 +443,30 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     protected abstract Map<ExitType, F> analyzeNative(CGNode n, F input);
 
     /**
-     * Get the default output data-flow facts (given an input fact), this is
-     * used as the output for a recursive call before a fixed point is reached.
+     * Get the default output data-flow facts (given an input fact), this is used as the output for a recursive call
+     * before a fixed point is reached.
      * 
      * @param input
      *            input data-flow fact
-     * @return output to be returned to callers when the callee is already in
-     *         the middle of being analyzed
+     * @return output to be returned to callers when the callee is already in the middle of being analyzed
      */
     protected abstract Map<ExitType, F> getDefaultOutput(F input);
 
     /**
-     * Get the input for the root node of the call graph. This is the initial
-     * input to the inter-procedural analysis
+     * Get the input for the root node of the call graph. This is the initial input to the inter-procedural analysis
      * 
      * @return initial data-flow fact
      */
     protected abstract F getInputForEntryPoint();
 
     /**
-     * Check whether the output changed after analysis, and dependencies need to
-     * be reanalyzed.
+     * Check whether the output changed after analysis, and dependencies need to be reanalyzed.
      * 
      * @param previousOutput
      *            previous output results
      * @param currentOutput
      *            current output results
-     * @return true if the output results have changed (and dependencies have to
-     *         be computed)
+     * @return true if the output results have changed (and dependencies have to be computed)
      */
     protected abstract boolean outputChanged(Map<ExitType, F> previousOutput, Map<ExitType, F> currentOutput);
 
@@ -481,8 +477,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            new input to the analysis
      * @param existingResults
      *            previous results
-     * @return true if the existing results can be reused, false if they must be
-     *         recomputed using the new input
+     * @return true if the existing results can be reused, false if they must be recomputed using the new input
      */
     protected abstract boolean existingResultSuitable(F newInput, AnalysisRecord<F> existingResults);
 
@@ -515,8 +510,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
          * @param output
          *            output of the analysis
          * @param isSoundResult
-         *            False if there are back edges and this result could be
-         *            unsound
+         *            False if there are back edges and this result could be unsound
          */
         public AnalysisRecord(F input, Map<ExitType, F> output, boolean isSoundResult) {
             this.input = input;
@@ -543,9 +537,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
 
         /**
-         * Check whether this record contains sound results. This will be false
-         * if there were back edges in the call graph due to recursive calls,
-         * and temporary unsound results were used to compute the output.
+         * Check whether this record contains sound results. This will be false if there were back edges in the call
+         * graph due to recursive calls, and temporary unsound results were used to compute the output.
          * 
          * @return whether the results are sound
          */
@@ -563,8 +556,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * Get the abstract locations for a non-static field
      * 
      * @param receiver
-     *            value number for the local variable for the receiver of a
-     *            field access
+     *            value number for the local variable for the receiver of a field access
      * @param field
      *            field
      * @param n
@@ -613,18 +605,16 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     }
 
     /**
-     * Get the reference variable replica for the given local variable in the
-     * current context
+     * Get the reference variable replica for the given local variable in the current context
      * 
      * @param local
      *            value number of the local variable
      * @param n
-     *            call graph node giving the method and context for the local
-     *            variable
+     *            call graph node giving the method and context for the local variable
      * @return Reference variable replica in the current context for the local
      */
-    public static ReferenceVariableReplica getReplica(int local, CGNode n) {
-        ReferenceVariable rv = ReferenceVariableFactory.getLocal(local, n.getIR());
+    public ReferenceVariableReplica getReplica(int local, CGNode n) {
+        ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getIR());
         return new ReferenceVariableReplica(n.getContext(), rv);
     }
 }
