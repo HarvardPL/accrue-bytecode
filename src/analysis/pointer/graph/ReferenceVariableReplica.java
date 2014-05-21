@@ -1,7 +1,7 @@
 package analysis.pointer.graph;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;

@@ -30,9 +30,9 @@ import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
-import analysis.pointer.statements.StatementRegistrar;
-import analysis.pointer.statements.StatementRegistrationPass;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;

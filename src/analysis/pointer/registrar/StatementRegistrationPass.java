@@ -1,8 +1,9 @@
-package analysis.pointer.statements;
+package analysis.pointer.registrar;
 
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -14,6 +15,8 @@ import util.print.PrettyPrinter;
 import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.AllocSiteNodeFactory;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -45,7 +48,7 @@ public class StatementRegistrationPass {
     /**
      * Set to true if in profiling mode, inserts breaks to allow for inspection
      */
-    public static final boolean PROFILE = false;
+    public static final boolean PROFILE = true;
     /**
      * Container and manager of points-to statements
      */
@@ -67,10 +70,6 @@ public class StatementRegistrationPass {
      */
     private final IClass stringValueClass;
     /**
-     * Class initializers that are called for java.lang.String
-     */
-    private final List<IMethod> strInits;
-    /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
     private final ReferenceVariableFactory rvFactory = new ReferenceVariableFactory();
@@ -78,6 +77,10 @@ public class StatementRegistrationPass {
      * Factory for finding and creating allocation sites
      */
     private final AllocSiteNodeFactory asnFactory = new AllocSiteNodeFactory();
+    /**
+     * String literals that new allocation sites have already been created for
+     */
+    private final Set<ReferenceVariable> handledStringLit = new HashSet<>();
 
     /**
      * Create a pass which will generate points-to statements
@@ -90,7 +93,6 @@ public class StatementRegistrationPass {
         stringClass = util.getClassHierarchy().lookupClass(TypeReference.JavaLangString);
         stringValueClass = util.getClassHierarchy().lookupClass(TypeReference.JavaLangObject);
         registrar = new StatementRegistrar();
-        strInits = ClassInitFinder.getClassInitializersForClass(stringClass, util.getClassHierarchy());
     }
 
     /**
@@ -281,7 +283,7 @@ public class StatementRegistrationPass {
         }
 
         // Add statements for any string literals in the instruction
-        addStatementsForStringLiterals(i, ir, stringClass, stringValueClass, q);
+        addStatementsForStringLiterals(i, ir, stringClass, stringValueClass);
 
         // Add statements for any JVM-generated exceptions this instruction
         // could throw (e.g. NullPointerException)
@@ -441,16 +443,23 @@ public class StatementRegistrationPass {
      * @param stringClass
      *            WALA representation of the java.lang.String class
      */
-    private void addStatementsForStringLiterals(SSAInstruction i, IR ir, IClass stringClass, IClass stringValueClass,
-                                    WorkQueue<InstrAndCode> q) {
-
+    private void addStatementsForStringLiterals(SSAInstruction i, IR ir, IClass stringClass, IClass stringValueClass) {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int use = i.getUse(j);
             if (ir.getSymbolTable().isStringConstant(use)) {
-                // add class initializers if needed
-                addClassInitializers(i, ir, q, strInits);
+                ReferenceVariable newStringLit = rvFactory.getOrCreateLocal(use, ir);
+                if (handledStringLit.contains(newStringLit)) {
+                    // Already handled this allocation
+                    return;
+                }
+                handledStringLit.add(newStringLit);
+
+                // The fake root method always allocates a String so the clinit has already been called, even if we are
+                // flow sensitive
+
                 // add points to statements to simulate the allocation
-                registrar.addStatementsForStringLit(use, ir, i, stringClass, stringValueClass, rvFactory, asnFactory);
+                registrar.addStatementsForStringLit(newStringLit, use, ir, i, stringClass, stringValueClass, rvFactory,
+                                                asnFactory);
             }
         }
 

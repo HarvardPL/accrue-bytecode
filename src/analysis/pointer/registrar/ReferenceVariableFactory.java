@@ -1,4 +1,4 @@
-package analysis.pointer.statements;
+package analysis.pointer.registrar;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -59,7 +59,7 @@ public class ReferenceVariableFactory {
      * @return points-to graph node for the local
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateLocal(int local, IR ir) {
+    public ReferenceVariable getOrCreateLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
                                         + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
         OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
@@ -82,7 +82,7 @@ public class ReferenceVariableFactory {
      * @return points-to graph node for the formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
+    public ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
         assert !ir.getParameterType(paramNum).isPrimitiveType() : "No reference variables for primitive formals: "
                                         + PrettyPrinter.typeString(ir.getParameterType(paramNum));
         int local = ir.getParameter(paramNum);

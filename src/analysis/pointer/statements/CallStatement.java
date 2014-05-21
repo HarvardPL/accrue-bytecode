@@ -14,7 +14,10 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.MethodSummaryNodes;
+import analysis.pointer.registrar.ReferenceVariableFactory;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.analysis.typeInference.TypeInference;
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -81,7 +84,7 @@ public abstract class CallStatement extends PointsToStatement {
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
-    public CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
+    protected CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
                                     WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
         super(callerIR, i);

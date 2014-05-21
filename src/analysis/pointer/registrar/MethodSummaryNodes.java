@@ -1,8 +1,8 @@
-package analysis.pointer.statements;
+package analysis.pointer.registrar;
 
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.TypeReference;

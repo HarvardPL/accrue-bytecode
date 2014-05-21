@@ -6,7 +6,9 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.ReferenceVariableFactory;
+import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;

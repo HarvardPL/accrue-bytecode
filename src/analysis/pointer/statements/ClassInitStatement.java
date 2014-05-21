@@ -1,11 +1,13 @@
 package analysis.pointer.statements;
 
+import java.util.Iterator;
 import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -36,6 +38,7 @@ public class ClassInitStatement extends PointsToStatement {
      */
     public ClassInitStatement(List<IMethod> clinits, IR ir, SSAInstruction i) {
         super(ir, i);
+        assert !clinits.isEmpty() : "No need for a statment if there are no class inits.";
         this.clinits = clinits;
     }
 
@@ -61,5 +64,42 @@ public class ClassInitStatement extends PointsToStatement {
         }
 
         return false;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder("Initialize: [");
+        Iterator<IMethod> iter = clinits.iterator();
+        sb.append(PrettyPrinter.methodString(iter.next()));
+        while (iter.hasNext()) {
+            sb.append(", " + PrettyPrinter.methodString(iter.next()));
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + ((clinits == null) ? 0 : clinits.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (!super.equals(obj))
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        ClassInitStatement other = (ClassInitStatement) obj;
+        if (clinits == null) {
+            if (other.clinits != null)
+                return false;
+        } else if (!clinits.equals(other.clinits))
+            return false;
+        return true;
     }
 }

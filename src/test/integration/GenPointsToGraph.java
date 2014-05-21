@@ -20,9 +20,9 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
-import analysis.pointer.statements.StatementRegistrar;
-import analysis.pointer.statements.StatementRegistrationPass;
 
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;

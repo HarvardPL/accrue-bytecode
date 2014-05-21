@@ -8,7 +8,8 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -67,5 +68,42 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public String toString() {
         return thrown + " = " + caught + "(" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
                                         + ")";
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = super.hashCode();
+        result = prime * result + ((caught == null) ? 0 : caught.hashCode());
+        result = prime * result + ((notType == null) ? 0 : notType.hashCode());
+        result = prime * result + ((thrown == null) ? 0 : thrown.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (!super.equals(obj))
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        ExceptionAssignmentStatement other = (ExceptionAssignmentStatement) obj;
+        if (caught == null) {
+            if (other.caught != null)
+                return false;
+        } else if (!caught.equals(other.caught))
+            return false;
+        if (notType == null) {
+            if (other.notType != null)
+                return false;
+        } else if (!notType.equals(other.notType))
+            return false;
+        if (thrown == null) {
+            if (other.thrown != null)
+                return false;
+        } else if (!thrown.equals(other.thrown))
+            return false;
+        return true;
     }
 }

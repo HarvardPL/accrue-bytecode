@@ -8,7 +8,7 @@ import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.pointer.statements.StatementRegistrationPass;
+import analysis.pointer.registrar.StatementRegistrationPass;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;

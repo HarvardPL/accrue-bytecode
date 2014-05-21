@@ -1,9 +1,7 @@
-package analysis.pointer.statements;
+package analysis.pointer.registrar;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -18,7 +16,24 @@ import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.AllocSiteNodeFactory;
+import analysis.pointer.statements.ArrayToLocalStatement;
+import analysis.pointer.statements.ClassInitStatement;
+import analysis.pointer.statements.ExceptionAssignmentStatement;
+import analysis.pointer.statements.FieldToLocalStatment;
+import analysis.pointer.statements.LocalToArrayStatement;
+import analysis.pointer.statements.LocalToFieldStatement;
+import analysis.pointer.statements.LocalToLocalStatement;
+import analysis.pointer.statements.LocalToStaticFieldStatement;
+import analysis.pointer.statements.NewStatement;
+import analysis.pointer.statements.PhiStatement;
+import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.ReturnStatement;
+import analysis.pointer.statements.SpecialCallStatement;
+import analysis.pointer.statements.StaticCallStatement;
+import analysis.pointer.statements.StaticFieldToLocalStatement;
+import analysis.pointer.statements.VirtualCallStatement;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -66,10 +81,6 @@ public class StatementRegistrar {
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final Map<IMethod, Set<PointsToStatement>> statementsForMethod = new HashMap<>();
-    /**
-     * String literals that new allocation sites have already been created for
-     */
-    private final Set<ReferenceVariable> handledStringLit = new HashSet<>();
     /**
      * Description used for a string literal value field
      */
@@ -453,7 +464,7 @@ public class StatementRegistrar {
      *            signature of the method to get the summary for
      * @return summary nodes for the given method
      */
-    protected MethodSummaryNodes getSummaryNodes(IMethod resolvedCallee) {
+    public MethodSummaryNodes getSummaryNodes(IMethod resolvedCallee) {
         MethodSummaryNodes msn = methods.get(resolvedCallee);
         assert (msn != null) : "Missing method summary " + resolvedCallee;
         return msn;
@@ -535,7 +546,16 @@ public class StatementRegistrar {
      *            statement to add
      */
     private void addStatement(PointsToStatement s) {
-        assert !statements.contains(s) : "STATEMENT: " + s + " was already added";
+        if (statements.contains(s)) {
+            System.err.println("STATEMENT: " + s + " was already added");
+            for (PointsToStatement ss : statements) {
+                if (s.equals(ss)) {
+                    System.err.println(s + " == " + ss);
+                    s.equals(ss);
+                }
+            }
+            assert !statements.contains(s) : "STATEMENT: " + s + " was already added";
+        }
         statements.add(s);
         IMethod m = s.getCode().getMethod();
         Set<PointsToStatement> ss = statementsForMethod.get(m);
@@ -546,15 +566,15 @@ public class StatementRegistrar {
         ss.add(s);
         if (statements.size() % 500000 == 0) {
             System.err.println(statements.size() + " statements");
-            if (StatementRegistrationPass.PROFILE) {
-                System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
-                try {
-                    System.in.read();
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
+            // if (StatementRegistrationPass.PROFILE) {
+            // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
+            // try {
+            // System.in.read();
+            // } catch (IOException e) {
+            // // TODO Auto-generated catch block
+            // e.printStackTrace();
+            // }
+            // }
         }
     }
 
@@ -577,15 +597,15 @@ public class StatementRegistrar {
         ss.add(s);
         if (statements.size() % 500000 == 0) {
             System.err.println(statements.size() + " statements");
-            if (StatementRegistrationPass.PROFILE) {
-                System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
-                try {
-                    System.in.read();
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-            }
+            // if (StatementRegistrationPass.PROFILE) {
+            // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
+            // try {
+            // System.in.read();
+            // } catch (IOException e) {
+            // // TODO Auto-generated catch block
+            // e.printStackTrace();
+            // }
+            // }
         }
     }
 
@@ -619,16 +639,10 @@ public class StatementRegistrar {
      * @param stringValueClass
      *            representation of the byte array type
      */
-    protected void addStatementsForStringLit(int valueNumber, IR ir, SSAInstruction i, IClass stringClass,
+    protected void addStatementsForStringLit(ReferenceVariable newStringLit, int valueNumber, IR ir, SSAInstruction i,
+                                    IClass stringClass,
                                     IClass stringValueClass, ReferenceVariableFactory rvFactory,
                                     AllocSiteNodeFactory asnFactory) {
-        ReferenceVariable newStringLit = rvFactory.getOrCreateLocal(valueNumber, ir);
-        if (handledStringLit.contains(newStringLit)) {
-            // Already handled this allocation
-            return;
-        }
-        handledStringLit.add(newStringLit);
-
         // v = new String
         addStatement(NewStatement.newStatementForStringLiteral(STRING_LIT_DESC, newStringLit, ir, i, stringClass,
                                         asnFactory));

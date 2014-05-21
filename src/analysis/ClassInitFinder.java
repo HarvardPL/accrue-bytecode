@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.statements.StatementRegistrationPass;
+import analysis.pointer.registrar.StatementRegistrationPass;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;

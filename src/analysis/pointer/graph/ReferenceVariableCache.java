@@ -4,7 +4,7 @@ import java.util.Map;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
-import analysis.pointer.statements.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.ssa.IR;
 
