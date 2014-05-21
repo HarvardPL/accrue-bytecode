@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import util.print.PrettyPrinter;
+import analysis.pointer.statements.StatementRegistrationPass;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -29,9 +30,8 @@ public class ClassInitFinder {
     }
 
     /**
-     * As defined in JLS 12.4.1, get class initializers that must be called (if
-     * they have not already been called) before executing the given
-     * instruction.
+     * As defined in JLS 12.4.1, get class initializers that must be called (if they have not already been called)
+     * before executing the given instruction.
      * 
      * @param cha
      *            class hierarchy
@@ -39,9 +39,8 @@ public class ClassInitFinder {
      *            current instruction
      * @param ir
      *            code for method containing instruction
-     * @return clinit methods that might need to be called in the order they
-     *         need to be called (i.e. element j is a super class of element
-     *         j+1)
+     * @return clinit methods that might need to be called in the order they need to be called (i.e. element j is a
+     *         super class of element j+1)
      */
     public static List<IMethod> getClassInitializers(IClassHierarchy cha, SSAInstruction i) {
         IClass klass = null;
@@ -60,8 +59,10 @@ public class ClassInitFinder {
             if (ins.isStatic()) {
                 IMethod callee = cha.resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
-                    System.err.println("Trying to get class initializer for " + i + " and could not resolve "
-                                                    + PrettyPrinter.methodString(ins.getDeclaredTarget()));
+                    if (StatementRegistrationPass.VERBOSE >= 1) {
+                        System.err.println("Trying to get class initializer for " + i + " and could not resolve "
+                                                        + PrettyPrinter.methodString(ins.getDeclaredTarget()));
+                    }
                     return Collections.emptyList();
                 }
                 return getClassInitializersForClass(callee.getDeclaringClass(), cha);
@@ -103,16 +104,15 @@ public class ClassInitFinder {
         }
 
         // Invocation of certain reflective methods in class Class and in
-        // package
-        // java.lang.reflect also causes class or interface initialization.
+        // package java.lang.reflect also causes class or interface initialization.
         // TODO handle class initializers for reflection
 
         return Collections.emptyList();
     }
 
     /**
-     * Get any classes that have to be initialized when the given class is
-     * initialized (i.e. the superclasses and interfaces)
+     * Get any classes that have to be initialized when the given class is initialized (i.e. the superclasses and
+     * interfaces)
      * 
      * @param clazz
      *            class to be initialized
