@@ -29,6 +29,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private final Map<PointsToGraphNode, Set<StmtAndContext>> dependencies = new HashMap<>();
 
+    /**
+     * Counters to detect infinite loops
+     */
+    private final Map<StmtAndContext, Integer> iterations = new HashMap<>();
+
     public static boolean DEBUG = false;
 
     /**
@@ -99,7 +104,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         int count = 0;
         while (!q.isEmpty()) {
             StmtAndContext sac = q.poll();
+            incrementCounter(sac);
             count++;
+            // if (count % 10 == 0) {
+            // System.out.println(count + ", " + (System.currentTimeMillis() - startTime) / 1000);
+            // }
+            if (count % 10000 == 0) {
+                System.err.println("PROCESSED: " + count + " in " + (System.currentTimeMillis() - startTime) / 1000
+                                                + "s");
+            }
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
 
@@ -146,6 +159,26 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         return g;
+    }
+
+    /**
+     * Increment the counter giving the number of times the given node has been analyzed
+     * 
+     * @param n
+     *            node to increment for
+     * @return incremented counter
+     */
+    private int incrementCounter(StmtAndContext s) {
+        Integer i = iterations.get(s);
+        if (i == null) {
+            i = 0;
+        }
+        i++;
+        iterations.put(s, i);
+        if (i >= 100) {
+            throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
+        }
+        return i;
     }
 
     /**
