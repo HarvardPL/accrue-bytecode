@@ -53,7 +53,7 @@ while true; do
 done
 
 classpath="$dir/classes"
-classpath="$classpath:$dir/lib/wala-core.jar"
+classpath="$classpath:$WALA_CORE/bin"
 classpath="$classpath:$dir/lib/wala-util.jar"
 classpath="$classpath:$dir/lib/wala-shrike.jar"
 
