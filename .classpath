@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.core"/>
+	<classpathentry kind="lib" path="/Applications/eclipse/plugins/org.junit_4.11.0.v201303080030/junit.jar" sourcepath="/Applications/eclipse/plugins/org.junit.source_4.11.0.v201303080030.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="http://junit-team.github.io/junit/javadoc/latest/"/>
+		</attributes>
+		<accessrules>
+			<accessrule kind="accessible" pattern="junit/extensions/*"/>
+			<accessrule kind="accessible" pattern="junit/framework/*"/>
+			<accessrule kind="accessible" pattern="junit/runner/*"/>
+			<accessrule kind="accessible" pattern="junit/textui/*"/>
+			<accessrule kind="accessible" pattern="org/junit/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/categories/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/max/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/results/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/runners/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/theories/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/experimental/theories/internal/*"/>
+			<accessrule kind="accessible" pattern="org/junit/experimental/theories/suppliers/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/builders/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/matchers/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/requests/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/runners/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/runners/model/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/runners/rules/*"/>
+			<accessrule kind="discouraged" pattern="org/junit/internal/runners/statements/*"/>
+			<accessrule kind="accessible" pattern="org/junit/matchers/*"/>
+			<accessrule kind="accessible" pattern="org/junit/rules/*"/>
+			<accessrule kind="accessible" pattern="org/junit/runner/*"/>
+			<accessrule kind="accessible" pattern="org/junit/runner/manipulation/*"/>
+			<accessrule kind="accessible" pattern="org/junit/runner/notification/*"/>
+			<accessrule kind="accessible" pattern="org/junit/runners/*"/>
+			<accessrule kind="accessible" pattern="org/junit/runners/model/*"/>
+			<accessrule ignoreifbetter="true" kind="nonaccessible" pattern="**/*"/>
+		</accessrules>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/wala-core.jar" sourcepath="/com.ibm.wala.core"/>
+	<classpathentry kind="lib" path="lib/wala-shrike.jar" sourcepath="/com.ibm.wala.shrike"/>
+	<classpathentry kind="lib" path="lib/wala-util.jar" sourcepath="/com.ibm.wala.util"/>
+	<classpathentry kind="output" path="classes"/>
+</classpath>
