@@ -16,7 +16,6 @@ import analysis.ClassInitFinder;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
-import analysis.pointer.statements.AllocSiteNodeFactory;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -68,15 +67,11 @@ public class StatementRegistrationPass {
     /**
      * WALA representation of char[]
      */
-    private final IClass stringValueClass;
+    protected final IClass stringValueClass;
     /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
     private final ReferenceVariableFactory rvFactory = new ReferenceVariableFactory();
-    /**
-     * Factory for finding and creating allocation sites
-     */
-    private final AllocSiteNodeFactory asnFactory = new AllocSiteNodeFactory();
     /**
      * String literals that new allocation sites have already been created for
      */
@@ -228,7 +223,7 @@ public class StatementRegistrationPass {
         // ********** END SIGNATURES ************ //
 
         // Add points-to statements
-        registrar.addStatementsForNative(m, summaryNodes, ir, callSite, util.getClassHierarchy(), asnFactory);
+        registrar.addStatementsForNative(m, summaryNodes, ir, callSite, util.getClassHierarchy());
 
         if (VERBOSE >= 2) {
             System.err.println("\tAdding statements from native method: " + PrettyPrinter.methodString(m));
@@ -287,7 +282,7 @@ public class StatementRegistrationPass {
 
         // Add statements for any JVM-generated exceptions this instruction
         // could throw (e.g. NullPointerException)
-        registrar.addStatementsForGeneratedExceptions(i, ir, util.getClassHierarchy(), rvFactory, asnFactory);
+        registrar.addStatementsForGeneratedExceptions(i, ir, util.getClassHierarchy(), rvFactory);
 
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
@@ -338,11 +333,11 @@ public class StatementRegistrationPass {
             registrar.registerReflection((SSALoadMetadataInstruction) i, ir, rvFactory);
             return;
         case NEW_ARRAY:
-            registrar.registerNewArray((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory, asnFactory);
+            registrar.registerNewArray((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory);
             return;
         case NEW_OBJECT:
             // v = new Foo();
-            registrar.registerNewObject((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory, asnFactory);
+            registrar.registerNewObject((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory);
             return;
         case PHI:
             // v = phi(x_1,x_2)
@@ -458,8 +453,7 @@ public class StatementRegistrationPass {
                 // flow sensitive
 
                 // add points to statements to simulate the allocation
-                registrar.addStatementsForStringLit(newStringLit, use, ir, i, stringClass, stringValueClass, rvFactory,
-                                                asnFactory);
+                registrar.addStatementsForStringLit(newStringLit, use, ir, i, stringClass, stringValueClass, rvFactory);
             }
         }
 

@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,108 +13,132 @@ import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
+/**
+ * Factory for creating representations of memory allocations
+ */
 public class AllocSiteNodeFactory {
 
-    private final Map<AllocSiteKey, AllocSiteNode> map = new HashMap<>();
-    private final Map<String, String> stringMemo = new HashMap<>();
-
-    protected AllocSiteNode getAllocationNode(IClass instantiatedClass, IClass allocatingClass,
-                                    SSAInstruction i, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i, disambiguationKey);
-        assert !map.containsKey(key) : "Duplicate normal allocation node: " + instantiatedClass + " from "
-                                        + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode(getCanonical("new "
-                                        + PrettyPrinter.typeString(instantiatedClass.getReference())),
-                                        instantiatedClass, allocatingClass);
-        map.put(key, n);
-        return n;
+    private static final boolean CHECK_FOR_DUPLICATES = false;
+    private static final Map<AllocSiteKey, AllocSiteNode> paranoidMap;
+    static {
+        if (CHECK_FOR_DUPLICATES) {
+            paranoidMap = new HashMap<>();
+        } else {
+            paranoidMap = Collections.emptyMap();
+        }
     }
 
-    protected AllocSiteNode getGeneratedAllocationNode(String name, IClass instantiatedClass,
-                                    IClass allocatingClass,
-                                    SSAInstruction i, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i, disambiguationKey);
-        assert !map.containsKey(key) : "Duplicate generated allocation node: " + instantiatedClass + " from "
-                                        + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode(name, instantiatedClass, allocatingClass);
-        map.put(key, n);
-        return n;
+    /**
+     * Methods should be accessed statically
+     */
+    private AllocSiteNodeFactory() {
+        // Methods should be accessed statically
     }
 
-    protected AllocSiteNode getGeneratedExceptionNode(IClass instantiatedClass, IClass allocatingClass,
-                                    SSAInstruction i, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, i, disambiguationKey);
-        assert !map.containsKey(key) : "Duplicate generated allocation node: " + instantiatedClass + " from "
-                                        + allocatingClass + " for " + i;
-        AllocSiteNode n = new AllocSiteNode(ImplicitEx.fromType(instantiatedClass.getReference()).toString(),
-                                        instantiatedClass,
+    protected static AllocSiteNode getAllocationNode(IClass allocatedClass, IClass allocatingClass, SSAInstruction i,
+                                    Object disambiguationKey) {
+        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
+        AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
                                         allocatingClass);
-        map.put(key, n);
+        checkForDuplicates(key, n);
         return n;
     }
 
-    protected AllocSiteNode getAllocationNodeForNative(IClass instantiatedClass, IClass allocatingClass,
+    protected static AllocSiteNode getGeneratedAllocationNode(String name, IClass allocatedClass,
+                                    IClass allocatingClass, SSAInstruction i, Object disambiguationKey) {
+        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
+        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass);
+        checkForDuplicates(key, n);
+        return n;
+    }
+
+    protected static AllocSiteNode getGeneratedExceptionNode(IClass allocatedClass, IClass allocatingClass,
+                                    SSAInstruction i, Object disambiguationKey) {
+        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
+        AllocSiteNode n = new AllocSiteNode(ImplicitEx.fromType(allocatedClass.getReference()).toString(),
+                                        allocatedClass, allocatingClass);
+        checkForDuplicates(key, n);
+        return n;
+    }
+
+    protected static AllocSiteNode getAllocationNodeForNative(IClass allocatedClass, IClass allocatingClass,
                                     SSAInvokeInstruction nativeInvoke, ExitType type, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(instantiatedClass, allocatingClass, nativeInvoke, type, disambiguationKey);
-        assert !map.containsKey(key) : "Duplicate native allocation node: " + instantiatedClass + " from "
+        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, nativeInvoke, type, disambiguationKey);
+        assert !paranoidMap.containsKey(key) : "Duplicate native allocation node: " + allocatedClass + " from "
                                         + allocatingClass + " for " + type;
-        AllocSiteNode n = new AllocSiteNode(getCanonical("new "
-                                        + PrettyPrinter.typeString(instantiatedClass.getReference())
-                                        + " (compiler-generated-native)"), instantiatedClass, allocatingClass);
-        map.put(key, n);
+        AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
+                                        allocatingClass);
+        paranoidMap.put(key, n);
         return n;
     }
 
     /**
-     * Get the canonical version of a string
+     * If in paranoid mode then make sure the same parameters are never used to create two differet allocation nodes
      * 
-     * @param s
-     *            string to get
-     * @return String that is .equal to the string passed in, but is the canonical version
+     * @param key
+     *            parameters for the allocation
+     * @param node
+     *            node being allocated
      */
-    private String getCanonical(String s) {
-        String canonical = stringMemo.get(s);
-        if (canonical == null) {
-            canonical = s;
-            stringMemo.put(canonical, canonical);
+    private static void checkForDuplicates(AllocSiteKey key, AllocSiteNode node) {
+        if (CHECK_FOR_DUPLICATES) {
+            if (paranoidMap.containsKey(key)) {
+                throw new RuntimeException("Duplicate allocation node: " + node + "\n\texisting was: "
+                                                + paranoidMap.get(key) + "\n\tkey: " + key);
+            }
+            paranoidMap.put(key, node);
         }
-        return canonical;
     }
 
     private static class AllocSiteKey {
-        private final IClass instantiatedClass;
-        private final IClass containingClass;
+        private final IClass allocatedClass;
+        private final IClass allocatingClass;
         private final SSAInstruction i;
         private final ExitType exitType;
         private final Object disambiguationKey;
 
-        public AllocSiteKey(IClass instantiatedClass, IClass containingClass, SSAInstruction i, Object disambiguationKey) {
+        public AllocSiteKey(IClass allocatedClass, IClass allocatingClass, SSAInstruction i, Object disambiguationKey) {
             assert !(disambiguationKey instanceof ExitType) : "Missing argument for disambiguation key";
-            this.instantiatedClass = instantiatedClass;
-            this.containingClass = containingClass;
+            this.allocatedClass = allocatedClass;
+            this.allocatingClass = allocatingClass;
             this.i = i;
             this.exitType = null;
             this.disambiguationKey = disambiguationKey;
         }
 
-        public AllocSiteKey(IClass instantiatedClass, IClass containingClass, SSAInvokeInstruction nativeCall,
+        public AllocSiteKey(IClass allocatedClass, IClass containingClass, SSAInvokeInstruction nativeCall,
                                         ExitType exitType, Object disambiguationKey) {
-            this.instantiatedClass = instantiatedClass;
-            this.containingClass = containingClass;
+            this.allocatedClass = allocatedClass;
+            this.allocatingClass = containingClass;
             this.i = nativeCall;
             this.exitType = exitType;
             this.disambiguationKey = disambiguationKey;
         }
 
         @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Alloc: ");
+            sb.append(PrettyPrinter.typeString(allocatedClass.getReference()));
+            sb.append(" from ");
+            sb.append(PrettyPrinter.typeString(allocatingClass.getReference()));
+            sb.append(" for ");
+            sb.append(i);
+            sb.append(exitType != null ? " native " + exitType : "");
+            sb.append("\n\tdisambiguation: ");
+            sb.append(disambiguationKey);
+            return sb.toString();
+        }
+
+        @Override
         public int hashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + ((containingClass == null) ? 0 : containingClass.hashCode());
+            result = prime * result + ((allocatingClass == null) ? 0 : allocatingClass.hashCode());
             result = prime * result + ((disambiguationKey == null) ? 0 : disambiguationKey.hashCode());
             result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
             result = prime * result + ((i == null) ? 0 : i.hashCode());
-            result = prime * result + ((instantiatedClass == null) ? 0 : instantiatedClass.hashCode());
+            result = prime * result + ((allocatedClass == null) ? 0 : allocatedClass.hashCode());
             return result;
         }
 
@@ -126,10 +151,10 @@ public class AllocSiteNodeFactory {
             if (getClass() != obj.getClass())
                 return false;
             AllocSiteKey other = (AllocSiteKey) obj;
-            if (containingClass == null) {
-                if (other.containingClass != null)
+            if (allocatingClass == null) {
+                if (other.allocatingClass != null)
                     return false;
-            } else if (!containingClass.equals(other.containingClass))
+            } else if (!allocatingClass.equals(other.allocatingClass))
                 return false;
             if (disambiguationKey == null) {
                 if (other.disambiguationKey != null)
@@ -146,10 +171,10 @@ public class AllocSiteNodeFactory {
                     return false;
             } else if (!i.equals(other.i))
                 return false;
-            if (instantiatedClass == null) {
-                if (other.instantiatedClass != null)
+            if (allocatedClass == null) {
+                if (other.allocatedClass != null)
                     return false;
-            } else if (!instantiatedClass.equals(other.instantiatedClass))
+            } else if (!allocatedClass.equals(other.allocatedClass))
                 return false;
             return true;
         }
@@ -158,7 +183,7 @@ public class AllocSiteNodeFactory {
     /**
      * Represents an allocation site in the code
      */
-    public static class AllocSiteNode {
+    public static final class AllocSiteNode {
 
         /**
          * Class allocation occurs in
@@ -167,21 +192,11 @@ public class AllocSiteNodeFactory {
         /**
          * Allocated class
          */
-        private final IClass instantiatedClass;
-
-        /**
-         * Unique ID, used for testing whether two {@link AllocSiteNode}s are
-         * equal
-         */
-        private final int id;
+        private final IClass allocatedClass;
         /**
          * String used for printing and debugging
          */
         private final String debugString;
-        /**
-         * Counter for unique IDs
-         */
-        private static int count;
 
         /**
          * Represents the allocation of a new object
@@ -190,16 +205,15 @@ public class AllocSiteNodeFactory {
          *            String for printing and debugging
          * @param expectedType
          *            type of the newly allocated object
-         * @param instantiatedClass
+         * @param allocatedClass
          *            class being allocated
          * @param containingClass
          *            class where allocation occurs
          */
-        protected AllocSiteNode(String debugString, IClass instantiatedClass, IClass containingClass) {
-            this.id = ++count;
+        protected AllocSiteNode(String debugString, IClass allocatedClass, IClass containingClass) {
             this.debugString = debugString;
             this.containingClass = containingClass;
-            this.instantiatedClass = instantiatedClass;
+            this.allocatedClass = allocatedClass;
             if (debugString == null) {
                 throw new RuntimeException("Need debug string");
             }
@@ -214,29 +228,20 @@ public class AllocSiteNodeFactory {
         }
 
         public TypeReference getExpectedType() {
-            return instantiatedClass.getReference();
+            return allocatedClass.getReference();
         }
 
         public IClass getContainingClass() {
             return containingClass;
         }
 
-        public IClass getInstantiatedClass() {
-            return instantiatedClass;
+        public IClass getAllocatedClass() {
+            return allocatedClass;
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            AllocSiteNode other = (AllocSiteNode) obj;
-            if (id != other.id)
-                return false;
-            return true;
+            return this == obj;
         }
 
         @Override

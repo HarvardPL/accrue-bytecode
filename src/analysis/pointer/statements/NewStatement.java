@@ -18,7 +18,7 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
- * Points-to graph node for a "new" statement, e.g. Object o = new Object()
+ * Points-to graph statement for a "new" statement, e.g. Object o = new Object()
  */
 public class NewStatement extends PointsToStatement {
 
@@ -45,19 +45,19 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    protected NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i,
-                                    AllocSiteNodeFactory asnFactory) {
+    protected NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i) {
         super(ir, i);
         this.result = result;
-        alloc = asnFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i, "Normal Allocation");
+        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i,
+                                        "Normal Allocation");
     }
 
     /**
-     * Points-to graph statement for an allocation that does not result from a new instruction
+     * Points-to graph statement for an allocation of a generated exception that does not result from a new instruction
      * 
      * @param result
-     *            Points-to graph node for the assignee of the new allocation
-     * @param newClass
+     *            the assignee of the new allocation
+     * @param allocatedClass
      *            Class being created
      * @param cha
      *            class hierarchy
@@ -66,20 +66,21 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    protected NewStatement(String name, ReferenceVariable result, IClass newClass, IR ir, SSAInstruction i,
-                                    AllocSiteNodeFactory asnFactory) {
+    protected NewStatement(ReferenceVariable result, IClass allocatedClass, IR ir, SSAInstruction i) {
         super(ir, i);
         this.result = result;
-        alloc = asnFactory.getGeneratedAllocationNode(name, newClass, ir.getMethod().getDeclaringClass(), i, result);
-
+        alloc = AllocSiteNodeFactory.getGeneratedExceptionNode(allocatedClass, ir.getMethod().getDeclaringClass(), i,
+                                        result);
     }
 
     /**
      * Points-to graph statement for an allocation that does not result from a new instruction
      * 
+     * @param name
+     *            debug name to be put into the allocation node
      * @param result
-     *            Points-to graph node for the assignee of the new allocation
-     * @param newClass
+     *            the assignee of the new allocation
+     * @param allocatedClass
      *            Class being created
      * @param cha
      *            class hierarchy
@@ -88,18 +89,18 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    protected NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInstruction i,
-                                    AllocSiteNodeFactory asnFactory) {
+    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IR ir, SSAInstruction i) {
         super(ir, i);
         this.result = result;
-        alloc = asnFactory.getGeneratedExceptionNode(newClass, ir.getMethod().getDeclaringClass(), i, result);
+        alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(name, allocatedClass, ir.getMethod()
+                                        .getDeclaringClass(), i, result);
     }
 
     /**
      * Points-to graph statement for an allocation synthesized for the exit to a native method
      * 
      * @param result
-     *            Points-to graph node for the assignee of the new allocation
+     *            the assignee of the new allocation
      * @param newClass
      *            Class being created
      * @param cha
@@ -112,10 +113,11 @@ public class NewStatement extends PointsToStatement {
      *            Type this node is for normal return or exceptional
      */
     protected NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInvokeInstruction i, ExitType exitType,
-                                    IMethod m, AllocSiteNodeFactory asnFactory) {
+                                    IMethod m) {
         super(ir, i);
         this.result = result;
-        alloc = asnFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i, exitType, m);
+        alloc = AllocSiteNodeFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i,
+                                        exitType, m);
     }
 
     @Override

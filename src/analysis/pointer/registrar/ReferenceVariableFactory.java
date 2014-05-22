@@ -10,6 +10,7 @@ import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
@@ -206,12 +207,11 @@ public class ReferenceVariableFactory {
      * @return Reference variable for the value field of a String literal
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateStringLitField(int local, SSAInstruction i, IR ir) {
+    protected ReferenceVariable getOrCreateStringLitField(TypeReference type, int local, SSAInstruction i, IR ir) {
         StringValueKey key = new StringValueKey(local, ir, i);
         if (!stringValueFields.containsKey(key)) {
             // TODO was java.lang.Object
-            stringValueFields.put(key, new ReferenceVariable(StatementRegistrar.STRING_LIT_FIELD_DESC,
-                                            TypeReference.CharArray, ir));
+            stringValueFields.put(key, new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC, type, ir));
         }
         return stringValueFields.get(key);
     }

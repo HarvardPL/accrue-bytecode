@@ -17,7 +17,6 @@ import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
-import analysis.pointer.statements.AllocSiteNodeFactory;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
@@ -68,14 +67,6 @@ public class StatementRegistrar {
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final Map<IMethod, Set<PointsToStatement>> statementsForMethod;
-    /**
-     * Description used for a string literal value field
-     */
-    protected static final String STRING_LIT_FIELD_DESC = "new String.value (compiler-generated)";
-    /**
-     * Description used for a string literal
-     */
-    protected static final String STRING_LIT_DESC = "new String (compiler-generated)";
 
     public StatementRegistrar() {
         statements = new LinkedHashSet<>();
@@ -302,14 +293,13 @@ public class StatementRegistrar {
      * @param cha
      *            WALA class hierarchy
      */
-    protected void registerNewArray(SSANewInstruction i, IR ir, IClassHierarchy cha,
-                                    ReferenceVariableFactory rvFactory, AllocSiteNodeFactory asnFactory) {
+    protected void registerNewArray(SSANewInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), ir);
 
         IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i, asnFactory));
+        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i));
 
         // Handle arrays with multiple dimensions
         ReferenceVariable array = result;
@@ -321,7 +311,7 @@ public class StatementRegistrar {
             IClass arrayklass = cha.lookupClass(innerArray.getExpectedType());
             assert arrayklass != null : "No class found for "
                                             + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-            addStatement(StatementFactory.newForNormalAlloc(innerArray, arrayklass, ir, i, asnFactory));
+            addStatement(StatementFactory.newForNormalAlloc(innerArray, arrayklass, ir, i));
 
             // Add field assign from the inner array to the array contents field of the outer array
             addStatement(StatementFactory.multidimensionalArrayContents(array, innerArray, ir, i));
@@ -342,13 +332,13 @@ public class StatementRegistrar {
      *            WALA class hierarchy
      */
     protected void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha,
-                                    ReferenceVariableFactory rvFactory, AllocSiteNodeFactory asnFactory) {
+ ReferenceVariableFactory rvFactory) {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), ir);
 
         IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i, asnFactory));
+        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i));
     }
 
     /**
@@ -617,8 +607,10 @@ public class StatementRegistrar {
     /**
      * Add points-to statements for a String constant
      * 
-     * @param valueNumber
-     *            value number for the constant
+     * @param stringLit
+     *            reference variable for the string literal being handled
+     * @param local
+     *            local variable value number for the constant
      * @param ir
      *            IR containing the constant
      * @param i
@@ -628,31 +620,30 @@ public class StatementRegistrar {
      * @param stringValueClass
      *            representation of the byte array type
      */
-    protected void addStatementsForStringLit(ReferenceVariable newStringLit, int valueNumber, IR ir, SSAInstruction i,
-                                    IClass stringClass, IClass stringValueClass, ReferenceVariableFactory rvFactory,
-                                    AllocSiteNodeFactory asnFactory) {
+    protected void addStatementsForStringLit(ReferenceVariable stringLit, int local, IR ir, SSAInstruction i,
+                                    IClass stringClass, IClass stringValueClass, ReferenceVariableFactory rvFactory) {
         // v = new String
-        addStatement(StatementFactory.newForStringLiteral(STRING_LIT_DESC, newStringLit, ir, i, stringClass, asnFactory));
+        addStatement(StatementFactory.newForStringLiteral(stringLit, ir, i, stringClass));
         for (IField f : stringClass.getAllFields()) {
             if (f.getName().toString().equals("value")) {
                 // This is the value field of the String
-                ReferenceVariable stringValue = rvFactory.getOrCreateStringLitField(valueNumber, i, ir);
-                addStatement(StatementFactory.newForStringField(STRING_LIT_FIELD_DESC, stringValue, ir, i,
-                                                stringValueClass, asnFactory));
-                addStatement(new LocalToFieldStatement(f.getReference(), newStringLit, stringValue, ir, i));
+                ReferenceVariable stringValue = rvFactory.getOrCreateStringLitField(stringValueClass.getReference(),
+                                                local, i, ir);
+                addStatement(StatementFactory.newForStringField(stringValue, ir, i, stringValueClass));
+                addStatement(new LocalToFieldStatement(f.getReference(), stringLit, stringValue, ir, i));
             }
         }
 
     }
 
     protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, IClassHierarchy cha,
-                                    ReferenceVariableFactory rvFactory, AllocSiteNodeFactory asnFactory) {
+                                    ReferenceVariableFactory rvFactory) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex = rvFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
             IClass exClass = cha.lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
-            addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir, i, asnFactory));
+            addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir, i));
             addAssignmentForThrownException(i, ir, ex, cha, rvFactory);
         }
     }
@@ -708,8 +699,7 @@ public class StatementRegistrar {
      *            class hierarchy
      */
     protected void addStatementsForNative(IMethod m, MethodSummaryNodes summaryNodes, IR ir,
-                                    SSAInvokeInstruction nativeCall, IClassHierarchy cha,
-                                    AllocSiteNodeFactory asnFactory) {
+                                    SSAInvokeInstruction nativeCall, IClassHierarchy cha) {
 
         TypeReference returnType = m.getReturnType();
         if (!returnType.isPrimitiveType()) {
@@ -717,14 +707,14 @@ public class StatementRegistrar {
             // method summary return node
             IClass returnClass = cha.lookupClass(m.getReturnType());
             addStatementForNative(StatementFactory.newForNativeExit(summaryNodes.getReturnNode(), ir, nativeCall,
-                                            returnClass, ExitType.NORMAL, m, asnFactory), m);
+                                            returnClass, ExitType.NORMAL, m), m);
         }
 
         // Add a new allocation for the exception and an assignment into the
         // method summary exception node
         IClass exClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         addStatementForNative(StatementFactory.newForNativeExit(summaryNodes.getException(), ir, nativeCall, exClass,
-                                        ExitType.EXCEPTIONAL, m, asnFactory), m);
+                                        ExitType.EXCEPTIONAL, m), m);
 
         // TODO for native could maybe add pointer from the formals to the
         // return if the types line up would then need to add local to local for

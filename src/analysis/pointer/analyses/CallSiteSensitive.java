@@ -37,19 +37,17 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
      * Empty context with no call sites
      */
     private static final Context EMPTY_CONTEXT = new ContextStack(Collections.<CallSiteReference> emptyList(),
-            Collections.<IR> emptyList());
+                                    Collections.<IR> emptyList());
 
     /**
-     * Create a call site sensitive heap abstraction factory with the default
-     * depth
+     * Create a call site sensitive heap abstraction factory with the default depth
      */
     public CallSiteSensitive() {
         this(DEFAULT_SENSITIVITY);
     }
 
     /**
-     * Create a call site sensitive heap abstraction factory with the given
-     * depth
+     * Create a call site sensitive heap abstraction factory with the given depth
      * 
      * @param sensitivity
      *            depth of the call site stack
@@ -87,15 +85,15 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
         public static final ContextKey CALL_SITE_STACK_STRING = new ContextKey() {
             @Override
             public String toString() {
-              return "CALL_SITE_STACK_STRING_KEY";
+                return "CALL_SITE_STACK_STRING_KEY";
             }
-          };
-          public static final ContextKey CALL_SITE_IR_STACK_STRING = new ContextKey() {
-              @Override
-              public String toString() {
+        };
+        public static final ContextKey CALL_SITE_IR_STACK_STRING = new ContextKey() {
+            @Override
+            public String toString() {
                 return "CALL_SITE_IR_STACK_STRING_KEY";
-              }
-            };
+            }
+        };
 
         /**
          * List of call sites in the stack
@@ -183,7 +181,8 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
             for (int i = 0; i <= len; i++) {
                 CallSiteReference site = sites.get(i);
                 IR callSiteCode = irs.get(i);
-                String meth = PrettyPrinter.methodString(callSiteCode.getMethod().getReference()) + "@" + site.getProgramCounter();
+                String meth = PrettyPrinter.methodString(callSiteCode.getMethod().getReference()) + "@"
+                                                + site.getProgramCounter();
                 String sep = (i == len) ? "" : ", ";
                 s.append(meth + sep);
             }
@@ -294,7 +293,7 @@ public class CallSiteSensitive implements HeapAbstractionFactory {
 
         @Override
         public IClass getConcreteType() {
-           return asn.getInstantiatedClass();
+            return asn.getAllocatedClass();
         }
 
         @Override

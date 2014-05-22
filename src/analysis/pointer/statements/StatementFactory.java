@@ -37,7 +37,7 @@ public class StatementFactory {
     /**
      * Flag to ensure that no two statements are created with the same parameters
      */
-    public static boolean CHECK_FOR_DUPLICATES = true;
+    public static boolean CHECK_FOR_DUPLICATES = false;
     /**
      * Map from a key (arguments used to create the points to statement) to points to statement, can be used to check
      * whether two identical points-to statements are created that are not the same Object.
@@ -50,6 +50,14 @@ public class StatementFactory {
             paranoiaMap = Collections.emptyMap();
         }
     }
+    /**
+     * Description used for a string literal value field
+     */
+    public static final String STRING_LIT_FIELD_DESC = "new String.value (compiler-generated)";
+    /**
+     * Description used for a string literal
+     */
+    private static final String STRING_LIT_DESC = "new String (compiler-generated)";
 
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i]
@@ -267,9 +275,9 @@ public class StatementFactory {
      * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
     public static NewStatement newForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
-                                    IR ir, SSAInstruction i, AllocSiteNodeFactory asnFactory) {
-        NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, ir, i, asnFactory);
-        checkForDuplicates(new StatementKey(exceptionAssignee, exceptionClass, ir, i, asnFactory), s);
+                                    IR ir, SSAInstruction i) {
+        NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, ir, i);
+        checkForDuplicates(new StatementKey(exceptionAssignee, exceptionClass, ir, i), s);
         return s;
     }
 
@@ -291,10 +299,9 @@ public class StatementFactory {
      * @return a statement representing the (compiler-generated) allocation for a native method call
      */
     public static NewStatement newForNativeExit(ReferenceVariable summaryNode, IR ir, SSAInvokeInstruction i,
-                                    IClass exitClass, ExitType exitType, IMethod resolved,
-                                    AllocSiteNodeFactory asnFactory) {
-        NewStatement s = new NewStatement(summaryNode, exitClass, ir, i, exitType, resolved, asnFactory);
-        checkForDuplicates(new StatementKey(summaryNode, exitClass, ir, i, exitType, resolved, asnFactory), s);
+                                    IClass exitClass, ExitType exitType, IMethod resolved) {
+        NewStatement s = new NewStatement(summaryNode, exitClass, ir, i, exitType, resolved);
+        checkForDuplicates(new StatementKey(summaryNode, exitClass, ir, i, exitType, resolved), s);
         return s;
     }
 
@@ -313,10 +320,9 @@ public class StatementFactory {
      *            Instruction that generated this points-to statement
      * @return statement to be processed during pointer analysis
      */
-    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i,
-                                    AllocSiteNodeFactory asnFactory) {
-        NewStatement s = new NewStatement(result, newClass, ir, i, asnFactory);
-        checkForDuplicates(new StatementKey(result, newClass, ir, i, asnFactory), s);
+    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i) {
+        NewStatement s = new NewStatement(result, newClass, ir, i);
+        checkForDuplicates(new StatementKey(result, newClass, ir, i), s);
         return s;
     }
 
@@ -333,10 +339,9 @@ public class StatementFactory {
      *            WALA representation of a char[]
      * @return a statement representing the allocation of a new string literal's value field
      */
-    public static NewStatement newForStringField(String name, ReferenceVariable local, IR ir, SSAInstruction i,
-                                    IClass charArrayClass, AllocSiteNodeFactory asnFactory) {
-        NewStatement s = new NewStatement(name, local, charArrayClass, ir, i, asnFactory);
-        checkForDuplicates(new StatementKey(name, local, charArrayClass, ir, i, asnFactory), s);
+    public static NewStatement newForStringField(ReferenceVariable local, IR ir, SSAInstruction i, IClass charArrayClass) {
+        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, charArrayClass, ir, i);
+        checkForDuplicates(new StatementKey(local, charArrayClass, ir, i), s);
         return s;
     }
 
@@ -353,10 +358,9 @@ public class StatementFactory {
      *            WALA representation of the java.lang.String class
      * @return a statement representing the allocation of a new string literal
      */
-    public static NewStatement newForStringLiteral(String name, ReferenceVariable local, IR ir, SSAInstruction i,
-                                    IClass stringClass, AllocSiteNodeFactory asnFactory) {
-        NewStatement s = new NewStatement(name, local, stringClass, ir, i, asnFactory);
-        checkForDuplicates(new StatementKey(name, local, stringClass, ir, i, asnFactory), s);
+    public static NewStatement newForStringLiteral(ReferenceVariable local, IR ir, SSAInstruction i, IClass stringClass) {
+        NewStatement s = new NewStatement(STRING_LIT_DESC, local, stringClass, ir, i);
+        checkForDuplicates(new StatementKey(local, stringClass, ir, i), s);
         return s;
     }
 
@@ -637,20 +641,6 @@ public class StatementFactory {
             this.key5 = key5;
             this.key6 = key6;
             this.key7 = null;
-            this.key8 = null;
-            this.key9 = null;
-            this.key10 = null;
-            this.key11 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = key6;
-            this.key7 = key7;
             this.key8 = null;
             this.key9 = null;
             this.key10 = null;
