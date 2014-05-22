@@ -36,7 +36,7 @@ public class ClassInitStatement extends PointsToStatement {
      * @param i
      *            Instruction triggering the initialization
      */
-    public ClassInitStatement(List<IMethod> clinits, IR ir, SSAInstruction i) {
+    protected ClassInitStatement(List<IMethod> clinits, IR ir, SSAInstruction i) {
         super(ir, i);
         assert !clinits.isEmpty() : "No need for a statment if there are no class inits.";
         this.clinits = clinits;
@@ -76,30 +76,5 @@ public class ClassInitStatement extends PointsToStatement {
         }
         sb.append("]");
         return sb.toString();
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((clinits == null) ? 0 : clinits.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        ClassInitStatement other = (ClassInitStatement) obj;
-        if (clinits == null) {
-            if (other.clinits != null)
-                return false;
-        } else if (!clinits.equals(other.clinits))
-            return false;
-        return true;
     }
 }

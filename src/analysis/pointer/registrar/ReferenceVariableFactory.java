@@ -96,10 +96,21 @@ public class ReferenceVariableFactory {
         return node;
     }
 
+    /**
+     * Create a reference variable for an inner array of a multidimensional array
+     * 
+     * @param dim
+     *            dimension we are creating (used to disambiguate if there are more than 2 dimensions)
+     * @param type
+     *            type of the inner array
+     * @param i
+     *            multidimensional array allocation instruction
+     * @param ir
+     *            code containing the allocation
+     * @return Reference variable for the inner array
+     */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateArrayContents(int dim, TypeReference type, SSANewInstruction i, IR ir) {
-        // Need to create one for the inner and use it to get the outer or it
-        // doesn't work
+    protected ReferenceVariable getOrCreateInnerArray(int dim, TypeReference type, SSANewInstruction i, IR ir) {
         ArrayContentsKey key = new ArrayContentsKey(dim, i, ir);
         ReferenceVariable local = arrayContentsTemps.get(key);
         if (local == null) {

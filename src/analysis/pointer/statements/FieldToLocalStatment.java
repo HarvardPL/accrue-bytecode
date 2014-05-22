@@ -9,8 +9,8 @@ import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -51,7 +51,8 @@ public class FieldToLocalStatment extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public FieldToLocalStatment(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir, SSAGetInstruction i) {
+    protected FieldToLocalStatment(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir,
+                                    SSAGetInstruction i) {
         super(ir, i);
         this.declaredField = f;
         this.receiver = o;
@@ -89,42 +90,5 @@ public class FieldToLocalStatment extends PointsToStatement {
         }
 
         return g.addEdges(left, fields);
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((assignee == null) ? 0 : assignee.hashCode());
-        result = prime * result + ((declaredField == null) ? 0 : declaredField.hashCode());
-        result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        FieldToLocalStatment other = (FieldToLocalStatment) obj;
-        if (assignee == null) {
-            if (other.assignee != null)
-                return false;
-        } else if (!assignee.equals(other.assignee))
-            return false;
-        if (declaredField == null) {
-            if (other.declaredField != null)
-                return false;
-        } else if (!declaredField.equals(other.declaredField))
-            return false;
-        if (receiver == null) {
-            if (other.receiver != null)
-                return false;
-        } else if (!receiver.equals(other.receiver))
-            return false;
-        return true;
     }
 }

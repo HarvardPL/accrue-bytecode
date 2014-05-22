@@ -39,7 +39,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, IR ir,
+    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, IR ir,
                                     SSAArrayLoadInstruction i) {
         super(ir, i);
         this.value = v;
@@ -77,42 +77,5 @@ public class ArrayToLocalStatement extends PointsToStatement {
     @Override
     public String toString() {
         return value + " = " + array + "." + PointsToGraph.ARRAY_CONTENTS;
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((array == null) ? 0 : array.hashCode());
-        result = prime * result + ((baseType == null) ? 0 : baseType.hashCode());
-        result = prime * result + ((value == null) ? 0 : value.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        ArrayToLocalStatement other = (ArrayToLocalStatement) obj;
-        if (array == null) {
-            if (other.array != null)
-                return false;
-        } else if (!array.equals(other.array))
-            return false;
-        if (baseType == null) {
-            if (other.baseType != null)
-                return false;
-        } else if (!baseType.equals(other.baseType))
-            return false;
-        if (value == null) {
-            if (other.value != null)
-                return false;
-        } else if (!value.equals(other.value))
-            return false;
-        return true;
     }
 }

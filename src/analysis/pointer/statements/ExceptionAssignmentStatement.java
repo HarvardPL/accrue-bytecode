@@ -39,7 +39,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      *            types that the exception being caught cannot have since those
      *            types must have been caught by previous catch blocks
      */
-    public ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, SSAInstruction i, IR ir,
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, SSAInstruction i, IR ir,
                                     Set<IClass> notType) {
         super(ir, i);
         this.thrown = thrown;
@@ -68,42 +68,5 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public String toString() {
         return thrown + " = " + caught + "(" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
                                         + ")";
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((caught == null) ? 0 : caught.hashCode());
-        result = prime * result + ((notType == null) ? 0 : notType.hashCode());
-        result = prime * result + ((thrown == null) ? 0 : thrown.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        ExceptionAssignmentStatement other = (ExceptionAssignmentStatement) obj;
-        if (caught == null) {
-            if (other.caught != null)
-                return false;
-        } else if (!caught.equals(other.caught))
-            return false;
-        if (notType == null) {
-            if (other.notType != null)
-                return false;
-        } else if (!notType.equals(other.notType))
-            return false;
-        if (thrown == null) {
-            if (other.thrown != null)
-                return false;
-        } else if (!thrown.equals(other.thrown))
-            return false;
-        return true;
     }
 }

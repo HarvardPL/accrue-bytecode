@@ -7,8 +7,8 @@ import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.ReferenceVariableFactory;
-import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
@@ -48,7 +48,7 @@ public class StaticCallStatement extends CallStatement {
      * @param util
      *            Code for the callee of this invocation
      */
-    public StaticCallStatement(CallSiteReference callSite, IMethod callee, List<ReferenceVariable> actuals,
+    protected StaticCallStatement(CallSiteReference callSite, IMethod callee, List<ReferenceVariable> actuals,
                                     ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR callerIR,
                                     SSAInvokeInstruction i, WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
         super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util, rvFactory);
@@ -70,30 +70,5 @@ public class StaticCallStatement extends CallStatement {
         s.append("invokestatic " + PrettyPrinter.methodString(callee));
 
         return s.toString();
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((callee == null) ? 0 : callee.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        StaticCallStatement other = (StaticCallStatement) obj;
-        if (callee == null) {
-            if (other.callee != null)
-                return false;
-        } else if (!callee.equals(other.callee))
-            return false;
-        return true;
     }
 }

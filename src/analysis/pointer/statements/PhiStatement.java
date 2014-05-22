@@ -7,13 +7,12 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAPhiInstruction;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to graph statement for a phi, representing choice at control flow
@@ -29,10 +28,6 @@ public class PhiStatement extends PointsToStatement {
      * Arguments into the phi
      */
     private final List<ReferenceVariable> uses;
-    /**
-     * Type of the value assigned into
-     */
-    private final TypeReference type;
 
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
@@ -42,12 +37,11 @@ public class PhiStatement extends PointsToStatement {
      * @param xs
      *            list of arguments to the phi, v is a choice amongst these
      */
-    public PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IR ir, SSAPhiInstruction i) {
+    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IR ir, SSAPhiInstruction i) {
         super(ir, i);
         assert !xs.isEmpty();
         this.assignee = v;
         this.uses = xs;
-        this.type = v.getExpectedType();
     }
 
     @Override
@@ -79,42 +73,5 @@ public class PhiStatement extends PointsToStatement {
         }
         s.append(uses.get(uses.size() - 1) + ")");
         return s.toString();
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((assignee == null) ? 0 : assignee.hashCode());
-        result = prime * result + ((type == null) ? 0 : type.hashCode());
-        result = prime * result + ((uses == null) ? 0 : uses.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        PhiStatement other = (PhiStatement) obj;
-        if (assignee == null) {
-            if (other.assignee != null)
-                return false;
-        } else if (!assignee.equals(other.assignee))
-            return false;
-        if (type == null) {
-            if (other.type != null)
-                return false;
-        } else if (!type.equals(other.type))
-            return false;
-        if (uses == null) {
-            if (other.uses != null)
-                return false;
-        } else if (!uses.equals(other.uses))
-            return false;
-        return true;
     }
 }

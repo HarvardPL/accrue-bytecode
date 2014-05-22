@@ -8,8 +8,8 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory;
-import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
@@ -60,7 +60,7 @@ public class SpecialCallStatement extends CallStatement {
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
-    public SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
+    protected SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
                                     WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
@@ -97,42 +97,5 @@ public class SpecialCallStatement extends CallStatement {
         s.append("invokespecial " + PrettyPrinter.methodString(resolvedCallee));
 
         return s.toString();
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
-        result = prime * result + ((resolvedCallee == null) ? 0 : resolvedCallee.hashCode());
-        result = prime * result + ((resultNode == null) ? 0 : resultNode.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        SpecialCallStatement other = (SpecialCallStatement) obj;
-        if (receiver == null) {
-            if (other.receiver != null)
-                return false;
-        } else if (!receiver.equals(other.receiver))
-            return false;
-        if (resolvedCallee == null) {
-            if (other.resolvedCallee != null)
-                return false;
-        } else if (!resolvedCallee.equals(other.resolvedCallee))
-            return false;
-        if (resultNode == null) {
-            if (other.resultNode != null)
-                return false;
-        } else if (!resultNode.equals(other.resultNode))
-            return false;
-        return true;
     }
 }

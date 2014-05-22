@@ -18,22 +18,9 @@ import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.AllocSiteNodeFactory;
-import analysis.pointer.statements.ArrayToLocalStatement;
-import analysis.pointer.statements.ClassInitStatement;
-import analysis.pointer.statements.ExceptionAssignmentStatement;
-import analysis.pointer.statements.FieldToLocalStatment;
-import analysis.pointer.statements.LocalToArrayStatement;
 import analysis.pointer.statements.LocalToFieldStatement;
-import analysis.pointer.statements.LocalToLocalStatement;
-import analysis.pointer.statements.LocalToStaticFieldStatement;
-import analysis.pointer.statements.NewStatement;
-import analysis.pointer.statements.PhiStatement;
 import analysis.pointer.statements.PointsToStatement;
-import analysis.pointer.statements.ReturnStatement;
-import analysis.pointer.statements.SpecialCallStatement;
-import analysis.pointer.statements.StaticCallStatement;
-import analysis.pointer.statements.StaticFieldToLocalStatement;
-import analysis.pointer.statements.VirtualCallStatement;
+import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -67,12 +54,12 @@ public class StatementRegistrar {
     /**
      * Set of all points-to statements
      */
-    private final Set<PointsToStatement> statements = new LinkedHashSet<>();
+    private final Set<PointsToStatement> statements;
 
     /**
      * Map from method signature to nodes representing formals and returns
      */
-    private final Map<IMethod, MethodSummaryNodes> methods = new LinkedHashMap<>();
+    private final Map<IMethod, MethodSummaryNodes> methods;
     /**
      * Entry point for the code being analyzed
      */
@@ -80,7 +67,7 @@ public class StatementRegistrar {
     /**
      * Map from method to the points-to statements generated from instructions in that method
      */
-    private final Map<IMethod, Set<PointsToStatement>> statementsForMethod = new HashMap<>();
+    private final Map<IMethod, Set<PointsToStatement>> statementsForMethod;
     /**
      * Description used for a string literal value field
      */
@@ -89,6 +76,12 @@ public class StatementRegistrar {
      * Description used for a string literal
      */
     protected static final String STRING_LIT_DESC = "new String (compiler-generated)";
+
+    public StatementRegistrar() {
+        statements = new LinkedHashSet<>();
+        methods = new LinkedHashMap<>();
+        statementsForMethod = new HashMap<>();
+    }
 
     /**
      * x = v[j], load from an array
@@ -106,7 +99,7 @@ public class StatementRegistrar {
         }
         ReferenceVariable array = rvFactory.getOrCreateLocal(i.getArrayRef(), ir);
         ReferenceVariable local = rvFactory.getOrCreateLocal(i.getDef(), ir);
-        addStatement(new ArrayToLocalStatement(local, array, baseType, ir, i));
+        addStatement(StatementFactory.arrayToLocal(local, array, baseType, ir, i));
     }
 
     /**
@@ -120,13 +113,12 @@ public class StatementRegistrar {
     protected void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         TypeReference t = i.getElementType();
         if (t.isPrimitiveType() || TypeRepository.getType(i.getValue(), ir) == TypeReference.Null) {
-            // Assigning into a primitive array so value is not a pointer, or
-            // assigning null
+            // Assigning into a primitive array so value is not a pointer, or assigning null (also not a real pointer)
             return;
         }
         ReferenceVariable array = rvFactory.getOrCreateLocal(i.getArrayRef(), ir);
         ReferenceVariable value = rvFactory.getOrCreateLocal(i.getValue(), ir);
-        addStatement(new LocalToArrayStatement(array, value, i.getElementType(), ir, i));
+        addStatement(StatementFactory.localToArrayContents(array, value, t, ir, i));
     }
 
     /**
@@ -147,7 +139,7 @@ public class StatementRegistrar {
         // it could throw)
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getResult(), ir);
         ReferenceVariable checkedVal = rvFactory.getOrCreateLocal(i.getVal(), ir);
-        addStatement(new LocalToLocalStatement(result, checkedVal, ir, i));
+        addStatement(StatementFactory.localToLocal(result, checkedVal, ir, i));
     }
 
     /**
@@ -165,7 +157,7 @@ public class StatementRegistrar {
         }
         ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(), ir);
         ReferenceVariable receiver = rvFactory.getOrCreateLocal(i.getRef(), ir);
-        addStatement(new FieldToLocalStatment(i.getDeclaredField(), receiver, assignee, ir, i));
+        addStatement(StatementFactory.fieldToLocal(i.getDeclaredField(), receiver, assignee, ir, i));
     }
 
     /**
@@ -183,7 +175,7 @@ public class StatementRegistrar {
         }
         ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(), ir);
         ReferenceVariable field = rvFactory.getOrCreateStaticField(i.getDeclaredField(), cha);
-        addStatement(new StaticFieldToLocalStatement(assignee, field, ir, i));
+        addStatement(StatementFactory.staticFieldToLocal(assignee, field, ir, i));
     }
 
     /**
@@ -204,7 +196,7 @@ public class StatementRegistrar {
         ReferenceVariable assignedValue = rvFactory.getOrCreateLocal(i.getVal(), ir);
         ReferenceVariable receiver = rvFactory.getOrCreateLocal(i.getRef(), ir);
 
-        addStatement(new LocalToFieldStatement(f, receiver, assignedValue, ir, i));
+        addStatement(StatementFactory.localToField(f, receiver, assignedValue, ir, i));
     }
 
     /**
@@ -224,7 +216,7 @@ public class StatementRegistrar {
         FieldReference f = i.getDeclaredField();
         ReferenceVariable assignedValue = rvFactory.getOrCreateLocal(i.getVal(), ir);
         ReferenceVariable fieldNode = rvFactory.getOrCreateStaticField(f, cha);
-        addStatement(new LocalToStaticFieldStatement(fieldNode, assignedValue, ir, i));
+        addStatement(StatementFactory.localToStaticField(fieldNode, assignedValue, ir, i));
 
     }
 
@@ -283,16 +275,16 @@ public class StatementRegistrar {
         if (i.isStatic()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
-            addStatement(new StaticCallStatement(i.getCallSite(), resolvedMethod, actuals, resultNode, exceptionNode,
-                                            ir, i, util, rvFactory));
+            addStatement(StatementFactory.staticCall(i.getCallSite(), resolvedMethod, actuals, resultNode,
+                                            exceptionNode, ir, i, util, rvFactory));
         } else if (i.isSpecial()) {
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
-            addStatement(new SpecialCallStatement(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
+            addStatement(StatementFactory.specialCall(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
                                             exceptionNode, ir, i, util, rvFactory));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
-            addStatement(new VirtualCallStatement(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
+            addStatement(StatementFactory.virtualCall(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
                                             resultNode, exceptionNode, util.getClassHierarchy(), ir, i, util, rvFactory));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
@@ -317,26 +309,25 @@ public class StatementRegistrar {
 
         IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        addStatement(NewStatement.newStatementForNormalAlloc(result, klass, ir, i, asnFactory));
+        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i, asnFactory));
 
         // Handle arrays with multiple dimensions
         ReferenceVariable array = result;
         for (int dim = 1; dim < i.getNumberOfUses(); dim++) {
-            // Create local for array contents
-            ReferenceVariable contents = rvFactory.getOrCreateArrayContents(dim, array.getExpectedType()
+            // Create reference variable for inner array
+            ReferenceVariable innerArray = rvFactory.getOrCreateInnerArray(dim, array.getExpectedType()
                                             .getArrayElementType(), i, ir);
             // Add an allocation for the contents
-            IClass arrayklass = cha.lookupClass(contents.getExpectedType());
+            IClass arrayklass = cha.lookupClass(innerArray.getExpectedType());
             assert arrayklass != null : "No class found for "
                                             + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-            addStatement(NewStatement.newStatementForNormalAlloc(contents, arrayklass, ir, i, asnFactory));
+            addStatement(StatementFactory.newForNormalAlloc(innerArray, arrayklass, ir, i, asnFactory));
 
-            // Add field assign from the field of the outer array to the array
-            // contents
-            addStatement(new LocalToFieldStatement(array, contents, ir, i));
+            // Add field assign from the inner array to the array contents field of the outer array
+            addStatement(StatementFactory.multidimensionalArrayContents(array, innerArray, ir, i));
 
             // The array on the next iteration will be contents of this one
-            array = contents;
+            array = innerArray;
         }
     }
 
@@ -357,7 +348,7 @@ public class StatementRegistrar {
 
         IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        addStatement(NewStatement.newStatementForNormalAlloc(result, klass, ir, i, asnFactory));
+        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i, asnFactory));
     }
 
     /**
@@ -397,7 +388,7 @@ public class StatementRegistrar {
             // analysis
             return;
         }
-        addStatement(new PhiStatement(assignee, uses, ir, i));
+        addStatement(StatementFactory.phiToLocal(assignee, uses, ir, i));
     }
 
     /**
@@ -429,7 +420,7 @@ public class StatementRegistrar {
         }
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getResult(), ir);
         ReferenceVariable summary = methods.get(ir.getMethod()).getReturnNode();
-        addStatement(new ReturnStatement(result, summary, ir, i));
+        addStatement(StatementFactory.returnStatement(result, summary, ir, i));
     }
 
     /**
@@ -571,7 +562,6 @@ public class StatementRegistrar {
             // try {
             // System.in.read();
             // } catch (IOException e) {
-            // // TODO Auto-generated catch block
             // e.printStackTrace();
             // }
             // }
@@ -602,7 +592,6 @@ public class StatementRegistrar {
             // try {
             // System.in.read();
             // } catch (IOException e) {
-            // // TODO Auto-generated catch block
             // e.printStackTrace();
             // }
             // }
@@ -640,17 +629,15 @@ public class StatementRegistrar {
      *            representation of the byte array type
      */
     protected void addStatementsForStringLit(ReferenceVariable newStringLit, int valueNumber, IR ir, SSAInstruction i,
-                                    IClass stringClass,
-                                    IClass stringValueClass, ReferenceVariableFactory rvFactory,
+                                    IClass stringClass, IClass stringValueClass, ReferenceVariableFactory rvFactory,
                                     AllocSiteNodeFactory asnFactory) {
         // v = new String
-        addStatement(NewStatement.newStatementForStringLiteral(STRING_LIT_DESC, newStringLit, ir, i, stringClass,
-                                        asnFactory));
+        addStatement(StatementFactory.newForStringLiteral(STRING_LIT_DESC, newStringLit, ir, i, stringClass, asnFactory));
         for (IField f : stringClass.getAllFields()) {
             if (f.getName().toString().equals("value")) {
                 // This is the value field of the String
                 ReferenceVariable stringValue = rvFactory.getOrCreateStringLitField(valueNumber, i, ir);
-                addStatement(NewStatement.newStatementForStringField(STRING_LIT_FIELD_DESC, stringValue, ir, i,
+                addStatement(StatementFactory.newForStringField(STRING_LIT_FIELD_DESC, stringValue, ir, i,
                                                 stringValueClass, asnFactory));
                 addStatement(new LocalToFieldStatement(f.getReference(), newStringLit, stringValue, ir, i));
             }
@@ -665,7 +652,7 @@ public class StatementRegistrar {
             IClass exClass = cha.lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
-            addStatement(NewStatement.newStatementForGeneratedException(ex, exClass, ir, i, asnFactory));
+            addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir, i, asnFactory));
             addAssignmentForThrownException(i, ir, ex, cha, rvFactory);
         }
     }
@@ -699,7 +686,7 @@ public class StatementRegistrar {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
                 caught = getSummaryNodes(ir.getMethod()).getException();
             }
-            addStatement(new ExceptionAssignmentStatement(thrown, caught, i, ir, notType));
+            addStatement(StatementFactory.exceptionAssignment(thrown, caught, i, ir, notType));
         }
     }
 
@@ -729,15 +716,15 @@ public class StatementRegistrar {
             // Add a new allocation for the return and an assignment into the
             // method summary return node
             IClass returnClass = cha.lookupClass(m.getReturnType());
-            addStatementForNative(NewStatement.newStatementForNativeExit(summaryNodes.getReturnNode(), ir, nativeCall,
+            addStatementForNative(StatementFactory.newForNativeExit(summaryNodes.getReturnNode(), ir, nativeCall,
                                             returnClass, ExitType.NORMAL, m, asnFactory), m);
         }
 
         // Add a new allocation for the exception and an assignment into the
         // method summary exception node
         IClass exClass = cha.lookupClass(TypeReference.JavaLangThrowable);
-        addStatementForNative(NewStatement.newStatementForNativeExit(summaryNodes.getException(), ir, nativeCall,
-                                        exClass, ExitType.EXCEPTIONAL, m, asnFactory), m);
+        addStatementForNative(StatementFactory.newForNativeExit(summaryNodes.getException(), ir, nativeCall, exClass,
+                                        ExitType.EXCEPTIONAL, m, asnFactory), m);
 
         // TODO for native could maybe add pointer from the formals to the
         // return if the types line up would then need to add local to local for
@@ -759,6 +746,6 @@ public class StatementRegistrar {
      *            element j is a super class of element j+1)
      */
     protected void addStatementsForClassInitializer(SSAInstruction trigger, IR containingCode, List<IMethod> clinits) {
-        addStatement(new ClassInitStatement(clinits, containingCode, trigger));
+        addStatement(StatementFactory.classInit(clinits, containingCode, trigger));
     }
 }

@@ -5,8 +5,8 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ssa.IR;
@@ -38,7 +38,7 @@ public class LocalToLocalStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IR ir, SSAInstruction i) {
+    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IR ir, SSAInstruction i) {
         super(ir, i);
         assert !left.isSingleton() : left + " is static";
         assert !right.isSingleton() : right + " is static";
@@ -62,36 +62,5 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public String toString() {
         return left + " = " + right;
-    }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        result = prime * result + ((left == null) ? 0 : left.hashCode());
-        result = prime * result + ((right == null) ? 0 : right.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (!super.equals(obj))
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        LocalToLocalStatement other = (LocalToLocalStatement) obj;
-        if (left == null) {
-            if (other.left != null)
-                return false;
-        } else if (!left.equals(other.left))
-            return false;
-        if (right == null) {
-            if (other.right != null)
-                return false;
-        } else if (!right.equals(other.right))
-            return false;
-        return true;
     }
 }

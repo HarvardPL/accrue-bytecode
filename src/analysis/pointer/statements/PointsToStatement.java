@@ -36,7 +36,7 @@ public abstract class PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public PointsToStatement(IR ir, SSAInstruction i) {
+    protected PointsToStatement(IR ir, SSAInstruction i) {
         this.ir = ir;
         this.i = i;
     }
@@ -88,33 +88,15 @@ public abstract class PointsToStatement {
     }
 
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((i == null) ? 0 : i.hashCode());
-        result = prime * result + ((ir == null) ? 0 : ir.hashCode());
-        return result;
+    public final int hashCode() {
+        return System.identityHashCode(this);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        PointsToStatement other = (PointsToStatement) obj;
-        if (i == null) {
-            if (other.i != null)
-                return false;
-        } else if (!i.equals(other.i))
-            return false;
-        if (ir == null) {
-            if (other.ir != null)
-                return false;
-        } else if (!ir.equals(other.ir))
-            return false;
-        return true;
+    public final boolean equals(Object obj) {
+        return this == obj;
     }
+
+    @Override
+    public abstract String toString();
 }
