@@ -47,7 +47,7 @@ public class StatementRegistrationPass {
     /**
      * Set to true if in profiling mode, inserts breaks to allow for inspection
      */
-    public static final boolean PROFILE = true;
+    public static final boolean PROFILE = false;
     /**
      * Container and manager of points-to statements
      */
