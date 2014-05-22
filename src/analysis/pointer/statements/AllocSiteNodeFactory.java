@@ -64,11 +64,9 @@ public class AllocSiteNodeFactory {
     protected static AllocSiteNode getAllocationNodeForNative(IClass allocatedClass, IClass allocatingClass,
                                     SSAInvokeInstruction nativeInvoke, ExitType type, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, nativeInvoke, type, disambiguationKey);
-        assert !paranoidMap.containsKey(key) : "Duplicate native allocation node: " + allocatedClass + " from "
-                                        + allocatingClass + " for " + type;
         AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
                                         allocatingClass);
-        paranoidMap.put(key, n);
+        checkForDuplicates(key, n);
         return n;
     }
 
