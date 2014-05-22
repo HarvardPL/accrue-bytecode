@@ -39,14 +39,12 @@ WALA-BUG: Using methods from AbstractNumberedGraph in BasicCallGraph breaks the 
 
 WALA-BUG: By default the fake root method has no return statement so it had normal and exception edges from a basic block to the exit block.
 
-TODO need to add in call graph edges for the class initializers in the appropriate places, I guess this should happen for each instruction that could add a class init in "process". For now lets just do them all up front, otherwise it gets messy to determine which clinits need to be called when. e.g. a class might be initialized on one branch of an "if" and not on the other, so it still needs to be initialized again if it appears after the "phi".
-
 TODO multiple edges are added to the points to graph for generated exceptions, this might be OK, but it does look like there may be duplicate edges in the PTG maybe from the final check pass? Why isn't hashcode/equals deduping for me
 
 TODO Is the fact that Arrays are sometimes Objects in WALA screw things up anywhere? probably in some unexpected way especially since Object is not considerend a subclass of Arrays, should use isAssignable from everywhere
 
-TODO need to be more careful with exception types, Sometimes a filter is getting rid of exceptions from a call since that is "Throwable" and the exceptions could be anything, we can wait for the precise ex to take care of this. Maybe mark certaing refVars as not precise
-
-TODO create "ClassLoadStatement" and use that to load classes, still need to add the statements to the registrar, so I'm not sure how much this helps
+TODO need to be more careful with exception types, Sometimes a filter is getting rid of exceptions from a call since that is "Throwable" and the exceptions could be anything, we can wait for the precise ex to take care of this. Maybe mark certain refVars as not precise
 
 TODO record the choice of receiver in the PC for PDGs
+
+TODO String should call <init> after allocation not the value field hack

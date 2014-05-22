@@ -183,7 +183,7 @@ public abstract class CallStatement extends PointsToStatement {
         // add edge from "this" in the callee to the receiver
         // if this is a static call then the receiver will be null
         if (!resolvedCallee.isStatic()) {
-            ReferenceVariable thisVar = rvFactory.getOrCreateLocal(calleeIR.getParameter(0), calleeIR);
+            ReferenceVariable thisVar = rvFactory.getOrCreateFormalParameter(0, calleeIR);
             ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext, thisVar);
             changed |= g.addEdge(thisRep, receiver);
         }
@@ -298,7 +298,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            points-to statement registrar
      * @return true if the points-to graph changed
      */
-    protected final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
+    private final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
                                     PointsToGraph g, StatementRegistrar registrar, IMethod resolvedCallee) {
         // Find successor catch blocks
         List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
@@ -457,7 +457,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            context the catch blocks occur in
      * @return List of catch blocks in reachable order (i.e. the first element of the list is the first reached)
      */
-    protected final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, Context context) {
+    private final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, Context context) {
 
         // Find successor catch blocks in the CFG
         SSACFG cfg = getCode().getControlFlowGraph();
@@ -475,7 +475,7 @@ public abstract class CallStatement extends PointsToStatement {
             Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
             // The catch instruction is the first instruction in the basic block
             SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
-            ReferenceVariable formalNode = rvFactory.getOrCreateLocal(catchIns.getException(), getCode());
+            ReferenceVariable formalNode = rvFactory.getOrCreateCaughtEx(catchIns, getCode());
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(context, formalNode);
             CatchBlock cb = new CatchBlock(types, formalRep);
             catchBlocks.add(cb);

@@ -15,6 +15,7 @@ import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.types.FieldReference;
@@ -56,10 +57,10 @@ public class ReferenceVariableFactory {
      *            local ID, the type of this should not be primitive or null
      * @param ir
      *            method intermediate representation
-     * @return points-to graph node for the local
+     * @return reference variable for the local
      */
     @SuppressWarnings("synthetic-access")
-    public ReferenceVariable getOrCreateLocal(int local, IR ir) {
+    protected ReferenceVariable getOrCreateLocal(int local, IR ir) {
         assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
                                         + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
         OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
@@ -73,27 +74,33 @@ public class ReferenceVariableFactory {
     }
 
     /**
-     * Get the reference variable for the given formal parameter in the method given by the IR
+     * Create a reference variable for the exception caught by a "getcaught" instruction
+     * 
+     * @param catchIns
+     *            instruction that catches the exception
+     * @param ir
+     *            code containing the catch instruction
+     * @return reference variable for the caught exception
+     */
+    public ReferenceVariable getOrCreateCaughtEx(SSAGetCaughtExceptionInstruction catchIns, IR ir) {
+        return getOrCreateLocal(catchIns.getException(), ir);
+    }
+
+    /**
+     * Get the reference variable for the given formal parameter in the method given by the IR (for a non-static method
+     * parameter 0 is "this")
      * 
      * @param local
      *            parameter index
      * @param ir
      *            method intermediate representation
-     * @return points-to graph node for the formal parameter
+     * @return reference variable for the formal parameter
      */
-    @SuppressWarnings("synthetic-access")
     public ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
         assert !ir.getParameterType(paramNum).isPrimitiveType() : "No reference variables for primitive formals: "
                                         + PrettyPrinter.typeString(ir.getParameterType(paramNum));
         int local = ir.getParameter(paramNum);
-        OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
-        ReferenceVariable node = locals.get(key);
-        if (node == null) {
-            TypeReference type = TypeRepository.getType(local, ir);
-            node = new ReferenceVariable(PrettyPrinter.valString(local, ir) + "-formal(" + paramNum + ")", type, ir);
-            locals.put(key, node);
-        }
-        return node;
+        return getOrCreateLocal(local, ir);
     }
 
     /**
