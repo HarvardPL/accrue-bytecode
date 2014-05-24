@@ -59,7 +59,7 @@ public class ClassInitFinder {
             if (ins.isStatic()) {
                 IMethod callee = cha.resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
-                    if (StatementRegistrationPass.VERBOSE >= 1) {
+                    if (StatementRegistrationPass.VERBOSE >= 2) {
                         System.err.println("Trying to get class initializer for " + i + " and could not resolve "
                                                         + PrettyPrinter.methodString(ins.getDeclaredTarget()));
                     }

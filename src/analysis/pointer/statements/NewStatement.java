@@ -122,7 +122,7 @@ public class NewStatement extends PointsToStatement {
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        InstanceKey k = haf.record(context, alloc, getCode());
+        InstanceKey k = haf.record(alloc, context);
         assert k != null;
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
         return g.addEdge(r, k);

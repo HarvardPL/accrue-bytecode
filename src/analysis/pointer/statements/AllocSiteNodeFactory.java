@@ -39,7 +39,7 @@ public class AllocSiteNodeFactory {
                                     Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
         AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
-                                        allocatingClass);
+                                        allocatingClass, i);
         checkForDuplicates(key, n);
         return n;
     }
@@ -47,7 +47,7 @@ public class AllocSiteNodeFactory {
     protected static AllocSiteNode getGeneratedAllocationNode(String name, IClass allocatedClass,
                                     IClass allocatingClass, SSAInstruction i, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
-        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass);
+        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass, i);
         checkForDuplicates(key, n);
         return n;
     }
@@ -55,8 +55,10 @@ public class AllocSiteNodeFactory {
     protected static AllocSiteNode getGeneratedExceptionNode(IClass allocatedClass, IClass allocatingClass,
                                     SSAInstruction i, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
-        AllocSiteNode n = new AllocSiteNode(ImplicitEx.fromType(allocatedClass.getReference()).toString(),
-                                        allocatedClass, allocatingClass);
+        AllocSiteNode n = new AllocSiteNode(
+                                        ("new " + ImplicitEx.fromType(allocatedClass.getReference()).toString())
+                                                                        .intern(),
+                                        allocatedClass, allocatingClass, i);
         checkForDuplicates(key, n);
         return n;
     }
@@ -65,7 +67,7 @@ public class AllocSiteNodeFactory {
                                     SSAInvokeInstruction nativeInvoke, ExitType type, Object disambiguationKey) {
         AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, nativeInvoke, type, disambiguationKey);
         AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
-                                        allocatingClass);
+                                        allocatingClass, nativeInvoke);
         checkForDuplicates(key, n);
         return n;
     }
@@ -192,6 +194,11 @@ public class AllocSiteNodeFactory {
          */
         private final IClass allocatedClass;
         /**
+         * Instruction causing the allocation, either directly (because it is a "new") or indirectly (by triggering a
+         * compiler generated allocation)
+         */
+        private final SSAInstruction allocatingInstruction;
+        /**
          * String used for printing and debugging
          */
         private final String debugString;
@@ -207,11 +214,16 @@ public class AllocSiteNodeFactory {
          *            class being allocated
          * @param containingClass
          *            class where allocation occurs
+         * @param allocatingInstruction
+         *            Instruction causing the allocation, either directly (because it is a "new") or indirectly (by
+         *            triggering a compiler generated allocation)
          */
-        protected AllocSiteNode(String debugString, IClass allocatedClass, IClass containingClass) {
+        protected AllocSiteNode(String debugString, IClass allocatedClass, IClass containingClass,
+                                        SSAInstruction allocatingInstruction) {
             this.debugString = debugString;
             this.containingClass = containingClass;
             this.allocatedClass = allocatedClass;
+            this.allocatingInstruction = allocatingInstruction;
             if (debugString == null) {
                 throw new RuntimeException("Need debug string");
             }
@@ -235,6 +247,10 @@ public class AllocSiteNodeFactory {
 
         public IClass getAllocatedClass() {
             return allocatedClass;
+        }
+
+        public SSAInstruction getAllocatingInstruction() {
+            return allocatingInstruction;
         }
 
         @Override

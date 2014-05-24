@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -63,15 +64,13 @@ public class PointsToGraph {
     }
 
     /**
-     * Get a map from method to the singleton set containing the initial context
-     * for all the given methods
+     * Get a map from method to the singleton set containing the initial context for all the given methods
      * 
      * @param haf
      *            abstraction factory defining the initial context
      * @param initialMethods
      *            methods to be paired with the initial context
-     * @return mapping from each method in the given set to the singleton set
-     *         containing the initial context
+     * @return mapping from each method in the given set to the singleton set containing the initial context
      */
     private Map<IMethod, Set<Context>> getInitialContexts(HeapAbstractionFactory haf, Set<IMethod> initialMethods) {
         Map<IMethod, Set<Context>> init = new LinkedHashMap<>();
@@ -164,7 +163,7 @@ public class PointsToGraph {
                 if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
                     if (DEBUG && outputLevel >= 6) {
                         System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
-                                                    + PrettyPrinter.typeString(type));
+                                                        + PrettyPrinter.typeString(type));
                     }
                     toRemove.add(k);
                 }
@@ -184,9 +183,8 @@ public class PointsToGraph {
     }
 
     /**
-     * Get the points-to set for the given points-to graph node, filtering out
-     * results which do not have a particular type, or which have one of a set
-     * of types
+     * Get the points-to set for the given points-to graph node, filtering out results which do not have a particular
+     * type, or which have one of a set of types
      * 
      * @param node
      *            node to get the points-to set for
@@ -211,11 +209,11 @@ public class PointsToGraph {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
             // TODO assuming we have a precise type could be dangerous
-            if (cha.isAssignableFrom(isClass, klass)) {
+            if (TypeRepository.isAssignableFrom(isClass, klass, cha)) {
                 if (areNotTypes) {
                     assert notTypes != null;
                     for (IClass notClass : notTypes) {
-                        if (cha.isAssignableFrom(notClass, klass)) {
+                        if (TypeRepository.isAssignableFrom(notClass, klass, cha)) {
                             // klass is a subclass of one of the classes we do
                             // not want
                             toRemove.add(k);
@@ -287,6 +285,9 @@ public class PointsToGraph {
      *            context
      */
     private void recordContext(IMethod callee, Context calleeContext) {
+        if (outputLevel >= 1) {
+            System.err.println("RECORDING: " + callee + " in " + calleeContext + " hc " + calleeContext);
+        }
         Set<Context> s = contexts.get(callee);
         if (s == null) {
             s = new LinkedHashSet<>();
@@ -430,8 +431,7 @@ public class PointsToGraph {
     }
 
     /**
-     * Get new contexts created since this was last called and clear the new
-     * context map
+     * Get new contexts created since this was last called and clear the new context map
      * 
      * @return new context map
      */
@@ -442,8 +442,7 @@ public class PointsToGraph {
     }
 
     /**
-     * Get the points-to graph nodes that have caused a change since this was
-     * last called and clear the set.
+     * Get the points-to graph nodes that have caused a change since this was last called and clear the set.
      * 
      * @return set of changed nodes
      */
@@ -454,8 +453,7 @@ public class PointsToGraph {
     }
 
     /**
-     * Get the set of nodes that have been read since this was last called and
-     * clear the set.
+     * Get the set of nodes that have been read since this was last called and clear the set.
      * 
      * @return set of nodes for which the points-to set was retrieved
      */

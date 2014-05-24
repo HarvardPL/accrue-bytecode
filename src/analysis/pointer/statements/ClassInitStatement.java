@@ -53,14 +53,13 @@ public class ClassInitStatement extends PointsToStatement {
         // As a compromise we don't do anything here, and use this statement only to trigger the analysis of the
         // statements in the clinit method
         if (PointsToAnalysis.outputLevel >= 1 && added) {
-            System.err.println("CLINIT: " + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()) + " in context: "
-                                            + context);
-
             for (IMethod m : clinits) {
-                System.err.println("\t" + PrettyPrinter.methodString(m));
+                System.err.print("CLINIT: " + PrettyPrinter.methodString(m));
             }
-
+            System.err.println();
+            System.err.println("\tFROM: " + PrettyPrinter.instructionString(getInstruction(), getCode()) + " method: "
+                                            + PrettyPrinter.methodString(getCode().getMethod()) + " context: "
+                                            + context);
         }
 
         return false;

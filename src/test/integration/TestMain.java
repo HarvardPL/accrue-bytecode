@@ -22,8 +22,8 @@ import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
-import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.TypeSensitive;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
@@ -319,8 +319,9 @@ public class TestMain {
         StatementRegistrar registrar = pass.getRegistrar();
         ReferenceVariableCache rvCache = pass.getAllLocals();
 
-        HeapAbstractionFactory context = new CallSiteSensitive(1);
-        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(context, util);
+        // HeapAbstractionFactory haf = new CallSiteSensitive(1);
+        HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf, util);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
         System.err.println(g.getNodes().size() + " PTG nodes.");

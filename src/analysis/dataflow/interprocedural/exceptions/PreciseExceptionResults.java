@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -102,14 +103,14 @@ public class PreciseExceptionResults implements AnalysisResults {
     public boolean canProcedureThrowException(TypeReference type, CGNode n) {
         if (n.getMethod().isNative()) {
             IClass exClass = cha.lookupClass(type);
-            if (cha.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass)) {
+            if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass, cha)) {
                 // assume native methods can throw RTE
                 return true;
             }
             try {
                 for (TypeReference declEx : n.getMethod().getDeclaredExceptions()) {
                     IClass declClass = cha.lookupClass(declEx);
-                    if (cha.isAssignableFrom(declClass, exClass)) {
+                    if (TypeRepository.isAssignableFrom(declClass, exClass, cha)) {
                         // precise throw type could be any subtype of the
                         // declared exceptions
                         return true;

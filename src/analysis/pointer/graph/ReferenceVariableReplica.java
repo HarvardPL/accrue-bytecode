@@ -13,12 +13,23 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
 
     private final Context context;
     private final ReferenceVariable l;
+    private final int memoizedHashCode;
 
     public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
         assert (rv != null);
         assert (context != null);
         this.l = rv;
         this.context = context;
+        this.memoizedHashCode = computeHashCode();
+    }
+
+    /**
+     * Memoize hash code
+     * 
+     * @return hash code
+     */
+    private int computeHashCode() {
+        return context.hashCode() * 31 + l.hashCode();
     }
 
     @Override
@@ -28,11 +39,7 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((context == null) ? 0 : context.hashCode());
-        result = prime * result + ((l == null) ? 0 : l.hashCode());
-        return result;
+        return memoizedHashCode;
     }
 
     @Override
@@ -44,15 +51,9 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
         if (getClass() != obj.getClass())
             return false;
         ReferenceVariableReplica other = (ReferenceVariableReplica) obj;
-        if (context == null) {
-            if (other.context != null)
-                return false;
-        } else if (!context.equals(other.context))
+        if (!context.equals(other.context))
             return false;
-        if (l == null) {
-            if (other.l != null)
-                return false;
-        } else if (!l.equals(other.l))
+        if (!l.equals(other.l))
             return false;
         return true;
     }

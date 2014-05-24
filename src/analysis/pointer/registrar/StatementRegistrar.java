@@ -255,7 +255,7 @@ public class StatementRegistrar {
 
         Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
         if (resolvedMethods.isEmpty()) {
-            if (StatementRegistrationPass.VERBOSE >= 1) {
+            if (StatementRegistrationPass.VERBOSE >= 2) {
                 System.err.println("No resolved methods for " + PrettyPrinter.instructionString(i, ir) + " method: "
                                                 + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
                                                 + PrettyPrinter.methodString(ir.getMethod()));
@@ -457,7 +457,7 @@ public class StatementRegistrar {
      * @return set of all statements
      */
     public Set<PointsToStatement> getAllStatements() {
-        return new LinkedHashSet<>(statements);
+        return statements;
     }
 
     /**

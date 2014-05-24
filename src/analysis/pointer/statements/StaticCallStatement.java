@@ -57,7 +57,7 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        Context calleeContext = haf.merge(getCallSite(), getCode(), null, context);
+        Context calleeContext = haf.merge(getCallSiteLabel(), null, context);
         return processCall(context, null, callee, calleeContext, g, registrar);
     }
 

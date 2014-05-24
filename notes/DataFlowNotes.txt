@@ -47,4 +47,4 @@ TODO need to be more careful with exception types, Sometimes a filter is getting
 
 TODO record the choice of receiver in the PC for PDGs
 
-TODO String should call <init> after allocation not the value field hack
+TODO String should call <init> after allocation not the value field hack, read about Strings in the JVM spec 5.1

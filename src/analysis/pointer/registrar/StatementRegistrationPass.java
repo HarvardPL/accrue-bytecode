@@ -135,11 +135,11 @@ public class StatementRegistrationPass {
             }
         }
 
-        if (VERBOSE >= 1) {
+        if (VERBOSE >= 2) {
             System.err.println(PrettyPrinter.methodString(m) + " was registered.");
         }
 
-        if (VERBOSE >= 2) {
+        if (VERBOSE >= 6) {
             try (Writer writer = new StringWriter()) {
                 PrettyPrinter.writeIR(ir, writer, "\t", "\n");
                 System.err.print(writer.toString());
@@ -168,7 +168,7 @@ public class StatementRegistrationPass {
         for (int j = clinits.size() - 1; j >= 0; j--) {
             IMethod clinit = clinits.get(j);
             boolean oneAdded = addFromMethod(q, clinit);
-            if (oneAdded && VERBOSE >= 1) {
+            if (oneAdded && VERBOSE >= 2) {
                 System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass().getReference())
                                                 + " initializer");
             }
@@ -203,7 +203,7 @@ public class StatementRegistrationPass {
                 }
             }
 
-            if (VERBOSE >= 1) {
+            if (VERBOSE >= 2) {
                 System.err.println(PrettyPrinter.methodString(sigMethod) + " signature registered");
             }
 
@@ -315,7 +315,7 @@ public class StatementRegistrationPass {
 
             Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util);
             for (IMethod m : targets) {
-                if (VERBOSE >= 1) {
+                if (VERBOSE >= 2) {
                     System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "
                                                     + PrettyPrinter.methodString(ir.getMethod()) + " for "
                                                     + PrettyPrinter.instructionString(inv, ir));

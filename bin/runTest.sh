@@ -1,6 +1,6 @@
 #!/bin/sh
 
-vmargs="-Xmx16G -Xms13G"
+vmargs="-Xmx16G -Xms16G"
 dir=`dirname "$0"`/..
 
 classpath="$dir/classes"

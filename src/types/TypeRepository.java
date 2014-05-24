@@ -1,17 +1,20 @@
 package types;
 
 import java.util.Arrays;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 
 import com.ibm.wala.analysis.typeInference.TypeAbstraction;
 import com.ibm.wala.analysis.typeInference.TypeInference;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
@@ -27,15 +30,19 @@ public class TypeRepository {
     /**
      * All type information
      */
-    private static final Map<IR, TypeInference> types = new LinkedHashMap<>();
+    private static final Map<IR, TypeInference> types = new HashMap<>();
     /**
      * Value numbers for exceptions thrown by callees
      */
-    private static final Map<IR, Set<Integer>> exceptions = new LinkedHashMap<>();
+    private static final Map<IR, Set<Integer>> exceptions = new HashMap<>();
     /**
      * Types of exceptions thrown
      */
-    private static final Map<IMethod, Set<TypeReference>> exceptionTypes = new LinkedHashMap<>();
+    private static final Map<IMethod, Set<TypeReference>> exceptionTypes = new HashMap<>();
+    /**
+     * Memoize results of isAssignable
+     */
+    private static final Map<OrderedPair<IClass, IClass>, Boolean> isAssignable = new HashMap<>();
 
     /**
      * Construct types for the given IR using WALA's type inference
@@ -84,6 +91,31 @@ public class TypeRepository {
                                             + "Set it to double since anything can cast up to it. I guess.");
         }
         return tr;
+    }
+
+    /**
+     * True if we can assign from c2 to c1. i.e. c1 = c2 type checks i.e. c2 is a subtype of c1?
+     * <p>
+     * The results are memoized, so only call this if this check will be performed many times with the same classes,
+     * otherwise use {@link IClassHierarchy#isAssignableFrom(IClass, IClass)} directly. This is useful for checking
+     * exception sub-typing as the same types show up over and over.
+     * 
+     * @param c1
+     *            assignee
+     * @param c2
+     *            assigned
+     * @param cha
+     *            class hierarchy
+     * @return true if c1 = c2 type checks
+     */
+    public static boolean isAssignableFrom(IClass c1, IClass c2, IClassHierarchy cha) {
+        OrderedPair<IClass, IClass> key = new OrderedPair<>(c1, c2);
+        Boolean res = isAssignable.get(key);
+        if (res == null) {
+            res = cha.isAssignableFrom(c1, c2);
+            isAssignable.put(key, res);
+        }
+        return res;
     }
 
     /**

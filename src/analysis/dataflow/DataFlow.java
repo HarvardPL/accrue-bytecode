@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import types.TypeRepository;
 import util.InstructionType;
 import util.OrderedPair;
 import util.SingletonValueMap;
@@ -573,10 +574,10 @@ public abstract class DataFlow<F> {
             while (caughtTypes.hasNext()) {
                 TypeReference caughtType = caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (cha.isAssignableFrom(caught, thrown)) {
+                if (TypeRepository.isAssignableFrom(caught, thrown, cha)) {
                     result.add(cb);
                     isCaught = true;
-                } else if (throwerType.isInvoke() && cha.isAssignableFrom(thrown, caught)) {
+                } else if (throwerType.isInvoke() && TypeRepository.isAssignableFrom(thrown, caught, cha)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision for exceptions
                     // thrown by native calls)

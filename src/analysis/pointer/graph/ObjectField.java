@@ -20,6 +20,10 @@ public class ObjectField implements PointsToGraphNode {
      * Type of the field
      */
     private final TypeReference expectedType;
+    /**
+     * Hash code computed once
+     */
+    private final int memoizedHashCode;
 
     /**
      * Points-to graph node representing a non-static field of an object
@@ -32,9 +36,13 @@ public class ObjectField implements PointsToGraphNode {
      *            type of the field
      */
     public ObjectField(InstanceKey receiver, String fieldName, TypeReference expectedType) {
+        assert receiver != null;
+        assert fieldName != null;
+        assert expectedType != null;
         this.receiver = receiver;
         this.fieldName = fieldName;
         this.expectedType = expectedType;
+        this.memoizedHashCode = computeHashCode();
     }
 
     @Override
@@ -42,14 +50,18 @@ public class ObjectField implements PointsToGraphNode {
         return expectedType;
     }
 
-    @Override
-    public int hashCode() {
+    public int computeHashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((expectedType == null) ? 0 : expectedType.hashCode());
-        result = prime * result + ((fieldName == null) ? 0 : fieldName.hashCode());
-        result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
+        result = prime * result + expectedType.hashCode();
+        result = prime * result + fieldName.hashCode();
+        result = prime * result + receiver.hashCode();
         return result;
+    }
+
+    @Override
+    public int hashCode() {
+        return memoizedHashCode;
     }
 
     @Override
@@ -61,20 +73,11 @@ public class ObjectField implements PointsToGraphNode {
         if (getClass() != obj.getClass())
             return false;
         ObjectField other = (ObjectField) obj;
-        if (expectedType == null) {
-            if (other.expectedType != null)
-                return false;
-        } else if (!expectedType.equals(other.expectedType))
+        if (!expectedType.equals(other.expectedType))
             return false;
-        if (fieldName == null) {
-            if (other.fieldName != null)
-                return false;
-        } else if (!fieldName.equals(other.fieldName))
+        if (!fieldName.equals(other.fieldName))
             return false;
-        if (receiver == null) {
-            if (other.receiver != null)
-                return false;
-        } else if (!receiver.equals(other.receiver))
+        if (!receiver.equals(other.receiver))
             return false;
         return true;
     }

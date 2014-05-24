@@ -96,11 +96,18 @@ public class VirtualCallStatement extends CallStatement {
                 resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverRep.getExpectedType()), callee.getSelector());
             }
 
+            if (resolvedCallee != null && resolvedCallee.isAbstract()) {
+                // Abstract method due to a native method that returns an abstract type or interface
+                // TODO Handle abstract methods in a smarter way
+                System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
+                continue;
+            }
+
             // If we wanted to be very robust, check to make sure that
             // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
 
-            Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
+            Context calleeContext = haf.merge(getCallSiteLabel(), recHeapContext, context);
             changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
         }
         return changed;
@@ -112,7 +119,7 @@ public class VirtualCallStatement extends CallStatement {
         if (getResultNode() != null) {
             s.append(getResultNode().toString() + " = ");
         }
-        s.append("invokevirtual " + PrettyPrinter.methodString(getCallSite().getDeclaredTarget()));
+        s.append("invokevirtual " + PrettyPrinter.methodString(getCallSiteLabel().getCallee()));
 
         return s.toString();
     }

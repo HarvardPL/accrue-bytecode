@@ -1,0 +1,20 @@
+digraph G {
+node [shape=record];
+nodesep=1.0;
+ranksep=1.0;
+graph [fontsize=10];
+node [fontsize=10];
+edge [fontsize=10];
+	"BB0\lENTRY\lv2 = new java.lang.String[1]\l" -> "BB1\lv4 = new java.lang.String\l" [label="NT"];
+	"BB0\lENTRY\lv2 = new java.lang.String[1]\l" -> "BB6\lEXIT\l" [label="EX"];
+	"BB1\lv4 = new java.lang.String\l" -> "BB2\lv2[0] = v4\l" [label="NT"];
+	"BB1\lv4 = new java.lang.String\l" -> "BB6\lEXIT\l" [label="EX"];
+	"BB2\lv2[0] = v4\l" -> "BB3\l((java.lang.Object)v2).<init>() throws v6\l" [label="NT"];
+	"BB2\lv2[0] = v4\l" -> "BB6\lEXIT\l" [label="EX"];
+	"BB3\l((java.lang.Object)v2).<init>() throws v6\l" -> "BB4\ltest.Scratch.main(v2) throws v7\l" [label="NT"];
+	"BB3\l((java.lang.Object)v2).<init>() throws v6\l" -> "BB6\lEXIT\l" [label="EX"];
+	"BB4\ltest.Scratch.main(v2) throws v7\l" -> "BB5\lreturn\l" [label="NT"];
+	"BB4\ltest.Scratch.main(v2) throws v7\l" -> "BB6\lEXIT\l" [label="EX"];
+	"BB5\lreturn\l" -> "BB6\lEXIT\l" [label="NT"];
+
+};

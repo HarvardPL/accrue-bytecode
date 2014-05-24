@@ -81,9 +81,9 @@ public class SpecialCallStatement extends CallStatement {
         }
 
         boolean changed = false;
-        for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
-            Context calleeContext = haf.merge(getCallSite(), getCode(), recHeapContext, context);
-            changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
+        for (InstanceKey recHeapCtxt : g.getPointsToSet(receiverRep)) {
+            Context calleeContext = haf.merge(getCallSiteLabel(), recHeapCtxt, context);
+            changed |= processCall(context, recHeapCtxt, resolvedCallee, calleeContext, g, registrar);
         }
         return changed;
     }

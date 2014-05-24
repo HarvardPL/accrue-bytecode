@@ -24,6 +24,7 @@ public class OrderedPair<F, S> {
      * second element
      */
     private final S snd;
+    private final int memoizedHashCode;
 
     /**
      * Create a pair from the two given states
@@ -36,6 +37,7 @@ public class OrderedPair<F, S> {
     public OrderedPair(F fst, S snd) {
         this.fst = fst;
         this.snd = snd;
+        this.memoizedHashCode = computeHashCode();
     }
 
     /**
@@ -149,11 +151,20 @@ public class OrderedPair<F, S> {
                 && (snd() == null ? other.snd() == null : snd().equals(other.snd()));
     }
 
-    @Override
-    public int hashCode() {
+    /**
+     * Compute the hash code once
+     * 
+     * @return hash code
+     */
+    private int computeHashCode() {
         int firstHash = fst() != null ? fst().hashCode() : 0;
         // flip the bits so (b,a) has a different hash than (a,b)
         return (firstHash >>> 16 | firstHash << 16) ^ (snd() != null ? snd().hashCode() : 0);
+    }
+
+    @Override
+    public int hashCode() {
+        return memoizedHashCode;
     }
 
     @Override

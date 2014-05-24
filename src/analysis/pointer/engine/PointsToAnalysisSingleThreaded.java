@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 import util.WorkQueue;
+import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
@@ -18,14 +19,14 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
- * Single-threaded implementation of a points-to graph solver. Given a set of
- * constraints, {@link PointsToStatement}s, compute the fixed point.
+ * Single-threaded implementation of a points-to graph solver. Given a set of constraints, {@link PointsToStatement}s,
+ * compute the fixed point.
  */
 public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     /**
-     * Map from points-to graph nodes to statements that depend on them. If the
-     * key changes then everything in the value set should be recomputed.
+     * Map from points-to graph nodes to statements that depend on them. If the key changes then everything in the value
+     * set should be recomputed.
      */
     private final Map<PointsToGraphNode, Set<StmtAndContext>> dependencies = new HashMap<>();
 
@@ -79,8 +80,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Generate a points-to graph by tracking dependencies and only analyzing
-     * statements that are reachable from the entry point
+     * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
+     * entry point
      * 
      * @param registrar
      *            points-to statement registrar
@@ -99,27 +100,19 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 q.add(new StmtAndContext(s, c));
             }
         }
-        System.err.println("INTIAL Q:\n" + q);
 
-        int count = 0;
+        int numProcessed = 0;
         while (!q.isEmpty()) {
             StmtAndContext sac = q.poll();
             incrementCounter(sac);
-            count++;
-            // if (count % 10 == 0) {
-            // System.out.println(count + ", " + (System.currentTimeMillis() - startTime) / 1000);
-            // }
-            if (count % 10000 == 0) {
-                System.err.println("PROCESSED: " + count + " in " + (System.currentTimeMillis() - startTime) / 1000
-                                                + "s");
-            }
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
 
-            if (outputLevel >= 6) {
-                System.err.println("PROCESSING: " + s + " in " + c);
-            }
             s.process(c, haf, g, registrar);
+            if (outputLevel >= 1) {
+                System.err.println("PROCESSED: " + sac);
+            }
+            numProcessed++;
 
             // Get the changes from the graph
             Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
@@ -128,10 +121,28 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             // Add new contexts
             for (IMethod m : newContexts.keySet()) {
+                if (outputLevel >= 1) {
+                    System.err.println("\tNEW CONTEXTS for " + PrettyPrinter.methodString(m));
+                    for (Context context : newContexts.get(m)) {
+                        System.err.println("\t" + context);
+                    }
+                }
+
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
+                    if (outputLevel >= 1) {
+                        System.err.println("\t\tADDING " + stmt);
+                    }
+
                     for (Context context : newContexts.get(m)) {
                         q.add(new StmtAndContext(stmt, context));
                     }
+                }
+            }
+
+            if (outputLevel >= 1 && !readNodes.isEmpty()) {
+                System.err.println("\tREAD:");
+                for (PointsToGraphNode read : readNodes) {
+                    System.err.println("\t\t" + read);
                 }
             }
 
@@ -140,15 +151,38 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 addDependency(n, sac);
             }
 
+            if (outputLevel >= 1 && !changedNodes.isEmpty()) {
+                for (PointsToGraphNode n : changedNodes) {
+                    System.err.println("\tCHANGED: " + n);
+                    if (!getDependencies(n).isEmpty()) {
+                        System.err.println("\tDEPS:");
+                        for (StmtAndContext dep : getDependencies(n)) {
+                            System.err.println("\t\t" + dep);
+                        }
+                    }
+                }
+            }
+
             // Add dependencies to the queue
             for (PointsToGraphNode n : changedNodes) {
+                if (outputLevel >= 1 && !getDependencies(n).isEmpty()) {
+                    System.err.println("\tADDING:");
+                    for (StmtAndContext dep : getDependencies(n)) {
+                        System.err.println("\t\t" + dep);
+                    }
+                }
                 q.addAll(getDependencies(n));
+            }
+
+            if (numProcessed % 10000 == 0) {
+                System.err.println("PROCESSED: " + numProcessed + " in " + (System.currentTimeMillis() - startTime)
+                                                / 1000 + "s");
             }
         }
 
         long endTime = System.currentTimeMillis();
-        System.err.println("Processed " + count + " (statement, context) pairs. It took " + (endTime - startTime)
-                                        + "ms.");
+        System.err.println("Processed " + numProcessed + " (statement, context) pairs. It took "
+                                        + (endTime - startTime) + "ms.");
 
         if (outputLevel >= 5) {
             System.err.println("****************************** CHECKING ******************************");
@@ -201,8 +235,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Get any (statement,context) pairs that depend on the given points-to
-     * graph node
+     * Get any (statement,context) pairs that depend on the given points-to graph node
      * 
      * @param n
      *            node to get the dependencies for
@@ -217,8 +250,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Add the (statement, context) pair as a dependency of the points-to graph
-     * node
+     * Add the (statement, context) pair as a dependency of the points-to graph node
      * 
      * @param n
      *            node the statement depends on

@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -7,7 +8,6 @@ import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -19,7 +19,6 @@ import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.analysis.typeInference.TypeInference;
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -128,6 +127,7 @@ public abstract class CallStatement extends PointsToStatement {
                                         + PrettyPrinter.instructionString(getInstruction(), getCode());
         assert resolvedCallee != null : "null callee for "
                                         + PrettyPrinter.instructionString(getInstruction(), getCode());
+
         changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
 
         MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
@@ -136,6 +136,7 @@ public abstract class CallStatement extends PointsToStatement {
 
         ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
 
+        assert calleeSummary != null;
         ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
 
         if (DEBUG && g.getPointsToSet(calleeEx).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
@@ -206,17 +207,20 @@ public abstract class CallStatement extends PointsToStatement {
             ReferenceVariable formalParamVar = rvFactory.getOrCreateFormalParameter(i, calleeIR);
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext, formalParamVar);
 
-            if (!util.getClassHierarchy().isAssignableFrom(
+            assert util.getClassHierarchy().isAssignableFrom(
                                             util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
-                                            util.getClassHierarchy().lookupClass(actual.getExpectedType()))) {
-                System.err.println("formal-" + i + "(" + PrettyPrinter.typeString(formalRep.getExpectedType())
-                                                + ") FROM " + actual.toString() + "("
-                                                + PrettyPrinter.typeString(actual.getExpectedType()) + ") FAILS");
-                TypeRepository.printTypes(getCode());
-                CFGWriter.writeToFile(getCode());
-                TypeInference.make(getCode(), true);
-                System.err.println("WTF");
-            }
+                                            util.getClassHierarchy().lookupClass(actual.getExpectedType()));
+            // if (!util.getClassHierarchy().isAssignableFrom(
+            // util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
+            // util.getClassHierarchy().lookupClass(actual.getExpectedType()))) {
+            // System.err.println("formal-" + i + "(" + PrettyPrinter.typeString(formalRep.getExpectedType())
+            // + ") FROM " + actual.toString() + "("
+            // + PrettyPrinter.typeString(actual.getExpectedType()) + ") FAILS");
+            // TypeRepository.printTypes(getCode());
+            // CFGWriter.writeToFile(getCode());
+            // TypeInference.make(getCode(), true);
+            // System.err.println("WTF");
+            // }
             Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formalRep.getExpectedType());
 
             if (DEBUG && !actual.getExpectedType().isPrimitiveType() && actualHeapContexts.isEmpty()) {
@@ -228,6 +232,15 @@ public abstract class CallStatement extends PointsToStatement {
         }
 
         return changed;
+    }
+
+    /**
+     * Get the label for the call site
+     * 
+     * @return label for the site of this method call
+     */
+    protected CallSiteLabel getCallSiteLabel() {
+        return new CallSiteLabel(getCode().getMethod(), callSite);
     }
 
     /**
@@ -264,13 +277,6 @@ public abstract class CallStatement extends PointsToStatement {
      */
     protected static ReferenceVariableReplica getReplica(Context context, ReferenceVariable r) {
         return new ReferenceVariableReplica(context, r);
-    }
-
-    /**
-     * @return the callSite
-     */
-    protected CallSiteReference getCallSite() {
-        return callSite;
     }
 
     /**
@@ -315,15 +321,18 @@ public abstract class CallStatement extends PointsToStatement {
             while (cb.caughtTypes.hasNext()) {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (cha.isAssignableFrom(caught, thrown)) {
-                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
+                if (TypeRepository.isAssignableFrom(caught, thrown, cha)) {
+                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType, Collections.<IClass> emptySet()).isEmpty()
+                                                    && PointsToAnalysis.outputLevel >= 6) {
                         System.out.println("EXCEPTION (check thrown): " + e + "\n\t"
                                                         + PrettyPrinter.methodString(resolvedCallee) + " from "
                                                         + PrettyPrinter.methodString(getCode().getMethod())
                                                         + " filtered on " + PrettyPrinter.typeString(caughtType));
                     }
-                    return g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType));
-                } else if (cha.isAssignableFrom(thrown, caught)) {
+                    return g.addEdges(cb.formalNode,
+                                                    g.getPointsToSetFiltered(e, caughtType,
+                                                                                    Collections.<IClass> emptySet()));
+                } else if (TypeRepository.isAssignableFrom(thrown, caught, cha)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision (due to
                     // imprecision for exceptions thrown by native calls))
@@ -350,7 +359,7 @@ public abstract class CallStatement extends PointsToStatement {
         Set<TypeReference> throwTypes = TypeRepository.getThrowTypes(getCode().getMethod());
         for (TypeReference exType : throwTypes) {
             IClass exClass = cha.lookupClass(exType);
-            if (cha.isAssignableFrom(thrown, exClass)) {
+            if (TypeRepository.isAssignableFrom(thrown, exClass, cha)) {
                 // may fall under this throw type.
                 // exceptions are often not precisely typed
                 // TODO keep track of when they are not precise
@@ -358,7 +367,7 @@ public abstract class CallStatement extends PointsToStatement {
                 isRethrown = true;
                 break;
             }
-            if (cha.isAssignableFrom(exClass, thrown)) {
+            if (TypeRepository.isAssignableFrom(exClass, thrown, cha)) {
                 // does fall under this throw type.
                 isRethrown = true;
                 break;
@@ -370,7 +379,7 @@ public abstract class CallStatement extends PointsToStatement {
                                             + " may not be handled or rethrown.");
         }
 
-        if (cha.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangError), thrown)) {
+        if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangError), thrown, cha)) {
             // TODO Don't propagate errors
             return changed;
         }

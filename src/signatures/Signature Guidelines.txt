@@ -20,4 +20,5 @@ Gotchas:
 
 1. Don't use anonymous classes in signatures they will end up being replaced with anonymous classes from the "real" class
 2. If you "cast" or use "instanceof" with types from the signature library, the types will not be replaced.
-3. If you have fields with types from the signature library, these will not be replaced.
+3. Be careful with constructors, if you do not implement a default constructor, make sure there is not a no-arg 
+   constructor in the real class
