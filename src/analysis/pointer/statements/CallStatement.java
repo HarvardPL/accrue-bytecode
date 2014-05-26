@@ -236,6 +236,8 @@ public abstract class CallStatement extends PointsToStatement {
             // if (!util.getClassHierarchy().isAssignableFrom(
             // util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
             // util.getClassHierarchy().lookupClass(actual.getExpectedType()))) {
+            // System.err.println("CALLING: " + PrettyPrinter.methodString(resolvedCallee) + " FROM "
+            // + PrettyPrinter.methodString(getCode().getMethod()));
             // System.err.println("formal-" + i + "(" + PrettyPrinter.typeString(formalRep.getExpectedType())
             // + ") FROM " + actual.toString() + "("
             // + PrettyPrinter.typeString(actual.getExpectedType()) + ") FAILS");
@@ -396,13 +398,13 @@ public abstract class CallStatement extends PointsToStatement {
             }
         }
 
-        if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangError), thrown, cha)) {
+        if (TypeRepository.isAssignableFrom(util.getThrowableClass(), thrown, cha)) {
             // TODO Don't propagate errors, assume they propagate to the top level and kill the application
             // TODO should probably propagate user defined errors
             return changed;
         }
 
-        if (!isRethrown) {
+        if (!isRethrown && currentExType != util.getCloneNotSupportedExceptionClass()) {
             System.err.println("Exception of type " + PrettyPrinter.typeString(currentExType)
                                             + " may not be handled or rethrown. When calling: "
                                             + PrettyPrinter.methodString(resolvedCallee) + " from "

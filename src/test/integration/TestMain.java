@@ -22,8 +22,9 @@ import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
-import analysis.pointer.analyses.CallSiteSensitive;
+import analysis.pointer.analyses.CrossProduct;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.StaticCallSiteSensitive;
 import analysis.pointer.analyses.TypeSensitive;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
@@ -367,8 +368,10 @@ public class TestMain {
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraphOnline(
                                     WalaAnalysisUtil util, int outputLevel) {
 
-        HeapAbstractionFactory haf = new CallSiteSensitive(1);
-        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        // HeapAbstractionFactory haf = new CallSiteSensitive(1);
+        HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
+        HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf, util);
         PointsToAnalysis.outputLevel = outputLevel;
         RegistrationUtil online = new RegistrationUtil(util);

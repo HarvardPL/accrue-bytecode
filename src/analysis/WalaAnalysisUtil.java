@@ -14,6 +14,7 @@ import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
+import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -48,6 +49,18 @@ public class WalaAnalysisUtil {
      * WALA representation of the class for java.lang.Throwable
      */
     private final IClass throwableClass;
+    /**
+     * WALA representation of the class for java.lang.Error
+     */
+    private final IClass errorClass;
+    /**
+     * WALA representation of the class for java.lang.CloneNotSupportedException
+     */
+    private final TypeReference cloneNotSupportedType;
+    /**
+     * Class loader to use when looking up JDK classes
+     */
+    private static final ClassLoaderReference CLASS_LOADER = ClassLoaderReference.Primordial;
 
     /**
      * Create a pass which will generate points-to statements
@@ -82,6 +95,8 @@ public class WalaAnalysisUtil {
         stringClass = cha.lookupClass(TypeReference.JavaLangString);
         stringValueClass = cha.lookupClass(TypeReference.JavaLangObject);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
+        errorClass = cha.lookupClass(TypeReference.JavaLangError);
+        cloneNotSupportedType = TypeReference.findOrCreate(CLASS_LOADER, "Ljava/lang/CloneNotSupportedException");
     }
 
     /**
@@ -151,5 +166,13 @@ public class WalaAnalysisUtil {
 
     public IClass getThrowableClass() {
         return throwableClass;
+    }
+
+    public IClass getErrorClass() {
+        return errorClass;
+    }
+
+    public TypeReference getCloneNotSupportedExceptionClass() {
+        return cloneNotSupportedType;
     }
 }

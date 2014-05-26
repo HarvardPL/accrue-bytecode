@@ -32,21 +32,27 @@ public class CrossProduct extends HeapAbstractionFactory {
     }
 
     @Override
-    public InstanceKey record(AllocSiteNode allocationSite, Context context) {
-        InstanceKey ik1 = haf1.record(allocationSite, context);
-        InstanceKey ik2 = haf2.record(allocationSite, context);
+    public CrossProductInstanceKey record(AllocSiteNode allocationSite, Context context) {
+        InstanceKey ik1 = haf1.record(allocationSite, ((CrossProductContext) context).c1);
+        InstanceKey ik2 = haf2.record(allocationSite, ((CrossProductContext) context).c2);
         return memoize(new CrossProductInstanceKey(ik1, ik2), ik1, ik2);
     }
 
     @Override
-    public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        Context c1 = haf1.merge(callSite, receiver, callerContext);
-        Context c2 = haf2.merge(callSite, receiver, callerContext);
+    public CrossProductContext merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+        InstanceKey r1 = null;
+        InstanceKey r2 = null;
+        if (receiver != null) {
+            r1 = ((CrossProductInstanceKey) receiver).ik1;
+            r2 = ((CrossProductInstanceKey) receiver).ik2;
+        }
+        Context c1 = haf1.merge(callSite, r1, ((CrossProductContext) callerContext).c1);
+        Context c2 = haf2.merge(callSite, r2, ((CrossProductContext) callerContext).c2);
         return memoize(new CrossProductContext(c1, c2), c1, c2);
     }
 
     @Override
-    public Context initialContext() {
+    public CrossProductContext initialContext() {
         return initial;
     }
 
@@ -60,8 +66,8 @@ public class CrossProduct extends HeapAbstractionFactory {
      */
     private class CrossProductInstanceKey implements InstanceKey {
 
-        private final InstanceKey ik1;
-        private final InstanceKey ik2;
+        protected final InstanceKey ik1;
+        protected final InstanceKey ik2;
 
         public CrossProductInstanceKey(InstanceKey ik1, InstanceKey ik2) {
             this.ik1 = ik1;
@@ -90,8 +96,8 @@ public class CrossProduct extends HeapAbstractionFactory {
      */
     private class CrossProductContext implements Context {
 
-        private final Context c1;
-        private final Context c2;
+        protected final Context c1;
+        protected final Context c2;
 
         public CrossProductContext(Context c1, Context c2) {
             this.c1 = c1;
