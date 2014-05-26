@@ -246,7 +246,9 @@ public abstract class CallStatement extends PointsToStatement {
             // TypeInference.make(getCode(), true);
             // System.err.println("WTF");
             // }
-            Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formalRep.getExpectedType());
+
+            // Set<InstanceKey> actualHeapContexts = g.getPointsToSetFiltered(actual, formalRep.getExpectedType());
+            Set<InstanceKey> actualHeapContexts = g.getPointsToSet(actual);
 
             if (DEBUG && !actual.getExpectedType().isPrimitiveType() && actualHeapContexts.isEmpty()) {
                 System.err.println("ACTUAL: " + actual + "\n\t" + PrettyPrinter.methodString(resolvedCallee) + " from "
