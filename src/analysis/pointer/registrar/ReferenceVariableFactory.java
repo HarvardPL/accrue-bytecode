@@ -145,7 +145,7 @@ public class ReferenceVariableFactory {
         ReferenceVariable node = implicitThrows.get(key);
         if (node == null) {
             String name = ImplicitEx.fromType(type).toString();
-            if (StatementRegistrationPass.VERBOSE >= 1) {
+            if (RegistrationUtil.outputLevel >= 1) {
                 name = name + "(" + PrettyPrinter.instructionString(i, ir) + ")";
             }
             node = new ReferenceVariable(name, type, ir);

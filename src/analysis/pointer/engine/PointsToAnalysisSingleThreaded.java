@@ -12,6 +12,7 @@ import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.registrar.RegistrationUtil;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
@@ -35,7 +36,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private final Map<StmtAndContext, Integer> iterations = new HashMap<>();
 
-    public static boolean DEBUG = false;
+    /**
+     * If true then a debug pass will be run after the analysis reaches a fixed point
+     */
+    public static boolean DEBUG_SOLVED = false;
 
     /**
      * New pointer analysis engine
@@ -51,7 +55,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return solveSmarter(registrar);
+        return solveSmarter(registrar, null);
+    }
+
+    public PointsToGraph solveAndRegister(RegistrationUtil onlineRegistrar) {
+        StatementRegistrar registrar = onlineRegistrar.getRegistrar();
+        onlineRegistrar.registerMethod(util.getFakeRoot());
+        return solveSmarter(registrar, onlineRegistrar);
     }
 
     /**
@@ -85,9 +95,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * 
      * @param registrar
      *            points-to statement registrar
+     * @param pass
+     *            if non-null then this will be used to perform the statement registration together with the points-to
+     *            analysis or (if null) the statement registrar already contains all points-to statements
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(StatementRegistrar registrar) {
+    public PointsToGraph solveSmarter(StatementRegistrar registrar, RegistrationUtil online) {
         PointsToGraph g = new PointsToGraph(util, registrar, haf);
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
@@ -99,6 +112,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             for (Context c : g.getContexts(s.getCode().getMethod())) {
                 q.add(new StmtAndContext(s, c));
             }
+        }
+
+        System.err.println("INITIAL Q");
+        for (StmtAndContext sac : q) {
+            System.err.println("\t" + sac);
         }
 
         int numProcessed = 0;
@@ -126,6 +144,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     for (Context context : newContexts.get(m)) {
                         System.err.println("\t" + context);
                     }
+                }
+
+                if (online != null) {
+                    // Add statements for the given method to the registrar
+                    online.registerMethod(m);
                 }
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
@@ -165,12 +188,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             // Add dependencies to the queue
             for (PointsToGraphNode n : changedNodes) {
-                if (outputLevel >= 1 && !getDependencies(n).isEmpty()) {
-                    System.err.println("\tADDING:");
-                    for (StmtAndContext dep : getDependencies(n)) {
-                        System.err.println("\t\t" + dep);
-                    }
-                }
                 q.addAll(getDependencies(n));
             }
 
@@ -188,10 +205,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             System.err.println("****************************** CHECKING ******************************");
             PointsToGraph.DEBUG = true;
             PointsToStatement.DEBUG = true;
-            DEBUG = true;
+            DEBUG_SOLVED = true;
             processAllStatements(g, registrar);
         }
-
         return g;
     }
 
@@ -209,7 +225,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
-        if (i >= 100) {
+        if (i >= 90) {
             throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
         }
         return i;

@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Set;
 
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
@@ -278,30 +277,6 @@ public class StatementFactory {
                                     IR ir, SSAInstruction i) {
         NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, ir, i);
         checkForDuplicates(new StatementKey(exceptionAssignee, exceptionClass, ir, i), s);
-        return s;
-    }
-
-    /**
-     * Get a points-to statement representing the exit from a native method
-     * 
-     * @param summaryNode
-     *            Reference variable for the method exit summary node
-     * @param ir
-     *            code containing the native method invocation
-     * @param i
-     *            native method invocation
-     * @param exitClass
-     *            WALA representation of the the return type class
-     * @param exitType
-     *            whether this node is for exceptional or normal exit
-     * @param resolved
-     *            resolved method this is a node for
-     * @return a statement representing the (compiler-generated) allocation for a native method call
-     */
-    public static NewStatement newForNativeExit(ReferenceVariable summaryNode, IR ir, SSAInvokeInstruction i,
-                                    IClass exitClass, ExitType exitType, IMethod resolved) {
-        NewStatement s = new NewStatement(summaryNode, exitClass, ir, i, exitType, resolved);
-        checkForDuplicates(new StatementKey(summaryNode, exitClass, ir, i, exitType, resolved), s);
         return s;
     }
 
@@ -626,20 +601,6 @@ public class StatementFactory {
             this.key4 = key4;
             this.key5 = key5;
             this.key6 = null;
-            this.key7 = null;
-            this.key8 = null;
-            this.key9 = null;
-            this.key10 = null;
-            this.key11 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = key6;
             this.key7 = null;
             this.key8 = null;
             this.key9 = null;

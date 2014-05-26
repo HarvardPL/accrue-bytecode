@@ -63,11 +63,11 @@ public class AllocSiteNodeFactory {
         return n;
     }
 
-    protected static AllocSiteNode getAllocationNodeForNative(IClass allocatedClass, IClass allocatingClass,
-                                    SSAInvokeInstruction nativeInvoke, ExitType type, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, nativeInvoke, type, disambiguationKey);
+    public static AllocSiteNode getAllocationNodeForNative(IClass allocatedClass, IClass allocatingClass,
+                                    ExitType type, Object disambiguationKey) {
+        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, null, type, disambiguationKey);
         AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
-                                        allocatingClass, nativeInvoke);
+                                        allocatingClass, null);
         checkForDuplicates(key, n);
         return n;
     }
@@ -224,12 +224,7 @@ public class AllocSiteNodeFactory {
             this.containingClass = containingClass;
             this.allocatedClass = allocatedClass;
             this.allocatingInstruction = allocatingInstruction;
-            if (debugString == null) {
-                throw new RuntimeException("Need debug string");
-            }
-            if ("null".equals(debugString)) {
-                throw new RuntimeException("Weird debug string");
-            }
+            assert debugString != null;
         }
 
         @Override

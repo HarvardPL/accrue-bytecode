@@ -7,6 +7,7 @@ import java.io.IOException;
 public class UnixFileSystem extends FileSystem {
     private final char slash;
     private final char colon;
+    @SuppressWarnings("unused")
     private final String javaHome;
 
     public UnixFileSystem() {
@@ -15,6 +16,7 @@ public class UnixFileSystem extends FileSystem {
         javaHome = "JAVA_HOME";
     }
 
+    @SuppressWarnings({ "static-method", "unused" })
     private String canonicalize0(String path) throws IOException {
         if (path == null) {
             throw new IOException();
@@ -22,6 +24,7 @@ public class UnixFileSystem extends FileSystem {
         return path;
     }
 
+    @SuppressWarnings("static-method")
     public boolean checkAccess(File f, int access) {
         if (f == null || access == 42) {
             return false;
@@ -29,6 +32,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings("static-method")
     public boolean createFileExclusively(String path) {
         if (path == null) {
             return false;
@@ -36,6 +40,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings({ "static-method", "unused" })
     private boolean delete0(File f) {
         if (f == null) {
             return false;
@@ -43,6 +48,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings("static-method")
     public String[] list(File f) {
         if (f != null) {
             return new String[] { "foo", "bar", "baz" };
@@ -50,6 +56,7 @@ public class UnixFileSystem extends FileSystem {
         return new String[] {};
     }
 
+    @SuppressWarnings("static-method")
     public boolean createDirectory(File f) {
         if (f == null) {
             return false;
@@ -57,6 +64,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings({ "static-method", "unused" })
     private boolean rename0(File f1, File f2) {
         if (f1 == null || f2 == null) {
             return false;
@@ -64,6 +72,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings("static-method")
     public boolean setLastModifiedTime(File f, long time) {
         if (f == null || time == 0) {
             return false;
@@ -71,6 +80,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings("static-method")
     public boolean setReadOnly(File f) {
         if (f == null) {
             return false;
@@ -78,6 +88,7 @@ public class UnixFileSystem extends FileSystem {
         return true;
     }
 
+    @SuppressWarnings("static-method")
     public long getSpace(File f, int t) {
         if (f != null && t != 42) {
             return 0L;
@@ -85,6 +96,7 @@ public class UnixFileSystem extends FileSystem {
         return 42L;
     }
 
+    @SuppressWarnings("unused")
     private static void initIDs() {
         // intentional
     }

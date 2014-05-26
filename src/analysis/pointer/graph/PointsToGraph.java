@@ -209,16 +209,14 @@ public class PointsToGraph {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
             // TODO assuming we have a precise type could be dangerous
-            if (TypeRepository.isAssignableFrom(isClass, klass, cha)) {
-                if (areNotTypes) {
-                    assert notTypes != null;
-                    for (IClass notClass : notTypes) {
-                        if (TypeRepository.isAssignableFrom(notClass, klass, cha)) {
-                            // klass is a subclass of one of the classes we do
-                            // not want
-                            toRemove.add(k);
-                            break;
-                        }
+            if (areNotTypes && TypeRepository.isAssignableFrom(isClass, klass, cha)) {
+                assert notTypes != null;
+                for (IClass notClass : notTypes) {
+                    if (TypeRepository.isAssignableFrom(notClass, klass, cha)) {
+                        // klass is a subclass of one of the classes we do
+                        // not want
+                        toRemove.add(k);
+                        break;
                     }
                 }
             } else {

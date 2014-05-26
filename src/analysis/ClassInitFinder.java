@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.registrar.StatementRegistrationPass;
+import analysis.pointer.registrar.RegistrationUtil;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -59,7 +59,7 @@ public class ClassInitFinder {
             if (ins.isStatic()) {
                 IMethod callee = cha.resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
-                    if (StatementRegistrationPass.VERBOSE >= 2) {
+                    if (RegistrationUtil.outputLevel >= 2) {
                         System.err.println("Trying to get class initializer for " + i + " and could not resolve "
                                                         + PrettyPrinter.methodString(ins.getDeclaredTarget()));
                     }

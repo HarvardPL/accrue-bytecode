@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -9,12 +8,10 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
@@ -94,30 +91,6 @@ public class NewStatement extends PointsToStatement {
         this.result = result;
         alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(name, allocatedClass, ir.getMethod()
                                         .getDeclaringClass(), i, result);
-    }
-
-    /**
-     * Points-to graph statement for an allocation synthesized for the exit to a native method
-     * 
-     * @param result
-     *            the assignee of the new allocation
-     * @param newClass
-     *            Class being created
-     * @param cha
-     *            class hierarchy
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
-     * @param exitType
-     *            Type this node is for normal return or exceptional
-     */
-    protected NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSAInvokeInstruction i, ExitType exitType,
-                                    IMethod m) {
-        super(ir, i);
-        this.result = result;
-        alloc = AllocSiteNodeFactory.getAllocationNodeForNative(newClass, ir.getMethod().getDeclaringClass(), i,
-                                        exitType, m);
     }
 
     @Override

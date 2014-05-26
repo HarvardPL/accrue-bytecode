@@ -7,9 +7,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import signatures.Signatures;
 import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
+import analysis.dataflow.interprocedural.ExitType;
+import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -18,6 +21,7 @@ import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -46,7 +50,7 @@ public abstract class CallStatement extends PointsToStatement {
      */
     private final List<ReferenceVariable> actuals;
     /**
-     * Node for the assignee if any (i.e. v in v = foo())
+     * Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      */
     private final ReferenceVariable resultNode;
     /**
@@ -104,17 +108,18 @@ public abstract class CallStatement extends PointsToStatement {
      *            Heap context for the receiver
      * @param resolvedCallee
      *            Actual method being called
-     * @param calleeContext
-     *            Calling context for the callee
      * @param g
      *            points-to graph
      * @param registrar
      *            registrar for points-to statements
+     * @param haf
+     *            abstraction factory used for creating new context from existing
      * @return true if the points-to graph has changed
      */
-    protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
-                                    Context calleeContext, PointsToGraph g, StatementRegistrar registrar) {
+    protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee, PointsToGraph g, 
+                                    StatementRegistrar registrar, HeapAbstractionFactory haf) {
 
+        Context calleeContext = haf.merge(getCallSiteLabel(), receiver, callerContext);
         boolean changed = false;
         if (DEBUG && PointsToAnalysis.outputLevel >= 6) {
             System.err.println((resolvedCallee.isNative() ? "NATIVE CALL: " : "CALL: ")
@@ -130,7 +135,7 @@ public abstract class CallStatement extends PointsToStatement {
 
         changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
 
-        MethodSummaryNodes calleeSummary = registrar.getSummaryNodes(resolvedCallee);
+        MethodSummaryNodes calleeSummary = registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory);
 
         // ///////////////// Exceptions //////////////////
 
@@ -156,9 +161,9 @@ public abstract class CallStatement extends PointsToStatement {
         // If the result Node is null then either this is void return, there is
         // no assignment after the call, or the return type is not a reference
         ReferenceVariableReplica resultRep = null;
+
         if (resultNode != null) {
             resultRep = getReplica(callerContext, getResultNode());
-
             ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
                                             calleeSummary.getReturnNode());
 
@@ -170,10 +175,28 @@ public abstract class CallStatement extends PointsToStatement {
             changed |= g.addEdges(resultRep, g.getPointsToSet(returnValueFormal));
         }
 
-        if (resolvedCallee.isNative()) {
-            // Native methods don't have "this" and formal parameters in the
-            // callee to add edges from
-            // XXX signatures!
+        if (resolvedCallee.isNative() && !Signatures.hasSignature(resolvedCallee, util)) {
+            // Native methods without signatures don't have "this" and formal parameters in the callee to add edges from
+
+            // Generic signature by creating an edge from a generated "allocation" to the return and exception summary
+            // nodes
+            TypeReference retType = resolvedCallee.getReturnType();
+            if (!retType.isPrimitiveType()) {
+                ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
+                                                calleeSummary.getReturnNode());
+
+                AllocSiteNode normalRetAlloc = registrar.getExitNodeForNative(resolvedCallee, ExitType.NORMAL, util);
+                // TODO could use caller context here (and below) for more precision, but possible size blow-up
+                // The semantics would also be weird as the caller allocating the return value is a bit strange
+                InstanceKey k = haf.record(normalRetAlloc, calleeContext);
+                changed = g.addEdge(returnValueFormal, k);
+            }
+
+            // Exception
+            AllocSiteNode exRetAlloc = registrar.getExitNodeForNative(resolvedCallee, ExitType.EXCEPTIONAL, util);
+            InstanceKey exKey = haf.record(exRetAlloc, calleeContext);
+            changed = g.addEdge(calleeEx, exKey);
+
             return changed;
         }
 
@@ -366,26 +389,33 @@ public abstract class CallStatement extends PointsToStatement {
                 // (e.g. implicit exceptions are not precise)
                 isRethrown = true;
                 break;
-            }
-            if (TypeRepository.isAssignableFrom(exClass, thrown, cha)) {
+            } else if (TypeRepository.isAssignableFrom(exClass, thrown, cha)) {
                 // does fall under this throw type.
                 isRethrown = true;
                 break;
             }
         }
 
-        if (!isRethrown) {
-            throw new RuntimeException("Exception of type " + PrettyPrinter.typeString(currentExType)
-                                            + " may not be handled or rethrown.");
-        }
-
         if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangError), thrown, cha)) {
-            // TODO Don't propagate errors
+            // TODO Don't propagate errors, assume they propagate to the top level and kill the application
+            // TODO should probably propagate user defined errors
             return changed;
         }
 
+        if (!isRethrown) {
+            System.err.println("Exception of type " + PrettyPrinter.typeString(currentExType)
+                                            + " may not be handled or rethrown. When calling: "
+                                            + PrettyPrinter.methodString(resolvedCallee) + " from "
+                                            + PrettyPrinter.methodString(getCode().getMethod()));
+            // Assume it can be rethrown anyway, this is showing up for an anonymous inner class init when it calls
+            // super.<init>
+            // void java.util.jar.JarInputStream.<init>(java.io.InputStream) from
+            // void sun.jkernel.Bundle$2.<init>(sun.jkernel.Bundle, java.io.InputStream)
+            // TODO not sure why the inner class does not inherit the outer's declared exceptions
+        }
+
         // add edge if this exception can be rethrown
-        MethodSummaryNodes callerSummary = registrar.getSummaryNodes(getCode().getMethod());
+        MethodSummaryNodes callerSummary = registrar.findOrCreateMethodSummary(getCode().getMethod(), rvFactory);
         ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
                                         callerSummary.getException());
 

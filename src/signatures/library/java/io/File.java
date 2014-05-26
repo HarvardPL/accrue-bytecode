@@ -8,5 +8,6 @@ public class File {
     public static final String separator = "" + separatorChar;
     public static final char pathSeparatorChar = fs.getPathSeparator();
     public static final String pathSeparator = "" + pathSeparatorChar;
+    @SuppressWarnings("unused")
     private static final long serialVersionUID = 301077366599181567L;
 }

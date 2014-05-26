@@ -4,6 +4,7 @@ import java.util.Iterator;
 
 import signatures.Signatures;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
@@ -13,6 +14,7 @@ import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Global instances of WALA classes and global constants
@@ -34,6 +36,18 @@ public class WalaAnalysisUtil {
      * WALA's fake root method (calls the entry points)
      */
     private final FakeRootMethod fakeRoot;
+    /**
+     * WALA representation of java.lang.String
+     */
+    private final IClass stringClass;
+    /**
+     * WALA representation of the class for the value field of a string
+     */
+    private final IClass stringValueClass;
+    /**
+     * WALA representation of the class for java.lang.Throwable
+     */
+    private final IClass throwableClass;
 
     /**
      * Create a pass which will generate points-to statements
@@ -65,6 +79,9 @@ public class WalaAnalysisUtil {
         // could have an exception edge and normal edge from the same basic
         // block.
         fakeRoot.addReturn(-1, false);
+        stringClass = cha.lookupClass(TypeReference.JavaLangString);
+        stringValueClass = cha.lookupClass(TypeReference.JavaLangObject);
+        throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
     }
 
     /**
@@ -116,6 +133,23 @@ public class WalaAnalysisUtil {
             return sigIR;
         }
 
+        if (resolvedMethod.isNative()) {
+            // Native method with no signature
+            return null;
+        }
+
         return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+    }
+
+    public IClass getStringClass() {
+        return stringClass;
+    }
+
+    public IClass getStringValueClass() {
+        return stringValueClass;
+    }
+
+    public IClass getThrowableClass() {
+        return throwableClass;
     }
 }

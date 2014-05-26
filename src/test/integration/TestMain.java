@@ -22,6 +22,7 @@ import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
+import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.TypeSensitive;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -30,6 +31,7 @@ import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.registrar.RegistrationUtil;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
@@ -118,6 +120,28 @@ public class TestMain {
                 System.err.println(g.getAllHContexts().size() + " HContexts");
 
                 int numNodes = 0;
+                for (@SuppressWarnings("unused")
+                CGNode n : g.getCallGraph()) {
+                    numNodes++;
+                }
+                System.err.println(numNodes + " CGNodes");
+                break;
+            case "pointsto2":
+                util = setUpWala(entryPoint);
+                results = generatePointsToGraphOnline(util, outputLevel);
+                g = results.fst();
+                g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+                ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
+
+                System.err.println(g.getNodes().size() + " Nodes");
+                num = 0;
+                for (PointsToGraphNode n : g.getNodes()) {
+                    num += g.getPointsToSet(n).size();
+                }
+                System.err.println(num + " Edges");
+                System.err.println(g.getAllHContexts().size() + " HContexts");
+
+                numNodes = 0;
                 for (@SuppressWarnings("unused")
                 CGNode n : g.getCallGraph()) {
                     numNodes++;
@@ -307,15 +331,9 @@ public class TestMain {
                                     int outputLevel) {
 
         // Gather all the points-to statements
+        StatementRegistrationPass.outputLevel = outputLevel;
         StatementRegistrationPass pass = new StatementRegistrationPass(util);
-        StatementRegistrationPass.VERBOSE = outputLevel;
         pass.run();
-        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
-        if (outputLevel >= 2) {
-            for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
-            }
-        }
         StatementRegistrar registrar = pass.getRegistrar();
         ReferenceVariableCache rvCache = pass.getAllLocals();
 
@@ -324,8 +342,49 @@ public class TestMain {
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf, util);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
+
+        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        if (outputLevel >= 2) {
+            for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
+                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+            }
+        }
         System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
+
+        return new OrderedPair<>(g, rvCache);
+    }
+
+    /**
+     * Generate the full points-to graph, print statistics, and save it to a file.
+     * 
+     * @param util
+     *            utility objects from WALA
+     * @param outputLevel
+     *            print level
+     * @return the resulting points-to graph
+     */
+    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraphOnline(
+                                    WalaAnalysisUtil util, int outputLevel) {
+
+        HeapAbstractionFactory haf = new CallSiteSensitive(1);
+        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf, util);
+        PointsToAnalysis.outputLevel = outputLevel;
+        RegistrationUtil online = new RegistrationUtil(util);
+        RegistrationUtil.outputLevel = outputLevel;
+        PointsToGraph g = analysis.solveAndRegister(online);
+
+        System.out.println("Registered statements: " + online.getRegistrar().getAllStatements().size());
+        if (outputLevel >= 2) {
+            for (PointsToStatement s : online.getRegistrar().getAllStatements()) {
+                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+            }
+        }
+        System.err.println(g.getNodes().size() + " PTG nodes.");
+        System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
+
+        ReferenceVariableCache rvCache = online.getAllLocals();
         return new OrderedPair<>(g, rvCache);
     }
 

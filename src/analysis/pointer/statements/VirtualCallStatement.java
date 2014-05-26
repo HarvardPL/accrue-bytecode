@@ -68,6 +68,8 @@ public class VirtualCallStatement extends CallStatement {
                                     ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir,
                                     SSAInvokeInstruction i, WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
         super(callSite, actuals, resultNode, exceptionNode, ir, i, util, rvFactory);
+        assert receiver != null;
+        assert callee != null;
         this.callee = callee;
         this.cha = cha;
         this.receiver = receiver;
@@ -106,9 +108,7 @@ public class VirtualCallStatement extends CallStatement {
             // If we wanted to be very robust, check to make sure that
             // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
-
-            Context calleeContext = haf.merge(getCallSiteLabel(), recHeapContext, context);
-            changed |= processCall(context, recHeapContext, resolvedCallee, calleeContext, g, registrar);
+            changed |= processCall(context, recHeapContext, resolvedCallee, g, registrar, haf);
         }
         return changed;
     }

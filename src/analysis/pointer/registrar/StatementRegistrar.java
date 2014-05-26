@@ -2,6 +2,7 @@ package analysis.pointer.registrar;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -11,12 +12,15 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.AllocSiteNodeFactory;
+import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
@@ -67,11 +71,20 @@ public class StatementRegistrar {
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final Map<IMethod, Set<PointsToStatement>> statementsForMethod;
+    /**
+     * String literals that new allocation sites have already been created for
+     */
+    private final Set<ReferenceVariable> handledStringLit = new HashSet<>();
+    /**
+     * Generated allocation nodes for native methods with no signature
+     */
+    private final Map<OrderedPair<IMethod, ExitType>, AllocSiteNode> nativeAllocs;
 
     public StatementRegistrar() {
         statements = new LinkedHashSet<>();
         methods = new LinkedHashMap<>();
         statementsForMethod = new HashMap<>();
+        nativeAllocs = new HashMap<>();
     }
 
     /**
@@ -252,29 +265,36 @@ public class StatementRegistrar {
         if (!i.isStatic() && !ir.getSymbolTable().isNullConstant(i.getReceiver())) {
             receiver = rvFactory.getOrCreateLocal(i.getReceiver(), ir);
         }
-
-        Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
-        if (resolvedMethods.isEmpty()) {
-            if (StatementRegistrationPass.VERBOSE >= 2) {
+        if (RegistrationUtil.outputLevel >= 2) {
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
+            if (resolvedMethods.isEmpty()) {
                 System.err.println("No resolved methods for " + PrettyPrinter.instructionString(i, ir) + " method: "
                                                 + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
                                                 + PrettyPrinter.methodString(ir.getMethod()));
             }
-            return;
         }
 
         if (i.isStatic()) {
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(StatementFactory.staticCall(i.getCallSite(), resolvedMethod, actuals, resultNode,
                                             exceptionNode, ir, i, util, rvFactory));
         } else if (i.isSpecial()) {
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(StatementFactory.specialCall(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
                                             exceptionNode, ir, i, util, rvFactory));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
+            if (ir.getSymbolTable().isNullConstant(i.getReceiver())) {
+                // Similar to the check above sometimes the receiver is a null constant
+                // This is usually due to something like <code>o = null; if (o != null) { o.foo() }</code>,
+                // note that the o.foo() is dead code
+                // see SocketAdapter$SocketInputStream.read(ByteBuffer), the call to sk.cancel() near the end
+                return;
+            }
             addStatement(StatementFactory.virtualCall(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
                                             resultNode, exceptionNode, util.getClassHierarchy(), ir, i, util, rvFactory));
         } else {
@@ -331,8 +351,7 @@ public class StatementRegistrar {
      * @param classHierarchy
      *            WALA class hierarchy
      */
-    protected void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha,
- ReferenceVariableFactory rvFactory) {
+    protected void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), ir);
 
@@ -409,7 +428,8 @@ public class StatementRegistrar {
             return;
         }
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getResult(), ir);
-        ReferenceVariable summary = methods.get(ir.getMethod()).getReturnNode();
+        MethodSummaryNodes summaryNodes = findOrCreateMethodSummary(ir.getMethod(), rvFactory);
+        ReferenceVariable summary = summaryNodes.getReturnNode();
         addStatement(StatementFactory.returnStatement(result, summary, ir, i));
     }
 
@@ -427,27 +447,19 @@ public class StatementRegistrar {
     }
 
     /**
-     * Register a new method
+     * Get the method summary nodes for the given method, create if necessary
      * 
      * @param method
      *            new method
-     * @param summary
-     *            nodes for formals and returns
+     * @param rvFactory
+     *            factory for creating new reference variables (if necessary)
      */
-    protected void recordMethod(IMethod method, MethodSummaryNodes summary) {
-        methods.put(method, summary);
-    }
-
-    /**
-     * Get the formal and return nodes for the given method
-     * 
-     * @param resolvedCallee
-     *            signature of the method to get the summary for
-     * @return summary nodes for the given method
-     */
-    public MethodSummaryNodes getSummaryNodes(IMethod resolvedCallee) {
-        MethodSummaryNodes msn = methods.get(resolvedCallee);
-        assert (msn != null) : "Missing method summary " + resolvedCallee;
+    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method, ReferenceVariableFactory rvFactory) {
+        MethodSummaryNodes msn = methods.get(method);
+        if (msn == null) {
+            msn = new MethodSummaryNodes(method, rvFactory);
+            methods.put(method, msn);
+        }
         return msn;
     }
 
@@ -466,7 +478,7 @@ public class StatementRegistrar {
      * @param entryPoint
      *            entry point for the analyzed code
      */
-    protected void setEntryPoint(IMethod entryPoint) {
+    public void setEntryPoint(IMethod entryPoint) {
         this.entryPoint = entryPoint;
     }
 
@@ -559,36 +571,6 @@ public class StatementRegistrar {
     }
 
     /**
-     * Add a new statement to the registrar
-     * 
-     * @param s
-     *            statement to add
-     * @param nativeMethod
-     *            method we are adding the statement for
-     */
-    private void addStatementForNative(PointsToStatement s, IMethod nativeMethod) {
-        assert !statements.contains(s) : "STATEMENT: " + s + " was already added";
-        statements.add(s);
-        Set<PointsToStatement> ss = statementsForMethod.get(nativeMethod);
-        if (ss == null) {
-            ss = new LinkedHashSet<>();
-            statementsForMethod.put(nativeMethod, ss);
-        }
-        ss.add(s);
-        if (statements.size() % 500000 == 0) {
-            System.err.println(statements.size() + " statements");
-            // if (StatementRegistrationPass.PROFILE) {
-            // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
-            // try {
-            // System.in.read();
-            // } catch (IOException e) {
-            // e.printStackTrace();
-            // }
-            // }
-        }
-    }
-
-    /**
      * Get all the statements for a particular method
      * 
      * @param m
@@ -601,7 +583,42 @@ public class StatementRegistrar {
             return ret;
 
         }
+        // if (!PrettyPrinter.methodString(m).contains("java.lang.Object.<init>()") && !m.isNative()) {
+        // System.err.println("NO STATEMENTS FOUND FOR: " + PrettyPrinter.methodString(m));
+        // }
         return Collections.emptySet();
+    }
+
+    /**
+     * Look for String literals in the instruction and create allocation sites for them
+     * 
+     * @param i
+     *            instruction to create string literals for
+     * @param ir
+     *            code containing the instruction
+     * @param stringClass
+     *            WALA representation of the java.lang.String class
+     */
+    protected void addStatementsForStringLiterals(SSAInstruction i, IR ir, IClass stringClass, IClass stringValueClass,
+                                    ReferenceVariableFactory rvFactory) {
+        for (int j = 0; j < i.getNumberOfUses(); j++) {
+            int use = i.getUse(j);
+            if (ir.getSymbolTable().isStringConstant(use)) {
+                ReferenceVariable newStringLit = rvFactory.getOrCreateLocal(use, ir);
+                if (handledStringLit.contains(newStringLit)) {
+                    // Already handled this allocation
+                    return;
+                }
+                handledStringLit.add(newStringLit);
+
+                // The fake root method always allocates a String so the clinit has already been called, even if we are
+                // flow sensitive
+
+                // add points to statements to simulate the allocation
+                addStatementsForStringLit(newStringLit, use, ir, i, stringClass, stringValueClass, rvFactory);
+            }
+        }
+
     }
 
     /**
@@ -620,7 +637,7 @@ public class StatementRegistrar {
      * @param stringValueClass
      *            representation of the byte array type
      */
-    protected void addStatementsForStringLit(ReferenceVariable stringLit, int local, IR ir, SSAInstruction i,
+    private void addStatementsForStringLit(ReferenceVariable stringLit, int local, IR ir, SSAInstruction i,
                                     IClass stringClass, IClass stringValueClass, ReferenceVariableFactory rvFactory) {
         // v = new String
         addStatement(StatementFactory.newForStringLiteral(stringLit, ir, i, stringClass));
@@ -675,53 +692,41 @@ public class StatementRegistrar {
                 }
             } else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
-                caught = getSummaryNodes(ir.getMethod()).getException();
+                caught = findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
             }
             addStatement(StatementFactory.exceptionAssignment(thrown, caught, i, ir, notType));
         }
     }
 
     /**
-     * Add points-to statements using a simple signature for native methods, where the return value and exception are
-     * newly allocated objects.
-     * <p>
-     * this is unsound if the method modifies an input, returns an input, or has heap side effects
+     * Get the generated allocation node for the class returned (or thrown) by a native method with no signature
      * 
-     * @param m
+     * @param resolvedNative
      *            native method
-     * @param summaryNodes
-     *            Method summary nodes for the
-     * @param ir
-     *            IR containing the invocation
-     * @param nativeCall
-     *            invocation of the native method
-     * @param cha
-     *            class hierarchy
+     * @param type
+     *            normal or exceptional exit
+     * @param util
+     *            utility (used to lookup classes)
+     * @return generated allocation site for the exit value to a native method with no signatures
      */
-    protected void addStatementsForNative(IMethod m, MethodSummaryNodes summaryNodes, IR ir,
-                                    SSAInvokeInstruction nativeCall, IClassHierarchy cha) {
-
-        TypeReference returnType = m.getReturnType();
-        if (!returnType.isPrimitiveType()) {
-            // Add a new allocation for the return and an assignment into the
-            // method summary return node
-            IClass returnClass = cha.lookupClass(m.getReturnType());
-            addStatementForNative(StatementFactory.newForNativeExit(summaryNodes.getReturnNode(), ir, nativeCall,
-                                            returnClass, ExitType.NORMAL, m), m);
+    public AllocSiteNode getExitNodeForNative(IMethod resolvedNative, ExitType type, WalaAnalysisUtil util) {
+        OrderedPair<IMethod, ExitType> key = new OrderedPair<>(resolvedNative, type);
+        AllocSiteNode n = nativeAllocs.get(key);
+        if (n == null) {
+            // Use the declaring class as the allocator
+            IClass allocatingClass = resolvedNative.getDeclaringClass();
+            IClass allocatedClass;
+            if (type == ExitType.NORMAL) {
+                TypeReference retType = resolvedNative.getReturnType();
+                assert !retType.isPrimitiveType() : "Primitive return: " + PrettyPrinter.methodString(resolvedNative);
+                allocatedClass = util.getClassHierarchy().lookupClass(retType);
+            } else {
+                allocatedClass = util.getThrowableClass();
+            }
+            n = AllocSiteNodeFactory.getAllocationNodeForNative(allocatedClass, allocatingClass, type, resolvedNative);
+            nativeAllocs.put(key, n);
         }
-
-        // Add a new allocation for the exception and an assignment into the
-        // method summary exception node
-        IClass exClass = cha.lookupClass(TypeReference.JavaLangThrowable);
-        addStatementForNative(StatementFactory.newForNativeExit(summaryNodes.getException(), ir, nativeCall, exClass,
-                                        ExitType.EXCEPTIONAL, m), m);
-
-        // TODO for native could maybe add pointer from the formals to the
-        // return if the types line up would then need to add local to local for
-        // the formals
-
-        // TODO for native how can we simulate a call to the <init> for the
-        // newly allocated object?
+        return n;
     }
 
     /**

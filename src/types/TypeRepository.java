@@ -110,6 +110,10 @@ public class TypeRepository {
      */
     public static boolean isAssignableFrom(IClass c1, IClass c2, IClassHierarchy cha) {
         OrderedPair<IClass, IClass> key = new OrderedPair<>(c1, c2);
+        // count++;
+        // if (count % 10000000 == 0) {
+        // System.err.println("SIZE: " + isAssignable.size() + " COUNT: " + count);
+        // }
         Boolean res = isAssignable.get(key);
         if (res == null) {
             res = cha.isAssignableFrom(c1, c2);
@@ -167,7 +171,6 @@ public class TypeRepository {
 
             // All methods can throw RuntimException or Error
             et.add(TypeReference.JavaLangRuntimeException);
-            et.add(TypeReference.JavaLangError);
             if (m instanceof FakeRootMethod) {
                 // The top level doesn't declare anything, but can throw
                 // anything main can

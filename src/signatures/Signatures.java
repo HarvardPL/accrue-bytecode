@@ -8,7 +8,7 @@ import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.pointer.registrar.StatementRegistrationPass;
+import analysis.pointer.registrar.RegistrationUtil;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -55,7 +55,26 @@ public class Signatures {
     /**
      * Flag for printing debug messages
      */
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
+
+    /**
+     * Check whether the given method has a signature
+     * 
+     * @param actualMethod
+     *            method to check
+     * @param util
+     *            Utility functions for getting IR and resolving methods and classes
+     * @return true if a signature exists for the given method
+     */
+    public static boolean hasSignature(IMethod actualMethod, WalaAnalysisUtil util) {
+        if (signatures.containsKey(actualMethod)) {
+            return signatures.get(actualMethod) != null;
+        }
+
+        // Try to compute the signature and see if there is one.
+        // If there is it will be memoized so this is not wasted work.
+        return getSignatureIR(actualMethod, util) != null;
+    }
 
     /**
      * Get the IR for a method that has a signature
@@ -93,8 +112,8 @@ public class Signatures {
 
         IR sigIR = util.getIR(resolvedSig);
         IR newIR = rewriteIR(sigIR, actualMethod, util.getClassHierarchy());
-        if (StatementRegistrationPass.VERBOSE >= 2) {
-            System.err.println("SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
+        if (newIR != null) {
+            System.err.println("USING SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
         }
         signatures.put(actualMethod, newIR);
         return newIR;
@@ -241,13 +260,13 @@ public class Signatures {
                     // The field exists on the real type use it to create a new instruction
                     if (i.isStatic()) {
                         SSAInstruction ii = I_FACTORY.GetInstruction(i.getDef(), newFR);
-                        if (StatementRegistrationPass.VERBOSE >= 5) {
+                        if (RegistrationUtil.outputLevel >= 5) {
                             System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                         }
                         return ii;
                     }
                     SSAInstruction ii = I_FACTORY.GetInstruction(i.getDef(), i.getRef(), newFR);
-                    if (StatementRegistrationPass.VERBOSE >= 5) {
+                    if (RegistrationUtil.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
                     return ii;
@@ -300,7 +319,7 @@ public class Signatures {
                     }
                     int returnValue = i.getNumberOfReturnValues() > 0 ? i.getDef() : -1;
                     SSAInstruction ii = I_FACTORY.InvokeInstruction(returnValue, params, i.getException(), newSite);
-                    if (StatementRegistrationPass.VERBOSE >= 5) {
+                    if (RegistrationUtil.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
                     return ii;
@@ -337,13 +356,13 @@ public class Signatures {
                     // The field exists on the real type use it to create a new put instruction
                     if (i.isStatic()) {
                         SSAInstruction ii = I_FACTORY.PutInstruction(i.getVal(), newFR);
-                        if (StatementRegistrationPass.VERBOSE >= 5) {
+                        if (RegistrationUtil.outputLevel >= 5) {
                             System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                         }
                         return ii;
                     }
                     SSAInstruction ii = I_FACTORY.PutInstruction(i.getRef(), i.getVal(), newFR);
-                    if (StatementRegistrationPass.VERBOSE >= 5) {
+                    if (RegistrationUtil.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
                     return ii;
@@ -374,7 +393,7 @@ public class Signatures {
                 NewSiteReference site = i.getNewSite();
                 NewSiteReference newSite = new NewSiteReference(site.getProgramCounter(), real);
                 SSAInstruction ii = I_FACTORY.NewInstruction(i.getDef(), newSite);
-                if (StatementRegistrationPass.VERBOSE >= 5) {
+                if (RegistrationUtil.outputLevel >= 5) {
                     System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                 }
                 return ii;
@@ -400,7 +419,7 @@ public class Signatures {
         // This is an allocation of an object in the signatures package
         // Check to see if there is a "real" object out there the signature object is emulating.
         String typeToCheck = signatureType.getName().toString().replace("Lsignatures/library/", "L");
-        if (StatementRegistrationPass.VERBOSE >= 5) {
+        if (RegistrationUtil.outputLevel >= 5) {
             System.err.println("SIGNATURE LOOKING: " + typeToCheck);
         }
         TypeReference potentialMatch = TypeReference.findOrCreate(CLASS_LOADER, typeToCheck);
@@ -408,7 +427,7 @@ public class Signatures {
         if (klass == null) {
             return null;
         }
-        if (StatementRegistrationPass.VERBOSE >= 5) {
+        if (RegistrationUtil.outputLevel >= 5) {
             System.err.println("SIGNATURE FOUND: " + klass);
         }
         return klass.getReference();
