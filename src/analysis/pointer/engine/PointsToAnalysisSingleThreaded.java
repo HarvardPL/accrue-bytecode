@@ -191,7 +191,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 q.addAll(getDependencies(n));
             }
 
-            if (numProcessed % 10000 == 0) {
+            if (numProcessed % 100000 == 0) {
                 System.err.println("PROCESSED: " + numProcessed + " in " + (System.currentTimeMillis() - startTime)
                                                 / 1000 + "s");
             }

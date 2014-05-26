@@ -369,9 +369,13 @@ public class TestMain {
                                     WalaAnalysisUtil util, int outputLevel) {
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
+
         HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
         HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
         HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
+
+        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf, util);
         PointsToAnalysis.outputLevel = outputLevel;
         RegistrationUtil online = new RegistrationUtil(util);
