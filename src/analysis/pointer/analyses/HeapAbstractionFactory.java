@@ -52,6 +52,9 @@ public abstract class HeapAbstractionFactory {
      */
     public abstract Context initialContext();
 
+    @Override
+    public abstract String toString();
+
     /**********
      * Memoization
      **********/

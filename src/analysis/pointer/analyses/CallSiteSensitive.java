@@ -21,14 +21,16 @@ public class CallSiteSensitive extends HeapAbstractionFactory {
     private final int sensitivity;
 
     /**
-     * Create a call site sensitive heap abstraction factory with the default depth
+     * Create a call site sensitive heap abstraction factory with the default depth, i.e. up to the default number of
+     * call sites are tracked
      */
     public CallSiteSensitive() {
         this(DEFAULT_SENSITIVITY);
     }
 
     /**
-     * Create a call site sensitive heap abstraction factory with the given depth
+     * Create a call site sensitive heap abstraction factory with the given depth, i.e. up to depth call sites are
+     * tracked
      * 
      * @param sensitivity
      *            depth of the call site stack
@@ -39,7 +41,11 @@ public class CallSiteSensitive extends HeapAbstractionFactory {
 
     @Override
     public String toString() {
-        return "Context(" + this.sensitivity + ")";
+        return "cs(" + this.sensitivity + ")";
+    }
+
+    public int getSensitivity() {
+        return sensitivity;
     }
 
     @SuppressWarnings("unchecked")
