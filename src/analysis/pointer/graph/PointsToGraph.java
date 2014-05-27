@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.text.SimpleDateFormat;
+import java.util.AbstractSet;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -14,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import types.TypeRepository;
@@ -150,6 +152,11 @@ public class PointsToGraph {
             return s;
         }
 
+        // ANDREW: add stuff here
+        if (false) {
+            return new FilteredSet(s, type, cha);
+        }
+
         Iterator<InstanceKey> i = s.iterator();
         Set<InstanceKey> toRemove = new HashSet<>();
         while (i.hasNext()) {
@@ -198,6 +205,11 @@ public class PointsToGraph {
         Set<InstanceKey> s = getPointsToSet(node);
         if (s.isEmpty()) {
             return s;
+        }
+
+        // ANDREW: add stuff here
+        if (false) {
+            return new FilteredSet(s, isType, notTypes, cha);
         }
 
         boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
@@ -499,5 +511,104 @@ public class PointsToGraph {
         // Should always be true
         assert cgChanged : "Reached the end of the loop without adding any clinits " + classInits;
         return cgChanged;
+    }
+
+    private static class FilteredSet extends AbstractSet<InstanceKey> implements Set<InstanceKey> {
+        final Set<InstanceKey> s;
+        final IClass isType;
+        final Set<IClass> notTypes;
+        private final IClassHierarchy cha;
+
+        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes, IClassHierarchy cha) {
+            this.s = s;
+            this.isType = cha.lookupClass(isType);
+            this.notTypes = notTypes.isEmpty() ? null : notTypes;
+            this.cha = cha;
+        }
+
+        FilteredSet(Set<InstanceKey> s, TypeReference isType, IClassHierarchy cha) {
+            this.s = s;
+            this.isType = cha.lookupClass(isType);
+            this.notTypes = null;
+            this.cha = cha;
+        }
+
+        @Override
+        public Iterator<InstanceKey> iterator() {
+            return new FilteredIterator(s.iterator());
+        }
+
+        boolean satisfiesFilters(InstanceKey o) {
+            if (isAssignableFrom(isType, o.getConcreteType())) {
+                if (notTypes != null) {
+                    for (IClass nt : notTypes) {
+                        if (isAssignableFrom(nt, o.getConcreteType())) {
+                            // it's assignable from a not type...
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return s.contains(o) && satisfiesFilters((InstanceKey) o);
+        }
+
+        private boolean isAssignableFrom(IClass c1, IClass c2) {
+            if (notTypes == null) {
+                return cha.isAssignableFrom(c1, c2);
+            }
+            // use caching version instead, since notTypes are
+            // used for exceptions, and it's worth caching them.
+            return TypeRepository.isAssignableFrom(c1, c2, cha);
+        }
+
+        @Override
+        public int size() {
+            throw new UnsupportedOperationException();
+        }
+
+        class FilteredIterator implements Iterator<InstanceKey> {
+            final Iterator<InstanceKey> iter;
+            InstanceKey next = null;
+
+            FilteredIterator(Iterator<InstanceKey> iter) {
+                this.iter = iter;
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (next != null) {
+                    return true;
+                }
+                while (iter.hasNext()) {
+                    InstanceKey ik = iter.next();
+                    if (satisfiesFilters(ik)) {
+                        this.next = ik;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public InstanceKey next() {
+                if (hasNext()) {
+                    InstanceKey ik = this.next;
+                    this.next = null;
+                    return ik;
+                }
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        }
     }
 }
