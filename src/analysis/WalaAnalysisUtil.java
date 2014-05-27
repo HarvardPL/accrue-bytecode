@@ -12,6 +12,7 @@ import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
@@ -152,8 +153,13 @@ public class WalaAnalysisUtil {
             // Native method with no signature
             return null;
         }
-
+        // Context insensitive IR meaning the same IR in every context
         return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+    }
+
+    public DefUse getDefUse(IMethod m) {
+        // Context insensitive DefUse meaning the same DefUse in every context
+        return cache.getSSACache().findOrCreateDU(m, Everywhere.EVERYWHERE, options.getSSAOptions());
     }
 
     public IClass getStringClass() {
