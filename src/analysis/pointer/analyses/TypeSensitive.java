@@ -67,7 +67,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
         }
 
         AllocationName<ContextStack<ClassWrapper>> rec = (AllocationName<ContextStack<ClassWrapper>>) receiver;
-        return rec.getContext().push(new ClassWrapper(receiver.getConcreteType()), n);
+        return rec.getContext().push(new ClassWrapper(rec.getAllocationSite().getContainingClass()), n);
     }
 
     @SuppressWarnings("unchecked")

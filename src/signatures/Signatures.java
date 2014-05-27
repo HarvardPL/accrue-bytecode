@@ -168,7 +168,6 @@ public class Signatures {
             CFGWriter.writeToFile(sigIR, "sig_" + PrettyPrinter.methodString(sigIR.getMethod()));
         }
         // does not include phi instructions, but these do not need to be converted
-        @SuppressWarnings("deprecation")
         SSAInstruction[] allInstructions = sigIR.getInstructions();
         SSAInstruction updated;
         for (int j = 0; j < allInstructions.length; j++) {

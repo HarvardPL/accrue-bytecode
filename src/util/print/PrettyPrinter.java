@@ -583,7 +583,6 @@ public class PrettyPrinter {
      * @return the name
      */
     private String getActualName(int valNum) {
-        @SuppressWarnings("deprecation")
         int lastInstructionNum = ir.getInstructions().length - 1;
         String[] justForDebug = ir.getLocalNames(lastInstructionNum, valNum);
         if (justForDebug == null) {
