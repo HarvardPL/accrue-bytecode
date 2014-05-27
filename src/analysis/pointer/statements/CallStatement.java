@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -11,7 +10,6 @@ import signatures.Signatures;
 import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
-import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
@@ -116,7 +114,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            abstraction factory used for creating new context from existing
      * @return true if the points-to graph has changed
      */
-    protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee, PointsToGraph g, 
+    protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee, PointsToGraph g,
                                     StatementRegistrar registrar, HeapAbstractionFactory haf) {
 
         Context calleeContext = haf.merge(getCallSiteLabel(), receiver, callerContext);
@@ -175,6 +173,8 @@ public abstract class CallStatement extends PointsToStatement {
             changed |= g.addEdges(resultRep, g.getPointsToSet(returnValueFormal));
         }
 
+        // ////////////////// Native with no signature //////////////////
+
         if (resolvedCallee.isNative() && !Signatures.hasSignature(resolvedCallee, util)) {
             // Native methods without signatures don't have "this" and formal parameters in the callee to add edges from
 
@@ -185,17 +185,20 @@ public abstract class CallStatement extends PointsToStatement {
                 ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
                                                 calleeSummary.getReturnNode());
 
-                AllocSiteNode normalRetAlloc = registrar.getExitNodeForNative(resolvedCallee, ExitType.NORMAL, util);
+                AllocSiteNode normalRetAlloc = registrar.getReturnNodeForNative(resolvedCallee, util);
                 // TODO could use caller context here (and below) for more precision, but possible size blow-up
                 // The semantics would also be weird as the caller allocating the return value is a bit strange
                 InstanceKey k = haf.record(normalRetAlloc, calleeContext);
                 changed = g.addEdge(returnValueFormal, k);
             }
 
-            // Exception
-            AllocSiteNode exRetAlloc = registrar.getExitNodeForNative(resolvedCallee, ExitType.EXCEPTIONAL, util);
-            InstanceKey exKey = haf.record(exRetAlloc, calleeContext);
-            changed = g.addEdge(calleeEx, exKey);
+            // Synthetic allocations for thrown exceptions
+            for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
+
+                AllocSiteNode exRetAlloc = registrar.getExceptionNodeForNative(resolvedCallee, exType, util);
+                InstanceKey exKey = haf.record(exRetAlloc, calleeContext);
+                changed = g.addEdge(calleeEx, exKey);
+            }
 
             return changed;
         }
@@ -349,36 +352,24 @@ public abstract class CallStatement extends PointsToStatement {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
                 if (TypeRepository.isAssignableFrom(caught, thrown, cha)) {
-                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType, Collections.<IClass> emptySet()).isEmpty()
+                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType, alreadyCaught).isEmpty()
                                                     && PointsToAnalysis.outputLevel >= 6) {
                         System.out.println("EXCEPTION (check thrown): " + e + "\n\t"
                                                         + PrettyPrinter.methodString(resolvedCallee) + " from "
                                                         + PrettyPrinter.methodString(getCode().getMethod())
                                                         + " filtered on " + PrettyPrinter.typeString(caughtType));
                     }
-                    return g.addEdges(cb.formalNode,
-                                                    g.getPointsToSetFiltered(e, caughtType,
-                                                                                    Collections.<IClass> emptySet()));
-                } else if (TypeRepository.isAssignableFrom(thrown, caught, cha)) {
-                    // The catch type is a subtype of the exception being thrown
-                    // so it could be caught (due to imprecision (due to
-                    // imprecision for exceptions thrown by native calls))
-
-                    // TODO keep track of imprecise exception types
-
-                    alreadyCaught.add(caught);
-
-                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType, alreadyCaught).isEmpty()
-                                                    && PointsToAnalysis.outputLevel >= 6) {
-                        System.err.println("UNCAUGHT EXCEPTION: " + e + "\n\t"
-                                                        + PrettyPrinter.instructionString(getInstruction(), getCode())
-                                                        + " in " + PrettyPrinter.methodString(getCode().getMethod())
-                                                        + " caught type: " + PrettyPrinter.typeString(caughtType)
-                                                        + "\n\tAlready caught: " + alreadyCaught);
-                    }
-
-                    changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
+                    // TODO could be empty set here instead of already caught if e was a subtype of something in already
+                    // caught then it would have already been caught and would not reach this point
+                    Set<InstanceKey> pointsTo = g.getPointsToSetFiltered(e, caughtType, alreadyCaught);
+                    // System.err.println("SIZE: " + pointsTo.size() + " CAUGHT: " +
+                    // PrettyPrinter.typeString(caughtType)
+                    // + " = " + PrettyPrinter.typeString(thrown.getReference()));
+                    return g.addEdges(cb.formalNode, pointsTo);
                 }
+                // TODO keep track of imprecise exception types, and add edges for them when
+                // TypeRepository.isAssignableFrom(thrown, caught, cha), i.e. caught is a subtype of thrown
+                alreadyCaught.add(caught);
             }
         }
 
@@ -400,7 +391,7 @@ public abstract class CallStatement extends PointsToStatement {
             }
         }
 
-        if (TypeRepository.isAssignableFrom(util.getThrowableClass(), thrown, cha)) {
+        if (TypeRepository.isAssignableFrom(util.getErrorClass(), thrown, cha)) {
             // TODO Don't propagate errors, assume they propagate to the top level and kill the application
             // TODO should probably propagate user defined errors
             return changed;
@@ -429,6 +420,9 @@ public abstract class CallStatement extends PointsToStatement {
                                             + PrettyPrinter.methodString(resolvedCallee) + " from "
                                             + PrettyPrinter.methodString(getCode().getMethod()));
         }
+
+        // System.err.println("SIZE: " + g.getPointsToSetFiltered(e, currentExType, alreadyCaught).size() + " "
+        // + PrettyPrinter.typeString(currentExType) + " EXIT");
         changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
         return changed;
     }

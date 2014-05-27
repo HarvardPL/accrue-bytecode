@@ -699,30 +699,54 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get the generated allocation node for the class returned (or thrown) by a native method with no signature
+     * Get the generated allocation node for the class returned by a native method with no signature
      * 
      * @param resolvedNative
      *            native method
-     * @param type
-     *            normal or exceptional exit
      * @param util
      *            utility (used to lookup classes)
      * @return generated allocation site for the exit value to a native method with no signatures
      */
-    public AllocSiteNode getExitNodeForNative(IMethod resolvedNative, ExitType type, WalaAnalysisUtil util) {
+    public AllocSiteNode getReturnNodeForNative(IMethod resolvedNative, WalaAnalysisUtil util) {
+        ExitType type = ExitType.NORMAL;
         OrderedPair<IMethod, ExitType> key = new OrderedPair<>(resolvedNative, type);
         AllocSiteNode n = nativeAllocs.get(key);
         if (n == null) {
             // Use the declaring class as the allocator
             IClass allocatingClass = resolvedNative.getDeclaringClass();
-            IClass allocatedClass;
-            if (type == ExitType.NORMAL) {
-                TypeReference retType = resolvedNative.getReturnType();
-                assert !retType.isPrimitiveType() : "Primitive return: " + PrettyPrinter.methodString(resolvedNative);
-                allocatedClass = util.getClassHierarchy().lookupClass(retType);
-            } else {
-                allocatedClass = util.getThrowableClass();
-            }
+            TypeReference retType = resolvedNative.getReturnType();
+            assert !retType.isPrimitiveType() : "Primitive return: " + PrettyPrinter.methodString(resolvedNative);
+            IClass allocatedClass = util.getClassHierarchy().lookupClass(retType);
+            n = AllocSiteNodeFactory.getAllocationNodeForNative(allocatedClass, allocatingClass, type, resolvedNative);
+            nativeAllocs.put(key, n);
+        }
+        return n;
+    }
+
+    /**
+     * Get the generated allocation node for the exception (of a given type thrown) by a native method with no signature
+     * <p>
+     * TODO the type here is imprecise, might want to mark it as such
+     * <p>
+     * e.g. if the actual native method would throw a NullPointerException and NullPointerException is caught in the
+     * caller, but a node is only created for a RunTimeException then the catch block will be bypassed
+     * 
+     * @param resolvedNative
+     *            native method
+     * @param type
+     *            exception type
+     * @param util
+     *            utility (used to lookup classes)
+     * @return generated allocation site for the exit value to a native method with no signatures
+     */
+    public AllocSiteNode getExceptionNodeForNative(IMethod resolvedNative, TypeReference exType, WalaAnalysisUtil util) {
+        ExitType type = ExitType.EXCEPTIONAL;
+        OrderedPair<IMethod, ExitType> key = new OrderedPair<>(resolvedNative, type);
+        AllocSiteNode n = nativeAllocs.get(key);
+        if (n == null) {
+            // Use the declaring class as the allocator
+            IClass allocatingClass = resolvedNative.getDeclaringClass();
+            IClass allocatedClass = util.getClassHierarchy().lookupClass(exType);
             n = AllocSiteNodeFactory.getAllocationNodeForNative(allocatedClass, allocatingClass, type, resolvedNative);
             nativeAllocs.put(key, n);
         }
