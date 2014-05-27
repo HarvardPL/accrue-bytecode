@@ -49,3 +49,4 @@ TODO record the choice of receiver in the PC for PDGs
 
 TODO String should call <init> after allocation not the value field hack, read about Strings in the JVM spec 5.1
 
+TODO rip the IR out of the points-to statements (replace with IMethod)

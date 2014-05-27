@@ -60,7 +60,7 @@ class ContextStack<E> implements Iterable<E>, Context {
     }
 
     /**
-     * Add the element to the stack pushing others off the end if necessary
+     * Add the element to the top of the stack, dropping elements off the end if necessary to get the correct depth.
      * 
      * @param e
      *            element to push onto the stack
@@ -78,19 +78,19 @@ class ContextStack<E> implements Iterable<E>, Context {
     }
 
     /**
-     * Push enough elements off the back of the stack (elements least recently pushed on) so that the size is at most
-     * <code>depth</code>
+     * Truncate the stack (i.e., remove elements from the bottom of the stack, the least recently pushed) so that the
+     * size is at most <code>depth</code>
      * 
      * @param depth
      *            maximum size of the stack
      * @return If this has less than depth elements then this, otherwise a new stack that contains the
      *         <code>depth</code> most recent elements
      */
-    public ContextStack<E> pushToDepth(int depth) {
+    public ContextStack<E> truncate(int depth) {
         if (depth > elements.length) {
             return this;
         }
-        // We need to pop some elements, create a new array since these stacks are immutable
+        // We need to truncate, create a new array since these stacks are immutable
         @SuppressWarnings("unchecked")
         E[] newElements = (E[]) new Object[depth];
 

@@ -114,11 +114,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        System.err.println("INITIAL Q");
-        for (StmtAndContext sac : q) {
-            System.err.println("\t" + sac);
-        }
-
         int numProcessed = 0;
         while (!q.isEmpty()) {
             StmtAndContext sac = q.poll();
@@ -225,7 +220,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
-        if (i >= 90) {
+        if (i >= 900) {
             throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
         }
         return i;

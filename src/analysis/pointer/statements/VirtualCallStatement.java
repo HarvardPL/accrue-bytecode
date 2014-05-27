@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
 import java.util.List;
+import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.WalaAnalysisUtil;
@@ -75,6 +76,8 @@ public class VirtualCallStatement extends CallStatement {
         this.receiver = receiver;
     }
 
+    // private static Set<ReferenceVariableReplica> lots = new HashSet<>();
+
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
@@ -86,7 +89,40 @@ public class VirtualCallStatement extends CallStatement {
         }
 
         boolean changed = false;
-        for (InstanceKey recHeapContext : g.getPointsToSet(receiverRep)) {
+        Set<InstanceKey> s = g.getPointsToSet(receiverRep);
+        // if (s.size() > 3000) {
+        // if (!lots.contains(receiverRep)) {
+        // System.err.println("Lots of receivers: " + s.size() + " for " + receiverRep + " of type "
+        // + PrettyPrinter.typeString(receiverRep.getExpectedType()));
+        // System.err.println("\tCALLING: " + PrettyPrinter.methodString(callee) + " from "
+        // + PrettyPrinter.methodString(getCode().getMethod()));
+        // lots.add(receiverRep);
+        // }
+        // List<InstanceKey> iks = new ArrayList<>(s);
+        // Collections.sort(iks, ToStringComparator.<InstanceKey> instance());
+        // for (InstanceKey ik : iks) {
+        // System.err.println(ik + " HC: " + ik.hashCode());
+        // for (InstanceKey ik2 : iks) {
+        // if (ik.toString().equals(ik2.toString()) && ik != ik2) {
+        // System.err.println(ik + " != " + ik2);
+        // AllocationName<ContextStack<ClassWrapper>> an1 = (AllocationName<ContextStack<ClassWrapper>>)
+        // ik;
+        // AllocationName<ContextStack<ClassWrapper>> an2 = (AllocationName<ContextStack<ClassWrapper>>)
+        // ik2;
+        //
+        // assert !an1.getAllocationSite().equals(an2.getAllocationSite());
+        // assert an1.getContext().equals(an2.getContext());
+        // int asn1 = an1.getAllocationSite().hashCode();
+        // int asn2 = an2.getAllocationSite().hashCode();
+        // int c1 = an1.getContext().hashCode();
+        // int c2 = an2.getContext().hashCode();
+        // // System.err.println("WTF");
+        // }
+        // }
+        // }
+        // throw new RuntimeException();
+        // }
+        for (InstanceKey recHeapContext : s) {
             // find the callee.
             // The receiver is recHeapContext, and we want to find a method that matches selector
             // callee.getSelector() in class recHeapContext.getConcreteType() or
