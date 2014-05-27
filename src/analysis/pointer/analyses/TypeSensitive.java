@@ -73,7 +73,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
     @SuppressWarnings("unchecked")
     @Override
     public AllocationName<ContextStack<ClassWrapper>> record(AllocSiteNode allocationSite, Context context) {
-        ContextStack<ClassWrapper> allocationContext = ((ContextStack<ClassWrapper>) context).pushToDepth(m);
+        ContextStack<ClassWrapper> allocationContext = ((ContextStack<ClassWrapper>) context).truncate(m);
         return AllocationName.create(allocationContext, allocationSite);
     }
 
