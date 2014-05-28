@@ -62,8 +62,9 @@ public class TypeSensitive extends HeapAbstractionFactory {
     @Override
     public ContextStack<ClassWrapper> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
         if (callSite.isStatic()) {
-            // this is a static method call return the initial context
-            return initialContext();
+            // this is a static method call. Return the caller's
+            // context.
+            return (ContextStack<ClassWrapper>) callerContext;
         }
 
         AllocationName<ContextStack<ClassWrapper>> rec = (AllocationName<ContextStack<ClassWrapper>>) receiver;
