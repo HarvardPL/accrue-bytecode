@@ -149,7 +149,7 @@ public abstract class CallStatement extends PointsToStatement {
         changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
 
         // check if the exception is caught or re-thrown by this procedure
-        changed |= checkThrown(callerEx, callerContext, g, registrar, resolvedCallee);
+        changed |= checkThrown(callerEx, callerContext, g, registrar);
 
         // ////////////////// Return //////////////////
 
@@ -328,14 +328,14 @@ public abstract class CallStatement extends PointsToStatement {
      *            points-to statement registrar
      * @return true if the points-to graph changed
      */
-    private final boolean checkThrown(PointsToGraphNode e, Context currentContext,
-                                    PointsToGraph g, StatementRegistrar registrar, IMethod resolvedCallee) {
+    private final boolean checkThrown(PointsToGraphNode e, Context currentContext, PointsToGraph g,
+                                    StatementRegistrar registrar) {
         // Find successor catch blocks
         List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
 
         IClassHierarchy cha = g.getClassHierarchy();
-        @SuppressWarnings("unused")
-        Set<IClass> alreadyCaught = new LinkedHashSet<IClass>();
+        Set<IClass> alreadyCaught = new LinkedHashSet<>();
+
         boolean changed = false;
 
         // See if there is a catch block that catches this exception
@@ -352,19 +352,6 @@ public abstract class CallStatement extends PointsToStatement {
         // The exception may not be caught by the catch blocks
         // But don't propagate error types.
         alreadyCaught.add(util.getErrorClass());
-
-        // ANDREW: I don't know what this clone not supported thing is?
-        // if (!isRethrown && currentExType != util.getCloneNotSupportedExceptionClass()) {
-        // System.err.println("Exception of type " + PrettyPrinter.typeString(currentExType)
-        // + " may not be handled or rethrown. When calling: "
-        // + PrettyPrinter.methodString(resolvedCallee) + " from "
-        // + PrettyPrinter.methodString(getCode().getMethod()));
-        // // Assume it can be rethrown anyway, this is showing up for an anonymous inner class init when it calls
-        // // super.<init>
-        // // void java.util.jar.JarInputStream.<init>(java.io.InputStream) from
-        // // void sun.jkernel.Bundle$2.<init>(sun.jkernel.Bundle, java.io.InputStream)
-        // // TODO not sure why the inner class does not inherit the outer's declared exceptions
-        // }
 
         // add edge if this exception can be rethrown
         MethodSummaryNodes callerSummary = registrar.findOrCreateMethodSummary(getCode().getMethod(), rvFactory);
