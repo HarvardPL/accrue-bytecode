@@ -148,20 +148,16 @@ public abstract class CallStatement extends PointsToStatement {
         }
         changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
 
-        for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
-            // check if the exception is caught or re-thrown by this procedure
-            changed |= checkThrown(exType, callerEx, callerContext, g, registrar, resolvedCallee);
-        }
+        // check if the exception is caught or re-thrown by this procedure
+        changed |= checkThrown(callerEx, callerContext, g, registrar, resolvedCallee);
 
         // ////////////////// Return //////////////////
 
         // Add edge from the return formal to the result
         // If the result Node is null then either this is void return, there is
         // no assignment after the call, or the return type is not a reference
-        ReferenceVariableReplica resultRep = null;
-
         if (resultNode != null) {
-            resultRep = getReplica(callerContext, getResultNode());
+            ReferenceVariableReplica resultRep = getReplica(callerContext, resultNode);
             ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
                                             calleeSummary.getReturnNode());
 
@@ -322,8 +318,6 @@ public abstract class CallStatement extends PointsToStatement {
      * Check if an exception of type <code>currentExType</code> is caught or re-thrown, and modify the points-to graph
      * accordingly
      * 
-     * @param currentExType
-     *            type of the exception
      * @param e
      *            exception points-to graph node
      * @param currentContext
@@ -334,16 +328,14 @@ public abstract class CallStatement extends PointsToStatement {
      *            points-to statement registrar
      * @return true if the points-to graph changed
      */
-    private final boolean checkThrown(TypeReference currentExType, PointsToGraphNode e, Context currentContext,
+    private final boolean checkThrown(PointsToGraphNode e, Context currentContext,
                                     PointsToGraph g, StatementRegistrar registrar, IMethod resolvedCallee) {
         // Find successor catch blocks
         List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
 
         IClassHierarchy cha = g.getClassHierarchy();
-        IClass thrown = cha.lookupClass(currentExType);
         @SuppressWarnings("unused")
         Set<IClass> alreadyCaught = new LinkedHashSet<IClass>();
-        boolean isRethrown = false;
         boolean changed = false;
 
         // See if there is a catch block that catches this exception
@@ -351,79 +343,36 @@ public abstract class CallStatement extends PointsToStatement {
             while (cb.caughtTypes.hasNext()) {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (TypeRepository.isAssignableFrom(caught, thrown, cha)) {
-                    if (DEBUG && g.getPointsToSetFiltered(e, caughtType, alreadyCaught).isEmpty()
-                                                    && PointsToAnalysis.outputLevel >= 6) {
-                        System.out.println("EXCEPTION (check thrown): " + e + "\n\t"
-                                                        + PrettyPrinter.methodString(resolvedCallee) + " from "
-                                                        + PrettyPrinter.methodString(getCode().getMethod())
-                                                        + " filtered on " + PrettyPrinter.typeString(caughtType));
-                    }
-                    // TODO could be empty set here instead of already caught if e was a subtype of something in already
-                    // caught then it would have already been caught and would not reach this point
-                    Set<InstanceKey> pointsTo = g.getPointsToSetFiltered(e, caughtType, alreadyCaught);
-                    // System.err.println("SIZE: " + pointsTo.size() + " CAUGHT: " +
-                    // PrettyPrinter.typeString(caughtType)
-                    // + " = " + PrettyPrinter.typeString(thrown.getReference()));
-                    return g.addEdges(cb.formalNode, pointsTo);
-                }
-                // TODO keep track of imprecise exception types, and add edges for them when
-                // TypeRepository.isAssignableFrom(thrown, caught, cha), i.e. caught is a subtype of thrown
+
+                changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caught, alreadyCaught));
                 alreadyCaught.add(caught);
             }
         }
 
-        // There may not be a catch block so this exception may be re-thrown
-        Set<TypeReference> throwTypes = TypeRepository.getThrowTypes(getCode().getMethod());
-        for (TypeReference exType : throwTypes) {
-            IClass exClass = cha.lookupClass(exType);
-            if (TypeRepository.isAssignableFrom(thrown, exClass, cha)) {
-                // may fall under this throw type.
-                // exceptions are often not precisely typed
-                // TODO keep track of when they are not precise
-                // (e.g. implicit exceptions are not precise)
-                isRethrown = true;
-                break;
-            } else if (TypeRepository.isAssignableFrom(exClass, thrown, cha)) {
-                // does fall under this throw type.
-                isRethrown = true;
-                break;
-            }
-        }
+        // The exception may not be caught by the catch blocks
+        // But don't propagate error types.
+        alreadyCaught.add(util.getErrorClass());
 
-        if (TypeRepository.isAssignableFrom(util.getErrorClass(), thrown, cha)) {
-            // TODO Don't propagate errors, assume they propagate to the top level and kill the application
-            // TODO should probably propagate user defined errors
-            return changed;
-        }
-
-        if (!isRethrown && currentExType != util.getCloneNotSupportedExceptionClass()) {
-            System.err.println("Exception of type " + PrettyPrinter.typeString(currentExType)
-                                            + " may not be handled or rethrown. When calling: "
-                                            + PrettyPrinter.methodString(resolvedCallee) + " from "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-            // Assume it can be rethrown anyway, this is showing up for an anonymous inner class init when it calls
-            // super.<init>
-            // void java.util.jar.JarInputStream.<init>(java.io.InputStream) from
-            // void sun.jkernel.Bundle$2.<init>(sun.jkernel.Bundle, java.io.InputStream)
-            // TODO not sure why the inner class does not inherit the outer's declared exceptions
-        }
+        // ANDREW: I don't know what this clone not supported thing is?
+        // if (!isRethrown && currentExType != util.getCloneNotSupportedExceptionClass()) {
+        // System.err.println("Exception of type " + PrettyPrinter.typeString(currentExType)
+        // + " may not be handled or rethrown. When calling: "
+        // + PrettyPrinter.methodString(resolvedCallee) + " from "
+        // + PrettyPrinter.methodString(getCode().getMethod()));
+        // // Assume it can be rethrown anyway, this is showing up for an anonymous inner class init when it calls
+        // // super.<init>
+        // // void java.util.jar.JarInputStream.<init>(java.io.InputStream) from
+        // // void sun.jkernel.Bundle$2.<init>(sun.jkernel.Bundle, java.io.InputStream)
+        // // TODO not sure why the inner class does not inherit the outer's declared exceptions
+        // }
 
         // add edge if this exception can be rethrown
         MethodSummaryNodes callerSummary = registrar.findOrCreateMethodSummary(getCode().getMethod(), rvFactory);
         ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
                                         callerSummary.getException());
 
-        if (DEBUG && g.getPointsToSetFiltered(e, currentExType, alreadyCaught).isEmpty()
-                                        && PointsToAnalysis.outputLevel >= 7) {
-            System.err.println("EXCEPTION SUMMARY (check thrown): " + e + "\n\t"
-                                            + PrettyPrinter.methodString(resolvedCallee) + " from "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, util.getThrowableClass(), alreadyCaught));
 
-        // System.err.println("SIZE: " + g.getPointsToSetFiltered(e, currentExType, alreadyCaught).size() + " "
-        // + PrettyPrinter.typeString(currentExType) + " EXIT");
-        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, currentExType, alreadyCaught));
         return changed;
     }
 
