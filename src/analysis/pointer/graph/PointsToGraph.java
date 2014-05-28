@@ -143,7 +143,7 @@ public class PointsToGraph {
         return Collections.emptySet();
     }
 
-    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference type) {
+    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, IClass type) {
         readNodes.add(node);
 
         Set<InstanceKey> s = getPointsToSet(node);
@@ -162,15 +162,15 @@ public class PointsToGraph {
         while (i.hasNext()) {
             InstanceKey k = i.next();
             IClass klass = k.getConcreteType();
-            if (!cha.isAssignableFrom(cha.lookupClass(type), klass)) {
+            if (!cha.isAssignableFrom(type, klass)) {
                 // XXX Arrays can sometimes be imprecisely labeled as Object
                 // types. Imprecisely, but soundly don't remove any arrays from
                 // the points-to set if the type we are filtering on is
                 // java.lang.Object and vice versa
-                if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
+                if (!(klass.isArrayClass() && type.equals(cha.lookupClass(TypeReference.JavaLangObject)))) {
                     if (DEBUG && outputLevel >= 6) {
                         System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
-                                                        + PrettyPrinter.typeString(type));
+                                                        + PrettyPrinter.typeString(type.getReference()));
                     }
                     toRemove.add(k);
                 }
@@ -201,7 +201,7 @@ public class PointsToGraph {
      *            the node cannot be a subclass of any of these classes
      * @return Set of heap contexts filtered based on type
      */
-    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference isType, Set<IClass> notTypes) {
+    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, IClass isType, Set<IClass> notTypes) {
         Set<InstanceKey> s = getPointsToSet(node);
         if (s.isEmpty()) {
             return s;
@@ -214,14 +214,13 @@ public class PointsToGraph {
 
         boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
 
-        IClass isClass = cha.lookupClass(isType);
         Iterator<InstanceKey> iter = s.iterator();
         Set<InstanceKey> toRemove = new HashSet<>();
         while (iter.hasNext()) {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
             // TODO assuming we have a precise type could be dangerous
-            if (TypeRepository.isAssignableFrom(isClass, klass, cha)) {
+            if (TypeRepository.isAssignableFrom(isType, klass, cha)) {
                 if (areNotTypes) {
                     assert notTypes != null;
                     for (IClass notClass : notTypes) {
@@ -238,7 +237,7 @@ public class PointsToGraph {
                 // types. Imprecisely, but soundly don't remove any arrays from
                 // the points-to set if the type we are filtering on is
                 // java.lang.Object
-                if (!(klass.isArrayClass() && isType.equals(TypeReference.JavaLangObject))) {
+                if (!(klass.isArrayClass() && isType.equals(cha.lookupClass(TypeReference.JavaLangObject)))) {
                     toRemove.add(k);
                 }
             }
@@ -521,16 +520,16 @@ public class PointsToGraph {
         final Set<IClass> notTypes;
         private final IClassHierarchy cha;
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes, IClassHierarchy cha) {
+        FilteredSet(Set<InstanceKey> s, IClass isType, Set<IClass> notTypes, IClassHierarchy cha) {
             this.s = s;
-            this.isType = cha.lookupClass(isType);
+            this.isType = isType;
             this.notTypes = notTypes.isEmpty() ? null : notTypes;
             this.cha = cha;
         }
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType, IClassHierarchy cha) {
+        FilteredSet(Set<InstanceKey> s, IClass isType, IClassHierarchy cha) {
             this.s = s;
-            this.isType = cha.lookupClass(isType);
+            this.isType = isType;
             this.notTypes = null;
             this.cha = cha;
         }
