@@ -162,7 +162,7 @@ public class RegistrationUtil {
 
         // Add statements for any JVM-generated exceptions this instruction
         // could throw (e.g. NullPointerException)
-        registrar.addStatementsForGeneratedExceptions(i, ir, util.getClassHierarchy(), rvFactory);
+        registrar.addStatementsForGeneratedExceptions(i, ir, util, rvFactory);
 
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
