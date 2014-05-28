@@ -58,11 +58,10 @@ public class FullObjSensitive extends HeapAbstractionFactory {
         return AllocationNameContext.create(rec);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public AllocationName<ContextStack<AllocSiteNode>> record(AllocSiteNode allocationSite, Context context) {
         AllocationNameContext c = (AllocationNameContext) context;
-        AllocationName<ContextStack<AllocSiteNode>> an = c.an;
+        AllocationName<ContextStack<AllocSiteNode>> an = c.allocationName();
         ContextStack<AllocSiteNode> stack;
         if (an == null) {
             stack = ContextStack.emptyStack();
@@ -96,6 +95,10 @@ public class FullObjSensitive extends HeapAbstractionFactory {
         @Override
         public ContextItem get(ContextKey name) {
             return null;
+        }
+
+        public AllocationName<ContextStack<AllocSiteNode>> allocationName() {
+            return an;
         }
 
     }
