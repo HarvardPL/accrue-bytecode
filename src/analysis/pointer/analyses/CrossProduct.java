@@ -111,7 +111,7 @@ public class CrossProduct extends HeapAbstractionFactory {
 
         @Override
         public String toString() {
-            return c1 + " x " + c2;
+            return "(" + c1 + ") x (" + c2 + ")";
         }
     }
 }
