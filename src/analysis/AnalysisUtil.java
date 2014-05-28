@@ -77,8 +77,8 @@ public class AnalysisUtil {
     private static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
 
     /**
-     * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before
-     * running an analysis
+     * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
+     * an analysis
      */
     private AnalysisUtil() {
         // Intentionally blank
@@ -87,17 +87,18 @@ public class AnalysisUtil {
     /**
      * Create a pass which will generate points-to statements
      * 
-     * @param entryPoint
-     *            entry point main method, e.g mypackage.mysubpackage.MyClass
      * @param classPath
      *            Java class path to load class filed from with entries separated by ":"
+     * @param entryPoint
+     *            entry point main method, e.g mypackage.mysubpackage.MyClass
+     * 
      * @throws IOException
      *             Thrown when the analysis scope is invalid
      * @throws ClassHierarchyException
      *             Thrown by WALA during class hierarchy construction, if there are issues with the class path and for
      *             other reasons see {@link ClassHierarchy}
      */
-    public static void init(String entryPoint, String classPath) throws IOException, ClassHierarchyException {
+    public static void init(String classPath, String entryPoint) throws IOException, ClassHierarchyException {
 
         cache = new AnalysisCache();
 
