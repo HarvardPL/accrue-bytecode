@@ -19,43 +19,30 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 public class TypeSensitive extends HeapAbstractionFactory {
 
     /**
-     * Number of elements to record for Calling Contexts
+     * Size of stack.
      */
     private final int n;
-    /**
-     * Number of elements to record for Heap Contexts
-     */
-    private final int m;
 
     /**
      * default is 2Type+1H.
      */
     private static final int DEFAULT_TYPE_DEPTH = 2;
-    /**
-     * default is 2Type+1H.
-     */
-    private static final int DEFAULT_HEAP_DEPTH = 1;
 
     /**
-     * Create an nType+mH analysis
-     * <p>
-     * There is no benefit to having n > m + 1
+     * Create an nType+1H analysis
      * 
      * @param n
-     *            depth of calling context stack
-     * @param m
-     *            depth of heap context stack
+     *            depth of stack
      */
-    public TypeSensitive(int n, int m) {
+    public TypeSensitive(int n) {
         this.n = n;
-        this.m = m;
     }
 
     /**
      * Create a type sensitive abstraction factory with the default parameters
      */
     public TypeSensitive() {
-        this(DEFAULT_TYPE_DEPTH, DEFAULT_HEAP_DEPTH);
+        this(DEFAULT_TYPE_DEPTH);
     }
 
     @SuppressWarnings("unchecked")
@@ -74,7 +61,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
     @SuppressWarnings("unchecked")
     @Override
     public AllocationName<ContextStack<ClassWrapper>> record(AllocSiteNode allocationSite, Context context) {
-        ContextStack<ClassWrapper> allocationContext = ((ContextStack<ClassWrapper>) context).truncate(m);
+        ContextStack<ClassWrapper> allocationContext = ((ContextStack<ClassWrapper>) context).truncate(n);
         return AllocationName.create(allocationContext, allocationSite);
     }
 
@@ -85,7 +72,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
 
     @Override
     public String toString() {
-        return n + "Type+" + m + "H";
+        return n + "Type+1H";
     }
 
     /**

@@ -279,7 +279,7 @@ public class TestMain {
         ReferenceVariableCache rvCache = pass.getAllLocals();
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
-        HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf = new TypeSensitive(2);
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
@@ -307,7 +307,7 @@ public class TestMain {
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
 
-        HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf1 = new TypeSensitive(2);
         HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
         HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
 
