@@ -31,4 +31,24 @@ public enum ImplicitEx {
         }
         throw new RuntimeException("Unknown implicit exception type: " + PrettyPrinter.typeString(type));
     }
+
+    public TypeReference toType() {
+        switch (this) {
+        case ARITHMETIC_EXCEPTION:
+            return TypeReference.JavaLangArithmeticException;
+        case ARRAY_INDEX_OUT_OF_BOUNDS_EXCEPTION:
+            return TypeReference.JavaLangArrayIndexOutOfBoundsException;
+        case ARRAY_STORE_EXCEPTION:
+            return TypeReference.JavaLangArrayStoreException;
+        case CLASS_CAST_EXCEPTION:
+            return TypeReference.JavaLangClassCastException;
+        case CLASS_NOT_FOUND_EXCEPTION:
+            return TypeReference.JavaLangClassNotFoundException;
+        case NEGATIVE_ARRAY_SIZE_EXCEPTION:
+            return TypeReference.JavaLangNegativeArraySizeException;
+        case NULL_POINTER_EXCEPTION:
+            return TypeReference.JavaLangNullPointerException;
+        }
+        throw new RuntimeException("Unknown implicit exception type: " + this);
+    }
 }

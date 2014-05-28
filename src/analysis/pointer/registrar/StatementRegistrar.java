@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.ImplicitEx;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -79,6 +80,11 @@ public class StatementRegistrar {
      * Generated allocation nodes for native methods with no signature
      */
     private final Map<OrderedPair<IMethod, ExitType>, AllocSiteNode> nativeAllocs;
+    /**
+     * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
+     */
+    private static final boolean SINGLETON_GENERATED_EXCEPTIONS = true;
 
     public StatementRegistrar() {
         statements = new LinkedHashSet<>();
@@ -443,7 +449,7 @@ public class StatementRegistrar {
      */
     protected void registerThrow(SSAThrowInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), ir);
-        addAssignmentForThrownException(i, ir, exception, cha, rvFactory);
+        addAssignmentsForThrownException(i, ir, exception, cha, rvFactory);
     }
 
     /**
@@ -653,15 +659,37 @@ public class StatementRegistrar {
 
     }
 
-    protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, IClassHierarchy cha,
+    /**
+     * Add points-to statements for any generated exceptions thrown by the given instruction
+     * 
+     * @param i
+     *            instruction
+     * @param ir
+     *            code containing the instruction
+     * @param util
+     *            utility class used to get the class hierarchy (and root method IR)
+     * @param rvFactory
+     *            factory for creating new reference variables
+     */
+    protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, WalaAnalysisUtil util,
                                     ReferenceVariableFactory rvFactory) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
-            ReferenceVariable ex = rvFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
-            IClass exClass = cha.lookupClass(exType);
-            assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
+            ReferenceVariable ex;
+            if (SINGLETON_GENERATED_EXCEPTIONS) {
+                ex = rvFactory.getOrCreateSingletonException(ImplicitEx.fromType(exType));
 
-            addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir, i));
-            addAssignmentForThrownException(i, ir, ex, cha, rvFactory);
+                IClass exClass = util.getClassHierarchy().lookupClass(exType);
+                assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
+                addStatement(StatementFactory.newForGeneratedException(ex, exClass, util.getIR(util.getFakeRoot()),
+                                                null));
+            } else {
+                ex = rvFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
+                IClass exClass = util.getClassHierarchy().lookupClass(exType);
+                assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
+
+                addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir, i));
+            }
+            addAssignmentsForThrownException(i, ir, ex, util.getClassHierarchy(), rvFactory);
         }
     }
 
@@ -676,7 +704,7 @@ public class StatementRegistrar {
      * @param thrown
      *            reference variable representing the value of the exception
      */
-    private final void addAssignmentForThrownException(SSAInstruction i, IR ir, ReferenceVariable thrown,
+    private final void addAssignmentsForThrownException(SSAInstruction i, IR ir, ReferenceVariable thrown,
                                     IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
         Set<IClass> notType = new LinkedHashSet<>();
 
@@ -686,15 +714,15 @@ public class StatementRegistrar {
             if (succ.isCatchBlock()) {
                 SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) succ.iterator().next();
                 caught = rvFactory.getOrCreateLocal(catchIns.getException(), ir);
-                Iterator<TypeReference> caughtTypes = bb.getCaughtExceptionTypes();
-                while (caughtTypes.hasNext()) {
-                    notType.add(cha.lookupClass(caughtTypes.next()));
-                }
             } else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
                 caught = findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
             }
             addStatement(StatementFactory.exceptionAssignment(thrown, caught, i, ir, notType));
+            Iterator<TypeReference> caughtTypes = succ.getCaughtExceptionTypes();
+            while (caughtTypes.hasNext()) {
+                notType.add(cha.lookupClass(caughtTypes.next()));
+            }
         }
     }
 

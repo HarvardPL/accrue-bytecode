@@ -50,7 +50,14 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
-        PointsToGraphNode r = new ReferenceVariableReplica(context, thrown);
+        PointsToGraphNode r;
+        if (thrown.isSingleton()) {
+            // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
+            // variable is created for each generated exception type
+            r = new ReferenceVariableReplica(haf.initialContext(), thrown);
+        } else {
+            r = new ReferenceVariableReplica(context, thrown);
+        }
 
         if (DEBUG && g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).isEmpty()
                                         && PointsToAnalysis.outputLevel >= 6) {
@@ -61,6 +68,9 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
                                             + "\n\tAlready caught: " + notType);
         }
 
+        // System.err.println("SIZE: " + g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).size()
+        // + " EX ASS: " + PrettyPrinter.typeString(l.getExpectedType()) + " = "
+        // + PrettyPrinter.typeString(r.getExpectedType()));
         return g.addEdges(l, g.getPointsToSetFiltered(r, caught.getExpectedType(), notType));
     }
 

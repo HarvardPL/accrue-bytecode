@@ -49,6 +49,12 @@ public class ReferenceVariableFactory {
      * Nodes for method exit
      */
     private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries = new LinkedHashMap<>();
+    /**
+     * Nodes for singleton generated exceptions if they are created, there can be only one per type. The points-to
+     * analysis will be less precise, but the points-to graph will be smaller and the points-to analysis faster. The
+     * creation is governed by a flag in {@link StatementRegistrar}
+     */
+    private final Map<ImplicitEx, ReferenceVariable> singletons = new LinkedHashMap<>();
 
     /**
      * Get the reference variable for the given local in the given IR. The local should not have a primitive type or
@@ -152,6 +158,24 @@ public class ReferenceVariableFactory {
             implicitThrows.put(key, node);
         }
         return node;
+    }
+
+    /**
+     * Create a singleton node for a generated exception. This can be used to decrease the size of the points-to graph
+     * and the run-time of the pointer analysis at the cost of less precision.
+     * 
+     * @param type
+     *            type of exception to get the node for
+     * @return singleton reference variable for exceptions of the given type
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable getOrCreateSingletonException(ImplicitEx type) {
+        ReferenceVariable rv = singletons.get(type);
+        if (rv == null) {
+            rv = new ReferenceVariable(type + "(SINGLETON)", type.toType(), true);
+            singletons.put(type, rv);
+        }
+        return rv;
     }
 
     /**
@@ -540,7 +564,8 @@ public class ReferenceVariableFactory {
         }
 
         /**
-         * Create a new (unique) reference variable for a static field, do not call this outside the pointer analysis
+         * Create a new (unique) reference variable for a variable that is not associated with a specific instruction.
+         * Examples are static fields, method summary nodes, and singleton nodes (e.g. for generated exceptions).
          * 
          * @param debugString
          *            String used for debugging and printing
