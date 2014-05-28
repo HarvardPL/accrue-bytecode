@@ -344,7 +344,7 @@ public abstract class CallStatement extends PointsToStatement {
                 TypeReference caughtType = cb.caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
 
-                changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caught, alreadyCaught));
+                changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
                 alreadyCaught.add(caught);
             }
         }
@@ -371,7 +371,8 @@ public abstract class CallStatement extends PointsToStatement {
         ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
                                         callerSummary.getException());
 
-        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, util.getThrowableClass(), alreadyCaught));
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, util.getThrowableClass().getReference(),
+                                        alreadyCaught));
 
         return changed;
     }
