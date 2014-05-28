@@ -10,7 +10,6 @@ import analysis.pointer.registrar.RegistrationUtil;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
@@ -33,8 +32,6 @@ public class ClassInitFinder {
      * As defined in JLS 12.4.1, get class initializers that must be called (if they have not already been called)
      * before executing the given instruction.
      * 
-     * @param cha
-     *            class hierarchy
      * @param i
      *            current instruction
      * @param ir
@@ -42,14 +39,14 @@ public class ClassInitFinder {
      * @return clinit methods that might need to be called in the order they need to be called (i.e. element j is a
      *         super class of element j+1)
      */
-    public static List<IMethod> getClassInitializers(IClassHierarchy cha, SSAInstruction i) {
+    public static List<IMethod> getClassInitializers(SSAInstruction i) {
         IClass klass = null;
 
         // T is a class and an instance of T is created.
         if (i instanceof SSANewInstruction) {
             SSANewInstruction ins = (SSANewInstruction) i;
             if (!ins.getConcreteType().isArrayType()) {
-                return getClassInitializersForClass(klass, cha);
+                return getClassInitializersForClass(klass);
             }
         }
 
@@ -57,7 +54,7 @@ public class ClassInitFinder {
         if (i instanceof SSAInvokeInstruction) {
             SSAInvokeInstruction ins = (SSAInvokeInstruction) i;
             if (ins.isStatic()) {
-                IMethod callee = cha.resolveMethod(ins.getDeclaredTarget());
+                IMethod callee = AnalysisUtil.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
                     if (RegistrationUtil.outputLevel >= 2) {
                         System.err.println("Trying to get class initializer for " + i + " and could not resolve "
@@ -65,7 +62,7 @@ public class ClassInitFinder {
                     }
                     return Collections.emptyList();
                 }
-                return getClassInitializersForClass(callee.getDeclaringClass(), cha);
+                return getClassInitializersForClass(callee.getDeclaringClass());
             }
         }
 
@@ -73,7 +70,7 @@ public class ClassInitFinder {
         if (i instanceof SSAPutInstruction) {
             SSAPutInstruction ins = (SSAPutInstruction) i;
             if (ins.isStatic()) {
-                IField f = cha.resolveField(ins.getDeclaredField());
+                IField f = AnalysisUtil.getClassHierarchy().resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to get class initializer for "
                                                     + i
@@ -82,7 +79,7 @@ public class ClassInitFinder {
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
-                return getClassInitializersForClass(f.getDeclaringClass(), cha);
+                return getClassInitializersForClass(f.getDeclaringClass());
             }
         }
 
@@ -90,7 +87,7 @@ public class ClassInitFinder {
         if (i instanceof SSAGetInstruction) {
             SSAGetInstruction ins = (SSAGetInstruction) i;
             if (ins.isStatic()) {
-                IField f = cha.resolveField(ins.getDeclaredField());
+                IField f = AnalysisUtil.getClassHierarchy().resolveField(ins.getDeclaredField());
                 if (f == null) {
                     throw new RuntimeException("Trying to add class initializer for "
                                                     + i
@@ -99,7 +96,7 @@ public class ClassInitFinder {
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
-                return getClassInitializersForClass(f.getDeclaringClass(), cha);
+                return getClassInitializersForClass(f.getDeclaringClass());
             }
         }
 
@@ -116,16 +113,17 @@ public class ClassInitFinder {
      * 
      * @param clazz
      *            class to be initialized
-     * @param cha
-     *            class hierarchy
      * @return List of class init methods that need to be called
      */
-    public static List<IMethod> getClassInitializersForClass(IClass clazz, IClassHierarchy cha) {
+    public static List<IMethod> getClassInitializersForClass(IClass clazz) {
         IClass klass = clazz;
         if (klass != null) {
+            IClass object = AnalysisUtil.getClassHierarchy().getRootClass();
             LinkedList<IMethod> inits = new LinkedList<>();
             // Need to also call clinit for any super classes
-            while (!klass.isInterface() && !cha.isRootClass(klass)) {
+            // Note that object doesn't have any clinit, and interface clinits are not called until a field is actually
+            // accessed
+            while (!klass.isInterface() && !(klass == object)) {
                 if (klass.getClassInitializer() != null) {
                     // class has an initializer so add it
                     inits.addFirst(klass.getClassInitializer());

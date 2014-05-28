@@ -9,7 +9,7 @@ import java.util.Set;
 import signatures.Signatures;
 import types.TypeRepository;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
@@ -26,7 +26,6 @@ import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
@@ -56,10 +55,6 @@ public abstract class CallStatement extends PointsToStatement {
      */
     private final ReferenceVariable exceptionNode;
     /**
-     * Cache used to lookup the IR for the callee
-     */
-    private final WalaAnalysisUtil util;
-    /**
      * factory for managing the creation of reference variables for local variables and static fields
      */
     private final ReferenceVariableFactory rvFactory;
@@ -87,13 +82,12 @@ public abstract class CallStatement extends PointsToStatement {
      */
     protected CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
+                                    ReferenceVariableFactory rvFactory) {
         super(callerIR, i);
         this.callSite = callSite;
         this.actuals = actuals;
         this.resultNode = resultNode;
         this.exceptionNode = exceptionNode;
-        this.util = util;
         this.rvFactory = rvFactory;
     }
 
@@ -171,7 +165,7 @@ public abstract class CallStatement extends PointsToStatement {
 
         // ////////////////// Native with no signature //////////////////
 
-        if (resolvedCallee.isNative() && !Signatures.hasSignature(resolvedCallee, util)) {
+        if (resolvedCallee.isNative() && !Signatures.hasSignature(resolvedCallee)) {
             // Native methods without signatures don't have "this" and formal parameters in the callee to add edges from
 
             // Generic signature by creating an edge from a generated "allocation" to the return and exception summary
@@ -181,7 +175,7 @@ public abstract class CallStatement extends PointsToStatement {
                 ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
                                                 calleeSummary.getReturnNode());
 
-                AllocSiteNode normalRetAlloc = registrar.getReturnNodeForNative(resolvedCallee, util);
+                AllocSiteNode normalRetAlloc = registrar.getReturnNodeForNative(resolvedCallee);
                 // TODO could use caller context here (and below) for more precision, but possible size blow-up
                 // The semantics would also be weird as the caller allocating the return value is a bit strange
                 InstanceKey k = haf.record(normalRetAlloc, calleeContext);
@@ -191,7 +185,7 @@ public abstract class CallStatement extends PointsToStatement {
             // Synthetic allocations for thrown exceptions
             for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
 
-                AllocSiteNode exRetAlloc = registrar.getExceptionNodeForNative(resolvedCallee, exType, util);
+                AllocSiteNode exRetAlloc = registrar.getExceptionNodeForNative(resolvedCallee, exType);
                 InstanceKey exKey = haf.record(exRetAlloc, calleeContext);
                 changed = g.addEdge(calleeEx, exKey);
             }
@@ -199,7 +193,7 @@ public abstract class CallStatement extends PointsToStatement {
             return changed;
         }
 
-        IR calleeIR = util.getIR(resolvedCallee);
+        IR calleeIR = AnalysisUtil.getIR(resolvedCallee);
 
         // ////////////////// Receiver //////////////////
 
@@ -229,9 +223,9 @@ public abstract class CallStatement extends PointsToStatement {
             ReferenceVariable formalParamVar = rvFactory.getOrCreateFormalParameter(i, calleeIR);
             ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext, formalParamVar);
 
-            assert util.getClassHierarchy().isAssignableFrom(
-                                            util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
-                                            util.getClassHierarchy().lookupClass(actual.getExpectedType()));
+            assert AnalysisUtil.getClassHierarchy().isAssignableFrom(
+                                            AnalysisUtil.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
+                                            AnalysisUtil.getClassHierarchy().lookupClass(actual.getExpectedType()));
             // if (!util.getClassHierarchy().isAssignableFrom(
             // util.getClassHierarchy().lookupClass(formalRep.getExpectedType()),
             // util.getClassHierarchy().lookupClass(actual.getExpectedType()))) {
@@ -332,8 +326,6 @@ public abstract class CallStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         // Find successor catch blocks
         List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
-
-        IClassHierarchy cha = g.getClassHierarchy();
         Set<IClass> alreadyCaught = new LinkedHashSet<>();
 
         boolean changed = false;
@@ -342,7 +334,7 @@ public abstract class CallStatement extends PointsToStatement {
         for (CatchBlock cb : catchBlocks) {
             while (cb.caughtTypes.hasNext()) {
                 TypeReference caughtType = cb.caughtTypes.next();
-                IClass caught = cha.lookupClass(caughtType);
+                IClass caught = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
 
                 changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
                 alreadyCaught.add(caught);
@@ -351,14 +343,14 @@ public abstract class CallStatement extends PointsToStatement {
 
         // The exception may not be caught by the catch blocks
         // But don't propagate error types.
-        alreadyCaught.add(util.getErrorClass());
+        alreadyCaught.add(AnalysisUtil.getErrorClass());
 
         // add edge if this exception can be rethrown
         MethodSummaryNodes callerSummary = registrar.findOrCreateMethodSummary(getCode().getMethod(), rvFactory);
         ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
                                         callerSummary.getException());
 
-        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, util.getThrowableClass().getReference(),
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, AnalysisUtil.getThrowableClass().getReference(),
                                         alreadyCaught));
 
         return changed;

@@ -20,7 +20,7 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -50,19 +50,17 @@ public class PointsToGraph {
     private final HeapAbstractionFactory haf;
     private final HafCallGraph callGraph;
     private int outputLevel = 0;
-    private final IClassHierarchy cha;
 
     public static boolean DEBUG = false;
 
-    public PointsToGraph(WalaAnalysisUtil util, StatementRegistrar registrar, HeapAbstractionFactory haf) {
+    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf) {
         changedNodes = new LinkedHashSet<>();
         readNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
         classInitializers = new LinkedHashSet<>();
         this.haf = haf;
         contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
-        callGraph = new HafCallGraph(util, haf);
-        this.cha = util.getClassHierarchy();
+        callGraph = new HafCallGraph(haf);
     }
 
     /**
@@ -152,9 +150,11 @@ public class PointsToGraph {
             return s;
         }
 
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+
         // ANDREW: add stuff here
         if (false) {
-            return new FilteredSet(s, type, cha);
+            return new FilteredSet(s, type);
         }
 
         Iterator<InstanceKey> i = s.iterator();
@@ -209,23 +209,23 @@ public class PointsToGraph {
 
         // ANDREW: add stuff here
         if (false) {
-            return new FilteredSet(s, isType, notTypes, cha);
+            return new FilteredSet(s, isType, notTypes);
         }
 
         boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
 
-        IClass isClass = cha.lookupClass(isType);
+        IClass isClass = AnalysisUtil.getClassHierarchy().lookupClass(isType);
         Iterator<InstanceKey> iter = s.iterator();
         Set<InstanceKey> toRemove = new HashSet<>();
         while (iter.hasNext()) {
             InstanceKey k = iter.next();
             IClass klass = k.getConcreteType();
             // TODO assuming we have a precise type could be dangerous
-            if (TypeRepository.isAssignableFrom(isClass, klass, cha)) {
+            if (TypeRepository.isAssignableFrom(isClass, klass)) {
                 if (areNotTypes) {
                     assert notTypes != null;
                     for (IClass notClass : notTypes) {
-                        if (TypeRepository.isAssignableFrom(notClass, klass, cha)) {
+                        if (TypeRepository.isAssignableFrom(notClass, klass)) {
                             // klass is a subclass of one of the classes we do
                             // not want
                             toRemove.add(k);
@@ -425,15 +425,6 @@ public class PointsToGraph {
     }
 
     /**
-     * Get the class hierarchy defining the type system
-     * 
-     * @return class hierarchy
-     */
-    public IClassHierarchy getClassHierarchy() {
-        return cha;
-    }
-
-    /**
      * Get the procedure call graph
      * 
      * @return call graph
@@ -515,24 +506,21 @@ public class PointsToGraph {
         return cgChanged;
     }
 
-    private static class FilteredSet extends AbstractSet<InstanceKey> implements Set<InstanceKey> {
+    private static class FilteredSet extends AbstractSet<InstanceKey> {
         final Set<InstanceKey> s;
         final IClass isType;
         final Set<IClass> notTypes;
-        private final IClassHierarchy cha;
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes, IClassHierarchy cha) {
+        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes) {
             this.s = s;
-            this.isType = cha.lookupClass(isType);
+            this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
             this.notTypes = notTypes.isEmpty() ? null : notTypes;
-            this.cha = cha;
         }
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType, IClassHierarchy cha) {
+        FilteredSet(Set<InstanceKey> s, TypeReference isType) {
             this.s = s;
-            this.isType = cha.lookupClass(isType);
+            this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
             this.notTypes = null;
-            this.cha = cha;
         }
 
         @Override
@@ -562,11 +550,11 @@ public class PointsToGraph {
 
         private boolean isAssignableFrom(IClass c1, IClass c2) {
             if (notTypes == null) {
-                return cha.isAssignableFrom(c1, c2);
+                return AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
             }
             // use caching version instead, since notTypes are
             // used for exceptions, and it's worth caching them.
-            return TypeRepository.isAssignableFrom(c1, c2, cha);
+            return TypeRepository.isAssignableFrom(c1, c2);
         }
 
         @Override

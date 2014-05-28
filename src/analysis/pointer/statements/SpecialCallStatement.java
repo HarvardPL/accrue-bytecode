@@ -3,7 +3,6 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -55,16 +54,14 @@ public class SpecialCallStatement extends CallStatement {
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
-     * @param util
-     *            Used to create the IR for the callee
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
     protected SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
-        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, util, rvFactory);
+                                    ReferenceVariableFactory rvFactory) {
+        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, rvFactory);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;
         this.receiver = receiver;

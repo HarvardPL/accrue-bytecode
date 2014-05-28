@@ -11,7 +11,6 @@ import java.util.Set;
 import util.IteratorSet;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -62,7 +61,6 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     private final CGNode currentNode;
     private final PDGInterproceduralDataFlow interProc;
     private final IR ir;
-    private final WalaAnalysisUtil util;
     private final Dominators<ISSABasicBlock> postDominators;
     private final Dominators<ISSABasicBlock> dominators;
     private final Map<PDGNode, Set<PDGNode>> mergeNodes;
@@ -72,12 +70,11 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     private final Map<OrderedPair<Set<PDGContext>, ISSABasicBlock>, PDGContext> confluenceMemo;
     private final Map<ISSABasicBlock, PDGContext> mostRecentConfluence;
 
-    public ComputePDGNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util) {
+    public ComputePDGNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc) {
         super(true);
         this.currentNode = currentNode;
         this.interProc = interProc;
         this.ir = currentNode.getIR();
-        this.util = util;
 
         // compute post dominators
         SSACFG cfg = ir.getControlFlowGraph();
@@ -119,7 +116,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         if (getOutputLevel() >= 4) {
             System.err.println("ADDING EDGES for " + PrettyPrinter.cgNodeString(currentNode));
         }
-        AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, util, mergeNodes,
+        AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, mergeNodes,
                                         trueExceptionContexts, falseExceptionContexts, calleeExceptionContexts,
                                         getOutputContexts(), getInstructionInput());
         edgeDF.setOutputLevel(getOutputLevel());

@@ -16,7 +16,7 @@ import util.ImplicitEx;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -29,7 +29,6 @@ import analysis.pointer.statements.StatementFactory;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
@@ -178,13 +177,13 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    protected void registerGetStatic(SSAGetInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
+    protected void registerGetStatic(SSAGetInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             // No pointers here
             return;
         }
         ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(), ir);
-        ReferenceVariable field = rvFactory.getOrCreateStaticField(i.getDeclaredField(), cha);
+        ReferenceVariable field = rvFactory.getOrCreateStaticField(i.getDeclaredField());
         addStatement(StatementFactory.staticFieldToLocal(assignee, field, ir, i));
     }
 
@@ -217,7 +216,7 @@ public class StatementRegistrar {
      * @param ir
      *            code for the method containing the instruction
      */
-    protected void registerPutStatic(SSAPutInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
+    protected void registerPutStatic(SSAPutInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         if (i.getDeclaredFieldType().isPrimitiveType() || TypeRepository.getType(i.getVal(), ir) == TypeReference.Null) {
             // Assigning into a primitive field, or assigning null
             return;
@@ -225,7 +224,7 @@ public class StatementRegistrar {
 
         FieldReference f = i.getDeclaredField();
         ReferenceVariable assignedValue = rvFactory.getOrCreateLocal(i.getVal(), ir);
-        ReferenceVariable fieldNode = rvFactory.getOrCreateStaticField(f, cha);
+        ReferenceVariable fieldNode = rvFactory.getOrCreateStaticField(f);
         addStatement(StatementFactory.localToStaticField(fieldNode, assignedValue, ir, i));
 
     }
@@ -237,11 +236,8 @@ public class StatementRegistrar {
      *            invoke instruction
      * @param ir
      *            code for the method containing the instruction (the caller)
-     * @param util
-     *            WALA utilities, like the class hierarchy, and IR repository
      */
-    protected void registerInvoke(SSAInvokeInstruction i, IR ir, WalaAnalysisUtil util,
-                                    ReferenceVariableFactory rvFactory) {
+    protected void registerInvoke(SSAInvokeInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         assert (i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1);
 
         ReferenceVariable resultNode = null;
@@ -272,7 +268,7 @@ public class StatementRegistrar {
             receiver = rvFactory.getOrCreateLocal(i.getReceiver(), ir);
         }
         if (RegistrationUtil.outputLevel >= 2) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
             if (resolvedMethods.isEmpty()) {
                 System.err.println("No resolved methods for " + PrettyPrinter.instructionString(i, ir) + " method: "
                                                 + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
@@ -281,17 +277,17 @@ public class StatementRegistrar {
         }
 
         if (i.isStatic()) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(StatementFactory.staticCall(i.getCallSite(), resolvedMethod, actuals, resultNode,
-                                            exceptionNode, ir, i, util, rvFactory));
+                                            exceptionNode, ir, i, rvFactory));
         } else if (i.isSpecial()) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, util);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
             assert resolvedMethods.size() == 1;
             IMethod resolvedMethod = resolvedMethods.iterator().next();
             addStatement(StatementFactory.specialCall(i.getCallSite(), resolvedMethod, receiver, actuals, resultNode,
-                                            exceptionNode, ir, i, util, rvFactory));
+                                            exceptionNode, ir, i, rvFactory));
         } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             if (ir.getSymbolTable().isNullConstant(i.getReceiver())) {
@@ -302,7 +298,8 @@ public class StatementRegistrar {
                 return;
             }
             addStatement(StatementFactory.virtualCall(i.getCallSite(), i.getDeclaredTarget(), receiver, actuals,
-                                            resultNode, exceptionNode, util.getClassHierarchy(), ir, i, util, rvFactory));
+                                            resultNode, exceptionNode, ir, i,
+                                            rvFactory));
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
                                             + PrettyPrinter.methodString(i.getDeclaredTarget()));
@@ -316,14 +313,12 @@ public class StatementRegistrar {
      *            new instruction
      * @param ir
      *            code for the method containing the instruction
-     * @param cha
-     *            WALA class hierarchy
      */
-    protected void registerNewArray(SSANewInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
+    protected void registerNewArray(SSANewInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), ir);
 
-        IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
+        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i));
 
@@ -334,7 +329,7 @@ public class StatementRegistrar {
             ReferenceVariable innerArray = rvFactory.getOrCreateInnerArray(dim, array.getExpectedType()
                                             .getArrayElementType(), i, ir);
             // Add an allocation for the contents
-            IClass arrayklass = cha.lookupClass(innerArray.getExpectedType());
+            IClass arrayklass = AnalysisUtil.getClassHierarchy().lookupClass(innerArray.getExpectedType());
             assert arrayklass != null : "No class found for "
                                             + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
             addStatement(StatementFactory.newForNormalAlloc(innerArray, arrayklass, ir, i));
@@ -357,11 +352,11 @@ public class StatementRegistrar {
      * @param classHierarchy
      *            WALA class hierarchy
      */
-    protected void registerNewObject(SSANewInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
+    protected void registerNewObject(SSANewInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         // all "new" instructions are assigned to a local
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), ir);
 
-        IClass klass = cha.lookupClass(i.getNewSite().getDeclaredType());
+        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         addStatement(StatementFactory.newForNormalAlloc(result, klass, ir, i));
     }
@@ -447,9 +442,9 @@ public class StatementRegistrar {
      * @param ir
      *            code for method containing the instruction
      */
-    protected void registerThrow(SSAThrowInstruction i, IR ir, IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
+    protected void registerThrow(SSAThrowInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), ir);
-        addAssignmentsForThrownException(i, ir, exception, cha, rvFactory);
+        addAssignmentsForThrownException(i, ir, exception, rvFactory);
     }
 
     /**
@@ -507,25 +502,23 @@ public class StatementRegistrar {
      * 
      * @param inv
      *            method invocation to resolve methods for
-     * @param cha
-     *            class hierarchy to use for method resolution
      * @return Set of methods the invocation could call
      */
-    protected static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, WalaAnalysisUtil util) {
+    protected static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv) {
         Set<IMethod> targets = null;
         if (inv.isStatic()) {
-            IMethod resolvedMethod = util.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
+            IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
             if (resolvedMethod != null) {
                 targets = Collections.singleton(resolvedMethod);
             }
         } else if (inv.isSpecial()) {
-            IMethod resolvedMethod = util.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
+            IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
             if (resolvedMethod != null) {
                 targets = Collections.singleton(resolvedMethod);
             }
         } else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
-            targets = util.getClassHierarchy().getPossibleTargets(inv.getDeclaredTarget());
+            targets = AnalysisUtil.getClassHierarchy().getPossibleTargets(inv.getDeclaredTarget());
         } else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
                                             + PrettyPrinter.methodString(inv.getDeclaredTarget()));
@@ -646,13 +639,13 @@ public class StatementRegistrar {
     private void addStatementsForStringLit(ReferenceVariable stringLit, int local, IR ir, SSAInstruction i,
                                     IClass stringClass, IClass stringValueClass, ReferenceVariableFactory rvFactory) {
         // v = new String
-        addStatement(StatementFactory.newForStringLiteral(stringLit, ir, i, stringClass));
+        addStatement(StatementFactory.newForStringLiteral(stringLit, ir, i));
         for (IField f : stringClass.getAllFields()) {
             if (f.getName().toString().equals("value")) {
                 // This is the value field of the String
                 ReferenceVariable stringValue = rvFactory.getOrCreateStringLitField(stringValueClass.getReference(),
                                                 local, i, ir);
-                addStatement(StatementFactory.newForStringField(stringValue, ir, i, stringValueClass));
+                addStatement(StatementFactory.newForStringField(stringValue, ir, i));
                 addStatement(new LocalToFieldStatement(f.getReference(), stringLit, stringValue, ir, i));
             }
         }
@@ -666,30 +659,27 @@ public class StatementRegistrar {
      *            instruction
      * @param ir
      *            code containing the instruction
-     * @param util
-     *            utility class used to get the class hierarchy (and root method IR)
      * @param rvFactory
      *            factory for creating new reference variables
      */
-    protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, WalaAnalysisUtil util,
-                                    ReferenceVariableFactory rvFactory) {
+    protected final void addStatementsForGeneratedExceptions(SSAInstruction i, IR ir, ReferenceVariableFactory rvFactory) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             if (SINGLETON_GENERATED_EXCEPTIONS) {
                 ex = rvFactory.getOrCreateSingletonException(ImplicitEx.fromType(exType));
 
-                IClass exClass = util.getClassHierarchy().lookupClass(exType);
+                IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
-                addStatement(StatementFactory.newForGeneratedException(ex, exClass, util.getIR(util.getFakeRoot()),
-                                                null));
+                addStatement(StatementFactory.newForGeneratedException(ex, exClass,
+                                                AnalysisUtil.getIR(AnalysisUtil.getFakeRoot()), null));
             } else {
                 ex = rvFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
-                IClass exClass = util.getClassHierarchy().lookupClass(exType);
+                IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
                 addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir, i));
             }
-            addAssignmentsForThrownException(i, ir, ex, util.getClassHierarchy(), rvFactory);
+            addAssignmentsForThrownException(i, ir, ex, rvFactory);
         }
     }
 
@@ -705,7 +695,7 @@ public class StatementRegistrar {
      *            reference variable representing the value of the exception
      */
     private final void addAssignmentsForThrownException(SSAInstruction i, IR ir, ReferenceVariable thrown,
-                                    IClassHierarchy cha, ReferenceVariableFactory rvFactory) {
+                                    ReferenceVariableFactory rvFactory) {
         Set<IClass> notType = new LinkedHashSet<>();
 
         ISSABasicBlock bb = ir.getBasicBlockForInstruction(i);
@@ -721,7 +711,7 @@ public class StatementRegistrar {
             addStatement(StatementFactory.exceptionAssignment(thrown, caught, i, ir, notType));
             Iterator<TypeReference> caughtTypes = succ.getCaughtExceptionTypes();
             while (caughtTypes.hasNext()) {
-                notType.add(cha.lookupClass(caughtTypes.next()));
+                notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next()));
             }
         }
     }
@@ -731,11 +721,9 @@ public class StatementRegistrar {
      * 
      * @param resolvedNative
      *            native method
-     * @param util
-     *            utility (used to lookup classes)
      * @return generated allocation site for the exit value to a native method with no signatures
      */
-    public AllocSiteNode getReturnNodeForNative(IMethod resolvedNative, WalaAnalysisUtil util) {
+    public AllocSiteNode getReturnNodeForNative(IMethod resolvedNative) {
         ExitType type = ExitType.NORMAL;
         OrderedPair<IMethod, ExitType> key = new OrderedPair<>(resolvedNative, type);
         AllocSiteNode n = nativeAllocs.get(key);
@@ -744,7 +732,7 @@ public class StatementRegistrar {
             IClass allocatingClass = resolvedNative.getDeclaringClass();
             TypeReference retType = resolvedNative.getReturnType();
             assert !retType.isPrimitiveType() : "Primitive return: " + PrettyPrinter.methodString(resolvedNative);
-            IClass allocatedClass = util.getClassHierarchy().lookupClass(retType);
+            IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(retType);
             n = AllocSiteNodeFactory.getAllocationNodeForNative(allocatedClass, allocatingClass, type, resolvedNative);
             nativeAllocs.put(key, n);
         }
@@ -763,18 +751,16 @@ public class StatementRegistrar {
      *            native method
      * @param type
      *            exception type
-     * @param util
-     *            utility (used to lookup classes)
      * @return generated allocation site for the exit value to a native method with no signatures
      */
-    public AllocSiteNode getExceptionNodeForNative(IMethod resolvedNative, TypeReference exType, WalaAnalysisUtil util) {
+    public AllocSiteNode getExceptionNodeForNative(IMethod resolvedNative, TypeReference exType) {
         ExitType type = ExitType.EXCEPTIONAL;
         OrderedPair<IMethod, ExitType> key = new OrderedPair<>(resolvedNative, type);
         AllocSiteNode n = nativeAllocs.get(key);
         if (n == null) {
             // Use the declaring class as the allocator
             IClass allocatingClass = resolvedNative.getDeclaringClass();
-            IClass allocatedClass = util.getClassHierarchy().lookupClass(exType);
+            IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
             n = AllocSiteNodeFactory.getAllocationNodeForNative(allocatedClass, allocatingClass, type, resolvedNative);
             nativeAllocs.put(key, n);
         }

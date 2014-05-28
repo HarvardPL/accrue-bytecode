@@ -7,6 +7,7 @@ import types.TypeRepository;
 import util.ImplicitEx;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
@@ -14,7 +15,6 @@ import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -207,8 +207,8 @@ public class ReferenceVariableFactory {
      * @return reference variable for the static field
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateStaticField(FieldReference field, IClassHierarchy cha) {
-        IField f = cha.resolveField(field);
+    protected ReferenceVariable getOrCreateStaticField(FieldReference field) {
+        IField f = AnalysisUtil.getClassHierarchy().resolveField(field);
         ReferenceVariable node = staticFields.get(f);
         if (node == null) {
             if (f.getFieldTypeReference().isPrimitiveType()) {

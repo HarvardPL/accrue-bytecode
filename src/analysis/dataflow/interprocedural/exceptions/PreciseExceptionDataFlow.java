@@ -12,6 +12,7 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
@@ -51,10 +52,6 @@ import com.ibm.wala.types.TypeReference;
 public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExceptionAbsVal> {
 
     /**
-     * Class hierarchy
-     */
-    private final IClassHierarchy cha;
-    /**
      * Results of a non-null analysis
      */
     private final NonNullResults nonNullResults;
@@ -65,10 +62,9 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     private final Map<Integer, List<Integer>> arrayDimensions = new HashMap<>();
 
     public PreciseExceptionDataFlow(NonNullResults nonNullResults, CGNode currentNode,
-                                    InterproceduralDataFlow<PreciseExceptionAbsVal> interProc, IClassHierarchy cha) {
+                                    InterproceduralDataFlow<PreciseExceptionAbsVal> interProc) {
         super(currentNode, interProc);
         this.nonNullResults = nonNullResults;
-        this.cha = cha;
     }
 
     @Override
@@ -240,6 +236,8 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowArrayStore(SSAArrayStoreInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+
         Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
         if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
@@ -289,11 +287,11 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         // Upcasts and casts of null are always safe, see if either case holds
         // TODO track "definitely null" in the non-null analysis
         boolean castAlwaysSucceeds = true;
-        IClass checked = cha.lookupClass(i.getDeclaredResultTypes()[0]);
+        IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getDeclaredResultTypes()[0]);
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
             for (InstanceKey hContext : ptg.getPointsToSet(interProc.getReplica(i.getVal(), currentNode))) {
                 IClass actual = hContext.getConcreteType();
-                if (!cha.isAssignableFrom(checked, actual)) {
+                if (!AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                     castAlwaysSucceeds = false;
                     break;
                 }
@@ -481,7 +479,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Map<ISSABasicBlock, Set<TypeReference>> typesForSuccs = new HashMap<>();
         for (TypeReference type : types) {
-            Set<ISSABasicBlock> succs = getSuccessorsForExceptionType(type, cfg, current, cha);
+            Set<ISSABasicBlock> succs = getSuccessorsForExceptionType(type, cfg, current);
             for (ISSABasicBlock succ : succs) {
                 Set<TypeReference> typesForSucc = typesForSuccs.get(succ);
                 if (typesForSucc == null) {

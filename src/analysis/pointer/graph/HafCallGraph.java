@@ -11,7 +11,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -39,15 +39,13 @@ public class HafCallGraph extends ExplicitCallGraph {
      * Create and initialize a new call graph where contexts are created using
      * the given {@link HeapAbstractionFactory}
      * 
-     * @param util
-     *            Utility classes
      * @param haf
      *            Heap abstraction factory
      */
-    public HafCallGraph(WalaAnalysisUtil util, HeapAbstractionFactory haf) {
-        super(util.getClassHierarchy(), util.getOptions(), util.getCache());
+    public HafCallGraph(HeapAbstractionFactory haf) {
+        super(AnalysisUtil.getClassHierarchy(), AnalysisUtil.getOptions(), AnalysisUtil.getCache());
         this.haf = haf;
-        this.fakeRoot = util.getFakeRoot();
+        this.fakeRoot = AnalysisUtil.getFakeRoot();
         try {
             // Even though our analysis is context sensitive we use a context
             // insensitive "ContextInterpreter" this is correct because:
@@ -60,7 +58,7 @@ public class HafCallGraph extends ExplicitCallGraph {
             // so we use the context-insensitive IR to get the instructions. It
             // is important that the call graph use the same IR as the points-to
             // statement generation pass.
-            this.setInterpreter(new ContextInsensitiveSSAInterpreter(util.getOptions(), util.getCache()));
+            this.setInterpreter(new ContextInsensitiveSSAInterpreter(AnalysisUtil.getOptions(), AnalysisUtil.getCache()));
             this.init();
         } catch (CancelException e) {
             throw new RuntimeException("WALA CancelException initializing call graph. " + e.getMessage());

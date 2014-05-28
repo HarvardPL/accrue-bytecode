@@ -10,8 +10,8 @@ import java.util.Set;
 
 import util.InstructionType;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.ReferenceVariableCache;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -48,24 +48,16 @@ public class RegistrationUtil {
      */
     private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
     /**
-     * WALA-defined analysis utilities
-     */
-    protected final WalaAnalysisUtil util;
-    /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
     private final ReferenceVariableFactory rvFactory = new ReferenceVariableFactory();
 
     /**
-     * Create a pass which will generate points-to statements
-     * 
-     * @param util
-     *            utility class containing WALA classes needed by this analysis
+     * Create a utility class which can be used to generate points-to statements
      */
-    public RegistrationUtil(WalaAnalysisUtil util) {
-        this.util = util;
+    public RegistrationUtil() {
         registrar = new StatementRegistrar();
-        registrar.setEntryPoint(util.getFakeRoot());
+        registrar.setEntryPoint(AnalysisUtil.getFakeRoot());
     }
 
     /**
@@ -82,7 +74,7 @@ public class RegistrationUtil {
             // possible clinit, add that to the list of statements for the method
             // containing the instruction that could load, and then make sure to
             // only handle each one once in the pointer analysis
-            List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), info.instruction);
+            List<IMethod> inits = ClassInitFinder.getClassInitializers(info.instruction);
             if (!inits.isEmpty()) {
                 registrar.addStatementsForClassInitializer(info.instruction, info.ir, inits);
             }
@@ -114,7 +106,7 @@ public class RegistrationUtil {
         }
 
         visitedMethods.add(m);
-        IR ir = util.getIR(m);
+        IR ir = AnalysisUtil.getIR(m);
         if (ir == null) {
             // Native method with no signature
             assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
@@ -158,11 +150,11 @@ public class RegistrationUtil {
                                         + PrettyPrinter.instructionString(i, ir);
 
         // Add statements for any string literals in the instruction
-        registrar.addStatementsForStringLiterals(i, ir, util.getStringClass(), util.getStringValueClass(), rvFactory);
+        registrar.addStatementsForStringLiterals(i, ir, AnalysisUtil.getStringClass(),
+                                        AnalysisUtil.getStringValueClass(), rvFactory);
 
-        // Add statements for any JVM-generated exceptions this instruction
-        // could throw (e.g. NullPointerException)
-        registrar.addStatementsForGeneratedExceptions(i, ir, util, rvFactory);
+        // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
+        registrar.addStatementsForGeneratedExceptions(i, ir, rvFactory);
 
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
@@ -184,25 +176,25 @@ public class RegistrationUtil {
             return;
         case GET_STATIC:
             // v = ClassName.f
-            registrar.registerGetStatic((SSAGetInstruction) i, ir, util.getClassHierarchy(), rvFactory);
+            registrar.registerGetStatic((SSAGetInstruction) i, ir, rvFactory);
             return;
         case INVOKE_INTERFACE:
         case INVOKE_SPECIAL:
         case INVOKE_STATIC:
         case INVOKE_VIRTUAL:
             // procedure calls, instance initializers
-            registrar.registerInvoke((SSAInvokeInstruction) i, ir, util, rvFactory);
+            registrar.registerInvoke((SSAInvokeInstruction) i, ir, rvFactory);
             return;
         case LOAD_METADATA:
             // Reflection
             registrar.registerReflection((SSALoadMetadataInstruction) i, ir, rvFactory);
             return;
         case NEW_ARRAY:
-            registrar.registerNewArray((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory);
+            registrar.registerNewArray((SSANewInstruction) i, ir, rvFactory);
             return;
         case NEW_OBJECT:
             // v = new Foo();
-            registrar.registerNewObject((SSANewInstruction) i, ir, util.getClassHierarchy(), rvFactory);
+            registrar.registerNewObject((SSANewInstruction) i, ir, rvFactory);
             return;
         case PHI:
             // v = phi(x_1,x_2)
@@ -214,7 +206,7 @@ public class RegistrationUtil {
             return;
         case PUT_STATIC:
             // ClassName.f = v
-            registrar.registerPutStatic((SSAPutInstruction) i, ir, util.getClassHierarchy(), rvFactory);
+            registrar.registerPutStatic((SSAPutInstruction) i, ir, rvFactory);
             return;
         case RETURN:
             // return v
@@ -222,7 +214,7 @@ public class RegistrationUtil {
             return;
         case THROW:
             // throw e
-            registrar.registerThrow((SSAThrowInstruction) i, ir, util.getClassHierarchy(), rvFactory);
+            registrar.registerThrow((SSAThrowInstruction) i, ir, rvFactory);
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op

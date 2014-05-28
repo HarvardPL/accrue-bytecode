@@ -1,7 +1,6 @@
 package test.integration;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
@@ -13,7 +12,7 @@ import signatures.Signatures;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
@@ -38,17 +37,10 @@ import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.callgraph.AnalysisCache;
-import com.ibm.wala.ipa.callgraph.AnalysisOptions;
-import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
-import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.types.ClassLoaderReference;
-import com.ibm.wala.util.config.AnalysisScopeReader;
 
 /**
  * Run one of the selected analyses or tests, see usage
@@ -98,7 +90,6 @@ public class TestMain {
             }
 
             String fileName = entryPoint;
-            WalaAnalysisUtil util;
             Entrypoint entry;
             IR ir;
             OrderedPair<PointsToGraph, ReferenceVariableCache> results;
@@ -106,8 +97,8 @@ public class TestMain {
             ReferenceVariableCache rvCache;
             switch (testName) {
             case "pointsto":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraph(util, outputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraph(outputLevel);
                 g = results.fst();
                 g.dumpPointsToGraphToFile(fileName + "_ptg", false);
                 ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
@@ -128,8 +119,8 @@ public class TestMain {
                 System.err.println(numNodes + " CGNodes");
                 break;
             case "pointsto2":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraphOnline(util, outputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraphOnline(outputLevel);
                 g = results.fst();
                 g.dumpPointsToGraphToFile(fileName + "_ptg", false);
                 ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
@@ -150,53 +141,53 @@ public class TestMain {
                 System.err.println(numNodes + " CGNodes");
                 break;
             case "maincfg":
-                util = setUpWala(entryPoint);
-                entry = util.getOptions().getEntrypoints().iterator().next();
-                ir = util.getIR(entry.getMethod());
+                AnalysisUtil.init(classPath, entryPoint);
+                entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
+                ir = AnalysisUtil.getIR(entry.getMethod());
                 printSingleCFG(ir, fileName + "_main");
                 break;
             case "nonnull":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraph(util, otherOutputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraph(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache);
-                NonNullResults nonNull = runNonNull(util, outputLevel, g, r, rvCache);
+                NonNullResults nonNull = runNonNull(outputLevel, g, r, rvCache);
                 nonNull.writeAllToFiles(r);
                 break;
             case "precise-ex":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraph(util, otherOutputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraph(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 r = runReachability(otherOutputLevel, g, rvCache);
-                nonNull = runNonNull(util, otherOutputLevel, g, r, rvCache);
-                PreciseExceptionResults preciseEx = runPreciseExceptions(util, outputLevel, g, r, nonNull, rvCache);
+                nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
+                PreciseExceptionResults preciseEx = runPreciseExceptions(outputLevel, g, r, nonNull, rvCache);
                 preciseEx.writeAllToFiles(r);
                 break;
             case "reachability":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraph(util, otherOutputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraph(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 r = runReachability(outputLevel, g, rvCache);
                 r.writeAllToFiles();
                 break;
             case "cfg":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraph(util, otherOutputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraph(otherOutputLevel);
                 g = results.fst();
-                printAllCFG(util, g);
+                printAllCFG(g);
                 break;
             case "pdg":
-                util = setUpWala(entryPoint);
-                results = generatePointsToGraph(util, otherOutputLevel);
+                AnalysisUtil.init(classPath, entryPoint);
+                results = generatePointsToGraph(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 r = runReachability(otherOutputLevel, g, rvCache);
-                nonNull = runNonNull(util, otherOutputLevel, g, r, rvCache);
-                preciseEx = runPreciseExceptions(util, otherOutputLevel, g, r, nonNull, rvCache);
-                ProgramDependenceGraph pdg = runPDG(util, outputLevel, g, r, preciseEx, rvCache);
+                nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
+                preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
+                ProgramDependenceGraph pdg = runPDG(outputLevel, g, r, preciseEx, rvCache);
                 String fullName = "tests/pdg_" + fileName + ".dot";
                 FileWriter file = new FileWriter(fullName);
                 pdg.writeDot(file, true, 1);
@@ -210,7 +201,7 @@ public class TestMain {
                     r.writeAllToFiles();
                     nonNull.writeAllToFiles(r);
                     preciseEx.writeAllToFiles(r);
-                    printAllCFG(util, g);
+                    printAllCFG(g);
                 }
                 break;
             default:
@@ -226,12 +217,10 @@ public class TestMain {
     /**
      * Print the control flow graph for all procedures in the call graph
      * 
-     * @param util
-     *            utility objects from WALA
      * @param g
      *            points to graph
      */
-    private static void printAllCFG(WalaAnalysisUtil util, PointsToGraph g) {
+    private static void printAllCFG(PointsToGraph g) {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
             if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
@@ -239,7 +228,7 @@ public class TestMain {
                 printSingleCFG(n.getIR(), fileName);
                 printed.add(n.getMethod());
             } else if (n.getMethod().isNative()) {
-                IR sigIR = Signatures.getSignatureIR(n.getMethod(), util);
+                IR sigIR = Signatures.getSignatureIR(n.getMethod());
                 if (sigIR != null) {
                     String fileName = "cfg_sig_" + PrettyPrinter.methodString(n.getMethod());
                     printSingleCFG(sigIR, fileName);
@@ -249,52 +238,6 @@ public class TestMain {
                 }
             }
         }
-    }
-
-    /**
-     * Set up the WALA framework
-     * 
-     * @param entryPoint
-     *            class containing the main method (full name, dot separated)
-     * @return Utility object used by other tests
-     * @throws IOException
-     *             reading exclusions file
-     * @throws ClassHierarchyException
-     *             setting up class hierarchy
-     */
-    private static WalaAnalysisUtil setUpWala(String entryPoint) throws IOException, ClassHierarchyException {
-        /********************************
-         * Start of WALA set up code
-         ********************************/
-        if (classPath == null) {
-            classPath = "classes";
-        }
-        File exclusions = new File("data/Exclusions.txt");
-        // file name for the location of the java standard library and other
-        // standard jars
-        String primordialFilename = "data/primordial.txt";
-
-        AnalysisScope scope = AnalysisScopeReader.readJavaScope(primordialFilename, exclusions,
-                                        TestMain.class.getClassLoader());
-        AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
-
-        long start = System.currentTimeMillis();
-        IClassHierarchy cha = ClassHierarchy.make(scope);
-        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
-                                        + (System.currentTimeMillis() - start) + "ms");
-
-        AnalysisCache cache = new AnalysisCache();
-
-        // Add L to the name to indicate that this is a class name
-        Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
-                                        + entryPoint.replace(".", "/"));
-        AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
-
-        /********************************
-         * End of WALA set up code
-         ********************************/
-
-        return new WalaAnalysisUtil(cha, cache, options);
     }
 
     /**
@@ -322,25 +265,22 @@ public class TestMain {
     /**
      * Generate the full points-to graph, print statistics, and save it to a file.
      * 
-     * @param util
-     *            utility objects from WALA
      * @param outputLevel
      *            print level
-     * @return the resulting points-to graph
+     * @return the resulting points-to graph, and cache of reference variables
      */
-    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(WalaAnalysisUtil util,
-                                    int outputLevel) {
+    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel) {
 
         // Gather all the points-to statements
         StatementRegistrationPass.outputLevel = outputLevel;
-        StatementRegistrationPass pass = new StatementRegistrationPass(util);
+        StatementRegistrationPass pass = new StatementRegistrationPass();
         pass.run();
         StatementRegistrar registrar = pass.getRegistrar();
         ReferenceVariableCache rvCache = pass.getAllLocals();
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
         HeapAbstractionFactory haf = new TypeSensitive(2, 1);
-        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf, util);
+        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
 
@@ -359,14 +299,11 @@ public class TestMain {
     /**
      * Generate the full points-to graph, print statistics, and save it to a file.
      * 
-     * @param util
-     *            utility objects from WALA
      * @param outputLevel
      *            print level
      * @return the resulting points-to graph
      */
-    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraphOnline(
-                                    WalaAnalysisUtil util, int outputLevel) {
+    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraphOnline(int outputLevel) {
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
 
@@ -376,9 +313,9 @@ public class TestMain {
 
         // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
 
-        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf, util);
+        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
-        RegistrationUtil online = new RegistrationUtil(util);
+        RegistrationUtil online = new RegistrationUtil();
         RegistrationUtil.outputLevel = outputLevel;
         PointsToGraph g = analysis.solveAndRegister(online);
 
@@ -418,8 +355,6 @@ public class TestMain {
     /**
      * Run the non-null analysis and return the results
      * 
-     * @param util
-     *            WALA utility classes
      * @param method
      *            method to print the results for
      * @param g
@@ -428,9 +363,9 @@ public class TestMain {
      *            results of a reachability analysis
      * @return the results of the non-null analysis
      */
-    private static NonNullResults runNonNull(WalaAnalysisUtil util, int outputLevel, PointsToGraph g,
+    private static NonNullResults runNonNull(int outputLevel, PointsToGraph g,
                                     ReachabilityResults r, ReferenceVariableCache rvCache) {
-        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, util, rvCache);
+        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
@@ -439,8 +374,6 @@ public class TestMain {
     /**
      * Run a precise exceptions analysis
      * 
-     * @param util
-     *            WALA analysis classes
      * @param outputLevel
      *            level of logging
      * @param g
@@ -451,11 +384,11 @@ public class TestMain {
      *            results of a non-null analysis
      * @return the results of the precise exceptions analysis
      */
-    private static PreciseExceptionResults runPreciseExceptions(WalaAnalysisUtil util, int outputLevel,
+    private static PreciseExceptionResults runPreciseExceptions(int outputLevel,
                                     PointsToGraph g, ReachabilityResults r, NonNullResults nonNull,
                                     ReferenceVariableCache rvCache) {
         PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g, nonNull, r,
-                                        util, rvCache);
+                                        rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
@@ -479,8 +412,6 @@ public class TestMain {
     /**
      * Run an inter-procedural analysis that generates a program dependence graph
      * 
-     * @param util
-     *            utility WALA classes
      * @param outputLevel
      *            logging level
      * @param g
@@ -491,10 +422,10 @@ public class TestMain {
      *            results of a precise exceptions analysis
      * @return the program dependence graph
      */
-    private static ProgramDependenceGraph runPDG(WalaAnalysisUtil util, int outputLevel, PointsToGraph g,
+    private static ProgramDependenceGraph runPDG(int outputLevel, PointsToGraph g,
                                     ReachabilityResults r, PreciseExceptionResults preciseEx,
                                     ReferenceVariableCache rvCache) {
-        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, util, rvCache);
+        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();

@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
@@ -34,10 +33,6 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
      */
     private final NonNullResults nonNull;
     /**
-     * WALA analysis utility classes
-     */
-    private final WalaAnalysisUtil util;
-    /**
      * Name of this analysis
      */
     private static final String ANALYSIS_NAME = "Precise Exceptions Analysis";
@@ -51,15 +46,12 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
      *            results of previous non-null analysis
      * @param reachable
      *            results of a reachability analysis
-     * @param util
-     *            WALA utilities
      */
     public PreciseExceptionInterproceduralDataFlow(PointsToGraph ptg, NonNullResults nonNull,
-                                    ReachabilityResults reachable, WalaAnalysisUtil util, ReferenceVariableCache rvCache) {
+                                    ReachabilityResults reachable, ReferenceVariableCache rvCache) {
         super(ptg, reachable, rvCache);
-        preciseEx = new PreciseExceptionResults(util.getClassHierarchy());
+        preciseEx = new PreciseExceptionResults();
         this.nonNull = nonNull;
-        this.util = util;
     }
 
     @Override
@@ -72,7 +64,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
-        PreciseExceptionDataFlow df = new PreciseExceptionDataFlow(nonNull, n, this, util.getClassHierarchy());
+        PreciseExceptionDataFlow df = new PreciseExceptionDataFlow(nonNull, n, this);
         df.setOutputLevel(getOutputLevel());
         return df.dataflow(input);
     }

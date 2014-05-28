@@ -35,8 +35,6 @@ public class NewStatement extends PointsToStatement {
      *            Points-to graph node for the assignee of the new
      * @param newClass
      *            Class being created
-     * @param cha
-     *            class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i
@@ -56,8 +54,6 @@ public class NewStatement extends PointsToStatement {
      *            the assignee of the new allocation
      * @param allocatedClass
      *            Class being created
-     * @param cha
-     *            class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i
@@ -79,8 +75,6 @@ public class NewStatement extends PointsToStatement {
      *            the assignee of the new allocation
      * @param allocatedClass
      *            Class being created
-     * @param cha
-     *            class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i

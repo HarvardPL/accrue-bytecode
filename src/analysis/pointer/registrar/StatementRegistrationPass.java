@@ -6,8 +6,8 @@ import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.RegistrationUtil.InstrAndCode;
 
@@ -22,28 +22,23 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 public class StatementRegistrationPass {
 
     private final RegistrationUtil registration;
-    private final WalaAnalysisUtil util;
     public static int outputLevel = 0;
     private static boolean PROFILE = false;
 
     /**
      * Create a pass which will generate points-to statements
-     * 
-     * @param util
-     *            utility class containing WALA classes needed by this analysis
      */
-    public StatementRegistrationPass(WalaAnalysisUtil util) {
-        registration = new RegistrationUtil(util);
+    public StatementRegistrationPass() {
+        registration = new RegistrationUtil();
         RegistrationUtil.outputLevel = outputLevel;
-        this.util = util;
     }
 
     /**
      * Initialize the queue using the defined entry points
      */
     private void init(WorkQueue<InstrAndCode> q) {
-        registration.getRegistrar().setEntryPoint(util.getFakeRoot());
-        addFromMethod(q, util.getFakeRoot());
+        registration.getRegistrar().setEntryPoint(AnalysisUtil.getFakeRoot());
+        addFromMethod(q, AnalysisUtil.getFakeRoot());
     }
 
     /**
@@ -106,7 +101,7 @@ public class StatementRegistrationPass {
             // possible clinit, add that to the list of statements for the method
             // containing the instruction that could load, and then make sure to
             // only handle each one once in the pointer analysis
-            List<IMethod> inits = ClassInitFinder.getClassInitializers(util.getClassHierarchy(), i);
+            List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
             if (!inits.isEmpty()) {
                 addClassInitializers(i, ir, q, inits);
             }
@@ -114,7 +109,7 @@ public class StatementRegistrationPass {
             if (i instanceof SSAInvokeInstruction) {
                 // This is an invocation, add statements for callee to work queue
                 SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
-                Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, util);
+                Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
                 for (IMethod m : targets) {
                     if (outputLevel >= 2) {
                         System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "

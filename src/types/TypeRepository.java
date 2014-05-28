@@ -8,6 +8,7 @@ import java.util.Set;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 
 import com.ibm.wala.analysis.typeInference.TypeAbstraction;
 import com.ibm.wala.analysis.typeInference.TypeInference;
@@ -104,11 +105,9 @@ public class TypeRepository {
      *            assignee
      * @param c2
      *            assigned
-     * @param cha
-     *            class hierarchy
      * @return true if c1 = c2 type checks
      */
-    public static boolean isAssignableFrom(IClass c1, IClass c2, IClassHierarchy cha) {
+    public static boolean isAssignableFrom(IClass c1, IClass c2) {
         OrderedPair<IClass, IClass> key = new OrderedPair<>(c1, c2);
         // count++;
         // if (count % 10000000 == 0) {
@@ -116,7 +115,7 @@ public class TypeRepository {
         // }
         Boolean res = isAssignable.get(key);
         if (res == null) {
-            res = cha.isAssignableFrom(c1, c2);
+            res = AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
             isAssignable.put(key, res);
         }
         return res;

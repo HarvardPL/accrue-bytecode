@@ -8,7 +8,7 @@ import java.util.Set;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.pdg.graph.CallSiteEdgeLabel;
@@ -27,7 +27,6 @@ import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -76,10 +75,6 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      */
     private final IR ir;
     /**
-     * Class hierarchy produced by WALA
-     */
-    private final IClassHierarchy cha;
-    /**
      * Map from basic block to the computed data-flow facts (PCNode, nodes for exceptions and return values) for each
      * exit edge
      */
@@ -115,8 +110,6 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      * @param interProc
      *            Inter-procedural analysis managing the queue of call graph nodes and holding data structures that
      *            persist over the analysis of a multiple call graph nodes
-     * @param util
-     *            Class hierarchy produced by WALA and other utility classes common to a number of analyses
      * @param mergeNodes
      *            Map from a merge node to the nodes that were merged when creating that node
      * @param trueExceptionContexts
@@ -134,7 +127,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      *            Map from basic block to context holding the PC node and exception node for the program point just
      *            after an exception (of a particular type) is thrown in that basic block
      */
-    public AddPDGEdgesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc, WalaAnalysisUtil util,
+    public AddPDGEdgesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc,
                                     Map<PDGNode, Set<PDGNode>> mergeNodes,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts,
@@ -145,7 +138,6 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         this.currentNode = currentNode;
         this.interProc = interProc;
         this.ir = currentNode.getIR();
-        this.cha = util.getClassHierarchy();
         this.trueExceptionContexts = trueExceptionContexts;
         this.falseExceptionContexts = falseExceptionContexts;
         this.calleeExceptionContexts = calleeExceptionContexts;
@@ -280,11 +272,11 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         boolean instanceOfAlwaysTrue = true;
 
         // Check if everything the cast object could point to is safe to cast (or unsafe)
-        IClass checked = cha.lookupClass(i.getCheckedType());
+        IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getCheckedType());
         for (InstanceKey hContext : interProc.getPointsToGraph().getPointsToSet(
                                         interProc.getReplica(i.getRef(), currentNode))) {
             IClass actual = hContext.getConcreteType();
-            if (cha.isAssignableFrom(checked, actual)) {
+            if (AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                 instanceOfAlwaysFalse = false;
             } else {
                 instanceOfAlwaysTrue = false;

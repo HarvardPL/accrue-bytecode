@@ -7,7 +7,6 @@ import java.util.Map;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -31,7 +30,6 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     private final ProgramDependenceGraph pdg;
     private final PreciseExceptionResults preciseEx;
-    private final WalaAnalysisUtil util;
     private static final Map<ExitType, Unit> UNIT_MAP = new HashMap<>();
     static {
         UNIT_MAP.put(ExitType.EXCEPTIONAL, Unit.VALUE);
@@ -39,11 +37,10 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     }
 
     public PDGInterproceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
-                                    ReachabilityResults reachable, WalaAnalysisUtil util, ReferenceVariableCache rvCache) {
+                                    ReachabilityResults reachable, ReferenceVariableCache rvCache) {
         super(ptg, reachable, rvCache);
         this.pdg = new ProgramDependenceGraph();
         this.preciseEx = preciseEx;
-        this.util = util;
     }
 
     @Override
@@ -56,7 +53,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.cgNodeString(n));
         }
-        ComputePDGNodesDataflow df = new ComputePDGNodesDataflow(n, this, util);
+        ComputePDGNodesDataflow df = new ComputePDGNodesDataflow(n, this);
         df.setOutputLevel(getOutputLevel());
         df.dataflow();
         return UNIT_MAP;

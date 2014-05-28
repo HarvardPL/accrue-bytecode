@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
@@ -21,10 +20,6 @@ import com.ibm.wala.types.TypeReference;
 public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
     /**
-     * WALA analysis classes
-     */
-    private final WalaAnalysisUtil util;
-    /**
      * Results of the analysis, namely which local variables are null and when are put here
      */
     private final NonNullResults results = new NonNullResults();
@@ -40,12 +35,10 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      *            points-to graph
      * @param reachable
      *            results of a reachability analysis
-     * @param util
-     *            WALA analysis classes
      */
-    public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable, WalaAnalysisUtil util, ReferenceVariableCache rvCache) {
+    public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable,
+                                    ReferenceVariableCache rvCache) {
         super(ptg, reachable, rvCache);
-        this.util = util;
     }
 
     @Override
@@ -58,7 +51,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
-        NonNullDataFlow df = new NonNullDataFlow(n, this, util);
+        NonNullDataFlow df = new NonNullDataFlow(n, this);
         df.setOutputLevel(getOutputLevel());
         return df.dataflow(input);
     }

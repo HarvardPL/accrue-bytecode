@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -30,11 +30,6 @@ public class VirtualCallStatement extends CallStatement {
      * Called method
      */
     private final MethodReference callee;
-
-    /**
-     * Class hierarchy
-     */
-    private final IClassHierarchy cha;
     /**
      * Reference variable for the receiver of the call
      */
@@ -55,8 +50,6 @@ public class VirtualCallStatement extends CallStatement {
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
-     * @param cha
-     *            Class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i
@@ -66,13 +59,12 @@ public class VirtualCallStatement extends CallStatement {
      */
     protected VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IClassHierarchy cha, IR ir,
-                                    SSAInvokeInstruction i, WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i, util, rvFactory);
+                                    ReferenceVariable exceptionNode, IR ir,
+                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
+        super(callSite, actuals, resultNode, exceptionNode, ir, i, rvFactory);
         assert receiver != null;
         assert callee != null;
         this.callee = callee;
-        this.cha = cha;
         this.receiver = receiver;
     }
 
@@ -80,6 +72,7 @@ public class VirtualCallStatement extends CallStatement {
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         ReferenceVariableReplica receiverRep = getReplica(context, receiver);
 
         if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {

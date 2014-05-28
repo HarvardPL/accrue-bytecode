@@ -7,7 +7,7 @@ import signatures.synthetic.SyntheticIR;
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.registrar.RegistrationUtil;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -62,18 +62,16 @@ public class Signatures {
      * 
      * @param actualMethod
      *            method to check
-     * @param util
-     *            Utility functions for getting IR and resolving methods and classes
      * @return true if a signature exists for the given method
      */
-    public static boolean hasSignature(IMethod actualMethod, WalaAnalysisUtil util) {
+    public static boolean hasSignature(IMethod actualMethod) {
         if (signatures.containsKey(actualMethod)) {
             return signatures.get(actualMethod) != null;
         }
 
         // Try to compute the signature and see if there is one.
         // If there is it will be memoized so this is not wasted work.
-        return getSignatureIR(actualMethod, util) != null;
+        return getSignatureIR(actualMethod) != null;
     }
 
     /**
@@ -81,11 +79,9 @@ public class Signatures {
      * 
      * @param actualMethod
      *            method to find the signature for
-     * @param util
-     *            used to get the IR and to get the class hierarchy
      * @return the signature IR or null if no signature is found
      */
-    public static IR getSignatureIR(IMethod actualMethod, WalaAnalysisUtil util) {
+    public static IR getSignatureIR(IMethod actualMethod) {
         if (signatures.containsKey(actualMethod)) {
             // Already computed the signature return it
             return signatures.get(actualMethod);
@@ -101,8 +97,7 @@ public class Signatures {
         TypeReference actualTarget = actual.getDeclaringClass();
         // Take the name of the real method target and append signatures/library to make it a signature type
         TypeReference sigTarget = getSigTypeForRealType(actualTarget.getName());
-        IMethod resolvedSig = resolveSignatureMethod(sigTarget, actual.getName(), actual.getDescriptor(),
-                                        util.getClassHierarchy());
+        IMethod resolvedSig = resolveSignatureMethod(sigTarget, actual.getName(), actual.getDescriptor());
 
         if (resolvedSig == null) {
             // no signature found
@@ -110,8 +105,8 @@ public class Signatures {
             return null;
         }
 
-        IR sigIR = util.getIR(resolvedSig);
-        IR newIR = rewriteIR(sigIR, actualMethod, util.getClassHierarchy());
+        IR sigIR = AnalysisUtil.getIR(resolvedSig);
+        IR newIR = rewriteIR(sigIR, actualMethod);
         if (newIR != null) {
             System.err.println("USING SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
         }
@@ -123,8 +118,9 @@ public class Signatures {
         return TypeReference.findOrCreate(CLASS_LOADER, "Lsignatures/library/" + realType.toString().substring(1));
     }
 
-    private static IMethod resolveSignatureMethod(TypeReference sigTarget, Atom name, Descriptor descriptor,
-                                    IClassHierarchy cha) {
+    private static IMethod resolveSignatureMethod(TypeReference sigTarget, Atom name, Descriptor descriptor) {
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+
         MethodReference mr = MethodReference.findOrCreate(sigTarget, name, descriptor);
         IMethod resolved = cha.resolveMethod(mr);
 
@@ -159,11 +155,9 @@ public class Signatures {
      *            IR for the signature method
      * @param actualMethod
      *            "real" resolved method the IR is the signature for
-     * @param cha
-     *            class hierarchy
      * @return IR with signature types replaced with the "real" versions when they can be found
      */
-    private static IR rewriteIR(IR sigIR, IMethod actualMethod, IClassHierarchy cha) {
+    private static IR rewriteIR(IR sigIR, IMethod actualMethod) {
         if (DEBUG) {
             CFGWriter.writeToFile(sigIR, "sig_" + PrettyPrinter.methodString(sigIR.getMethod()));
         }
@@ -202,24 +196,24 @@ public class Signatures {
                 // These involve types, but we will assume they are the indended types
                 continue;
             case NEW_OBJECT:
-                updated = handleNewObject((SSANewInstruction) i, cha);
+                updated = handleNewObject((SSANewInstruction) i);
                 allInstructions[j] = updated;
                 continue;
             case PUT_FIELD:
             case PUT_STATIC:
-                updated = handlePut((SSAPutInstruction) i, cha);
+                updated = handlePut((SSAPutInstruction) i);
                 allInstructions[j] = updated;
                 continue;
             case INVOKE_INTERFACE:
             case INVOKE_SPECIAL:
             case INVOKE_STATIC:
             case INVOKE_VIRTUAL:
-                updated = handleInvoke((SSAInvokeInstruction) i, cha);
+                updated = handleInvoke((SSAInvokeInstruction) i);
                 allInstructions[j] = updated;
                 continue;
             case GET_FIELD:
             case GET_STATIC:
-                updated = handleGet((SSAGetInstruction) i, cha);
+                updated = handleGet((SSAGetInstruction) i);
                 allInstructions[j] = updated;
                 continue;
             }
@@ -238,23 +232,22 @@ public class Signatures {
      * 
      * @param i
      *            instruction to potentially replace
-     * @param cha
-     *            class hierarchy
      * @return new instruction (or same instruction if no changes were made)
      */
-    private static SSAInstruction handleGet(SSAGetInstruction i, IClassHierarchy cha) {
+    private static SSAInstruction handleGet(SSAGetInstruction i) {
+
         TypeReference receiverType = i.getDeclaredField().getDeclaringClass();
 
         TypeReference fieldType = i.getDeclaredFieldType();
         if (isSigType(fieldType)) {
-            fieldType = findRealTypeForSigType(fieldType, cha);
+            fieldType = findRealTypeForSigType(fieldType);
         }
 
         if (isSigType(receiverType)) {
-            TypeReference real = findRealTypeForSigType(receiverType, cha);
+            TypeReference real = findRealTypeForSigType(receiverType);
             if (real != null) {
                 FieldReference newFR = FieldReference.findOrCreate(real, i.getDeclaredField().getName(), fieldType);
-                IField newField = cha.resolveField(newFR);
+                IField newField = AnalysisUtil.getClassHierarchy().resolveField(newFR);
                 if (newField != null) {
                     // The field exists on the real type use it to create a new instruction
                     if (i.isStatic()) {
@@ -282,21 +275,19 @@ public class Signatures {
      * 
      * @param i
      *            instruction to potentially replace
-     * @param cha
-     *            class hierarchy
      * @return new instruction (or same instruction if no changes were made)
      */
-    private static SSAInstruction handleInvoke(SSAInvokeInstruction i, IClassHierarchy cha) {
+    private static SSAInstruction handleInvoke(SSAInvokeInstruction i) {
         TypeReference receiverType = i.getDeclaredTarget().getDeclaringClass();
         TypeReference returnType = i.getDeclaredResultType();
 
         TypeReference realReturn = null;
         if (isSigType(returnType)) {
-            realReturn = findRealTypeForSigType(returnType, cha);
+            realReturn = findRealTypeForSigType(returnType);
         }
 
         if (isSigType(receiverType)) {
-            TypeReference real = findRealTypeForSigType(receiverType, cha);
+            TypeReference real = findRealTypeForSigType(receiverType);
             if (real != null) {
                 Selector s = i.getDeclaredTarget().getSelector();
                 if (realReturn != null) {
@@ -306,7 +297,7 @@ public class Signatures {
                 }
 
                 MethodReference newMR = MethodReference.findOrCreate(real, s);
-                IMethod newMethod = cha.resolveMethod(newMR);
+                IMethod newMethod = AnalysisUtil.getClassHierarchy().resolveMethod(newMR);
                 if (newMethod != null) {
                     // The method exists on the real type use it to create a new instruction
                     CallSiteReference newSite = CallSiteReference.make(i.getProgramCounter(), newMR, i.getCallSite()
@@ -334,23 +325,21 @@ public class Signatures {
      * 
      * @param i
      *            instruction to potentially replace
-     * @param cha
-     *            class hierarchy
      * @return new instruction (or same instruction if no changes were made)
      */
-    private static SSAInstruction handlePut(SSAPutInstruction i, IClassHierarchy cha) {
+    private static SSAInstruction handlePut(SSAPutInstruction i) {
         TypeReference receiverType = i.getDeclaredField().getDeclaringClass();
 
         TypeReference fieldType = i.getDeclaredFieldType();
         if (isSigType(fieldType)) {
-            fieldType = findRealTypeForSigType(fieldType, cha);
+            fieldType = findRealTypeForSigType(fieldType);
         }
 
         if (isSigType(receiverType)) {
-            TypeReference real = findRealTypeForSigType(receiverType, cha);
+            TypeReference real = findRealTypeForSigType(receiverType);
             if (real != null) {
                 FieldReference newFR = FieldReference.findOrCreate(real, i.getDeclaredField().getName(), fieldType);
-                IField newField = cha.resolveField(newFR);
+                IField newField = AnalysisUtil.getClassHierarchy().resolveField(newFR);
                 if (newField != null) {
                     // The field exists on the real type use it to create a new put instruction
                     if (i.isStatic()) {
@@ -377,16 +366,14 @@ public class Signatures {
      * 
      * @param i
      *            instruction to potentially replace
-     * @param cha
-     *            class hierarchy
      * @return new instruction (or same instruction if no changes were made)
      */
-    private static SSAInstruction handleNewObject(SSANewInstruction i, IClassHierarchy cha) {
+    private static SSAInstruction handleNewObject(SSANewInstruction i) {
         TypeReference allocatedType = i.getConcreteType();
         if (isSigType(allocatedType)) {
             // This is an allocation of an object in the signatures package
             // Check to see if there is a "real" object out there that the signature object is emulating.
-            TypeReference real = findRealTypeForSigType(allocatedType, cha);
+            TypeReference real = findRealTypeForSigType(allocatedType);
             if (real != null) {
                 // Found a real object
                 NewSiteReference site = i.getNewSite();
@@ -408,12 +395,10 @@ public class Signatures {
      * 
      * @param signatureType
      *            type of class from signature library
-     * @param cha
-     *            class hierarchy
      * @return Type for the real class corresponding to the given type from the signature library, null if there is no
      *         corresponding type
      */
-    private static TypeReference findRealTypeForSigType(TypeReference signatureType, IClassHierarchy cha) {
+    private static TypeReference findRealTypeForSigType(TypeReference signatureType) {
         assert isSigType(signatureType) : "Can only find classes for signature types.";
         // This is an allocation of an object in the signatures package
         // Check to see if there is a "real" object out there the signature object is emulating.
@@ -422,7 +407,7 @@ public class Signatures {
             System.err.println("SIGNATURE LOOKING: " + typeToCheck);
         }
         TypeReference potentialMatch = TypeReference.findOrCreate(CLASS_LOADER, typeToCheck);
-        IClass klass = cha.lookupClass(potentialMatch);
+        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(potentialMatch);
         if (klass == null) {
             return null;
         }

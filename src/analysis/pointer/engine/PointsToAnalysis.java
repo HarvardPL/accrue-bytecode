@@ -1,6 +1,5 @@
 package analysis.pointer.engine;
 
-import analysis.WalaAnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -22,10 +21,6 @@ public abstract class PointsToAnalysis {
      * Defining abstraction factory for this points-to analysis
      */
     protected final HeapAbstractionFactory haf;
-    /**
-     * Class hierarchy and other analysis utilities
-     */
-    protected final WalaAnalysisUtil util;
 
     /**
      * Effects the amount of debugging output. See also {@link PointsToAnalysis#DEBUG}, which makes debug strings in
@@ -36,9 +31,8 @@ public abstract class PointsToAnalysis {
     /**
      * Create a new analysis with the given abstraction
      */
-    public PointsToAnalysis(HeapAbstractionFactory haf, WalaAnalysisUtil util) {
+    public PointsToAnalysis(HeapAbstractionFactory haf) {
         this.haf = haf;
-        this.util = util;
     }
 
     public abstract PointsToGraph solve(StatementRegistrar registrar);

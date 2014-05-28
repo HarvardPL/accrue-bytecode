@@ -14,6 +14,7 @@ import util.InstructionType;
 import util.OrderedPair;
 import util.SingletonValueMap;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
@@ -546,14 +547,12 @@ public abstract class DataFlow<F> {
      *            control flow graph
      * @param current
      *            basic bloc that throws the exception
-     * @param cha
-     *            class hierarchy
      * @return set of basic blocks that may
      */
     protected static Set<ISSABasicBlock> getSuccessorsForExceptionType(TypeReference exType,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current,
-                                    IClassHierarchy cha) {
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO redo exception successors in a cleaner way
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
 
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
 
@@ -574,10 +573,10 @@ public abstract class DataFlow<F> {
             while (caughtTypes.hasNext()) {
                 TypeReference caughtType = caughtTypes.next();
                 IClass caught = cha.lookupClass(caughtType);
-                if (TypeRepository.isAssignableFrom(caught, thrown, cha)) {
+                if (TypeRepository.isAssignableFrom(caught, thrown)) {
                     result.add(cb);
                     isCaught = true;
-                } else if (throwerType.isInvoke() && TypeRepository.isAssignableFrom(thrown, caught, cha)) {
+                } else if (throwerType.isInvoke() && TypeRepository.isAssignableFrom(thrown, caught)) {
                     // The catch type is a subtype of the exception being thrown
                     // so it could be caught (due to imprecision for exceptions
                     // thrown by native calls)

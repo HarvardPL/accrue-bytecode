@@ -6,14 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
@@ -287,8 +286,6 @@ public class StatementFactory {
      *            Points-to graph node for the assignee of the new
      * @param newClass
      *            Class being created
-     * @param cha
-     *            class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i
@@ -310,13 +307,11 @@ public class StatementFactory {
      *            code containing the instruction throwing the exception
      * @param i
      *            exception throwing the exception
-     * @param charArrayClass
-     *            WALA representation of a char[]
      * @return a statement representing the allocation of a new string literal's value field
      */
-    public static NewStatement newForStringField(ReferenceVariable local, IR ir, SSAInstruction i, IClass charArrayClass) {
-        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, charArrayClass, ir, i);
-        checkForDuplicates(new StatementKey(local, charArrayClass, ir, i), s);
+    public static NewStatement newForStringField(ReferenceVariable local, IR ir, SSAInstruction i) {
+        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, AnalysisUtil.getStringValueClass(), ir, i);
+        checkForDuplicates(new StatementKey(local, AnalysisUtil.getStringValueClass(), ir, i), s);
         return s;
     }
 
@@ -329,13 +324,11 @@ public class StatementFactory {
      *            code containing the instruction throwing the exception
      * @param i
      *            exception throwing the exception
-     * @param stringClass
-     *            WALA representation of the java.lang.String class
      * @return a statement representing the allocation of a new string literal
      */
-    public static NewStatement newForStringLiteral(ReferenceVariable local, IR ir, SSAInstruction i, IClass stringClass) {
-        NewStatement s = new NewStatement(STRING_LIT_DESC, local, stringClass, ir, i);
-        checkForDuplicates(new StatementKey(local, stringClass, ir, i), s);
+    public static NewStatement newForStringLiteral(ReferenceVariable local, IR ir, SSAInstruction i) {
+        NewStatement s = new NewStatement(STRING_LIT_DESC, local, AnalysisUtil.getStringClass(), ir, i);
+        checkForDuplicates(new StatementKey(local, AnalysisUtil.getStringClass(), ir, i), s);
         return s;
     }
 
@@ -397,8 +390,6 @@ public class StatementFactory {
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
-     * @param util
-     *            Used to create the IR for the callee
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      * @return statement to be processed during pointer analysis
@@ -406,11 +397,11 @@ public class StatementFactory {
     public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod resolvedCallee,
                                     ReferenceVariable receiver, List<ReferenceVariable> actuals,
                                     ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR callerIR,
-                                    SSAInvokeInstruction i, WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
+                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
         SpecialCallStatement s = new SpecialCallStatement(callSite, resolvedCallee, receiver, actuals, resultNode,
-                                        exceptionNode, callerIR, i, util, rvFactory);
+                                        exceptionNode, callerIR, i, rvFactory);
         checkForDuplicates(new StatementKey(callSite, resolvedCallee, receiver, actuals, resultNode, exceptionNode,
-                                        callerIR, i, util, rvFactory), s);
+                                        callerIR, i, rvFactory), s);
         return s;
     }
 
@@ -433,8 +424,6 @@ public class StatementFactory {
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
-     * @param util
-     *            Used to create the IR for the callee
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      * @return statement to be processed during pointer analysis
@@ -442,10 +431,10 @@ public class StatementFactory {
     public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod callee,
                                     List<ReferenceVariable> actuals, ReferenceVariable resultNode,
                                     ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    WalaAnalysisUtil util, ReferenceVariableFactory rvFactory) {
+                                    ReferenceVariableFactory rvFactory) {
         StaticCallStatement s = new StaticCallStatement(callSite, callee, actuals, resultNode, exceptionNode, callerIR,
-                                        i, util, rvFactory);
-        checkForDuplicates(new StatementKey(callSite, callee, actuals, resultNode, exceptionNode, callerIR, i, util,
+                                        i, rvFactory);
+        checkForDuplicates(new StatementKey(callSite, callee, actuals, resultNode, exceptionNode, callerIR, i,
                                         rvFactory), s);
         return s;
     }
@@ -508,8 +497,6 @@ public class StatementFactory {
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by this call (if any)
-     * @param cha
-     *            Class hierarchy
      * @param ir
      *            Code for the method the points-to statement came from
      * @param i
@@ -520,13 +507,12 @@ public class StatementFactory {
      */
     public static VirtualCallStatement virtualCall(CallSiteReference callSite, MethodReference callee,
                                     ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                    ReferenceVariable resultNode, ReferenceVariable exceptionNode, IClassHierarchy cha,
-                                    IR ir, SSAInvokeInstruction i, WalaAnalysisUtil util,
-                                    ReferenceVariableFactory rvFactory) {
+                                    ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR ir,
+                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
         VirtualCallStatement s = new VirtualCallStatement(callSite, callee, receiver, actuals, resultNode,
-                                        exceptionNode, cha, ir, i, util, rvFactory);
-        checkForDuplicates(new StatementKey(callSite, callee, receiver, actuals, resultNode, exceptionNode, cha, ir, i,
-                                        util, rvFactory), s);
+                                        exceptionNode, ir, i, rvFactory);
+        checkForDuplicates(new StatementKey(callSite, callee, receiver, actuals, resultNode, exceptionNode, ir, i,
+                                        rvFactory), s);
         return s;
     }
 
@@ -564,7 +550,6 @@ public class StatementFactory {
         private final Object key8;
         private final Object key9;
         private final Object key10;
-        private final Object key11;
 
         public StatementKey(Object key1, Object key2, Object key3) {
             this.key1 = key1;
@@ -577,7 +562,6 @@ public class StatementFactory {
             this.key8 = null;
             this.key9 = null;
             this.key10 = null;
-            this.key11 = null;
         }
 
         public StatementKey(Object key1, Object key2, Object key3, Object key4) {
@@ -591,7 +575,6 @@ public class StatementFactory {
             this.key8 = null;
             this.key9 = null;
             this.key10 = null;
-            this.key11 = null;
         }
 
         public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5) {
@@ -605,7 +588,20 @@ public class StatementFactory {
             this.key8 = null;
             this.key9 = null;
             this.key10 = null;
-            this.key11 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7,
+                                        Object key8) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = key5;
+            this.key6 = key6;
+            this.key7 = key7;
+            this.key8 = key8;
+            this.key9 = null;
+            this.key10 = null;
         }
 
         public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7,
@@ -620,37 +616,6 @@ public class StatementFactory {
             this.key8 = key8;
             this.key9 = key9;
             this.key10 = null;
-            this.key11 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7,
-                                        Object key8, Object key9, Object key10) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = key6;
-            this.key7 = key7;
-            this.key8 = key8;
-            this.key9 = key9;
-            this.key10 = key10;
-            this.key11 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7,
-                                        Object key8, Object key9, Object key10, Object key11) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = key6;
-            this.key7 = key7;
-            this.key8 = key8;
-            this.key9 = key9;
-            this.key10 = key10;
-            this.key11 = key11;
         }
 
         @Override
@@ -671,11 +636,6 @@ public class StatementFactory {
                 if (other.key10 != null)
                     return false;
             } else if (!key10.equals(other.key10))
-                return false;
-            if (key11 == null) {
-                if (other.key11 != null)
-                    return false;
-            } else if (!key11.equals(other.key11))
                 return false;
             if (key2 == null) {
                 if (other.key2 != null)
@@ -726,7 +686,6 @@ public class StatementFactory {
             int result = 1;
             result = prime * result + ((key1 == null) ? 0 : key1.hashCode());
             result = prime * result + ((key10 == null) ? 0 : key10.hashCode());
-            result = prime * result + ((key11 == null) ? 0 : key11.hashCode());
             result = prime * result + ((key2 == null) ? 0 : key2.hashCode());
             result = prime * result + ((key3 == null) ? 0 : key3.hashCode());
             result = prime * result + ((key4 == null) ? 0 : key4.hashCode());

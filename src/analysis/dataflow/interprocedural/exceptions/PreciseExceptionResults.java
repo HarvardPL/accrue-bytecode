@@ -16,6 +16,7 @@ import types.TypeRepository;
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
@@ -39,12 +40,6 @@ import com.ibm.wala.types.TypeReference;
  * thrown exceptions
  */
 public class PreciseExceptionResults implements AnalysisResults {
-
-    private final IClassHierarchy cha;
-
-    public PreciseExceptionResults(IClassHierarchy cha) {
-        this.cha = cha;
-    }
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
@@ -101,16 +96,18 @@ public class PreciseExceptionResults implements AnalysisResults {
      * @return true if the call graph node can throw the given exception type
      */
     public boolean canProcedureThrowException(TypeReference type, CGNode n) {
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+        
         if (n.getMethod().isNative()) {
             IClass exClass = cha.lookupClass(type);
-            if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass, cha)) {
+            if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass)) {
                 // assume native methods can throw RTE
                 return true;
             }
             try {
                 for (TypeReference declEx : n.getMethod().getDeclaredExceptions()) {
                     IClass declClass = cha.lookupClass(declEx);
-                    if (TypeRepository.isAssignableFrom(declClass, exClass, cha)) {
+                    if (TypeRepository.isAssignableFrom(declClass, exClass)) {
                         // precise throw type could be any subtype of the
                         // declared exceptions
                         return true;

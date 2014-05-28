@@ -8,7 +8,7 @@ import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
-import analysis.WalaAnalysisUtil;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -46,11 +46,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * 
      * @param haf
      *            Abstraction factory for this points-to analysis
-     * @param util
-     *            WALA utility classes
      */
-    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf, WalaAnalysisUtil util) {
-        super(haf, util);
+    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
+        super(haf);
     }
 
     @Override
@@ -60,7 +58,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     public PointsToGraph solveAndRegister(RegistrationUtil onlineRegistrar) {
         StatementRegistrar registrar = onlineRegistrar.getRegistrar();
-        onlineRegistrar.registerMethod(util.getFakeRoot());
+        onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
         return solveSmarter(registrar, onlineRegistrar);
     }
 
@@ -74,7 +72,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     @Deprecated
     public PointsToGraph solveSimple(StatementRegistrar registrar) {
-        PointsToGraph g = new PointsToGraph(util, registrar, haf);
+        PointsToGraph g = new PointsToGraph(registrar, haf);
 
         boolean changed = true;
         int count = 0;
@@ -101,7 +99,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @return Points-to graph
      */
     public PointsToGraph solveSmarter(StatementRegistrar registrar, RegistrationUtil online) {
-        PointsToGraph g = new PointsToGraph(util, registrar, haf);
+        PointsToGraph g = new PointsToGraph(registrar, haf);
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
 
