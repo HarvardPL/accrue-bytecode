@@ -175,6 +175,8 @@ public class TypeRepository {
                 // The top level doesn't declare anything, but can throw
                 // anything main can
                 // We'll be conservative and assume it can throw any Throwable
+
+                // XXX this exception could point to a lot of stuff, but should never be queried
                 et.add(TypeReference.JavaLangThrowable);
             }
             

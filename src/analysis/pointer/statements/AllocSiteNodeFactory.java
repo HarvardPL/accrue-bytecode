@@ -7,6 +7,7 @@ import java.util.Map;
 import util.ImplicitEx;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
+import analysis.pointer.engine.PointsToAnalysis;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -229,6 +230,9 @@ public class AllocSiteNodeFactory {
 
         @Override
         public String toString() {
+            if (PointsToAnalysis.DEBUG) {
+                return debugString + " (" + allocatingInstruction + ")";
+            }
             return debugString;
         }
 

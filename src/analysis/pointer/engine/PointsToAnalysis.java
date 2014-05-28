@@ -14,6 +14,11 @@ import com.ibm.wala.ipa.callgraph.Context;
 public abstract class PointsToAnalysis {
 
     /**
+     * If true then debug strings may be more verbose, and memory usage may be higher, no additional output should be
+     * produced. Adjust {@link PointsToAnalysis#outputLevel} for more verbose console output.
+     */
+    public static final boolean DEBUG = false;
+    /**
      * Defining abstraction factory for this points-to analysis
      */
     protected final HeapAbstractionFactory haf;
@@ -23,7 +28,8 @@ public abstract class PointsToAnalysis {
     protected final WalaAnalysisUtil util;
 
     /**
-     * Effects the amount of debugging output
+     * Effects the amount of debugging output. See also {@link PointsToAnalysis#DEBUG}, which makes debug strings in
+     * reference variables and allocation nodes more verbose.
      */
     public static int outputLevel = 0;
 
