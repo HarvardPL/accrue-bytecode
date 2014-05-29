@@ -6,8 +6,10 @@ import java.util.Set;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -49,15 +51,16 @@ public class VirtualCallStatement extends CallStatement {
      *            Actual arguments to the call
      * @param exception
      *            Node representing the exception thrown by this call (if any)
+     * @param calleeSummary
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
     protected VirtualCallStatement(CallSiteReference callSite, MethodReference callee, IMethod caller,
                                     ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
-        super(callSite, actuals, result, exception, ir, i, rvFactory);
-        assert receiver != null;
-        assert callee != null;
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                    MethodSummaryNodes calleeSummary) {
+        super(callSite, caller, result, actuals, exception, calleeSummary);
+
         this.callee = callee;
         this.receiver = receiver;
     }
@@ -67,16 +70,12 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-        ReferenceVariableReplica receiverRep = getReplica(context, receiver);
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
 
-        if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {
-            System.err.println("RECEIVER: " + receiverRep + "\n\t"
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        Set<InstanceKey> s = g.getPointsToSet(receiverRep);
+        assert checkForNonEmpty(s, receiverRep, "VIRTUAL RECEIVER");
 
         boolean changed = false;
-        Set<InstanceKey> s = g.getPointsToSet(receiverRep);
         // if (s.size() > 5000) {
         // Integer i = lots.get(receiverRep);
         // if (i == null || s.size() > (i + 1000)) {
@@ -101,6 +100,12 @@ public class VirtualCallStatement extends CallStatement {
             if (resolvedCallee == null) {
                 // XXX Try the type of the reference variable instead
                 // This is probably a variable created for the return of a native method, then cast down
+                if (PointsToAnalysis.outputLevel >= 1) {
+                    System.err.println("Could not resolve " + recHeapContext.getConcreteType() + " "
+                                                    + callee.getSelector());
+                    System.err.println("\ttrying reference variable type "
+                                                    + cha.lookupClass(receiverRep.getExpectedType()));
+                }
                 resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverRep.getExpectedType()), callee.getSelector());
             }
 
@@ -114,7 +119,7 @@ public class VirtualCallStatement extends CallStatement {
             // If we wanted to be very robust, check to make sure that
             // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
-            changed |= processCall(context, recHeapContext, resolvedCallee, g, registrar, haf);
+            changed |= processCall(context, recHeapContext, resolvedCallee, g, haf);
         }
         return changed;
     }
@@ -122,10 +127,10 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
-        if (getResultNode() != null) {
-            s.append(getResultNode().toString() + " = ");
+        if (getResult() != null) {
+            s.append(getResult().toString() + " = ");
         }
-        s.append("invokevirtual " + PrettyPrinter.methodString(getCallSiteLabel().getCallee()));
+        s.append("invokevirtual " + PrettyPrinter.methodString(callee));
 
         return s.toString();
     }

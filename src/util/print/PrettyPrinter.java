@@ -10,6 +10,7 @@ import java.util.Map;
 import util.InstructionType;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
@@ -243,11 +244,22 @@ public class PrettyPrinter {
     }
 
     /**
+     * Get a pretty string for the type of the klass
+     * 
+     * @param klass
+     *            klass to get a string for
+     * @return String for the type of klass
+     */
+    public static String typeString(IClass klass) {
+        return typeString(klass.getReference());
+    }
+
+    /**
      * Get a pretty string for the given type Reference
      * 
      * @param type
      *            type to get a string for
-     * @return String for "type"
+     * @return String for <code>type</code>
      */
     public static String typeString(TypeReference type) {
         String name = typeMemo.get(type);

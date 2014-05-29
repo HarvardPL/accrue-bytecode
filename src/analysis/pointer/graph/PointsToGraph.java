@@ -169,7 +169,7 @@ public class PointsToGraph {
                 // java.lang.Object and vice versa
                 if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
                     if (DEBUG && outputLevel >= 6) {
-                        System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
+                        System.err.println("Removing " + PrettyPrinter.typeString(klass) + " for "
                                                         + PrettyPrinter.typeString(type));
                     }
                     toRemove.add(k);

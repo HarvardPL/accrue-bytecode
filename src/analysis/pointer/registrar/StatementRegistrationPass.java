@@ -74,7 +74,7 @@ public class StatementRegistrationPass {
             IMethod clinit = clinits.get(j);
             boolean oneAdded = addFromMethod(q, clinit);
             if (oneAdded && RegistrationUtil.outputLevel >= 2) {
-                System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass().getReference())
+                System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass())
                                                 + " initializer");
             }
             added |= oneAdded;

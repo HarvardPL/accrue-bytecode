@@ -101,7 +101,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
 
         @Override
         public String toString() {
-            return PrettyPrinter.typeString(c.getReference());
+            return PrettyPrinter.typeString(c);
         }
 
         @Override

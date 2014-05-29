@@ -50,3 +50,177 @@ TODO record the choice of receiver in the PC for PDGs
 TODO String should call <init> after allocation not the value field hack, read about Strings in the JVM spec 5.1
 
 TODO rip the IR out of the points-to statements (replace with IMethod)
+
+XXX Handle fake allocations for native methods
+        // ////////////////// Native with no signature //////////////////
+
+        if (resolvedCallee.isNative() && !AnalysisUtil.hasSignature(resolvedCallee)) {
+            // Generic signature by creating an edge from a generated "allocation" to the return and exception summary
+            // nodes
+            TypeReference retType = resolvedCallee.getReturnType();
+            if (!retType.isPrimitiveType()) {
+                ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
+                                                calleeSummary.getReturnNode());
+
+                AllocSiteNode normalRetAlloc = registrar.getReturnNodeForNative(resolvedCallee);
+                // TODO could use caller context here (and below) for more precision, but possible size blow-up
+                // The semantics would also be weird as the caller allocating the return value is a bit strange
+                InstanceKey k = haf.record(normalRetAlloc, calleeContext);
+                changed = g.addEdge(returnValueFormal, k);
+            }
+
+            // Synthetic allocations for thrown exceptions
+            for (TypeReference exType : TypeRepository.getThrowTypes(resolvedCallee)) {
+                AllocSiteNode exRetAlloc = registrar.getExceptionNodeForNative(resolvedCallee, exType);
+                InstanceKey exKey = haf.record(exRetAlloc, calleeContext);
+                changed = g.addEdge(calleeEx, exKey);
+            }
+
+            return changed;
+        }
+
+
+
+XXX handle exceptions from method calls
+    /**
+     * Check if an exception of type <code>currentExType</code> is caught or re-thrown, and modify the points-to graph
+     * accordingly
+     * 
+     * @param e
+     *            exception points-to graph node
+     * @param currentContext
+     *            current code context
+     * @param g
+     *            points-to graph (may be modified)
+     * @param registrar
+     *            points-to statement registrar
+     * @return true if the points-to graph changed
+     */
+    private final boolean checkThrown(PointsToGraphNode e, Context currentContext, PointsToGraph g,
+                                    StatementRegistrar registrar) {
+        // Find successor catch blocks
+        List<CatchBlock> catchBlocks = getSuccessorCatchBlocks(getBasicBlock(), currentContext);
+        Set<IClass> alreadyCaught = new LinkedHashSet<>();
+
+        boolean changed = false;
+
+        // See if there is a catch block that catches this exception
+        for (CatchBlock cb : catchBlocks) {
+            while (cb.caughtTypes.hasNext()) {
+                TypeReference caughtType = cb.caughtTypes.next();
+                IClass caught = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
+
+                changed |= g.addEdges(cb.formalNode, g.getPointsToSetFiltered(e, caughtType, alreadyCaught));
+                alreadyCaught.add(caught);
+            }
+        }
+
+        // The exception may not be caught by the catch blocks
+        // But don't propagate error types.
+        alreadyCaught.add(AnalysisUtil.getErrorClass());
+
+        // add edge if this exception can be rethrown
+        MethodSummaryNodes callerSummary = registrar.findOrCreateMethodSummary(getCode().getMethod(), rvFactory);
+        ReferenceVariableReplica thrownExRep = new ReferenceVariableReplica(currentContext,
+                                        callerSummary.getException());
+
+        changed |= g.addEdges(thrownExRep, g.getPointsToSetFiltered(e, AnalysisUtil.getThrowableClass().getReference(),
+                                        alreadyCaught));
+
+        return changed;
+    }
+
+    /**
+     * Information about a catch block
+     */
+    private static class CatchBlock {
+        /**
+         * Types of exceptions caught by this catch block
+         */
+        protected final Iterator<TypeReference> caughtTypes;
+        /**
+         * Points-to graph node for the formal argument to the catch block
+         */
+        protected final ReferenceVariableReplica formalNode;
+
+        /**
+         * Create a new catch block
+         * 
+         * @param caughtTypes
+         *            iterator for types caught by this catch block
+         * @param formalNode
+         *            Points-to graph node for the formal argument to the catch block
+         */
+        public CatchBlock(Iterator<TypeReference> caughtTypes, ReferenceVariableReplica formalNode) {
+            this.caughtTypes = caughtTypes;
+            this.formalNode = formalNode;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((caughtTypes == null) ? 0 : caughtTypes.hashCode());
+            result = prime * result + ((formalNode == null) ? 0 : formalNode.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            CatchBlock other = (CatchBlock) obj;
+            if (caughtTypes == null) {
+                if (other.caughtTypes != null)
+                    return false;
+            } else if (!caughtTypes.equals(other.caughtTypes))
+                return false;
+            if (formalNode == null) {
+                if (other.formalNode != null)
+                    return false;
+            } else if (!formalNode.equals(other.formalNode))
+                return false;
+            return true;
+        }
+    }
+
+    /**
+     * Find catch blocks that are successors of a given block
+     * 
+     * @param fromBlock
+     *            block to get catch block successors of
+     * @param context
+     *            context the catch blocks occur in
+     * @return List of catch blocks in reachable order (i.e. the first element of the list is the first reached)
+     */
+    private final List<CatchBlock> getSuccessorCatchBlocks(ISSABasicBlock fromBlock, Context context) {
+
+        // Find successor catch blocks in the CFG
+        SSACFG cfg = getCode().getControlFlowGraph();
+        List<ISSABasicBlock> catchBasicBlocks = cfg.getExceptionalSuccessors(fromBlock);
+
+        // Find exceptions caught by each successor block
+        List<CatchBlock> catchBlocks = new LinkedList<>();
+        for (ISSABasicBlock bb : catchBasicBlocks) {
+            if (bb.isExitBlock()) {
+                // the exit block considered a catch block, but we handle that
+                // differently in checkThrown by adding edges into summary
+                // exit nodes
+                continue;
+            }
+            Iterator<TypeReference> types = bb.getCaughtExceptionTypes();
+            // The catch instruction is the first instruction in the basic block
+            SSAGetCaughtExceptionInstruction catchIns = (SSAGetCaughtExceptionInstruction) bb.iterator().next();
+            ReferenceVariable formalNode = rvFactory.getOrCreateCaughtEx(catchIns, getCode());
+            ReferenceVariableReplica formalRep = new ReferenceVariableReplica(context, formalNode);
+            CatchBlock cb = new CatchBlock(types, formalRep);
+            catchBlocks.add(cb);
+        }
+        return catchBlocks;
+    }
+
+XXX add edges from formals to params in the callee

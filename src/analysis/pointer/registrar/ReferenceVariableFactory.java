@@ -17,6 +17,11 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
+/**
+ * Factory for creating unique reference variables for locals, static fields, and method summaries.
+ * <p>
+ * If assertions are turned on then duplication of nodes will throw an AssertionError where appropriate.
+ */
 public class ReferenceVariableFactory {
 
     /**
@@ -141,23 +146,45 @@ public class ReferenceVariableFactory {
     }
 
     /**
-     * Get a reference variable for a method exit summary node. This should only be called once for any given argumetns
+     * Get a reference variable for a method exit summary node. This should only be called once for any given arguments
      * 
      * @param type
      *            type of the exception or return value
      * @param method
-     *            method containing the instruction that throws
+     *            method the summary node is for
      * @param exitType
      *            whether this is for a normal return value or an exception
      * 
      * @return reference variable for a return value or an exception thrown by a method
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createMethodExitNode(TypeReference type, IMethod method, ExitType exitType) {
+    protected ReferenceVariable createMethodExit(TypeReference type, IMethod method, ExitType exitType) {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType + " ("
                                         + PrettyPrinter.typeString(type) + ")", type, false);
         // These should only be created once assert that this is true
         assert methodExitSummaries.put(new MethodSummaryKey(method, exitType), rv) == null;
+        return rv;
+    }
+
+    /**
+     * Get a reference variable for a formal parameter summary node. This should only be called once for any given
+     * arguments
+     * 
+     * @param paramNum
+     *            formal parameter index (by convention the 0th argument is "this" for non-static methods)
+     * @param type
+     *            type of the formal
+     * @param method
+     *            method these are summary nodes for
+     * 
+     * @return reference variable for a formal parameter
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method) {
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-formal(" + paramNum + ")",
+                                        type, false);
+        // These should only be created once assert that this is true
+        assert methodExitSummaries.put(new MethodSummaryKey(method, paramNum), rv) == null;
         return rv;
     }
 
@@ -178,7 +205,8 @@ public class ReferenceVariableFactory {
                                                 "Trying to create reference variable for a static field with a primitive type.");
             }
 
-            node = new ReferenceVariable(PrettyPrinter.typeString(f.getDeclaringClass().getReference()) + "."
+            node = new ReferenceVariable(
+                                            PrettyPrinter.typeString(f.getDeclaringClass()) + "."
                                             + f.getName().toString(), f.getFieldTypeReference(), true);
             staticFields.put(f, node);
         }
@@ -364,9 +392,13 @@ public class ReferenceVariableFactory {
          * Compute the hashcode once
          */
         private final int memoizedHashCode;
+        /**
+         * If this is a summary node for a formal parameter then this is the parameter number
+         */
+        private final int paramNum;
 
         /**
-         * Create a new key
+         * Create a new key for a method exit
          * 
          * @param method
          *            method this node is for
@@ -378,14 +410,33 @@ public class ReferenceVariableFactory {
             assert exitType != null;
             this.method = method;
             this.exitType = exitType;
+            this.paramNum = -1;
+            this.memoizedHashCode = computeHashCode();
+        }
+
+        /**
+         * Create a new key for a formal parameter
+         * 
+         * @param method
+         *            method this node is for
+         * @param paramNum
+         *            index of the formal
+         */
+        public MethodSummaryKey(IMethod method, int paramNum) {
+            assert paramNum > 0;
+            assert method != null;
+            this.exitType = null;
+            this.paramNum = paramNum;
+            this.method = method;
             this.memoizedHashCode = computeHashCode();
         }
 
         public int computeHashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + exitType.hashCode();
+            result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
             result = prime * result + method.hashCode();
+            result = prime * result + paramNum;
             return result;
         }
 
@@ -403,9 +454,14 @@ public class ReferenceVariableFactory {
             if (getClass() != obj.getClass())
                 return false;
             MethodSummaryKey other = (MethodSummaryKey) obj;
-            if (!exitType.equals(other.exitType))
+            if (exitType == null) {
+                if (other.exitType != null)
+                    return false;
+            } else if (!exitType.equals(other.exitType))
                 return false;
             if (!method.equals(other.method))
+                return false;
+            if (paramNum != other.paramNum)
                 return false;
             return true;
         }
@@ -523,10 +579,11 @@ public class ReferenceVariableFactory {
          *            only one reference variable replica will be created usually in the initial context)
          */
         private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton) {
-            assert (!expectedType.isPrimitiveType());
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
+            assert (!expectedType.isPrimitiveType());
+
             this.debugString = debugString;
             this.expectedType = expectedType;
             this.isSingleton = isSingleton;

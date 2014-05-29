@@ -1,5 +1,8 @@
 package analysis.pointer.registrar;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -21,6 +24,10 @@ public class MethodSummaryNodes {
      */
     private final ReferenceVariable exception;
     /**
+     * Formal argument nodes
+     */
+    private final List<ReferenceVariable> formals;
+    /**
      * String for method
      */
     private final String name;
@@ -39,12 +46,22 @@ public class MethodSummaryNodes {
 
         TypeReference returnType = method.getReturnType();
         if (!method.getReturnType().isPrimitiveType()) {
-            returnNode = rvFactory.createMethodExitNode(returnType, method, ExitType.NORMAL);
+            returnNode = rvFactory.createMethodExit(returnType, method, ExitType.NORMAL);
         } else {
             returnNode = null;
         }
 
-        exception = rvFactory.createMethodExitNode(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
+        formals = new ArrayList<>(method.getNumberOfParameters());
+        for (int i = 0; i < method.getNumberOfParameters(); i++) {
+            TypeReference type = method.getParameterType(i);
+            if (type.isPrimitiveType()) {
+                formals.add(null);
+            } else {
+                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method));
+            }
+        }
+
+        exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
     }
 
     public ReferenceVariable getReturnNode() {
@@ -53,6 +70,17 @@ public class MethodSummaryNodes {
 
     public ReferenceVariable getException() {
         return exception;
+    }
+
+    /**
+     * Get the summary reference variable for the ith formal argument
+     * 
+     * @param i
+     *            argument index (by convention the 0th formal is "this" for non-static methods
+     * @return Reference variable for the ith formal
+     */
+    public ReferenceVariable getFormal(int i) {
+        return formals.get(i);
     }
 
     @Override

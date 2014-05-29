@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
-import util.print.PrettyPrinter;
+import java.util.Set;
+
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -9,6 +10,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a "return" instruction
@@ -31,13 +33,11 @@ public class ReturnStatement extends PointsToStatement {
      *            Node for return result
      * @param returnSummary
      *            Node summarizing all return values for the method
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      */
-    protected ReturnStatement(ReferenceVariable result, IMethod m) {
-        super(ir, i);
+    protected ReturnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IMethod m) {
+        super(m);
         this.result = result;
         this.returnSummary = returnSummary;
     }
@@ -47,11 +47,8 @@ public class ReturnStatement extends PointsToStatement {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
 
-        if (DEBUG && g.getPointsToSet(returnRes).isEmpty()) {
-            System.err.println("RETURN RES: " + returnRes + " for "
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        Set<InstanceKey> s = g.getPointsToSet(returnRes);
+        assert checkForNonEmpty(s, returnRes, "RETURN");
 
         return g.addEdges(summaryRes, g.getPointsToSet(returnRes));
     }

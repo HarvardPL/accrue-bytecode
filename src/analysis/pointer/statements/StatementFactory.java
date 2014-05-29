@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import analysis.AnalysisUtil;
+import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -381,18 +382,22 @@ public class StatementFactory {
      * 
      * @param result
      *            Node for return result
+     * @param returnSummary
+     *            Node summarizing all return values for the method
      * @param m
      *            method the points-to statement came from
      * @param i
      *            return instruction
      * @return statement to be processed during pointer analysis
      */
-    public static ReturnStatement returnStatement(ReferenceVariable result, IMethod m, SSAReturnInstruction i) {
+    public static ReturnStatement returnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IMethod m,
+                                    SSAReturnInstruction i) {
         assert result != null;
+        assert returnSummary != null;
         assert i != null;
         assert m != null;
 
-        ReturnStatement s = new ReturnStatement(result, m);
+        ReturnStatement s = new ReturnStatement(result, returnSummary, m);
         assert statementMap.put(new StatementKey(result, i), s) == null;
         return s;
     }
@@ -414,11 +419,14 @@ public class StatementFactory {
      *            Actual arguments to the call
      * @param exception
      *            Node in the caller representing the exceptions thrown by the callee
+     * @param calleeSummary
+     *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
     public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod callee, IMethod caller,
                                     ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                    MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
@@ -426,9 +434,10 @@ public class StatementFactory {
         assert receiver != null;
         assert actuals != null;
         assert exception != null;
+        assert calleeSummary != null;
 
-        SpecialCallStatement s = new SpecialCallStatement(callSite, callee, caller, result, receiver, actuals,
-                                        exception);
+        SpecialCallStatement s = new SpecialCallStatement(callSite, caller, callee, result, receiver, actuals,
+                                        exception, calleeSummary);
         assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }
@@ -448,19 +457,23 @@ public class StatementFactory {
      *            Actual arguments to the call
      * @param exception
      *            Node in the caller representing the exception thrown by the callee
+     * @param calleeSummary
+     *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
     public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod callee, IMethod caller,
                                     ReferenceVariable result, List<ReferenceVariable> actuals,
-                                    ReferenceVariable exception) {
+                                    ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
         assert result != null;
         assert actuals != null;
         assert exception != null;
+        assert calleeSummary != null;
 
-        StaticCallStatement s = new StaticCallStatement(callSite, callee, caller, result, actuals, exception);
+        StaticCallStatement s = new StaticCallStatement(callSite, callee, caller, result, actuals, exception,
+                                        calleeSummary);
         assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }
@@ -531,11 +544,14 @@ public class StatementFactory {
      *            Actual arguments to the call
      * @param exception
      *            Node representing the exception thrown by this call (if any)
+     * @param calleeSummary
+     *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
     public static VirtualCallStatement virtualCall(CallSiteReference callSite, MethodReference callee, IMethod caller,
                                     ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                    MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
@@ -543,9 +559,10 @@ public class StatementFactory {
         assert result != null;
         assert actuals != null;
         assert exception != null;
+        assert calleeSummary != null;
 
         VirtualCallStatement s = new VirtualCallStatement(callSite, callee, caller, result, receiver, actuals,
-                                        exception);
+                                        exception, calleeSummary);
         assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }

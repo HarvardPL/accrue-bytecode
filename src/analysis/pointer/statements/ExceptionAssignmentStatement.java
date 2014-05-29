@@ -4,7 +4,6 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -14,6 +13,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
@@ -33,10 +33,11 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      *            types that the exception being caught cannot have since those types must have been caught by previous
      *            catch blocks
      * @param m
+     *            method the exception is thrown in
      */
     protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
                                     IMethod m) {
-        super(ir, i);
+        super(m);
         this.thrown = thrown;
         this.caught = caught;
         this.notType = notType;
@@ -54,19 +55,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        if (DEBUG && g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).isEmpty()
-                                        && PointsToAnalysis.outputLevel >= 6) {
-            System.err.println("GENERATED EXCEPTION: " + r + "\n\t"
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()) + " caught type: "
-                                            + PrettyPrinter.typeString(caught.getExpectedType())
-                                            + "\n\tAlready caught: " + notType);
-        }
+        Set<InstanceKey> s = g.getPointsToSetFiltered(r, caught.getExpectedType(), notType);
+        assert checkForNonEmpty(s, r, "EX ASSIGN filtered on " + caught.getExpectedType() + " not " + notType);
 
-        // System.err.println("SIZE: " + g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).size()
-        // + " EX ASS: " + PrettyPrinter.typeString(l.getExpectedType()) + " = "
-        // + PrettyPrinter.typeString(r.getExpectedType()));
-        return g.addEdges(l, g.getPointsToSetFiltered(r, caught.getExpectedType(), notType));
+        return g.addEdges(l, s);
     }
 
     @Override

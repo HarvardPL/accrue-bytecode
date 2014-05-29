@@ -1,17 +1,12 @@
 package analysis.pointer.statements;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import util.ImplicitEx;
 import util.print.PrettyPrinter;
-import analysis.dataflow.interprocedural.ExitType;
-import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -19,15 +14,11 @@ import com.ibm.wala.types.TypeReference;
  */
 public class AllocSiteNodeFactory {
 
-    private static final boolean CHECK_FOR_DUPLICATES = false;
-    private static final Map<AllocSiteKey, AllocSiteNode> paranoidMap;
-    static {
-        if (CHECK_FOR_DUPLICATES) {
-            paranoidMap = new HashMap<>();
-        } else {
-            paranoidMap = Collections.emptyMap();
-        }
-    }
+    /**
+     * Only one allocation should be created for a given Reference variable. If assertions are on this map will be used
+     * to guarantee that
+     */
+    private static final Map<ReferenceVariable, AllocSiteNode> nodeMap = new HashMap<>();
 
     /**
      * Methods should be accessed statically
@@ -36,149 +27,43 @@ public class AllocSiteNodeFactory {
         // Methods should be accessed statically
     }
 
-    protected static AllocSiteNode getAllocationNode(IClass allocatedClass, IClass allocatingClass, SSAInstruction i,
-                                    Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
-        AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
-                                        allocatingClass, i);
-        checkForDuplicates(key, n);
-        return n;
-    }
-
-    protected static AllocSiteNode getGeneratedAllocationNode(String name, IClass allocatedClass,
-                                    IClass allocatingClass, SSAInstruction i, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
-        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass, i);
-        checkForDuplicates(key, n);
-        return n;
-    }
-
-    protected static AllocSiteNode getGeneratedExceptionNode(IClass allocatedClass, IClass allocatingClass,
-                                    SSAInstruction i, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, i, disambiguationKey);
-        AllocSiteNode n = new AllocSiteNode(
-                                        ("new " + ImplicitEx.fromType(allocatedClass.getReference()).toString())
-                                                                        .intern(),
-                                        allocatedClass, allocatingClass, i);
-        checkForDuplicates(key, n);
-        return n;
-    }
-
-    public static AllocSiteNode getAllocationNodeForNative(IClass allocatedClass, IClass allocatingClass,
-                                    ExitType type, Object disambiguationKey) {
-        AllocSiteKey key = new AllocSiteKey(allocatedClass, allocatingClass, null, type, disambiguationKey);
-        AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass.getReference()), allocatedClass,
-                                        allocatingClass, null);
-        checkForDuplicates(key, n);
+    /**
+     * Create an allocation node for a normal allocation (i.e. from a "new" instruction o = new Object). This should
+     * only be called once for each allocation.
+     * 
+     * @param allocatedClass
+     *            class being allocated
+     * @param allocatingClass
+     *            class where allocation occurs
+     * @param result
+     *            variable the results will be assigned into
+     * @return unique allocation node
+     */
+    protected static AllocSiteNode createNormal(IClass allocatedClass, IClass allocatingClass, ReferenceVariable result) {
+        @SuppressWarnings("synthetic-access")
+        AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass), allocatedClass, allocatingClass);
+        assert nodeMap.put(result, n) == null;
         return n;
     }
 
     /**
-     * If in paranoid mode then make sure the same parameters are never used to create two differet allocation nodes
+     * Create a new analysis-generated allocation, (i.e. a generated exception, a string literal, a native method
+     * signature). This should only be called once for each allocation
      * 
-     * @param key
-     *            parameters for the allocation
-     * @param node
-     *            node being allocated
+     * @param debugString
+     *            String for printing and debugging
+     * @param allocatedClass
+     *            class being allocated
+     * @param allocatingClass
+     *            class where allocation occurs
+     * @return unique allocation node
      */
-    private static void checkForDuplicates(AllocSiteKey key, AllocSiteNode node) {
-        if (CHECK_FOR_DUPLICATES) {
-            if (paranoidMap.containsKey(key)) {
-                throw new RuntimeException("Duplicate allocation node: " + node + "\n\texisting was: "
-                                                + paranoidMap.get(key) + "\n\tkey: " + key);
-            }
-            paranoidMap.put(key, node);
-        }
-    }
-
-    private static class AllocSiteKey {
-        private final IClass allocatedClass;
-        private final IClass allocatingClass;
-        private final SSAInstruction i;
-        private final ExitType exitType;
-        private final Object disambiguationKey;
-
-        public AllocSiteKey(IClass allocatedClass, IClass allocatingClass, SSAInstruction i, Object disambiguationKey) {
-            assert !(disambiguationKey instanceof ExitType) : "Missing argument for disambiguation key";
-            this.allocatedClass = allocatedClass;
-            this.allocatingClass = allocatingClass;
-            this.i = i;
-            this.exitType = null;
-            this.disambiguationKey = disambiguationKey;
-        }
-
-        public AllocSiteKey(IClass allocatedClass, IClass containingClass, SSAInvokeInstruction nativeCall,
-                                        ExitType exitType, Object disambiguationKey) {
-            this.allocatedClass = allocatedClass;
-            this.allocatingClass = containingClass;
-            this.i = nativeCall;
-            this.exitType = exitType;
-            this.disambiguationKey = disambiguationKey;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("Alloc: ");
-            sb.append(PrettyPrinter.typeString(allocatedClass.getReference()));
-            sb.append(" from ");
-            sb.append(PrettyPrinter.typeString(allocatingClass.getReference()));
-            sb.append(" for ");
-            sb.append(i);
-            sb.append(exitType != null ? " native " + exitType : "");
-            sb.append("\n\tdisambiguation: ");
-            sb.append(disambiguationKey);
-            return sb.toString();
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((allocatingClass == null) ? 0 : allocatingClass.hashCode());
-            result = prime * result + ((disambiguationKey == null) ? 0 : disambiguationKey.hashCode());
-            result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
-            result = prime * result + ((i == null) ? 0 : i.hashCode());
-            result = prime * result + ((allocatedClass == null) ? 0 : allocatedClass.hashCode());
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            AllocSiteKey other = (AllocSiteKey) obj;
-            if (allocatingClass == null) {
-                if (other.allocatingClass != null)
-                    return false;
-            } else if (!allocatingClass.equals(other.allocatingClass))
-                return false;
-            if (disambiguationKey == null) {
-                if (other.disambiguationKey != null)
-                    return false;
-            } else if (!disambiguationKey.equals(other.disambiguationKey))
-                return false;
-            if (exitType == null) {
-                if (other.exitType != null)
-                    return false;
-            } else if (!exitType.equals(other.exitType))
-                return false;
-            if (i == null) {
-                if (other.i != null)
-                    return false;
-            } else if (!i.equals(other.i))
-                return false;
-            if (allocatedClass == null) {
-                if (other.allocatedClass != null)
-                    return false;
-            } else if (!allocatedClass.equals(other.allocatedClass))
-                return false;
-            return true;
-        }
+    protected static AllocSiteNode createGenerated(String debugString, IClass allocatedClass, IClass allocatingClass,
+                                    ReferenceVariable result) {
+        @SuppressWarnings("synthetic-access")
+        AllocSiteNode n = new AllocSiteNode(debugString, allocatedClass, allocatingClass);
+        assert nodeMap.put(result, n) == null;
+        return n;
     }
 
     /**
@@ -189,16 +74,11 @@ public class AllocSiteNodeFactory {
         /**
          * Class allocation occurs in
          */
-        private final IClass containingClass;
+        private final IClass allocatingClass;
         /**
          * Allocated class
          */
         private final IClass allocatedClass;
-        /**
-         * Instruction causing the allocation, either directly (because it is a "new") or indirectly (by triggering a
-         * compiler generated allocation)
-         */
-        private final SSAInstruction allocatingInstruction;
         /**
          * String used for printing and debugging
          */
@@ -209,30 +89,20 @@ public class AllocSiteNodeFactory {
          * 
          * @param debugString
          *            String for printing and debugging
-         * @param expectedType
-         *            type of the newly allocated object
          * @param allocatedClass
          *            class being allocated
-         * @param containingClass
+         * @param allocatingClass
          *            class where allocation occurs
-         * @param allocatingInstruction
-         *            Instruction causing the allocation, either directly (because it is a "new") or indirectly (by
-         *            triggering a compiler generated allocation)
          */
-        protected AllocSiteNode(String debugString, IClass allocatedClass, IClass containingClass,
-                                        SSAInstruction allocatingInstruction) {
+        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass) {
             this.debugString = debugString;
-            this.containingClass = containingClass;
+            this.allocatingClass = allocatingClass;
             this.allocatedClass = allocatedClass;
-            this.allocatingInstruction = allocatingInstruction;
             assert debugString != null;
         }
 
         @Override
         public String toString() {
-            if (PointsToAnalysis.DEBUG) {
-                return debugString + " (" + allocatingInstruction + ")";
-            }
             return debugString;
         }
 
@@ -240,16 +110,12 @@ public class AllocSiteNodeFactory {
             return allocatedClass.getReference();
         }
 
-        public IClass getContainingClass() {
-            return containingClass;
+        public IClass getAllocatingClass() {
+            return allocatingClass;
         }
 
         public IClass getAllocatedClass() {
             return allocatedClass;
-        }
-
-        public SSAInstruction getAllocatingInstruction() {
-            return allocatingInstruction;
         }
 
         @Override

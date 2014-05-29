@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
-import util.print.PrettyPrinter;
+import java.util.Set;
+
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -10,10 +11,10 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
- * Points-to statement for an assignment from a static field to a local
- * variable, v = o.x
+ * Points-to statement for an assignment from a static field to a local variable, v = o.x
  */
 public class StaticFieldToLocalStatement extends PointsToStatement {
 
@@ -36,9 +37,10 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
      * @param m
      */
     protected StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IMethod m) {
-        super(ir, i);
+        super(m);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
+
         this.staticField = staticField;
         this.local = local;
     }
@@ -49,13 +51,10 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
 
-        if (DEBUG && g.getPointsToSet(r).isEmpty()) {
-            System.err.println("STATIC FIELD: " + r + "\n\t"
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        Set<InstanceKey> s = g.getPointsToSet(r);
+        assert checkForNonEmpty(s, r, "STATIC FIELD");
 
-        return g.addEdges(l, g.getPointsToSet(r));
+        return g.addEdges(l, s);
     }
 
     @Override

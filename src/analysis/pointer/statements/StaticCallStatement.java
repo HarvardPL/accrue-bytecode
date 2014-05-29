@@ -5,6 +5,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -27,37 +28,38 @@ public class StaticCallStatement extends CallStatement {
      * 
      * @param callSite
      *            Method call site
+     * @param caller
+     *            caller method
      * @param callee
      *            Method being called
-     * @param resultNode
+     * @param result
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param actuals
      *            Actual arguments to the call
-     * @param exceptionNode
+     * @param exception
      *            Node representing the exception thrown by this call (if any)
+     * @param calleeSummary
+     *            summary nodes for formals and exits of the callee
      * @param receiver
      *            Receiver of the call
-     * @param callerIR
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
      */
-    protected StaticCallStatement(CallSiteReference callSite, IMethod callee, IMethod caller,
-                                    ReferenceVariable resultNode, List<ReferenceVariable> actuals, ReferenceVariable exceptionNode) {
-        super(callSite, actuals, resultNode, exceptionNode, callerIR, i, rvFactory);
+    protected StaticCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee, ReferenceVariable result,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                    MethodSummaryNodes calleeSummary) {
+        super(callSite, caller, result, actuals, exception, calleeSummary);
         this.callee = callee;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        return processCall(context, null, callee, g, registrar, haf);
+        return processCall(context, null, callee, g, haf);
     }
 
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
-        if (getResultNode() != null) {
-            s.append(getResultNode().toString() + " = ");
+        if (getResult() != null) {
+            s.append(getResult().toString() + " = ");
         }
         s.append("invokestatic " + PrettyPrinter.methodString(callee));
 

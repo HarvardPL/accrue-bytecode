@@ -30,13 +30,10 @@ public class ClassInitStatement extends PointsToStatement {
      *            class initialization methods that might need to be called in the order they need to be called (i.e.
      *            element j is a super class of element j+1)
      * @param m
-     * @param ir
-     *            Code triggering the initialization
-     * @param i
-     *            Instruction triggering the initialization
+     *            method the instruction triggering the initialization is in
      */
     protected ClassInitStatement(List<IMethod> clinits, IMethod m) {
-        super(ir, i);
+        super(m);
         assert !clinits.isEmpty() : "No need for a statment if there are no class inits.";
         this.clinits = clinits;
     }
@@ -48,17 +45,14 @@ public class ClassInitStatement extends PointsToStatement {
         // TODO add more precise edges to the call graph for a clinit
         // Since we are flow insensitive, it is imprecise and unsound to treat the triggering method as the caller since
         // it may not actually call this init, to be sound we could throw the exceptions in any possible caller, but
-        // this would be very imprecise and could blow up the call graph and points-to graph.
+        // this would be very imprecise and would blow up the call graph and points-to graph.
         // As a compromise we don't do anything here, and use this statement only to trigger the analysis of the
-        // statements in the clinit method
+        // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
         if (PointsToAnalysis.outputLevel >= 1 && added) {
             for (IMethod m : clinits) {
-                System.err.print("CLINIT: " + PrettyPrinter.methodString(m));
+                System.err.print("ADDING CLINIT: " + PrettyPrinter.methodString(m));
             }
-            System.err.println();
-            System.err.println("\tFROM: " + PrettyPrinter.instructionString(getInstruction(), getCode()) + " method: "
-                                            + PrettyPrinter.methodString(getCode().getMethod()) + " context: "
-                                            + context);
+            System.err.println("\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
         }
 
         return false;
