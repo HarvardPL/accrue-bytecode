@@ -8,10 +8,10 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
@@ -54,12 +54,9 @@ public class NewStatement extends PointsToStatement {
      *            the assignee of the new allocation
      * @param allocatedClass
      *            Class being created
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
      */
-    protected NewStatement(ReferenceVariable result, IClass allocatedClass, IR ir, SSAInstruction i) {
+    protected NewStatement(ReferenceVariable result, IClass allocatedClass, IMethod m) {
         super(ir, i);
         this.result = result;
         alloc = AllocSiteNodeFactory.getGeneratedExceptionNode(allocatedClass, ir.getMethod().getDeclaringClass(), i,
@@ -80,7 +77,7 @@ public class NewStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IR ir, SSAInstruction i) {
+    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IMethod m) {
         super(ir, i);
         this.result = result;
         alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(name, allocatedClass, ir.getMethod()

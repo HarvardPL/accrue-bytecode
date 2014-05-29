@@ -39,12 +39,12 @@ public class MethodSummaryNodes {
 
         TypeReference returnType = method.getReturnType();
         if (!method.getReturnType().isPrimitiveType()) {
-            returnNode = rvFactory.getOrCreateMethodExitNode(returnType, method, ExitType.NORMAL);
+            returnNode = rvFactory.createMethodExitNode(returnType, method, ExitType.NORMAL);
         } else {
             returnNode = null;
         }
 
-        exception = rvFactory.getOrCreateMethodExitNode(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
+        exception = rvFactory.createMethodExitNode(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
     }
 
     public ReferenceVariable getReturnNode() {

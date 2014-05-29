@@ -1,9 +1,9 @@
 package signatures;
 
+import java.lang.ref.SoftReference;
 import java.util.HashMap;
 import java.util.Map;
 
-import signatures.synthetic.SyntheticIR;
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -40,6 +40,11 @@ import com.ibm.wala.util.strings.Atom;
 public class Signatures {
 
     /**
+     * If this flag is set then the control flow graph (with instructions) will be printed for all signatures before and
+     * after being rewritten.
+     */
+    private static final boolean PRINT_ALL_SIGNATURES = false;
+    /**
      * Class loader to use when making new types to find classes for
      */
     private static final ClassLoaderReference CLASS_LOADER = ClassLoaderReference.Application;
@@ -49,13 +54,10 @@ public class Signatures {
      */
     private static final SSAInstructionFactory I_FACTORY = Language.JAVA.instructionFactory();
     /**
-     * Memoization map for signature so they do not have to be recomputed
+     * Memoization map for signature so they do not have to be recomputed, note that the IR could be garbage collected,
+     * in which case it must be recomputed.
      */
-    private static final Map<IMethod, IR> signatures = new HashMap<>();
-    /**
-     * Flag for printing debug messages
-     */
-    private static final boolean DEBUG = false;
+    private final Map<IMethod, SoftReference<IR>> signatures = new HashMap<>();
 
     /**
      * Check whether the given method has a signature
@@ -64,14 +66,29 @@ public class Signatures {
      *            method to check
      * @return true if a signature exists for the given method
      */
-    public static boolean hasSignature(IMethod actualMethod) {
+    public boolean hasSignature(IMethod actualMethod) {
         if (signatures.containsKey(actualMethod)) {
             return signatures.get(actualMethod) != null;
         }
 
-        // Try to compute the signature and see if there is one.
-        // If there is it will be memoized so this is not wasted work.
-        return getSignatureIR(actualMethod) != null;
+        MethodReference actual = actualMethod.getReference();
+        if (isSigType(actual.getDeclaringClass())) {
+            // asking about signature for a signature type just record and return false
+            signatures.put(actualMethod, null);
+            return false;
+        }
+
+        // Try to resolve signature method
+        TypeReference sigTarget = getSigTypeForRealType(actual.getDeclaringClass().getName());
+        IMethod resolvedSig = resolveSignatureMethod(sigTarget, actual.getName(), actual.getDescriptor());
+
+        if (resolvedSig == null) {
+            // no signature found
+            signatures.put(actualMethod, null);
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -81,10 +98,21 @@ public class Signatures {
      *            method to find the signature for
      * @return the signature IR or null if no signature is found
      */
-    public static IR getSignatureIR(IMethod actualMethod) {
+    public IR getSignatureIR(IMethod actualMethod) {
         if (signatures.containsKey(actualMethod)) {
-            // Already computed the signature return it
-            return signatures.get(actualMethod);
+            SoftReference<IR> sigRef = signatures.get(actualMethod);
+            if (sigRef == null) {
+                // already determined that there is no signature
+                return null;
+            }
+            IR sig = signatures.get(actualMethod).get();
+            if (sig != null) {
+                // Already computed the signature return it
+                return sig;
+            }
+            // We computed the signature, but it was collected by the garbage collector so compute it again
+            System.err.println("Signature for " + PrettyPrinter.methodString(actualMethod)
+                                            + " is being recomputed. It was garbage collected at some point.");
         }
 
         MethodReference actual = actualMethod.getReference();
@@ -110,7 +138,7 @@ public class Signatures {
         if (newIR != null) {
             System.err.println("USING SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
         }
-        signatures.put(actualMethod, newIR);
+        signatures.put(actualMethod, new SoftReference<>(newIR));
         return newIR;
     }
 
@@ -158,7 +186,7 @@ public class Signatures {
      * @return IR with signature types replaced with the "real" versions when they can be found
      */
     private static IR rewriteIR(IR sigIR, IMethod actualMethod) {
-        if (DEBUG) {
+        if (PRINT_ALL_SIGNATURES) {
             CFGWriter.writeToFile(sigIR, "sig_" + PrettyPrinter.methodString(sigIR.getMethod()));
         }
         // does not include phi instructions, but these do not need to be converted
@@ -219,9 +247,9 @@ public class Signatures {
             }
         }
 
-        IR newIR = new SyntheticIR(actualMethod, allInstructions, sigIR.getSymbolTable(), sigIR.getControlFlowGraph(),
+        IR newIR = new SignatureIR(actualMethod, allInstructions, sigIR.getSymbolTable(), sigIR.getControlFlowGraph(),
                                         sigIR.getOptions());
-        if (DEBUG) {
+        if (PRINT_ALL_SIGNATURES) {
             CFGWriter.writeToFile(newIR, "sig_rewrite_" + PrettyPrinter.methodString(newIR.getMethod()));
         }
         return newIR;

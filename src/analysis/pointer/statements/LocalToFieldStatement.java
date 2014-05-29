@@ -11,11 +11,11 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.FieldReference;
 
 /**
@@ -37,11 +37,10 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     /**
      * Statement for an assignment into a field, o.f = v
-     * 
-     * @param f
-     *            field assigned to
      * @param o
      *            points-to graph node for receiver of field access
+     * @param f
+     *            field assigned to
      * @param v
      *            points-to graph node for value assigned
      * @param ir
@@ -49,7 +48,7 @@ public class LocalToFieldStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    public LocalToFieldStatement(FieldReference f, ReferenceVariable o, ReferenceVariable v, IR ir, SSAPutInstruction i) {
+    public LocalToFieldStatement(ReferenceVariable o, FieldReference f, ReferenceVariable v, IMethod m) {
         super(ir, i);
         this.field = f;
         this.receiver = o;

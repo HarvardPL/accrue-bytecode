@@ -7,9 +7,8 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAReturnInstruction;
 
 /**
  * Points-to statement for a "return" instruction
@@ -37,7 +36,7 @@ public class ReturnStatement extends PointsToStatement {
      * @param i
      *            Instruction that generated this points-to statement
      */
-    protected ReturnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IR ir, SSAReturnInstruction i) {
+    protected ReturnStatement(ReferenceVariable result, IMethod m) {
         super(ir, i);
         this.result = result;
         this.returnSummary = returnSummary;

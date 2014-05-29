@@ -4,41 +4,37 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSAInstruction;
 
 /**
  * Defines how to process points-to graph information for a particular statement
  */
 public abstract class PointsToStatement {
-    /**
-     * Code for the method the points-to statement came from
-     */
-    private final IR ir;
-    /**
-     * Instruction that generated this points-to statement
-     */
-    private final SSAInstruction i;
-    /**
-     * Basic block this points-to statement was generated in
-     */
-    private ISSABasicBlock bb = null;
-    
-    public static boolean DEBUG = false;
 
     /**
-     * Create a new points-to statement
-     * 
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * method this statement was created in
      */
-    protected PointsToStatement(IR ir, SSAInstruction i) {
-        this.ir = ir;
-        this.i = i;
+    private final IMethod m;
+
+    /**
+     * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
+     * statement.
+     * 
+     * @param m
+     *            method this statement was created in
+     */
+    public PointsToStatement(IMethod m) {
+        this.m = m;
+    }
+
+    /**
+     * Method this statement was created in
+     * 
+     * @return resolved method
+     */
+    protected IMethod getMethod() {
+        return m;
     }
 
     /**
@@ -55,37 +51,7 @@ public abstract class PointsToStatement {
      * @return true if the points-to graph was modified
      */
     public abstract boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-            StatementRegistrar registrar);
-
-    /**
-     * Get the code for the method this points-to statement was created in
-     * 
-     * @return intermediate representation code for the method
-     */
-    public final IR getCode() {
-        return ir;
-    }
-
-    /**
-     * Get the instruction that generated this points-to statement
-     * 
-     * @return SSA instruction
-     */
-    public final SSAInstruction getInstruction() {
-        return i;
-    }
-
-    /**
-     * Get the containing basic block
-     * 
-     * @return basic block this statement was generated in
-     */
-    public final ISSABasicBlock getBasicBlock() {
-        if (bb == null) {
-            bb = ir.getBasicBlockForInstruction(i);
-        }
-        return bb;
-    }
+                                    StatementRegistrar registrar);
 
     @Override
     public final int hashCode() {

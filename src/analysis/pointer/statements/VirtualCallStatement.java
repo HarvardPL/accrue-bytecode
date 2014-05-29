@@ -8,7 +8,6 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -17,8 +16,6 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.MethodReference;
 
 /**
@@ -42,26 +39,23 @@ public class VirtualCallStatement extends CallStatement {
      *            Method call site
      * @param callee
      *            Method being called
+     * @param caller
+     *            caller method
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param exceptionNode
+     * @param exception
      *            Node representing the exception thrown by this call (if any)
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR ir,
-                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i, rvFactory);
+    protected VirtualCallStatement(CallSiteReference callSite, MethodReference callee, IMethod caller,
+                                    ReferenceVariable result, ReferenceVariable receiver,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
+        super(callSite, actuals, result, exception, ir, i, rvFactory);
         assert receiver != null;
         assert callee != null;
         this.callee = callee;

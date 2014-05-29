@@ -38,6 +38,10 @@ public class IRWriter extends DataFlow<Unit> {
      * String to append to instructions
      */
     private String postfix;
+    /**
+     * Pretty printer
+     */
+    private PrettyPrinter pp;
 
     /**
      * Create a writer for the given IR
@@ -50,6 +54,7 @@ public class IRWriter extends DataFlow<Unit> {
     public IRWriter(IR ir) {
         super(true /* forward analysis */);
         this.ir = ir;
+        this.pp = new PrettyPrinter(ir);
     }
 
     /**
@@ -60,8 +65,7 @@ public class IRWriter extends DataFlow<Unit> {
      * @param prefix
      *            prepended to each instruction (e.g. "\t" to indent)
      * @param postfix
-     *            append this string to each instruction (e.g. "\n" to place
-     *            each instruction on a new line)
+     *            append this string to each instruction (e.g. "\n" to place each instruction on a new line)
      */
     public void write(Writer writer, String prefix, String postfix) {
         this.writer = writer;
@@ -74,7 +78,7 @@ public class IRWriter extends DataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flow(Set<Unit> inItems, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                     ISSABasicBlock current) {
         if (!visited.contains(current)) {
-            PrettyPrinter.writeBasicBlock(ir, current, writer, prefix, postfix);
+            pp.writeBasicBlock(current, writer, prefix, postfix);
             visited.add(current);
         }
         return factToMap(Unit.VALUE, current, cfg);

@@ -16,7 +16,6 @@ import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
@@ -30,7 +29,6 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -41,54 +39,42 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Call site
      */
-    private final CallSiteReference callSite;
-    /**
-     * Actual arguments to the call
-     */
-    private final List<ReferenceVariable> actuals;
+    private final CallSiteLabel callSite;
     /**
      * Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      */
     private final ReferenceVariable resultNode;
     /**
+     * Actual arguments to the call
+     */
+    private final List<ReferenceVariable> actuals;
+    /**
      * Node representing the exception thrown by this call (if any)
      */
     private final ReferenceVariable exceptionNode;
-    /**
-     * factory for managing the creation of reference variables for local variables and static fields
-     */
-    private final ReferenceVariableFactory rvFactory;
 
     /**
      * Points-to statement for a special method invocation.
      * 
      * @param callSite
      *            Method call site
-     * @param callee
-     *            Method being called
+     * @param caller
+     *            caller method
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param exceptionNode
+     * @param exception
      *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
      *            thrown by this statement
-     * @param ir
-     *            IR for the caller method
-     * @param i
-     *            Instruction that generated this points-to statement
-     * @param rvFactory
-     *            factory for managing the creation of reference variables for local variables and static fields
      */
-    protected CallStatement(CallSiteReference callSite, List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    ReferenceVariableFactory rvFactory) {
-        super(callerIR, i);
-        this.callSite = callSite;
+    protected CallStatement(CallSiteReference callSite, IMethod caller, ReferenceVariable result,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
+        super(caller);
+        this.callSite = new CallSiteLabel(caller, callSite);
         this.actuals = actuals;
-        this.resultNode = resultNode;
-        this.exceptionNode = exceptionNode;
-        this.rvFactory = rvFactory;
+        this.resultNode = result;
+        this.exceptionNode = exception;
     }
 
     /**
@@ -108,42 +94,19 @@ public abstract class CallStatement extends PointsToStatement {
      *            abstraction factory used for creating new context from existing
      * @return true if the points-to graph has changed
      */
-    protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee, PointsToGraph g,
-                                    StatementRegistrar registrar, HeapAbstractionFactory haf) {
+    protected boolean processCall(Context callerContext, InstanceKey receiver, IMethod resolvedCallee,
+                                    MethodSummaryNodes calleeSummary, PointsToGraph g, StatementRegistrar registrar,
+                                    HeapAbstractionFactory haf) {
+        assert calleeSummary != null;
+        assert receiver != null;
+        assert resolvedCallee != null;
+        assert calleeSummary != null;
 
-        Context calleeContext = haf.merge(getCallSiteLabel(), receiver, callerContext);
+        Context calleeContext = haf.merge(callSite, receiver, callerContext);
         boolean changed = false;
-        if (DEBUG && PointsToAnalysis.outputLevel >= 6) {
-            System.err.println((resolvedCallee.isNative() ? "NATIVE CALL: " : "CALL: ")
-                                            + PrettyPrinter.methodString(resolvedCallee) + " from "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
 
         // Record the call in the call graph
-        assert getCode().getMethod() != null : "Null method in IR for "
-                                        + PrettyPrinter.instructionString(getInstruction(), getCode());
-        assert resolvedCallee != null : "null callee for "
-                                        + PrettyPrinter.instructionString(getInstruction(), getCode());
-
-        changed |= g.addCall(callSite, getCode().getMethod(), callerContext, resolvedCallee, calleeContext);
-
-        MethodSummaryNodes calleeSummary = registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory);
-
-        // ///////////////// Exceptions //////////////////
-
-        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
-
-        assert calleeSummary != null;
-        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
-
-        if (DEBUG && g.getPointsToSet(calleeEx).isEmpty() && PointsToAnalysis.outputLevel >= 6) {
-            System.out.println("EXCEPTION IN CALL: " + calleeEx + "\n\t" + PrettyPrinter.methodString(resolvedCallee)
-                                            + " from " + PrettyPrinter.methodString(getCode().getMethod()));
-        }
-        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
-
-        // check if the exception is caught or re-thrown by this procedure
-        changed |= checkThrown(callerEx, callerContext, g, registrar);
+        changed |= g.addCall(callSite.getReference(), getMethod(), callerContext, resolvedCallee, calleeContext);
 
         // ////////////////// Return //////////////////
 
@@ -152,16 +115,30 @@ public abstract class CallStatement extends PointsToStatement {
         // no assignment after the call, or the return type is not a reference
         if (resultNode != null) {
             ReferenceVariableReplica resultRep = getReplica(callerContext, resultNode);
-            ReferenceVariableReplica returnValueFormal = new ReferenceVariableReplica(calleeContext,
+            ReferenceVariableReplica calleeReturn = new ReferenceVariableReplica(calleeContext,
                                             calleeSummary.getReturnNode());
 
-            if (DEBUG && g.getPointsToSet(returnValueFormal).isEmpty()) {
-                System.out.println("CALL RETURN: " + returnValueFormal + "\n\t"
-                                                + PrettyPrinter.methodString(resolvedCallee) + " from "
-                                                + PrettyPrinter.methodString(getCode().getMethod()));
+            if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && g.getPointsToSet(calleeReturn).isEmpty()) {
+                System.out.println("CALL RETURN: " + calleeReturn + "\n\t" + PrettyPrinter.methodString(resolvedCallee)
+                                                + " from " + PrettyPrinter.methodString(getMethod()));
             }
-            changed |= g.addEdges(resultRep, g.getPointsToSet(returnValueFormal));
+            // The assignee can point to anything the return summary node in the callee can point to
+            changed |= g.addEdges(resultRep, g.getPointsToSet(calleeReturn));
         }
+
+        // ////////////////// Arguments //////////////////
+
+        // ///////////////// Exceptions //////////////////
+
+        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
+        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
+
+        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && g.getPointsToSet(calleeEx).isEmpty()) {
+            System.out.println("EXCEPTION IN CALL: " + calleeEx + "\n\t" + PrettyPrinter.methodString(resolvedCallee)
+                                            + " from " + PrettyPrinter.methodString(getMethod()));
+        }
+        // The exception in the caller can point to anything the summary node in the callee can point to
+        changed |= g.addEdges(callerEx, g.getPointsToSet(calleeEx));
 
         // ////////////////// Native with no signature //////////////////
 
@@ -252,15 +229,6 @@ public abstract class CallStatement extends PointsToStatement {
         }
 
         return changed;
-    }
-
-    /**
-     * Get the label for the call site
-     * 
-     * @return label for the site of this method call
-     */
-    protected CallSiteLabel getCallSiteLabel() {
-        return new CallSiteLabel(getCode().getMethod(), callSite);
     }
 
     /**

@@ -44,21 +44,26 @@ public class AnalysisUtil {
      */
     private static FakeRootMethod fakeRoot;
     /**
-     * WALA representation of java.lang.String
+     * Class for java.lang.String
      */
     private static IClass stringClass;
     /**
-     * WALA representation of the class for the value field of a string
-     */
-    private static IClass stringValueClass;
-    /**
-     * WALA representation of the class for java.lang.Throwable
+     * Class for java.lang.Throwable
      */
     private static IClass throwableClass;
     /**
-     * WALA representation of the class for java.lang.Error
+     * Class for java.lang.Error
      */
     private static IClass errorClass;
+    /**
+     * type of the field in java.lang.String
+     */
+    public static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
+    /**
+     * Class for value field of java.lang.String
+     */
+    private static IClass stringValueClass;
+
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
      */
@@ -72,9 +77,9 @@ public class AnalysisUtil {
      */
     private static final String DEFAULT_CLASSPATH = "classes";
     /**
-     * type of the field in java.lang.String
+     * Signatures
      */
-    private static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
+    public static final Signatures signatures = new Signatures();
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -187,7 +192,7 @@ public class AnalysisUtil {
      * @return the code for the given method, null for native methods
      */
     public static IR getIR(IMethod resolvedMethod) {
-        IR sigIR = Signatures.getSignatureIR(resolvedMethod);
+        IR sigIR = signatures.getSignatureIR(resolvedMethod);
         if (sigIR != null) {
             return sigIR;
         }
@@ -210,15 +215,6 @@ public class AnalysisUtil {
     }
 
     /**
-     * Get the canonical class for the value field of java.lang.String
-     * 
-     * @return class
-     */
-    public static IClass getStringValueClass() {
-        return stringValueClass;
-    }
-
-    /**
      * Get the canonical class for java.lang.Throwable
      * 
      * @return class
@@ -234,5 +230,20 @@ public class AnalysisUtil {
      */
     public static IClass getErrorClass() {
         return errorClass;
+    }
+
+    /**
+     * Check whether the given method has a signature
+     * 
+     * @param m
+     *            method to check
+     * @return true if the method has a signature implementation
+     */
+    public static boolean hasSignature(IMethod m) {
+        return signatures.hasSignature(m);
+    }
+
+    public static IClass getStringValueClass() {
+        return stringValueClass;
     }
 }

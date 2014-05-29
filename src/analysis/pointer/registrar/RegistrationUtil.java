@@ -150,8 +150,7 @@ public class RegistrationUtil {
                                         + PrettyPrinter.instructionString(i, ir);
 
         // Add statements for any string literals in the instruction
-        registrar.addStatementsForStringLiterals(i, ir, AnalysisUtil.getStringClass(),
-                                        AnalysisUtil.getStringValueClass(), rvFactory);
+        registrar.addStatementsForStringLiterals(i, ir, rvFactory);
 
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
         registrar.addStatementsForGeneratedExceptions(i, ir, rvFactory);

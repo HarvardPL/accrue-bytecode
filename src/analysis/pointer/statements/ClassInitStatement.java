@@ -11,8 +11,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
 
 /**
  * Points-to statement for class initialization
@@ -31,12 +29,13 @@ public class ClassInitStatement extends PointsToStatement {
      * @param clinits
      *            class initialization methods that might need to be called in the order they need to be called (i.e.
      *            element j is a super class of element j+1)
+     * @param m
      * @param ir
      *            Code triggering the initialization
      * @param i
      *            Instruction triggering the initialization
      */
-    protected ClassInitStatement(List<IMethod> clinits, IR ir, SSAInstruction i) {
+    protected ClassInitStatement(List<IMethod> clinits, IMethod m) {
         super(ir, i);
         assert !clinits.isEmpty() : "No need for a statment if there are no class inits.";
         this.clinits = clinits;

@@ -8,9 +8,8 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
 
 /**
  * Points-to statement for a local assignment, left = right
@@ -33,12 +32,9 @@ public class LocalToLocalStatement extends PointsToStatement {
      *            points-to graph node for assignee
      * @param right
      *            points-to graph node for the assigned value
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
      */
-    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IR ir, SSAInstruction i) {
+    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m) {
         super(ir, i);
         assert !left.isSingleton() : left + " is static";
         assert !right.isSingleton() : right + " is static";

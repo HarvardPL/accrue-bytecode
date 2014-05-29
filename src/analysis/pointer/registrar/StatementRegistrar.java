@@ -326,7 +326,7 @@ public class StatementRegistrar {
         ReferenceVariable array = result;
         for (int dim = 1; dim < i.getNumberOfUses(); dim++) {
             // Create reference variable for inner array
-            ReferenceVariable innerArray = rvFactory.getOrCreateInnerArray(dim, array.getExpectedType()
+            ReferenceVariable innerArray = rvFactory.createInnerArray(dim, array.getExpectedType()
                                             .getArrayElementType(), i, ir);
             // Add an allocation for the contents
             IClass arrayklass = AnalysisUtil.getClassHierarchy().lookupClass(innerArray.getExpectedType());
@@ -598,7 +598,7 @@ public class StatementRegistrar {
      * @param stringClass
      *            WALA representation of the java.lang.String class
      */
-    protected void addStatementsForStringLiterals(SSAInstruction i, IR ir, IClass stringClass, IClass stringValueClass,
+    protected void addStatementsForStringLiterals(SSAInstruction i, IR ir,
                                     ReferenceVariableFactory rvFactory) {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int use = i.getUse(j);
@@ -614,7 +614,7 @@ public class StatementRegistrar {
                 // flow sensitive
 
                 // add points to statements to simulate the allocation
-                addStatementsForStringLit(newStringLit, use, ir, i, stringClass, stringValueClass, rvFactory);
+                addStatementsForStringLit(newStringLit, use, ir, i, rvFactory);
             }
         }
 
@@ -631,16 +631,12 @@ public class StatementRegistrar {
      *            IR containing the constant
      * @param i
      *            instruction using the string literal
-     * @param stringClass
-     *            representation of the class {@link java.lang.String}
-     * @param stringValueClass
-     *            representation of the byte array type
      */
     private void addStatementsForStringLit(ReferenceVariable stringLit, int local, IR ir, SSAInstruction i,
-                                    IClass stringClass, IClass stringValueClass, ReferenceVariableFactory rvFactory) {
+                                    ReferenceVariableFactory rvFactory) {
         // v = new String
         addStatement(StatementFactory.newForStringLiteral(stringLit, ir, i));
-        for (IField f : stringClass.getAllFields()) {
+        for (IField f : AnalysisUtil.getStringClass().getAllFields()) {
             if (f.getName().toString().equals("value")) {
                 // This is the value field of the String
                 ReferenceVariable stringValue = rvFactory.getOrCreateStringLitField(stringValueClass.getReference(),
@@ -666,14 +662,14 @@ public class StatementRegistrar {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             if (SINGLETON_GENERATED_EXCEPTIONS) {
-                ex = rvFactory.getOrCreateSingletonException(ImplicitEx.fromType(exType));
+                ex = rvFactory.createSingletonException(ImplicitEx.fromType(exType));
 
                 IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
                 addStatement(StatementFactory.newForGeneratedException(ex, exClass,
                                                 AnalysisUtil.getIR(AnalysisUtil.getFakeRoot()), null));
             } else {
-                ex = rvFactory.getOrCreateImplicitExceptionNode(exType, i, ir);
+                ex = rvFactory.createImplicitExceptionNode(exType, i, ir);
                 IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 

@@ -6,7 +6,6 @@ import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -14,8 +13,6 @@ import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
 
 /**
  * Statement for a special invoke statement.
@@ -40,27 +37,24 @@ public class SpecialCallStatement extends CallStatement {
      * 
      * @param callSite
      *            Method call site
-     * @param callee
-     *            Method being called
+     * @param resultNode
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param exceptionNode
      *            Node representing the exception thrown by the callee and implicit exceptions
+     * @param callee
+     *            Method being called
      * @param callerIR
      *            Code for the method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
-     * @param rvFactory
-     *            factory for managing the creation of reference variables for local variables and static fields
      */
-    protected SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    ReferenceVariableFactory rvFactory) {
+    protected SpecialCallStatement(CallSiteReference callSite, IMethod resolvedCallee, IMethod caller,
+                                    ReferenceVariable resultNode, ReferenceVariable receiver,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exceptionNode) {
         super(callSite, actuals, resultNode, exceptionNode, callerIR, i, rvFactory);
         this.resultNode = resultNode;
         this.resolvedCallee = resolvedCallee;

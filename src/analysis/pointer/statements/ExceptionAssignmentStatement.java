@@ -12,9 +12,8 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
@@ -23,24 +22,20 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     private final Set<IClass> notType;
 
     /**
-     * Statement for the assignment from a thrown exception to a caught
-     * exception or the summary node for the exceptional exit to a method
+     * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
+     * exceptional exit to a method
      * 
      * @param thrown
      *            reference variable for the exception being thrown
      * @param caught
-     *            reference variable for the caught exception (or summary for
-     *            the method exit)
-     * @param i
-     *            instruction throwing the exception
-     * @param ir
-     *            code containing the instruction that throws the exception
+     *            reference variable for the caught exception (or summary for the method exit)
      * @param notType
-     *            types that the exception being caught cannot have since those
-     *            types must have been caught by previous catch blocks
+     *            types that the exception being caught cannot have since those types must have been caught by previous
+     *            catch blocks
+     * @param m
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, SSAInstruction i, IR ir,
-                                    Set<IClass> notType) {
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
+                                    IMethod m) {
         super(ir, i);
         this.thrown = thrown;
         this.caught = caught;

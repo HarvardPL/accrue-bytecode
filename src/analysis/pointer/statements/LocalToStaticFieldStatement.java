@@ -8,9 +8,8 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAPutInstruction;
 
 /**
  * Points-to statement for an assignment from a local into a static field
@@ -27,20 +26,15 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     private final ReferenceVariable staticField;
 
     /**
-     * Statement for an assignment from a local into a static field,
-     * ClassName.staticField = local
+     * Statement for an assignment from a local into a static field, ClassName.staticField = local
      * 
      * @param staticField
      *            points-to graph node for the assigned value
      * @param local
      *            points-to graph node for assignee
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
      */
-    protected LocalToStaticFieldStatement(ReferenceVariable staticField, ReferenceVariable local, IR ir,
-                                    SSAPutInstruction i) {
+    protected LocalToStaticFieldStatement(ReferenceVariable staticField, ReferenceVariable local, IMethod m) {
         super(ir, i);
         assert !local.isSingleton() : local + " is static";
         assert staticField.isSingleton() : staticField + " is not static";

@@ -6,16 +6,25 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
-import com.ibm.wala.ssa.IR;
+import com.ibm.wala.classLoader.IMethod;
 
 /**
  * Cache of the unique reference variable associated with each local variable
  */
 public class ReferenceVariableCache {
 
-    private final Map<OrderedPair<Integer, IR>, ReferenceVariable> locals;
+    /**
+     * Reference variables for local variables
+     */
+    private final Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals;
 
-    public ReferenceVariableCache(Map<OrderedPair<Integer, IR>, ReferenceVariable> locals) {
+    /**
+     * Create a cache of reference variables with the given map
+     * 
+     * @param locals
+     *            reference variables for local variables
+     */
+    public ReferenceVariableCache(Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals) {
         this.locals = locals;
     }
 
@@ -24,15 +33,14 @@ public class ReferenceVariableCache {
      * 
      * @param local
      *            variable to get the reference variable for
-     * @param ir
-     *            code containing the local variable
+     * @param m
+     *            method containing the local variable
      * @return unique (non-null) reference variable for the local
      */
-    public ReferenceVariable getReferenceVariable(int local, IR ir) {
-        OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
+    public ReferenceVariable getReferenceVariable(int local, IMethod m) {
+        OrderedPair<Integer, IMethod> key = new OrderedPair<>(local, m);
         ReferenceVariable rv = locals.get(key);
-        assert rv != null : "Missing reference variable for " + PrettyPrinter.valString(local, ir) + " in "
-                                        + PrettyPrinter.methodString(ir.getMethod());
+        assert rv != null : "Missing reference variable for " + local + " in " + PrettyPrinter.methodString(m);
         return rv;
     }
 }

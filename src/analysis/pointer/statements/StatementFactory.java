@@ -1,26 +1,18 @@
 package analysis.pointer.statements;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import analysis.AnalysisUtil;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
-import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
-import com.ibm.wala.ssa.SSANewInstruction;
-import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.types.FieldReference;
@@ -33,21 +25,12 @@ import com.ibm.wala.types.TypeReference;
 public class StatementFactory {
 
     /**
-     * Flag to ensure that no two statements are created with the same parameters
-     */
-    public static boolean CHECK_FOR_DUPLICATES = false;
-    /**
      * Map from a key (arguments used to create the points to statement) to points to statement, can be used to check
-     * whether two identical points-to statements are created that are not the same Object.
+     * whether two identical points-to statements are created that are not the same Object. This is only active when
+     * assertions are turned on.
      */
-    private static final Map<StatementKey, PointsToStatement> paranoiaMap;
-    static {
-        if (CHECK_FOR_DUPLICATES) {
-            paranoiaMap = new HashMap<>();
-        } else {
-            paranoiaMap = Collections.emptyMap();
-        }
-    }
+    private static final Map<StatementKey, PointsToStatement> statementMap = new HashMap<>();
+
     /**
      * Description used for a string literal value field
      */
@@ -58,7 +41,8 @@ public class StatementFactory {
     private static final String STRING_LIT_DESC = "new String (compiler-generated)";
 
     /**
-     * Points-to graph statement for an assignment from an array element, v = a[i]
+     * Points-to graph statement for an assignment from an array element, v = a[i], note that we do not track array
+     * elements.
      * 
      * @param v
      *            Points-to graph node for the assignee
@@ -66,16 +50,17 @@ public class StatementFactory {
      *            Points-to graph node for the array being accessed
      * @param baseType
      *            base type of the array
-     * @param ir
-     *            Code this statement occurs in
-     * @param i
-     *            Instruction that generated this points-to statement
      * @return statement to be processed during pointer analysis
      */
     public static ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, TypeReference baseType,
-                                    IR ir, SSAArrayLoadInstruction i) {
-        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, ir, i);
-        checkForDuplicates(new StatementKey(v, a, baseType, ir, i), s);
+                                    IMethod m) {
+        assert v != null;
+        assert a != null;
+        assert baseType != null;
+        assert m != null;
+
+        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, m);
+        assert statementMap.put(new StatementKey(v), s) == null;
         return s;
     }
 
@@ -85,61 +70,72 @@ public class StatementFactory {
      * @param clinits
      *            class initialization methods that might need to be called in the order they need to be called (i.e.
      *            element j is a super class of element j+1)
-     * @param ir
-     *            Code triggering the initialization
      * @param i
      *            Instruction triggering the initialization
      * @return statement to be processed during pointer analysis
      */
-    public static ClassInitStatement classInit(List<IMethod> clinits, IR ir, SSAInstruction i) {
-        ClassInitStatement s = new ClassInitStatement(clinits, ir, i);
-        checkForDuplicates(new StatementKey(clinits, ir, i), s);
+    public static ClassInitStatement classInit(List<IMethod> clinits, IMethod m, SSAInstruction i) {
+        assert clinits != null;
+        assert !clinits.isEmpty();
+        assert m != null;
+        assert i != null;
+
+        ClassInitStatement s = new ClassInitStatement(clinits, m);
+        // Could be duplicated in the same method, if we want a unique key use the instruction
+        assert statementMap.put(new StatementKey(clinits, i), s) == null;
         return s;
     }
 
     /**
-     * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
-     * exceptional exit to a method
+     * Statement for the assignment from an exception to a catch-block formal or the summary node representing the
+     * exception value on method exit
      * 
      * @param thrown
      *            reference variable for the exception being thrown
      * @param caught
      *            reference variable for the caught exception (or summary for the method exit)
-     * @param i
-     *            instruction throwing the exception
-     * @param ir
-     *            code containing the instruction that throws the exception
      * @param notType
      *            types that the exception being caught cannot have since those types must have been caught by previous
      *            catch blocks
+     * @param m
+     *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
     public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
-                                    SSAInstruction i, IR ir, Set<IClass> notType) {
-        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown, caught, i, ir, notType);
-        checkForDuplicates(new StatementKey(thrown, caught, i, ir, notType), s);
+                                    Set<IClass> notType, IMethod m) {
+        assert thrown != null;
+        assert caught != null;
+        assert notType != null;
+        assert m != null;
+
+        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown, caught, notType, m);
+        assert statementMap.put(new StatementKey(thrown, caught), s) == null;
         return s;
+
     }
 
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
      * 
-     * @param f
-     *            field accessed
-     * @param o
-     *            receiver of field access
      * @param l
      *            local assigned into
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param o
+     *            receiver of field access
+     * @param f
+     *            field accessed
+     * @param m
+     *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
-    public static FieldToLocalStatment fieldToLocal(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir,
-                                    SSAGetInstruction i) {
-        FieldToLocalStatment s = new FieldToLocalStatment(f, o, l, ir, i);
-        checkForDuplicates(new StatementKey(f, o, l, ir, i), s);
+    public static FieldToLocalStatment fieldToLocal(ReferenceVariable l, ReferenceVariable o, FieldReference f,
+                                    IMethod m) {
+        assert l != null;
+        assert o != null;
+        assert f != null;
+        assert m != null;
+
+        FieldToLocalStatment s = new FieldToLocalStatment(l, o, f, m);
+        assert statementMap.put(new StatementKey(l), s) == null;
         return s;
     }
 
@@ -153,38 +149,48 @@ public class StatementFactory {
      *            assigned value
      * @param baseType
      *            type of the array elements
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
     public static LocalToArrayStatement localToArrayContents(ReferenceVariable array, ReferenceVariable local,
-                                    TypeReference baseType, IR ir, SSAArrayStoreInstruction i) {
-        LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, ir, i);
-        checkForDuplicates(new StatementKey(array, local, baseType, ir, i), s);
+                                    TypeReference baseType, IMethod m, SSAArrayStoreInstruction i) {
+        assert array != null;
+        assert local != null;
+        assert baseType != null;
+        assert m != null;
+        assert i != null;
+
+        LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, m);
+        // Could be duplicated in the same method, if we want a unique key use the instruction
+        assert statementMap.put(new StatementKey(array, local, i), s) == null;
         return s;
     }
 
     /**
      * Statement for an assignment into a field, o.f = v
      * 
-     * @param f
-     *            field assigned to
      * @param o
      *            receiver of field access
+     * @param f
+     *            field assigned to
      * @param v
      *            value assigned
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToFieldStatement localToField(FieldReference f, ReferenceVariable o, ReferenceVariable v, IR ir,
-                                    SSAPutInstruction i) {
-        LocalToFieldStatement s = new LocalToFieldStatement(f, o, v, ir, i);
-        checkForDuplicates(new StatementKey(f, o, v, ir, i), s);
+    public static LocalToFieldStatement localToField(ReferenceVariable o, FieldReference f, ReferenceVariable v,
+                                    IMethod m, SSAPutInstruction i) {
+        assert o != null;
+        assert f != null;
+        assert v != null;
+        assert m != null;
+        assert i != null;
+
+        LocalToFieldStatement s = new LocalToFieldStatement(o, f, v, m);
+        // Could be duplicated in the same method, if we want a unique key use the instruction
+        assert statementMap.put(new StatementKey(o, f, i), s) == null;
         return s;
     }
 
@@ -195,16 +201,17 @@ public class StatementFactory {
      *            assignee
      * @param right
      *            the assigned value
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IR ir,
-                                    SSAInstruction i) {
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, ir, i);
-        checkForDuplicates(new StatementKey(left, right, ir, i), s);
+    public static LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+        assert left != null;
+        assert right != null;
+        assert m != null;
+
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m);
+        assert statementMap.put(new StatementKey(left), s) == null;
         return s;
     }
 
@@ -215,16 +222,22 @@ public class StatementFactory {
      *            the assigned value
      * @param local
      *            assignee
-     * @param ir
-     *            Code for the method the points-to statement came from
+     * @param m
+     *            method the points-to statement came from
      * @param i
      *            Instruction that generated this points-to statement
      * @return statement to be processed during pointer analysis
      */
     public static LocalToStaticFieldStatement localToStaticField(ReferenceVariable staticField,
-                                    ReferenceVariable local, IR ir, SSAPutInstruction i) {
-        LocalToStaticFieldStatement s = new LocalToStaticFieldStatement(staticField, local, ir, i);
-        checkForDuplicates(new StatementKey(staticField, local, ir, i), s);
+                                    ReferenceVariable local, IMethod m, SSAPutInstruction i) {
+        assert staticField != null;
+        assert local != null;
+        assert m != null;
+        assert i != null;
+
+        LocalToStaticFieldStatement s = new LocalToStaticFieldStatement(staticField, local, m);
+        // Could be duplicated in the same method, if we want a unique key use the instruction
+        assert statementMap.put(new StatementKey(staticField, i), s) == null;
         return s;
     }
 
@@ -246,15 +259,17 @@ public class StatementFactory {
      *            points-to graph node for inner array
      * @param innerArrayType
      *            type of the inner array
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            New Array instruction that generated the multidimensional array
+     * @param m
+     *            Method the points-to statement came from
      */
     public static LocalToArrayStatement multidimensionalArrayContents(ReferenceVariable outerArray,
-                                    ReferenceVariable innerArray, IR ir, SSANewInstruction i) {
-        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), ir, i);
-        checkForDuplicates(new StatementKey(outerArray, innerArray, ir, i), s);
+                                    ReferenceVariable innerArray, IMethod m) {
+        assert outerArray != null;
+        assert innerArray != null;
+        assert m != null;
+
+        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), m);
+        assert statementMap.put(new StatementKey(outerArray, innerArray), s) == null;
         return s;
     }
 
@@ -273,28 +288,34 @@ public class StatementFactory {
      * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
     public static NewStatement newForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
-                                    IR ir, SSAInstruction i) {
-        NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, ir, i);
-        checkForDuplicates(new StatementKey(exceptionAssignee, exceptionClass, ir, i), s);
+                                    IMethod m) {
+        assert exceptionAssignee != null;
+        assert exceptionClass != null;
+        assert m != null;
+
+        NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, m);
+        assert statementMap.put(new StatementKey(exceptionAssignee), s) == null;
         return s;
     }
 
     /**
-     * Points-to graph statement for a "new" instruction, e.g. Object o = new Object()
+     * Points-to graph statement for a "new" instruction, e.g. result = new Object()
      * 
      * @param result
      *            Points-to graph node for the assignee of the new
      * @param newClass
      *            Class being created
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i) {
-        NewStatement s = new NewStatement(result, newClass, ir, i);
-        checkForDuplicates(new StatementKey(result, newClass, ir, i), s);
+    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IMethod m) {
+        assert result != null;
+        assert newClass != null;
+        assert m != null;
+
+        NewStatement s = new NewStatement(result, newClass, m);
+        assert statementMap.put(new StatementKey(result), s) == null;
         return s;
     }
 
@@ -303,15 +324,16 @@ public class StatementFactory {
      * 
      * @param local
      *            Reference variable for the local variable for the string at the allocation site
-     * @param ir
-     *            code containing the instruction throwing the exception
-     * @param i
-     *            exception throwing the exception
+     * @param m
+     *            method containing the String literal
      * @return a statement representing the allocation of a new string literal's value field
      */
-    public static NewStatement newForStringField(ReferenceVariable local, IR ir, SSAInstruction i) {
-        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, AnalysisUtil.getStringValueClass(), ir, i);
-        checkForDuplicates(new StatementKey(local, AnalysisUtil.getStringValueClass(), ir, i), s);
+    public static NewStatement newForStringField(ReferenceVariable local, IMethod m) {
+        assert local != null;
+        assert m != null;
+
+        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, AnalysisUtil.getStringValueClass(), m);
+        assert statementMap.put(new StatementKey(local, STRING_LIT_FIELD_DESC), s) == null;
         return s;
     }
 
@@ -320,15 +342,16 @@ public class StatementFactory {
      * 
      * @param local
      *            Reference variable for the local variable for the string at the allocation site
-     * @param ir
-     *            code containing the instruction throwing the exception
-     * @param i
-     *            exception throwing the exception
+     * @param m
+     *            method containing the String literal
      * @return a statement representing the allocation of a new string literal
      */
-    public static NewStatement newForStringLiteral(ReferenceVariable local, IR ir, SSAInstruction i) {
-        NewStatement s = new NewStatement(STRING_LIT_DESC, local, AnalysisUtil.getStringClass(), ir, i);
-        checkForDuplicates(new StatementKey(local, AnalysisUtil.getStringClass(), ir, i), s);
+    public static NewStatement newForStringLiteral(ReferenceVariable local, IMethod m) {
+        assert local != null;
+        assert m != null;
+
+        NewStatement s = new NewStatement(STRING_LIT_DESC, local, AnalysisUtil.getStringClass(), m);
+        assert statementMap.put(new StatementKey(local, STRING_LIT_DESC), s) == null;
         return s;
     }
 
@@ -339,15 +362,17 @@ public class StatementFactory {
      *            value assigned into
      * @param xs
      *            list of arguments to the phi, v is a choice amongst these
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static PhiStatement phiToLocal(ReferenceVariable v, List<ReferenceVariable> xs, IR ir, SSAPhiInstruction i) {
-        PhiStatement s = new PhiStatement(v, xs, ir, i);
-        checkForDuplicates(new StatementKey(v, xs, ir, i), s);
+    public static PhiStatement phiToLocal(ReferenceVariable v, List<ReferenceVariable> xs, IMethod m) {
+        assert v != null;
+        assert xs != null;
+        assert m != null;
+
+        PhiStatement s = new PhiStatement(v, xs, m);
+        assert statementMap.put(new StatementKey(v), s) == null;
         return s;
     }
 
@@ -356,18 +381,19 @@ public class StatementFactory {
      * 
      * @param result
      *            Node for return result
-     * @param returnSummary
-     *            Node summarizing all return values for the method
-     * @param ir
-     *            Code for the method the points-to statement came from
+     * @param m
+     *            method the points-to statement came from
      * @param i
-     *            Instruction that generated this points-to statement
+     *            return instruction
      * @return statement to be processed during pointer analysis
      */
-    public static ReturnStatement returnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IR ir,
-                                    SSAReturnInstruction i) {
-        ReturnStatement s = new ReturnStatement(result, returnSummary, ir, i);
-        checkForDuplicates(new StatementKey(result, returnSummary, ir, i), s);
+    public static ReturnStatement returnStatement(ReferenceVariable result, IMethod m, SSAReturnInstruction i) {
+        assert result != null;
+        assert i != null;
+        assert m != null;
+
+        ReturnStatement s = new ReturnStatement(result, m);
+        assert statementMap.put(new StatementKey(result, i), s) == null;
         return s;
     }
 
@@ -378,30 +404,32 @@ public class StatementFactory {
      *            Method call site
      * @param callee
      *            Method being called
+     * @param caller
+     *            caller method
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param exceptionNode
-     *            Node representing the exception thrown by the callee and implicit exceptions
-     * @param callerIR
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
-     * @param rvFactory
-     *            factory for managing the creation of reference variables for local variables and static fields
+     * @param exception
+     *            Node in the caller representing the exceptions thrown by the callee
      * @return statement to be processed during pointer analysis
      */
-    public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod resolvedCallee,
-                                    ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                    ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR callerIR,
-                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
-        SpecialCallStatement s = new SpecialCallStatement(callSite, resolvedCallee, receiver, actuals, resultNode,
-                                        exceptionNode, callerIR, i, rvFactory);
-        checkForDuplicates(new StatementKey(callSite, resolvedCallee, receiver, actuals, resultNode, exceptionNode,
-                                        callerIR, i, rvFactory), s);
+    public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod callee, IMethod caller,
+                                    ReferenceVariable result, ReferenceVariable receiver,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
+        assert callSite != null;
+        assert callee != null;
+        assert caller != null;
+        assert result != null;
+        assert receiver != null;
+        assert actuals != null;
+        assert exception != null;
+
+        SpecialCallStatement s = new SpecialCallStatement(callSite, callee, caller, result, receiver, actuals,
+                                        exception);
+        assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }
 
@@ -412,73 +440,77 @@ public class StatementFactory {
      *            Method call site
      * @param callee
      *            Method being called
-     * @param receiver
-     *            Receiver of the call
+     * @param caller
+     *            caller method
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param exceptionNode
-     *            Node representing the exception thrown by the callee and implicit exceptions
-     * @param callerIR
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
-     * @param rvFactory
-     *            factory for managing the creation of reference variables for local variables and static fields
+     * @param exception
+     *            Node in the caller representing the exception thrown by the callee
      * @return statement to be processed during pointer analysis
      */
-    public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod callee,
-                                    List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR callerIR, SSAInvokeInstruction i,
-                                    ReferenceVariableFactory rvFactory) {
-        StaticCallStatement s = new StaticCallStatement(callSite, callee, actuals, resultNode, exceptionNode, callerIR,
-                                        i, rvFactory);
-        checkForDuplicates(new StatementKey(callSite, callee, actuals, resultNode, exceptionNode, callerIR, i,
-                                        rvFactory), s);
+    public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod callee, IMethod caller,
+                                    ReferenceVariable result, List<ReferenceVariable> actuals,
+                                    ReferenceVariable exception) {
+        assert callSite != null;
+        assert callee != null;
+        assert caller != null;
+        assert result != null;
+        assert actuals != null;
+        assert exception != null;
+
+        StaticCallStatement s = new StaticCallStatement(callSite, callee, caller, result, actuals, exception);
+        assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }
 
     /**
-     * Statement for an assignment from a local into a static field, ClassName.staticField = local
+     * Statement for an assignment from a local into a static field, local = ClassName.staticField
      * 
-     * @param staticField
-     *            the assigned value
      * @param local
      *            assignee
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param staticField
+     *            the assigned value
+     * @param m
+     *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
     public static StaticFieldToLocalStatement staticFieldToLocal(ReferenceVariable local,
-                                    ReferenceVariable staticField, IR ir, SSAGetInstruction i) {
-        StaticFieldToLocalStatement s = new StaticFieldToLocalStatement(local, staticField, ir, i);
-        checkForDuplicates(new StatementKey(local, staticField, ir, i), s);
+                                    ReferenceVariable staticField, IMethod m) {
+        assert local != null;
+        assert staticField != null;
+        assert m != null;
+
+        StaticFieldToLocalStatement s = new StaticFieldToLocalStatement(local, staticField, m);
+        assert statementMap.put(new StatementKey(local), s) == null;
         return s;
     }
 
     /**
-     * Statement for an assignment into a the value field of a new string literal
+     * Statement for an assignment into a the value field of a new string literal, string.value = rv
      * 
-     * @param f
-     *            field reference for the string
-     * @param o
-     *            string
-     * @param v
+     * @param string
+     *            string literal
+     * @param value
+     *            field reference for the String.value
+     * @param rv
      *            allocation of the value field
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
+     * 
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToFieldStatement stringLiteralValueField(FieldReference f, ReferenceVariable o,
-                                    ReferenceVariable v, IR ir, SSAInstruction i) {
-        assert f.getName().toString().equals("value") && f.getDeclaringClass().equals(TypeReference.JavaLangString) : "This method should only be called for String.value for a string literal";
-        LocalToFieldStatement s = new LocalToFieldStatement(f, o, v, ir, i);
-        checkForDuplicates(new StatementKey(f, o, v, ir, i), s);
+    public static LocalToFieldStatement stringLiteralValueToField(ReferenceVariable string, FieldReference value,
+                                    ReferenceVariable rv, IMethod m) {
+        assert string != null;
+        assert value != null;
+        assert rv != null;
+        assert m != null;
+        assert value.getName().toString().equals("value")
+                                        && value.getDeclaringClass().equals(TypeReference.JavaLangString) : "This method should only be called for String.value for a string literal";
+        LocalToFieldStatement s = new LocalToFieldStatement(string, value, rv, m);
+        assert statementMap.put(new StatementKey(string, value), s) == null;
         return s;
     }
 
@@ -489,133 +521,60 @@ public class StatementFactory {
      *            Method call site
      * @param callee
      *            Method being called
+     * @param caller
+     *            caller method
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param exceptionNode
+     * @param exception
      *            Node representing the exception thrown by this call (if any)
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
-     * @param rvFactory
-     *            factory for managing the creation of reference variables for local variables and static fields
      * @return statement to be processed during pointer analysis
      */
-    public static VirtualCallStatement virtualCall(CallSiteReference callSite, MethodReference callee,
-                                    ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                    ReferenceVariable resultNode, ReferenceVariable exceptionNode, IR ir,
-                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
-        VirtualCallStatement s = new VirtualCallStatement(callSite, callee, receiver, actuals, resultNode,
-                                        exceptionNode, ir, i, rvFactory);
-        checkForDuplicates(new StatementKey(callSite, callee, receiver, actuals, resultNode, exceptionNode, ir, i,
-                                        rvFactory), s);
+    public static VirtualCallStatement virtualCall(CallSiteReference callSite, MethodReference callee, IMethod caller,
+                                    ReferenceVariable result, ReferenceVariable receiver,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
+        assert callSite != null;
+        assert callee != null;
+        assert caller != null;
+        assert receiver != null;
+        assert result != null;
+        assert actuals != null;
+        assert exception != null;
+
+        VirtualCallStatement s = new VirtualCallStatement(callSite, callee, caller, result, receiver, actuals,
+                                        exception);
+        assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }
 
     /**
-     * If in DEBUG mode check whether a statement has already been created for the given key
-     * 
-     * @param key
-     *            key to check
-     * @param s
-     *            points-to statement for the key
-     */
-    private static void checkForDuplicates(StatementKey key, PointsToStatement s) {
-        if (CHECK_FOR_DUPLICATES) {
-            if (paranoiaMap.containsKey(key)) {
-                throw new RuntimeException("Duplicate statement created for " + s + " the existing one was "
-                                                + paranoiaMap.get(key));
-            }
-            paranoiaMap.put(key, s);
-
-        }
-    }
-
-    /**
-     * DEBUG paranoia map key. Two different PointsToStatement objects should never have the same StatementKey
+     * Duplication checking map key. Two different PointsToStatement objects should never have the same StatementKey
      */
     private static class StatementKey {
 
         private final Object key1;
         private final Object key2;
         private final Object key3;
-        private final Object key4;
-        private final Object key5;
-        private final Object key6;
-        private final Object key7;
-        private final Object key8;
-        private final Object key9;
-        private final Object key10;
+
+        public StatementKey(Object key1) {
+            this.key1 = key1;
+            this.key2 = null;
+            this.key3 = null;
+        }
+
+        public StatementKey(Object key1, Object key2) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = null;
+        }
 
         public StatementKey(Object key1, Object key2, Object key3) {
             this.key1 = key1;
             this.key2 = key2;
             this.key3 = key3;
-            this.key4 = null;
-            this.key5 = null;
-            this.key6 = null;
-            this.key7 = null;
-            this.key8 = null;
-            this.key9 = null;
-            this.key10 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = null;
-            this.key6 = null;
-            this.key7 = null;
-            this.key8 = null;
-            this.key9 = null;
-            this.key10 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = null;
-            this.key7 = null;
-            this.key8 = null;
-            this.key9 = null;
-            this.key10 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7,
-                                        Object key8) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = key6;
-            this.key7 = key7;
-            this.key8 = key8;
-            this.key9 = null;
-            this.key10 = null;
-        }
-
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7,
-                                        Object key8, Object key9) {
-            this.key1 = key1;
-            this.key2 = key2;
-            this.key3 = key3;
-            this.key4 = key4;
-            this.key5 = key5;
-            this.key6 = key6;
-            this.key7 = key7;
-            this.key8 = key8;
-            this.key9 = key9;
-            this.key10 = null;
         }
 
         @Override
@@ -632,11 +591,6 @@ public class StatementFactory {
                     return false;
             } else if (!key1.equals(other.key1))
                 return false;
-            if (key10 == null) {
-                if (other.key10 != null)
-                    return false;
-            } else if (!key10.equals(other.key10))
-                return false;
             if (key2 == null) {
                 if (other.key2 != null)
                     return false;
@@ -647,36 +601,6 @@ public class StatementFactory {
                     return false;
             } else if (!key3.equals(other.key3))
                 return false;
-            if (key4 == null) {
-                if (other.key4 != null)
-                    return false;
-            } else if (!key4.equals(other.key4))
-                return false;
-            if (key5 == null) {
-                if (other.key5 != null)
-                    return false;
-            } else if (!key5.equals(other.key5))
-                return false;
-            if (key6 == null) {
-                if (other.key6 != null)
-                    return false;
-            } else if (!key6.equals(other.key6))
-                return false;
-            if (key7 == null) {
-                if (other.key7 != null)
-                    return false;
-            } else if (!key7.equals(other.key7))
-                return false;
-            if (key8 == null) {
-                if (other.key8 != null)
-                    return false;
-            } else if (!key8.equals(other.key8))
-                return false;
-            if (key9 == null) {
-                if (other.key9 != null)
-                    return false;
-            } else if (!key9.equals(other.key9))
-                return false;
             return true;
         }
 
@@ -685,15 +609,8 @@ public class StatementFactory {
             final int prime = 31;
             int result = 1;
             result = prime * result + ((key1 == null) ? 0 : key1.hashCode());
-            result = prime * result + ((key10 == null) ? 0 : key10.hashCode());
             result = prime * result + ((key2 == null) ? 0 : key2.hashCode());
             result = prime * result + ((key3 == null) ? 0 : key3.hashCode());
-            result = prime * result + ((key4 == null) ? 0 : key4.hashCode());
-            result = prime * result + ((key5 == null) ? 0 : key5.hashCode());
-            result = prime * result + ((key6 == null) ? 0 : key6.hashCode());
-            result = prime * result + ((key7 == null) ? 0 : key7.hashCode());
-            result = prime * result + ((key8 == null) ? 0 : key8.hashCode());
-            result = prime * result + ((key9 == null) ? 0 : key9.hashCode());
             return result;
         }
     }

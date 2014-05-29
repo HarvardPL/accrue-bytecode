@@ -12,10 +12,9 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.types.FieldReference;
 
 /**
@@ -40,19 +39,15 @@ public class FieldToLocalStatment extends PointsToStatement {
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
      * 
-     * @param f
-     *            field accessed
-     * @param o
-     *            points-to graph node for receiver of field access
      * @param l
      *            points-to graph node for local assigned into
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param o
+     *            points-to graph node for receiver of field access
+     * @param f
+     *            field accessed
+     * @param m
      */
-    protected FieldToLocalStatment(FieldReference f, ReferenceVariable o, ReferenceVariable l, IR ir,
-                                    SSAGetInstruction i) {
+    protected FieldToLocalStatment(ReferenceVariable l, ReferenceVariable o, FieldReference f, IMethod m) {
         super(ir, i);
         this.declaredField = f;
         this.receiver = o;

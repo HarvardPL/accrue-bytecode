@@ -18,6 +18,11 @@ public class CallSiteLabel {
      * Call site in the caller
      */
     private final CallSiteReference callSite;
+    
+    /**
+     * compute once and store
+     */
+    private final int memoizedHashCode;
 
     /**
      * Description of a method call site
@@ -30,23 +35,43 @@ public class CallSiteLabel {
     public CallSiteLabel(IMethod caller, CallSiteReference callSite) {
         this.caller = caller;
         this.callSite = callSite;
+        this.memoizedHashCode = computeHashCode();
     }
 
+    /**
+     * Static (unresolved) method callee
+     * 
+     * @return method callee
+     */
     public MethodReference getCallee() {
         return callSite.getDeclaredTarget();
     }
 
+    /**
+     * Is this a call to a static method
+     * 
+     * @return true if this call site is for a static method call
+     */
     public boolean isStatic() {
         return callSite.isStatic();
     }
-
-    @Override
-    public int hashCode() {
+    
+    /**
+     * Compute once and store
+     * 
+     * @return hash code
+     */
+    private int computeHashCode() {
         final int prime = 31;
         int result = 1;
         result = prime * result + ((callSite == null) ? 0 : callSite.hashCode());
         result = prime * result + ((caller == null) ? 0 : caller.hashCode());
         return result;
+    }
+
+    @Override
+    public int hashCode() {
+        return memoizedHashCode;
     }
 
     @Override
@@ -74,5 +99,14 @@ public class CallSiteLabel {
     @Override
     public String toString() {
         return PrettyPrinter.methodString(caller) + "@" + callSite.getProgramCounter();
+    }
+
+    /**
+     * Static call site, is not be unique without the corresponding resilved caller
+     * 
+     * @return program counter and method target
+     */
+    public CallSiteReference getReference() {
+        return callSite;
     }
 }

@@ -10,9 +10,8 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAPhiInstruction;
 
 /**
  * Points-to graph statement for a phi, representing choice at control flow
@@ -36,8 +35,9 @@ public class PhiStatement extends PointsToStatement {
      *            value assigned into
      * @param xs
      *            list of arguments to the phi, v is a choice amongst these
+     * @param m
      */
-    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IR ir, SSAPhiInstruction i) {
+    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IMethod m) {
         super(ir, i);
         assert !xs.isEmpty();
         this.assignee = v;

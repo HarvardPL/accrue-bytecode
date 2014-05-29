@@ -24,74 +24,130 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
- * Computes on-demand and stores type information
+ * Computes and stores type information for variables and thrown exceptions in a given method
  */
 public class TypeRepository {
 
     /**
-     * All type information
-     */
-    private static final Map<IR, TypeInference> types = new HashMap<>();
-    /**
-     * Value numbers for exceptions thrown by callees
-     */
-    private static final Map<IR, Set<Integer>> exceptions = new HashMap<>();
-    /**
-     * Types of exceptions thrown
-     */
-    private static final Map<IMethod, Set<TypeReference>> exceptionTypes = new HashMap<>();
-    /**
      * Memoize results of isAssignable
      */
     private static final Map<OrderedPair<IClass, IClass>, Boolean> isAssignable = new HashMap<>();
+    /**
+     * Results of WALA type inference
+     */
+    private TypeInference ti;
+    /**
+     * Value numbers for exceptions
+     */
+    private Set<Integer> exceptionValNums;
+    /**
+     * Types of exceptions thrown by the method the IR is for
+     */
+    private Set<TypeReference> throwTypes;
 
     /**
-     * Construct types for the given IR using WALA's type inference
+     * Create a new type repository for the given IR
      * 
      * @param ir
-     *            code for the method to get the types for
-     * @return {@link TypeInference} object containing the types
+     *            ir to get types for
      */
-    private static TypeInference getTypeInformation(IR ir) {
-        TypeInference ti = types.get(ir);
-        if (ti == null) {
-            ti = TypeInference.make(ir, true);
-            types.put(ir, ti);
-            // System.err.println("Types for " + ir.getMethod().getSignature());
-            // printTypes(ir, ti);
-        }
-        return ti;
+    public TypeRepository(IR ir) {
+        this.ti = TypeInference.make(ir, true);
     }
 
     /**
-     * Get the type for a specific variable in the given code
+     * Get the type for the variable with the given value number
      * 
      * @param valNum
      *            value number for the variable
-     * @param ir
-     *            code for the method containing the variable
      * @return the type of the variable with the given value number
      */
-    public static TypeReference getType(int valNum, IR ir) {
-        assert valNum >= 0 : "Negative value number " + valNum + " getting type in " + PrettyPrinter.irString(ir, "\t", "\n");
-        if (ir.getSymbolTable().isNullConstant(valNum)) {
+    public TypeReference getType(int valNum) {
+        assert valNum >= 0 : "Negative valNum: " + valNum + " in " + PrettyPrinter.methodString(ti.getIR().getMethod());
+        if (ti.getIR().getSymbolTable().isNullConstant(valNum)) {
             return TypeReference.Null;
         }
-        TypeInference ti = getTypeInformation(ir);
         TypeReference tr = ti.getType(valNum).getTypeReference();
         if (tr == null) {
-            if (ti.getType(valNum) == TypeAbstraction.TOP && getExceptions(ir).contains(valNum)) {
+            if (ti.getType(valNum) == TypeAbstraction.TOP && getExceptions().contains(valNum)) {
                 // This is an unknown exception/error type
                 return TypeReference.JavaLangThrowable;
             }
-            throw new RuntimeException("No type for "
-                                            + ir.getSymbolTable().getValueString(valNum)
-                                            + " in "
-                                            + ir.getMethod().getSignature()
-                                            + " Probably an element of an array that was set to Object at some point. "
-                                            + "Set it to double since anything can cast up to it. I guess.");
+            PrettyPrinter pp = new PrettyPrinter(ti.getIR());
+            throw new RuntimeException("No type for " + pp.valString(valNum) + " in "
+                                            + PrettyPrinter.methodString(ti.getIR().getMethod())
+                                            + " Could be an element of an array that was set to Object at some point.");
         }
         return tr;
+    }
+
+    /**
+     * Get value numbers for exceptions thrown by other methods called in the IR. These sometimes to not have exact
+     * types after type inference, but we know they are at least Throwable.
+     * 
+     * @param ir
+     *            code for the method we are getting exceptions for
+     * @return value numbers for the exceptions thrown by methods called by the method the IR is for
+     */
+    private Set<Integer> getExceptions() {
+        if (exceptionValNums == null) {
+            exceptionValNums = new LinkedHashSet<>();
+            for (ISSABasicBlock bb : ti.getIR().getControlFlowGraph()) {
+                for (SSAInstruction ins : bb) {
+                    if (ins instanceof SSAInvokeInstruction) {
+                        exceptionValNums.add(((SSAInvokeInstruction) ins).getException());
+                    }
+                }
+            }
+        }
+        return exceptionValNums;
+    }
+
+    /**
+     * Get the types of exceptions that the method can thrown
+     * 
+     * @return set of exception types the method could throw
+     */
+    public Set<TypeReference> getThrowTypes() {
+        if (throwTypes == null) {
+            TypeReference[] exTypes = null;
+            throwTypes = new LinkedHashSet<>();
+            try {
+                exTypes = ti.getIR().getMethod().getDeclaredExceptions();
+            } catch (UnsupportedOperationException | InvalidClassFileException e) {
+                throw new RuntimeException("Exception when finding exception types for "
+                                                + PrettyPrinter.methodString(ti.getIR().getMethod()), e);
+            }
+            if (exTypes != null) {
+                throwTypes.addAll(Arrays.asList(exTypes));
+            }
+
+            // All methods can throw RuntimException or Error
+            throwTypes.add(TypeReference.JavaLangRuntimeException);
+            if (ti.getIR().getMethod() instanceof FakeRootMethod) {
+                // The top level doesn't declare anything, but can throw
+                // anything main can
+                // We'll be conservative and assume it can throw any Throwable
+
+                // XXX this exception could point to a lot of stuff, but should never be queried
+                throwTypes.add(TypeReference.JavaLangThrowable);
+            }
+        }
+        return throwTypes;
+    }
+
+    /**
+     * Compute and print the types for local variables in the given method
+     * <p>
+     * This is expensive and should be used for debugging only
+     * 
+     * @param m
+     *            method to get the types
+     */
+    public static void printTypes(IMethod m) {
+        TypeInference ti = TypeInference.make(AnalysisUtil.getIR(m), true);
+        System.err.println("Types for " + PrettyPrinter.methodString(m));
+        System.err.println(ti);
     }
 
     /**
@@ -119,76 +175,5 @@ public class TypeRepository {
             isAssignable.put(key, res);
         }
         return res;
-    }
-
-    /**
-     * Get value numbers for exceptions thrown by other methods called in the
-     * IR. These sometimes to not have exact types after type inference, but we
-     * know they are at least Throwable.
-     * 
-     * @param ir
-     *            code for the method we are getting exceptions for
-     * @return value numbers for the exceptions thrown by methods called by the
-     *         method the IR is for
-     */
-    private static Set<Integer> getExceptions(IR ir) {
-        Set<Integer> exs = exceptions.get(ir);
-        if (exs == null) {
-            exs = new LinkedHashSet<>();
-            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                for (SSAInstruction ins : bb) {
-                    if (ins instanceof SSAInvokeInstruction) {
-                        exs.add(((SSAInvokeInstruction) ins).getException());
-                    }
-                }
-            }
-            exceptions.put(ir, exs);
-        }
-        return exs;
-    }
-
-    /**
-     * Get the types of exceptions that the given method can thrown
-     * 
-     * @param m
-     *            method to get the exception types for
-     * @return set of exception types m could throw
-     */
-    public static Set<TypeReference> getThrowTypes(IMethod m) {
-        Set<TypeReference> et = exceptionTypes.get(m);
-        if (et == null) {
-            TypeReference[] exTypes = null;
-            et = new LinkedHashSet<>();
-            try {
-                exTypes = m.getDeclaredExceptions();
-            } catch (UnsupportedOperationException | InvalidClassFileException e) {
-                throw new RuntimeException("Cannot find exception types for " + m.getSignature(), e);
-            }
-            if (exTypes != null) {
-                et.addAll(Arrays.asList(exTypes));
-            }
-
-            // All methods can throw RuntimException or Error
-            et.add(TypeReference.JavaLangRuntimeException);
-            if (m instanceof FakeRootMethod) {
-                // The top level doesn't declare anything, but can throw
-                // anything main can
-                // We'll be conservative and assume it can throw any Throwable
-
-                // XXX this exception could point to a lot of stuff, but should never be queried
-                et.add(TypeReference.JavaLangThrowable);
-            }
-            
-            exceptionTypes.put(m, et);
-        }
-        return et;
-    }
-
-    /**
-     * @param code
-     */
-    public static void printTypes(IR code) {
-        System.err.println("Types for " + PrettyPrinter.methodString(code.getMethod()));
-        System.err.println(types.get(code));
     }
 }

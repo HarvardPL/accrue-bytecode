@@ -8,7 +8,6 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import signatures.Signatures;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -223,18 +222,20 @@ public class TestMain {
     private static void printAllCFG(PointsToGraph g) {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
-            if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
-                String fileName = "cfg_" + PrettyPrinter.methodString(n.getMethod());
-                printSingleCFG(n.getIR(), fileName);
-                printed.add(n.getMethod());
-            } else if (n.getMethod().isNative()) {
-                IR sigIR = Signatures.getSignatureIR(n.getMethod());
-                if (sigIR != null) {
-                    String fileName = "cfg_sig_" + PrettyPrinter.methodString(n.getMethod());
-                    printSingleCFG(sigIR, fileName);
-                    printed.add(n.getMethod());
+            IMethod m = n.getMethod();
+            if (!printed.contains(m)) {
+                printed.add(m);
+                String prefix = "cfg_";
+                if (AnalysisUtil.hasSignature(m)) {
+                    prefix += "sig_";
+                }
+                String fileName = prefix + PrettyPrinter.methodString(m);
+                IR ir = AnalysisUtil.getIR(m);
+                if (ir != null) {
+                    printSingleCFG(ir, fileName);
                 } else {
-                    System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
+                    System.err.println("No CFG for " + PrettyPrinter.cgNodeString(n) + " it "
+                                                    + (m.isNative() ? "was" : "wasn't") + " native");
                 }
             }
         }
