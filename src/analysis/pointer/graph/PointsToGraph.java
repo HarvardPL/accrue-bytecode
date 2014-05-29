@@ -533,7 +533,7 @@ public class PointsToGraph {
                 if (notTypes != null) {
                     for (IClass nt : notTypes) {
                         if (isAssignableFrom(nt, o.getConcreteType())) {
-                            // it's assignable from a not type...
+                            // it's assignable to a not type...
                             return false;
                         }
                     }
