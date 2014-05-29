@@ -147,8 +147,8 @@ public class OrderedPair<F, S> {
         }
         // We have to use ? since we cannot check the generic type at runtime
         OrderedPair<?, ?> other = (OrderedPair<?, ?>) obj;
-        return (fst() == null ? other.fst() == null : fst().equals(other.fst()))
-                && (snd() == null ? other.snd() == null : snd().equals(other.snd()));
+        return (this.fst == null ? other.fst == null : this.fst.equals(other.fst))
+                                        && (this.snd == null ? other.snd == null : this.snd.equals(other.snd));
     }
 
     /**
