@@ -58,8 +58,8 @@ public abstract class HeapAbstractionFactory {
     /**********
      * Memoization
      **********/
-    private static final ConcurrentHashMap<InstanceKeyWrapper, InstanceKey> instanceKeymemo = createConcurrentHashMap();
-    private static final ConcurrentHashMap<ContextWrapper, Context> contextMemo = createConcurrentHashMap();
+    private static final ConcurrentHashMap<Wrapper<InstanceKey>, InstanceKey> instanceKeymemo = createConcurrentHashMap();
+    private static final ConcurrentHashMap<Wrapper<Context>, Context> contextMemo = createConcurrentHashMap();
 
     /**
      * Memoize the given context. If all the <code>memoKeys</code> are .equals to those passed in for an existing
@@ -74,7 +74,7 @@ public abstract class HeapAbstractionFactory {
      */
     @SuppressWarnings("unchecked")
     protected static <CC extends Context> CC memoize(CC c, Object... memoKeys) {
-        ContextWrapper w = new ContextWrapper(c, memoKeys);
+        Wrapper<Context> w = new Wrapper<Context>(c, memoKeys);
         CC memoized = (CC) contextMemo.get(w);
         if (memoized == null) {
             memoized = (CC) contextMemo.putIfAbsent(w, c);
@@ -100,7 +100,7 @@ public abstract class HeapAbstractionFactory {
      */
     @SuppressWarnings("unchecked")
     protected static <HC extends InstanceKey> HC memoize(HC ik, Object... memoKeys) {
-        InstanceKeyWrapper w = new InstanceKeyWrapper(ik, memoKeys);
+        Wrapper<InstanceKey> w = new Wrapper<InstanceKey>(ik, memoKeys);
         HC memoized = (HC) instanceKeymemo.get(w);
         if (memoized == null) {
             memoized = (HC) instanceKeymemo.putIfAbsent(w, ik);
@@ -116,75 +116,28 @@ public abstract class HeapAbstractionFactory {
         return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
-    private static class InstanceKeyWrapper {
 
-        private final InstanceKey hc;
-        private final Object[] memoKeys;
 
-        /**
-         * Wrapper around the heap context and any keys determining semantic equality
-         * 
-         * @param hc
-         *            heap context (must be non-null)
-         * @param memoKeys
-         *            keys determining semantic equality (must be non-null and non-empty)
-         */
-        public InstanceKeyWrapper(InstanceKey hc, Object[] memoKeys) {
-            assert hc != null;
-            assert memoKeys != null && memoKeys.length > 0;
-            this.hc = hc;
-            this.memoKeys = memoKeys;
-        }
+    /**
+     * A wrapper for contexts/instanceKeys and memoization keys to be used as the key in a memoization map for contexts.
+     * Note that although the Wrapper contains a T c, that is not directly used in the equality comparison, except (1)
+     * to check the runtime class of the T, and (2) to speed up the checking of equality, in the case that the two Ts
+     * happen to be pointer-equal.
+     */
+    private static class Wrapper<T> {
 
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + Arrays.hashCode(memoKeys);
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            InstanceKeyWrapper other = (InstanceKeyWrapper) obj;
-            if (hc == other.hc) {
-                assert Arrays.equals(memoKeys, other.memoKeys);
-                // If the instance keys are the same object then we do not need to check the keys, they must be the same
-                // (unless there was a bug)
-                return true;
-            }
-
-            if (hc.getClass() != other.hc.getClass()) {
-                // Comparing two different types of instance key
-                return false;
-            }
-
-            if (!Arrays.equals(memoKeys, other.memoKeys))
-                return false;
-            return true;
-        }
-    }
-
-    private static class ContextWrapper {
-
-        private final Context c;
+        private final T c;
         private final Object[] memoKeys;
 
         /**
          * Wrapper around the context and any keys determining semantic equality
          * 
          * @param c
-         *            context (must be non-null)
+         *            context or InstanceKey (must be non-null)
          * @param memoKeys
          *            keys determining semantic equality (must be non-null and non-empty)
          */
-        public ContextWrapper(Context c, Object[] memoKeys) {
+        public Wrapper(T c, Object[] memoKeys) {
             assert c != null;
             assert memoKeys != null && memoKeys.length > 0;
             this.c = c;
@@ -193,10 +146,7 @@ public abstract class HeapAbstractionFactory {
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + Arrays.hashCode(memoKeys);
-            return result;
+            return Arrays.hashCode(memoKeys) ^ c.getClass().hashCode();
         }
 
         @Override
@@ -208,7 +158,7 @@ public abstract class HeapAbstractionFactory {
                 return false;
             if (getClass() != obj.getClass())
                 return false;
-            ContextWrapper other = (ContextWrapper) obj;
+            Wrapper<T> other = (Wrapper<T>) obj;
             if (c == other.c) {
                 assert Arrays.equals(memoKeys, other.memoKeys);
                 // If the instance keys are the same object then we do not need to check the keys, they must be the same
@@ -221,10 +171,9 @@ public abstract class HeapAbstractionFactory {
                 return false;
             }
 
-            if (!Arrays.equals(memoKeys, other.memoKeys))
-                return false;
-            return true;
+            return Arrays.equals(memoKeys, other.memoKeys);
         }
 
     }
+
 }
