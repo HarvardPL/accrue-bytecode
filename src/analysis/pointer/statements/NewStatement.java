@@ -27,7 +27,7 @@ public class NewStatement extends PointsToStatement {
     private final AllocSiteNode alloc;
 
     /**
-     * Points-to graph statement for an allocation, e.g. o = new Object
+     * Points-to graph statement for an allocation resulting from a new instruction, e.g. o = new Object
      * 
      * @param result
      *            Points-to graph node for the assignee of the new
@@ -35,11 +35,13 @@ public class NewStatement extends PointsToStatement {
      *            Class being created
      * @param m
      *            method the points-to statement came from
+     * @param pc
+     *            program counter of the allocation
      */
-    protected NewStatement(ReferenceVariable result, IClass newClass, IMethod m) {
+    protected NewStatement(ReferenceVariable result, IClass newClass, IMethod m, int pc) {
         super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createNormal(newClass, m.getDeclaringClass(), result);
+        alloc = AllocSiteNodeFactory.createNormal(newClass, m.getDeclaringClass(), result, pc);
     }
 
     /**

@@ -37,11 +37,15 @@ public class AllocSiteNodeFactory {
      *            class where allocation occurs
      * @param result
      *            variable the results will be assigned into
+     * @param pc
+     *            program counter where the allocation occurs
      * @return unique allocation node
      */
-    protected static AllocSiteNode createNormal(IClass allocatedClass, IClass allocatingClass, ReferenceVariable result) {
+    protected static AllocSiteNode createNormal(IClass allocatedClass, IClass allocatingClass,
+                                    ReferenceVariable result, int pc) {
+        String name = PrettyPrinter.typeString(allocatedClass);
         @SuppressWarnings("synthetic-access")
-        AllocSiteNode n = new AllocSiteNode(PrettyPrinter.typeString(allocatedClass), allocatedClass, allocatingClass);
+        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass, pc);
         assert nodeMap.put(result, n) == null;
         return n;
     }
@@ -83,6 +87,26 @@ public class AllocSiteNodeFactory {
          * String used for printing and debugging
          */
         private final String debugString;
+        /**
+         * program counter at the allocation site (-1 for generated allocations e.g. generated exceptions)
+         */
+        private final int programCounter;
+
+        /**
+         * Represents the allocation of an object by something other than a "new" instruction.
+         * <p>
+         * e.g. a string literal, generated exception, signature for a native method
+         * 
+         * @param debugString
+         *            String for printing and debugging
+         * @param allocatedClass
+         *            class being allocated
+         * @param allocatingClass
+         *            class where allocation occurs
+         */
+        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass) {
+            this(debugString, allocatedClass, allocatingClass, -1);
+        }
 
         /**
          * Represents the allocation of a new object
@@ -93,16 +117,24 @@ public class AllocSiteNodeFactory {
          *            class being allocated
          * @param allocatingClass
          *            class where allocation occurs
+         * @param programCounter
+         *            program counter at the allocation site (-1 for generated allocations e.g. generated exceptions)
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass) {
+        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass, int programCounter) {
+            assert debugString != null;
+            assert allocatingClass != null;
+            assert allocatedClass != null;
             this.debugString = debugString;
             this.allocatingClass = allocatingClass;
             this.allocatedClass = allocatedClass;
-            assert debugString != null;
+            this.programCounter = programCounter;
         }
 
         @Override
         public String toString() {
+            if (programCounter >= 0) {
+                return debugString + "@" + programCounter;
+            }
             return debugString;
         }
 
@@ -116,6 +148,10 @@ public class AllocSiteNodeFactory {
 
         public IClass getAllocatedClass() {
             return allocatedClass;
+        }
+
+        public int getProgramCounter() {
+            return programCounter;
         }
 
         @Override

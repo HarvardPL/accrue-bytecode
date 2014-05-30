@@ -522,7 +522,7 @@ public final class StatementRegistrar {
 
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        addStatement(StatementFactory.newForNormalAlloc(a, klass, ir.getMethod()));
+        addStatement(StatementFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite().getProgramCounter()));
 
         // Handle arrays with multiple dimensions
         ReferenceVariable outerArray = a;
@@ -559,7 +559,8 @@ public final class StatementRegistrar {
 
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir.getMethod()));
+        addStatement(StatementFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
+                                        .getProgramCounter()));
     }
 
     /**

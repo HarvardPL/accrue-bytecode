@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import util.ImplicitEx;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -298,7 +299,8 @@ public class StatementFactory {
         assert exceptionClass != null;
         assert m != null;
 
-        NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, m);
+        NewStatement s = new NewStatement(ImplicitEx.fromType(exceptionClass.getReference()).toString(),
+                                        exceptionAssignee, exceptionClass, m);
         assert map.put(new StatementKey(exceptionAssignee), s) == null;
         return s;
     }
@@ -320,7 +322,8 @@ public class StatementFactory {
         assert m != null;
         assert m.isNative();
 
-        NewStatement s = new NewStatement(summary, allocatedClass, m);
+        String name = PrettyPrinter.getCanonical("NATIVE-" + PrettyPrinter.typeString(allocatedClass));
+        NewStatement s = new NewStatement(name, summary, allocatedClass, m);
         assert map.put(new StatementKey(summary), s) == null;
         return s;
     }
@@ -356,14 +359,16 @@ public class StatementFactory {
      *            Class being created
      * @param m
      *            method the points-to statement came from
+     * @param pc
+     *            The program counter where the allocation occured
      * @return statement to be processed during pointer analysis
      */
-    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IMethod m) {
+    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IMethod m, int pc) {
         assert result != null;
         assert newClass != null;
         assert m != null;
 
-        NewStatement s = new NewStatement(result, newClass, m);
+        NewStatement s = new NewStatement(result, newClass, m, pc);
         assert map.put(new StatementKey(result), s) == null;
         return s;
     }
