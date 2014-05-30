@@ -392,8 +392,8 @@ public class PointsToGraph {
             if (count == null) {
                 dotToCount.put(nStr, 1);
             } else {
-                nStr += " (" + count + ")";
                 dotToCount.put(nStr, count + 1);
+                nStr += " (" + count + ")";
             }
             n2s.put(n, nStr);
         }
@@ -403,16 +403,14 @@ public class PointsToGraph {
             if (count == null) {
                 dotToCount.put(kStr, 1);
             } else {
-                kStr += " (" + count + ")";
                 dotToCount.put(kStr, count + 1);
+                kStr += " (" + count + ")";
             }
             k2s.put(k, kStr);
         }
 
         for (PointsToGraphNode n : graph.keySet()) {
-            System.err.println("NODE: " + n2s.get(n) + "(" + n + ")");
             for (InstanceKey ik : graph.get(n)) {
-                System.err.println("\t" + k2s.get(ik) + "(" + ik + ")");
                 writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
             }
         }

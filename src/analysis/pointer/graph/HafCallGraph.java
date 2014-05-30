@@ -119,8 +119,8 @@ public class HafCallGraph extends ExplicitCallGraph {
             if (count == null) {
                 dotToCount.put(nStr, 1);
             } else {
-                nStr += " (" + count + ")";
                 dotToCount.put(nStr, count + 1);
+                nStr += " (" + count + ")";
             }
             n2s.put(n, nStr);
             writer.write("\t\"" + nStr + "\";\n");
