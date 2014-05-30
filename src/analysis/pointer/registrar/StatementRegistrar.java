@@ -169,6 +169,9 @@ public final class StatementRegistrar {
 
         if (PointsToAnalysis.outputLevel >= 1) {
             System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
+            CFGWriter.writeToFile(ir);
+            TypeRepository.printToFile(m);
+            System.err.println();
         }
 
         if (PointsToAnalysis.outputLevel >= 6) {
@@ -728,7 +731,7 @@ public final class StatementRegistrar {
         }
         ss.add(s);
 
-        if (statements.size() % 500000 == 0) {
+        if (statements.size() % 10000 == 0) {
             System.err.println(statements.size() + " statements");
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");

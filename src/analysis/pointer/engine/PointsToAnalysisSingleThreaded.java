@@ -117,7 +117,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
 
-            if (outputLevel >= 1) {
+            if (outputLevel >= 3) {
                 System.err.println("\tPROCESSING: " + sac);
             }
             s.process(c, haf, g, registrar);
@@ -131,7 +131,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             // Add new contexts
             for (IMethod m : newContexts.keySet()) {
-                if (outputLevel >= 1) {
+                if (outputLevel >= 4) {
                     System.err.println("\tNEW CONTEXTS for " + PrettyPrinter.methodString(m));
                     for (Context context : newContexts.get(m)) {
                         System.err.println("\t" + context);
@@ -144,7 +144,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
-                    if (outputLevel >= 1) {
+                    if (outputLevel >= 4) {
                         System.err.println("\t\tADDING " + stmt);
                     }
 
@@ -154,7 +154,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
             }
 
-            if (outputLevel >= 1 && !readNodes.isEmpty()) {
+            if (outputLevel >= 4 && !readNodes.isEmpty()) {
                 System.err.println("\tREAD:");
                 for (PointsToGraphNode read : readNodes) {
                     System.err.println("\t\t" + read);
@@ -166,7 +166,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 addDependency(n, sac);
             }
 
-            if (outputLevel >= 1 && !changedNodes.isEmpty()) {
+            if (outputLevel >= 4 && !changedNodes.isEmpty()) {
                 for (PointsToGraphNode n : changedNodes) {
                     System.err.println("\tCHANGED: " + n);
                     if (!getDependencies(n).isEmpty()) {

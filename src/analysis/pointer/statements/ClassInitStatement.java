@@ -48,11 +48,11 @@ public class ClassInitStatement extends PointsToStatement {
         // this would be very imprecise and would blow up the call graph and points-to graph.
         // As a compromise we don't do anything here, and use this statement only to trigger the analysis of the
         // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
-        if (PointsToAnalysis.outputLevel >= 0 && added) {
+        if (PointsToAnalysis.outputLevel >= 2 && added) {
             for (IMethod m : clinits) {
                 System.err.print("ADDING CLINIT: " + PrettyPrinter.methodString(m));
             }
-            System.err.println("\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
+            System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
         }
 
         return false;

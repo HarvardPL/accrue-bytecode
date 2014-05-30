@@ -2,6 +2,8 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
+import types.TypeRepository;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -11,9 +13,11 @@ import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 
 /**
  * Defines how to process points-to graph information for a particular statement
@@ -84,10 +88,36 @@ public abstract class PointsToStatement {
      *            assigned
      * @return true if right can safely be assigned to the left
      */
-    protected final static boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
-        return AnalysisUtil.getClassHierarchy().isAssignableFrom(
-                                        AnalysisUtil.getClassHierarchy().lookupClass(left.getExpectedType()),
-                                        AnalysisUtil.getClassHierarchy().lookupClass(right.getExpectedType()));
+    protected final boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+        IClass c1 = cha.lookupClass(left.getExpectedType());
+        IClass c2 = cha.lookupClass(right.getExpectedType());
+        boolean check = cha.isAssignableFrom(c1, c2);
+
+        if (check) {
+            return true;
+        }
+
+        if (c1.isInterface() && cha.isRootClass(c2)) {
+            // c2 may be the merge of two different types that both implement c1 and the assignment is safe OK
+            // Unfortunately we've lost the information about which interfaces c2 implements at this point. It would be
+            // nice if the type inference kept this information.
+            System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
+            System.err.println("\tassigned type: " + PrettyPrinter.typeString(left.getExpectedType())
+                                            + " is an interface and the assignee is java.lang.Object. ");
+            System.err.println("\tBut since the type inference does not track interfaces the actual value may still implement the interface.");
+            return true;
+        }
+
+        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
+        System.err.println("\t" + PrettyPrinter.typeString(left.getExpectedType()) + " = "
+                                        + PrettyPrinter.typeString(right.getExpectedType()) + " does not type check");
+        if (PointsToAnalysis.outputLevel >= 1) {
+            CFGWriter.writeToFile(getMethod());
+            TypeRepository.print(getMethod());
+        }
+
+        return check;
     }
 
     /**

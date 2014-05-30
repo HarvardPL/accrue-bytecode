@@ -1,5 +1,9 @@
 package types;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -144,10 +148,31 @@ public class TypeRepository {
      * @param m
      *            method to get the types
      */
-    public static void printTypes(IMethod m) {
+    public static void print(IMethod m) {
         TypeInference ti = TypeInference.make(AnalysisUtil.getIR(m), true);
         System.err.println("Types for " + PrettyPrinter.methodString(m));
         System.err.println(ti);
+    }
+
+    /**
+     * Compute and print the types for local variables in the given method
+     * <p>
+     * This is expensive and should be used for debugging only
+     * 
+     * @param m
+     *            method to get the types
+     */
+    public static void printToFile(IMethod m) {
+        TypeInference ti = TypeInference.make(AnalysisUtil.getIR(m), true);
+        
+        String dir = "tests";
+        String fullFilename = dir + "/types_" + PrettyPrinter.methodString(m) + ".txt";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            out.write(ti.toString());
+            System.err.println("TYPES written to: " + fullFilename);
+        } catch (IOException e) {
+            System.err.println("Could not write TYPES to file, " + fullFilename + ", " + e.getMessage());
+        }
     }
 
     /**
