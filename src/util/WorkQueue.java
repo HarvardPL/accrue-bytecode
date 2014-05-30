@@ -1,11 +1,11 @@
 package util;
 
 import java.util.Collection;
-import java.util.Deque;
 import java.util.HashSet;
-import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Set;
-import java.util.concurrent.LinkedBlockingDeque;
+
+import com.ibm.wala.ipa.callgraph.CGNode;
 
 /**
  * Work queue where duplicate elements are not added and containment checks are
@@ -14,12 +14,12 @@ import java.util.concurrent.LinkedBlockingDeque;
  * @param <T>
  *            type of queue elements
  */
-public class WorkQueue<T> implements Collection<T> {
+public class WorkQueue<T> {
 
     /**
      * Internal Q
      */
-    private Deque<T> q = new LinkedBlockingDeque<>();
+    private LinkedList<T> q = new LinkedList<>();
     /**
      * Mirror of Q used to quickly check containment
      */
@@ -48,17 +48,16 @@ public class WorkQueue<T> implements Collection<T> {
      *            node to add
      * @return true if the node was not already in the queue
      */
-    @Override
     public boolean add(T n) {
         boolean notInQ = qSet.add(n);
         if (notInQ) {
-            q.add(n);
+            q.addLast(n);
         }
         return notInQ;
     }
 
     /**
-     * Get and removethe next result from the queue
+     * Get and remove the next result from the queue
      * 
      * @return the next result or null if the queue is empty
      */
@@ -66,7 +65,7 @@ public class WorkQueue<T> implements Collection<T> {
         if (q.isEmpty()) {
             return null;
         }
-        T n = q.poll();
+        T n = q.removeFirst();
         qSet.remove(n);
         return n;
     }
@@ -78,7 +77,6 @@ public class WorkQueue<T> implements Collection<T> {
      *            nodes to add
      * @return true if the queue changed as a result of this call
      */
-    @Override
     public boolean addAll(Collection<? extends T> collection) {
         boolean changed = false;
         for (T n : collection) {
@@ -87,7 +85,17 @@ public class WorkQueue<T> implements Collection<T> {
         return changed;
     }
 
-    @Override
+    /**
+     * Add a collection of nodes to the back of the queue.
+     * 
+     * @param collection
+     *            nodes to add
+     * @return true if the queue changed as a result of this call
+     */
+    public boolean addAll(WorkQueue<T> wq) {
+        return this.addAll(wq.qSet);
+    }
+
     public boolean isEmpty() {
         return qSet.isEmpty();
     }
@@ -97,57 +105,7 @@ public class WorkQueue<T> implements Collection<T> {
         return q.toString();
     }
 
-    @Override
-    public boolean contains(Object element) {
-        return qSet.contains(element);
-    }
-
-    @Override
-    public int size() {
-        return qSet.size();
-    }
-
-    @Override
-    public Iterator<T> iterator() {
-        return q.iterator();
-    }
-
-    @Override
-    public Object[] toArray() {
-        return qSet.toArray();
-    }
-
-    @Override
-    public <S> S[] toArray(S[] a) {
-        return qSet.toArray(a);
-    }
-
-    @Override
-    public boolean remove(Object o) {
-        q.remove();
-        return qSet.remove(o);
-    }
-
-    @Override
-    public boolean containsAll(Collection<?> c) {
-        return qSet.containsAll(c);
-    }
-
-    @Override
-    public boolean removeAll(Collection<?> c) {
-        q.removeAll(c);
-        return qSet.removeAll(c);
-    }
-
-    @Override
-    public boolean retainAll(Collection<?> c) {
-        q.retainAll(c);
-        return qSet.retainAll(c);
-    }
-
-    @Override
-    public void clear() {
-        q.clear();
-        qSet.clear();
+    public boolean contains(CGNode succ) {
+        return qSet.contains(succ);
     }
 }
