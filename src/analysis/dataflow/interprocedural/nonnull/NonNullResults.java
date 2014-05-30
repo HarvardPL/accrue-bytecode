@@ -42,8 +42,8 @@ public class NonNullResults implements AnalysisResults {
      * @return true if the variable represented by the value number is
      *         definitely not null
      */
-    public boolean isNonNull(int valNum, SSAInstruction i, CGNode containingNode) {
-        if (TypeRepository.getType(valNum, containingNode.getIR()).isPrimitiveType()) {
+    public boolean isNonNull(int valNum, SSAInstruction i, CGNode containingNode, TypeRepository types) {
+        if (types.getType(valNum).isPrimitiveType()) {
             // All primitives are non-null
             return true;
         }
@@ -211,6 +211,9 @@ public class NonNullResults implements AnalysisResults {
         final ResultsForNode results = allResults.get(n);
 
         CFGWriter w = new CFGWriter(n.getIR()) {
+
+            PrettyPrinter pp = new PrettyPrinter(n.getIR());
+
             @Override
             public String getPrefix(SSAInstruction i) {
                 if (results == null) {
@@ -220,7 +223,7 @@ public class NonNullResults implements AnalysisResults {
 
                 Set<String> strings = new HashSet<>();
                 for (Integer val : results.getAllNonNull(i)) {
-                    strings.add(PrettyPrinter.valString(val, n.getIR()));
+                    strings.add(pp.valString(val));
                 }
                 return strings + "\\l";
             }

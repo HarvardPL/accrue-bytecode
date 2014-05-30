@@ -112,18 +112,21 @@ public class HafCallGraph extends ExplicitCallGraph {
         Map<CGNode, String> n2s = new HashMap<>();
 
         // Need to differentiate between different nodes with the same string
+        writer.write("/******************** NODES ********************/\n");
         for (CGNode n : this) {
             String nStr = escape(PrettyPrinter.cgNodeString(n));
             Integer count = dotToCount.get(nStr);
             if (count == null) {
                 dotToCount.put(nStr, 1);
             } else {
-                nStr += " (" + count + ")";
                 dotToCount.put(nStr, count + 1);
+                nStr += " (" + count + ")";
             }
             n2s.put(n, nStr);
+            writer.write("\t\"" + nStr + "\";\n");
         }
 
+        writer.write("/******************** EDGES ********************/\n");
         for (CGNode source : this) {
             Iterator<CGNode> iter = this.getSuccNodes(source);
             while (iter.hasNext()) {

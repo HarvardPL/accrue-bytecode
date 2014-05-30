@@ -8,7 +8,6 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import signatures.Signatures;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -31,7 +30,6 @@ import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
-import analysis.pointer.registrar.RegistrationUtil;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
@@ -47,7 +45,7 @@ import com.ibm.wala.ssa.IR;
  */
 public class TestMain {
 
-    private static String classPath;
+    private static String classPath = "classes/test:classes/signatures";
 
     /**
      * Run one of the selected tests
@@ -223,18 +221,20 @@ public class TestMain {
     private static void printAllCFG(PointsToGraph g) {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
-            if (!n.getMethod().isNative() && !printed.contains(n.getMethod())) {
-                String fileName = "cfg_" + PrettyPrinter.methodString(n.getMethod());
-                printSingleCFG(n.getIR(), fileName);
-                printed.add(n.getMethod());
-            } else if (n.getMethod().isNative()) {
-                IR sigIR = Signatures.getSignatureIR(n.getMethod());
-                if (sigIR != null) {
-                    String fileName = "cfg_sig_" + PrettyPrinter.methodString(n.getMethod());
-                    printSingleCFG(sigIR, fileName);
-                    printed.add(n.getMethod());
+            IMethod m = n.getMethod();
+            if (!printed.contains(m)) {
+                printed.add(m);
+                String prefix = "cfg_";
+                if (AnalysisUtil.hasSignature(m)) {
+                    prefix += "sig_";
+                }
+                String fileName = prefix + PrettyPrinter.methodString(m);
+                IR ir = AnalysisUtil.getIR(m);
+                if (ir != null) {
+                    printSingleCFG(ir, fileName);
                 } else {
-                    System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
+                    System.err.println("No CFG for " + PrettyPrinter.cgNodeString(n) + " it "
+                                                    + (m.isNative() ? "was" : "wasn't") + " native");
                 }
             }
         }
@@ -272,19 +272,22 @@ public class TestMain {
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel) {
 
         // Gather all the points-to statements
-        StatementRegistrationPass.outputLevel = outputLevel;
         StatementRegistrationPass pass = new StatementRegistrationPass();
         pass.run();
         StatementRegistrar registrar = pass.getRegistrar();
         ReferenceVariableCache rvCache = pass.getAllLocals();
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
-        HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
+        HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
+
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
 
-        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        System.err.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
         if (outputLevel >= 2) {
             for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
                 System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
@@ -315,13 +318,12 @@ public class TestMain {
 
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
-        RegistrationUtil online = new RegistrationUtil();
-        RegistrationUtil.outputLevel = outputLevel;
+        StatementRegistrar online = new StatementRegistrar();
         PointsToGraph g = analysis.solveAndRegister(online);
 
-        System.out.println("Registered statements: " + online.getRegistrar().getAllStatements().size());
+        System.err.println("Registered statements: " + online.getAllStatements().size());
         if (outputLevel >= 2) {
-            for (PointsToStatement s : online.getRegistrar().getAllStatements()) {
+            for (PointsToStatement s : online.getAllStatements()) {
                 System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
             }
         }

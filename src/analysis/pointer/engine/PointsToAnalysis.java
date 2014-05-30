@@ -16,7 +16,7 @@ public abstract class PointsToAnalysis {
      * If true then debug strings may be more verbose, and memory usage may be higher, no additional output should be
      * produced. Adjust {@link PointsToAnalysis#outputLevel} for more verbose console output.
      */
-    public static final boolean DEBUG = false;
+    public static boolean DEBUG = false;
     /**
      * Defining abstraction factory for this points-to analysis
      */
@@ -35,6 +35,14 @@ public abstract class PointsToAnalysis {
         this.haf = haf;
     }
 
+    /**
+     * Perform the analysis using the constraints from the points-to statement registrar
+     * 
+     * @param registrar
+     *            points-to statements
+     * 
+     * @return points-to graph consistent with the statements in the registrar
+     */
     public abstract PointsToGraph solve(StatementRegistrar registrar);
 
     /**

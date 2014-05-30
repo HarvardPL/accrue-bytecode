@@ -50,8 +50,22 @@ import com.ibm.wala.types.TypeReference;
  */
 public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullAbsVal>> {
 
+    /**
+     * Type inference results
+     */
+    private final TypeRepository types;
+
+    /**
+     * Intra-procedural part of an inter-procedural non-null analysis
+     * 
+     * @param currentNode
+     *            call graph node to analyze
+     * @param interProc
+     *            inter-procedural analysis this is a part of
+     */
     public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc) {
         super(currentNode, interProc);
+        this.types = new TypeRepository(currentNode.getIR());
     }
 
     @Override
@@ -96,7 +110,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             for (int j = 0; j < numParams; j++) {
                 NonNullAbsVal actualVal = nonNull.getLocal(actuals.get(j));
                 if (actualVal == null) {
-                    if (TypeRepository.getType(actuals.get(j), currentNode.getIR()).isPrimitiveType()) {
+                    if (types.getType(actuals.get(j)).isPrimitiveType()) {
                         actualVal = NonNullAbsVal.NON_NULL;
                     } else if (currentNode.getIR().getSymbolTable().isConstant(actuals.get(j))) {
                         if (currentNode.getIR().getSymbolTable().isNullConstant(actuals.get(j))) {
@@ -234,8 +248,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
                                     Map<ISSABasicBlock, VarContext<NonNullAbsVal>> outItems) {
         for (SSAInstruction i : justProcessed) {
-            assert getAnalysisRecord(i) != null : "No analysis record for "
-                                            + PrettyPrinter.instructionString(i, currentNode.getIR()) + " in "
+            assert getAnalysisRecord(i) != null : "No analysis record for " + i + " in "
                                             + PrettyPrinter.cgNodeString(currentNode);
             VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), justProcessed);
             Set<Integer> nonNulls = new HashSet<>();
@@ -466,8 +479,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert getNumSuccs(current, cfg) == 2 : "Not two successors for a conditional branch: "
-                                        + PrettyPrinter.instructionString(i, currentNode.getIR()) + " has "
+        assert getNumSuccs(current, cfg) == 2 : "Not two successors for a conditional branch: " + i + " has "
                                         + getNumSuccs(current, cfg);
 
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
@@ -647,8 +659,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 out = in.setReturnResult(NonNullAbsVal.NON_NULL);
             } else {
                 NonNullAbsVal res = in.getLocal(i.getResult());
-                assert res != null : "null NonNullAbsval for local "
-                                                + PrettyPrinter.instructionString(i, currentNode.getIR()) + " in "
+                assert res != null : "null NonNullAbsval for local " + i + " in "
                                                 + PrettyPrinter.cgNodeString(currentNode);
                 out = in.setReturnResult(in.getLocal(i.getResult()));
             }

@@ -24,6 +24,9 @@ public class OrderedPair<F, S> {
      * second element
      */
     private final S snd;
+    /**
+     * Compute once and store
+     */
     private final int memoizedHashCode;
 
     /**

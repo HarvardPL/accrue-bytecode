@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
-import util.print.PrettyPrinter;
+import java.util.Set;
+
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -8,13 +9,12 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAGetInstruction;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
- * Points-to statement for an assignment from a static field to a local
- * variable, v = o.x
+ * Points-to statement for an assignment from a static field to a local variable, v = o.x
  */
 public class StaticFieldToLocalStatement extends PointsToStatement {
 
@@ -28,23 +28,19 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     private final ReferenceVariable local;
 
     /**
-     * Statement for an assignment from a static field to a local, local =
-     * ClassName.staticField
+     * Statement for an assignment from a static field to a local, local = ClassName.staticField
      * 
      * @param local
      *            points-to graph node for the assigned value
      * @param staticField
      *            points-to graph node for assignee
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
      */
-    protected StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IR ir,
-                                    SSAGetInstruction i) {
-        super(ir, i);
+    protected StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IMethod m) {
+        super(m);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
+
         this.staticField = staticField;
         this.local = local;
     }
@@ -55,13 +51,10 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
 
-        if (DEBUG && g.getPointsToSet(r).isEmpty()) {
-            System.err.println("STATIC FIELD: " + r + "\n\t"
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        Set<InstanceKey> s = g.getPointsToSet(r);
+        assert checkForNonEmpty(s, r, "STATIC FIELD");
 
-        return g.addEdges(l, g.getPointsToSet(r));
+        return g.addEdges(l, s);
     }
 
     @Override

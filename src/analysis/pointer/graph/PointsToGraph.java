@@ -35,6 +35,10 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
+/**
+ * Graph mapping local variables (in a particular context) and fields to abstract heap locations (representing zero or
+ * more actual heap locations)
+ */
 public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
@@ -169,7 +173,7 @@ public class PointsToGraph {
                 // java.lang.Object and vice versa
                 if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
                     if (DEBUG && outputLevel >= 6) {
-                        System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
+                        System.err.println("Removing " + PrettyPrinter.typeString(klass) + " for "
                                                         + PrettyPrinter.typeString(type));
                     }
                     toRemove.add(k);
@@ -388,8 +392,8 @@ public class PointsToGraph {
             if (count == null) {
                 dotToCount.put(nStr, 1);
             } else {
-                nStr += " (" + count + ")";
                 dotToCount.put(nStr, count + 1);
+                nStr += " (" + count + ")";
             }
             n2s.put(n, nStr);
         }
@@ -399,8 +403,8 @@ public class PointsToGraph {
             if (count == null) {
                 dotToCount.put(kStr, 1);
             } else {
-                kStr += " (" + count + ")";
                 dotToCount.put(kStr, count + 1);
+                kStr += " (" + count + ")";
             }
             k2s.put(k, kStr);
         }

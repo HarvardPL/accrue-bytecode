@@ -1,44 +1,52 @@
 package analysis.pointer.statements;
 
+import java.util.Set;
+
+import types.TypeRepository;
+import util.print.CFGWriter;
+import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.ISSABasicBlock;
-import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
 
 /**
  * Defines how to process points-to graph information for a particular statement
  */
 public abstract class PointsToStatement {
-    /**
-     * Code for the method the points-to statement came from
-     */
-    private final IR ir;
-    /**
-     * Instruction that generated this points-to statement
-     */
-    private final SSAInstruction i;
-    /**
-     * Basic block this points-to statement was generated in
-     */
-    private ISSABasicBlock bb = null;
-    
-    public static boolean DEBUG = false;
 
     /**
-     * Create a new points-to statement
-     * 
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * method this statement was created in
      */
-    protected PointsToStatement(IR ir, SSAInstruction i) {
-        this.ir = ir;
-        this.i = i;
+    private final IMethod m;
+
+    /**
+     * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
+     * statement.
+     * 
+     * @param m
+     *            method this statement was created in
+     */
+    public PointsToStatement(IMethod m) {
+        this.m = m;
+    }
+
+    /**
+     * Method this statement was created in
+     * 
+     * @return resolved method
+     */
+    public IMethod getMethod() {
+        return m;
     }
 
     /**
@@ -55,37 +63,7 @@ public abstract class PointsToStatement {
      * @return true if the points-to graph was modified
      */
     public abstract boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-            StatementRegistrar registrar);
-
-    /**
-     * Get the code for the method this points-to statement was created in
-     * 
-     * @return intermediate representation code for the method
-     */
-    public final IR getCode() {
-        return ir;
-    }
-
-    /**
-     * Get the instruction that generated this points-to statement
-     * 
-     * @return SSA instruction
-     */
-    public final SSAInstruction getInstruction() {
-        return i;
-    }
-
-    /**
-     * Get the containing basic block
-     * 
-     * @return basic block this statement was generated in
-     */
-    public final ISSABasicBlock getBasicBlock() {
-        if (bb == null) {
-            bb = ir.getBasicBlockForInstruction(i);
-        }
-        return bb;
-    }
+                                    StatementRegistrar registrar);
 
     @Override
     public final int hashCode() {
@@ -99,4 +77,69 @@ public abstract class PointsToStatement {
 
     @Override
     public abstract String toString();
+
+    /**
+     * Check whether the types in the assignment satisfy type-system requirements (i.e. ensure that left = right is a
+     * valid assignment)
+     * 
+     * @param left
+     *            assignee
+     * @param right
+     *            assigned
+     * @return true if right can safely be assigned to the left
+     */
+    protected final boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
+        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+        IClass c1 = cha.lookupClass(left.getExpectedType());
+        IClass c2 = cha.lookupClass(right.getExpectedType());
+        boolean check = cha.isAssignableFrom(c1, c2);
+
+        if (check) {
+            return true;
+        }
+
+        if (c1.isInterface() && cha.isRootClass(c2)) {
+            // c2 may be the merge of two different types that both implement c1 and the assignment is safe OK
+            // Unfortunately we've lost the information about which interfaces c2 implements at this point. It would be
+            // nice if the type inference kept this information.
+            System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
+            System.err.println("\tassigned type: " + PrettyPrinter.typeString(left.getExpectedType())
+                                            + " is an interface and the assignee is java.lang.Object. ");
+            System.err.println("\tBut since the type inference does not track interfaces the actual value may still implement the interface.");
+            return true;
+        }
+
+        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
+        System.err.println("\t" + PrettyPrinter.typeString(left.getExpectedType()) + " = "
+                                        + PrettyPrinter.typeString(right.getExpectedType()) + " does not type check");
+        if (PointsToAnalysis.outputLevel >= 1) {
+            CFGWriter.writeToFile(getMethod());
+            TypeRepository.print(getMethod());
+        }
+
+        return check;
+    }
+
+    /**
+     * Check whether the given set is empty and print an error message if we are in debug mode (PointsToAnalysis.DEBUG =
+     * true) and the output level is high enough.
+     * 
+     * @param pointsToSet
+     *            set to check
+     * @param r
+     *            replicate the points to set is for
+     * @param description
+     *            description of the replica the points to set came from
+     * @param callee
+     *            callee method
+     * @return false if the check fails and all the conditions required to perform the check hold
+     */
+    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet, PointsToGraphNode r, String description) {
+        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && pointsToSet.isEmpty()) {
+            System.err.println("EMPTY: " + r + " in " + this + " " + description + " from "
+                                            + PrettyPrinter.methodString(getMethod()));
+            return false;
+        }
+        return true;
+    }
 }
