@@ -732,7 +732,7 @@ public final class StatementRegistrar {
         ss.add(s);
 
         if (statements.size() % 10000 == 0) {
-            System.err.println(statements.size() + " statements");
+            System.err.println("REGISTERED: " + statements.size());
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
