@@ -30,7 +30,6 @@ import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
-import analysis.pointer.registrar.RegistrationUtil;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
@@ -273,7 +272,6 @@ public class TestMain {
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel) {
 
         // Gather all the points-to statements
-        StatementRegistrationPass.outputLevel = outputLevel;
         StatementRegistrationPass pass = new StatementRegistrationPass();
         pass.run();
         StatementRegistrar registrar = pass.getRegistrar();
@@ -316,13 +314,12 @@ public class TestMain {
 
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
-        RegistrationUtil online = new RegistrationUtil();
-        RegistrationUtil.outputLevel = outputLevel;
+        StatementRegistrar online = new StatementRegistrar();
         PointsToGraph g = analysis.solveAndRegister(online);
 
-        System.out.println("Registered statements: " + online.getRegistrar().getAllStatements().size());
+        System.out.println("Registered statements: " + online.getAllStatements().size());
         if (outputLevel >= 2) {
-            for (PointsToStatement s : online.getRegistrar().getAllStatements()) {
+            for (PointsToStatement s : online.getAllStatements()) {
                 System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
             }
         }

@@ -9,7 +9,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.MethodSummaryNodes;
+import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -33,16 +33,20 @@ public class VirtualCallStatement extends CallStatement {
      * Reference variable for the receiver of the call
      */
     private final ReferenceVariable receiver;
+    /**
+     * Factory used to create callee summary nodes
+     */
+    private final ReferenceVariableFactory rvFactory;
 
     /**
      * Points-to statement for a virtual method invocation.
      * 
      * @param callSite
      *            Method call site
-     * @param callee
-     *            Method being called
      * @param caller
      *            caller method
+     * @param callee
+     *            Method being called
      * @param result
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
@@ -51,18 +55,18 @@ public class VirtualCallStatement extends CallStatement {
      *            Actual arguments to the call
      * @param exception
      *            Node representing the exception thrown by this call (if any)
-     * @param calleeSummary
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteReference callSite, MethodReference callee, IMethod caller,
+    protected VirtualCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                     ReferenceVariable result, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                    MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception, calleeSummary);
+                                    ReferenceVariableFactory rvFactory) {
+        super(callSite, caller, result, actuals, exception);
 
         this.callee = callee;
         this.receiver = receiver;
+        this.rvFactory = rvFactory;
     }
 
     // private static Map<ReferenceVariableReplica, Integer> lots = new HashMap<>();
@@ -119,7 +123,8 @@ public class VirtualCallStatement extends CallStatement {
             // If we wanted to be very robust, check to make sure that
             // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
-            changed |= processCall(context, recHeapContext, resolvedCallee, g, haf);
+            changed |= processCall(context, recHeapContext, resolvedCallee, g, haf,
+                                            registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory));
         }
         return changed;
     }

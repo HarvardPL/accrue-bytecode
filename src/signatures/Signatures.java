@@ -8,7 +8,7 @@ import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
-import analysis.pointer.registrar.RegistrationUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -280,13 +280,13 @@ public class Signatures {
                     // The field exists on the real type use it to create a new instruction
                     if (i.isStatic()) {
                         SSAInstruction ii = I_FACTORY.GetInstruction(i.getDef(), newFR);
-                        if (RegistrationUtil.outputLevel >= 5) {
+                        if (PointsToAnalysis.outputLevel >= 5) {
                             System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                         }
                         return ii;
                     }
                     SSAInstruction ii = I_FACTORY.GetInstruction(i.getDef(), i.getRef(), newFR);
-                    if (RegistrationUtil.outputLevel >= 5) {
+                    if (PointsToAnalysis.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
                     return ii;
@@ -337,7 +337,7 @@ public class Signatures {
                     }
                     int returnValue = i.getNumberOfReturnValues() > 0 ? i.getDef() : -1;
                     SSAInstruction ii = I_FACTORY.InvokeInstruction(returnValue, params, i.getException(), newSite);
-                    if (RegistrationUtil.outputLevel >= 5) {
+                    if (PointsToAnalysis.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
                     return ii;
@@ -372,13 +372,13 @@ public class Signatures {
                     // The field exists on the real type use it to create a new put instruction
                     if (i.isStatic()) {
                         SSAInstruction ii = I_FACTORY.PutInstruction(i.getVal(), newFR);
-                        if (RegistrationUtil.outputLevel >= 5) {
+                        if (PointsToAnalysis.outputLevel >= 5) {
                             System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                         }
                         return ii;
                     }
                     SSAInstruction ii = I_FACTORY.PutInstruction(i.getRef(), i.getVal(), newFR);
-                    if (RegistrationUtil.outputLevel >= 5) {
+                    if (PointsToAnalysis.outputLevel >= 5) {
                         System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                     }
                     return ii;
@@ -407,7 +407,7 @@ public class Signatures {
                 NewSiteReference site = i.getNewSite();
                 NewSiteReference newSite = new NewSiteReference(site.getProgramCounter(), real);
                 SSAInstruction ii = I_FACTORY.NewInstruction(i.getDef(), newSite);
-                if (RegistrationUtil.outputLevel >= 5) {
+                if (PointsToAnalysis.outputLevel >= 5) {
                     System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                 }
                 return ii;
@@ -431,7 +431,7 @@ public class Signatures {
         // This is an allocation of an object in the signatures package
         // Check to see if there is a "real" object out there the signature object is emulating.
         String typeToCheck = signatureType.getName().toString().replace("Lsignatures/library/", "L");
-        if (RegistrationUtil.outputLevel >= 5) {
+        if (PointsToAnalysis.outputLevel >= 5) {
             System.err.println("SIGNATURE LOOKING: " + typeToCheck);
         }
         TypeReference potentialMatch = TypeReference.findOrCreate(CLASS_LOADER, typeToCheck);
@@ -439,7 +439,7 @@ public class Signatures {
         if (klass == null) {
             return null;
         }
-        if (RegistrationUtil.outputLevel >= 5) {
+        if (PointsToAnalysis.outputLevel >= 5) {
             System.err.println("SIGNATURE FOUND: " + klass);
         }
         return klass.getReference();

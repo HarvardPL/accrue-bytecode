@@ -71,7 +71,8 @@ public class ReferenceVariableFactory {
      */
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable getOrCreateLocal(int local, TypeReference type, IMethod method, PrettyPrinter pp) {
-        assert !type.isPrimitiveType() : "No local nodes for primitives: " + PrettyPrinter.typeString(type);
+        assert !type.isPrimitiveType() : "No reference variables for primitives: " + PrettyPrinter.typeString(type);
+        assert !(type == TypeReference.Null) : "Null literal don't have reference variables";
         OrderedPair<Integer, IMethod> key = new OrderedPair<>(local, method);
         ReferenceVariable rv = locals.get(key);
         if (rv == null) {

@@ -64,7 +64,7 @@ public class MethodSummaryNodes {
         exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
     }
 
-    public ReferenceVariable getReturnNode() {
+    public ReferenceVariable getReturn() {
         return returnNode;
     }
 

@@ -12,7 +12,6 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
-import analysis.pointer.registrar.RegistrationUtil;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
@@ -53,13 +52,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return solveSmarter(registrar, null);
+        return solveSmarter(registrar, false);
     }
 
-    public PointsToGraph solveAndRegister(RegistrationUtil onlineRegistrar) {
-        StatementRegistrar registrar = onlineRegistrar.getRegistrar();
+    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
         onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
-        return solveSmarter(registrar, onlineRegistrar);
+        return solveSmarter(onlineRegistrar, true);
     }
 
     /**
@@ -93,12 +91,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * 
      * @param registrar
      *            points-to statement registrar
-     * @param pass
-     *            if non-null then this will be used to perform the statement registration together with the points-to
-     *            analysis or (if null) the statement registrar already contains all points-to statements
+     * @param registerOnline
+     *            Whether to generate points-to statements during the points-to analysis, otherwise the registrar will
+     *            already be populated
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(StatementRegistrar registrar, RegistrationUtil online) {
+    public PointsToGraph solveSmarter(StatementRegistrar registrar, boolean registerOnline) {
         PointsToGraph g = new PointsToGraph(registrar, haf);
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
@@ -107,7 +105,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         // Add initial contexts
         for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getCode().getMethod())) {
+            for (Context c : g.getContexts(s.getMethod())) {
                 q.add(new StmtAndContext(s, c));
             }
         }
@@ -139,9 +137,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     }
                 }
 
-                if (online != null) {
+                if (registerOnline) {
                     // Add statements for the given method to the registrar
-                    online.registerMethod(m);
+                    registrar.registerMethod(m);
                 }
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
@@ -197,7 +195,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (outputLevel >= 5) {
             System.err.println("****************************** CHECKING ******************************");
             PointsToGraph.DEBUG = true;
-            PointsToStatement.DEBUG = true;
             DEBUG_SOLVED = true;
             processAllStatements(g, registrar);
         }
@@ -236,7 +233,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
         for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getCode().getMethod())) {
+            for (Context c : g.getContexts(s.getMethod())) {
                 changed |= s.process(c, haf, g, registrar);
             }
         }

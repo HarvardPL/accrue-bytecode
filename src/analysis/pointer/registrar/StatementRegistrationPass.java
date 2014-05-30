@@ -8,8 +8,9 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
-import analysis.pointer.registrar.RegistrationUtil.InstrAndCode;
+import analysis.pointer.registrar.StatementRegistrar.InstructionInfo;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
@@ -21,23 +22,20 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
  */
 public class StatementRegistrationPass {
 
-    private final RegistrationUtil registration;
-    public static int outputLevel = 0;
+    private final StatementRegistrar registrar;
     private static boolean PROFILE = false;
 
     /**
      * Create a pass which will generate points-to statements
      */
     public StatementRegistrationPass() {
-        registration = new RegistrationUtil();
-        RegistrationUtil.outputLevel = outputLevel;
+        registrar = new StatementRegistrar();
     }
 
     /**
      * Initialize the queue using the defined entry points
      */
-    private void init(WorkQueue<InstrAndCode> q) {
-        registration.getRegistrar().setEntryPoint(AnalysisUtil.getFakeRoot());
+    private void init(WorkQueue<InstructionInfo> q) {
         addFromMethod(q, AnalysisUtil.getFakeRoot());
     }
 
@@ -50,8 +48,8 @@ public class StatementRegistrationPass {
      *            method to process
      * @return true if this method has been added yet, false otherwise
      */
-    private boolean addFromMethod(WorkQueue<InstrAndCode> q, IMethod m) {
-        return q.addAll(registration.getFromMethod(m));
+    private boolean addFromMethod(WorkQueue<InstructionInfo> q, IMethod m) {
+        return q.addAll(registrar.getFromMethod(m));
     }
 
     /**
@@ -66,20 +64,19 @@ public class StatementRegistrationPass {
      *            element j is a super class of element j+1)
      * @return true if any new class initializer was seen
      */
-    private boolean addClassInitializers(SSAInstruction trigger, IR containingCode, WorkQueue<InstrAndCode> q,
+    private boolean addClassInitializers(SSAInstruction trigger, IR containingCode, WorkQueue<InstructionInfo> q,
                                     List<IMethod> clinits) {
         assert !clinits.isEmpty();
         boolean added = false;
         for (int j = clinits.size() - 1; j >= 0; j--) {
             IMethod clinit = clinits.get(j);
             boolean oneAdded = addFromMethod(q, clinit);
-            if (oneAdded && RegistrationUtil.outputLevel >= 2) {
-                System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass())
-                                                + " initializer");
+            if (oneAdded && PointsToAnalysis.outputLevel >= 2) {
+                System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass()) + " initializer");
             }
             added |= oneAdded;
         }
-        registration.getRegistrar().addStatementsForClassInitializer(trigger, containingCode, clinits);
+        registrar.registerClassInitializers(trigger, containingCode, clinits);
         return added;
     }
 
@@ -88,11 +85,11 @@ public class StatementRegistrationPass {
      */
     public void run() {
         long start = System.currentTimeMillis();
-        final WorkQueue<InstrAndCode> q = new WorkQueue<>();
+        final WorkQueue<InstructionInfo> q = new WorkQueue<>();
         init(q);
 
         while (!q.isEmpty()) {
-            InstrAndCode info = q.poll();
+            InstructionInfo info = q.poll();
             SSAInstruction i = info.instruction;
             IR ir = info.ir;
 
@@ -111,19 +108,18 @@ public class StatementRegistrationPass {
                 SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
                 Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
                 for (IMethod m : targets) {
-                    if (outputLevel >= 2) {
+                    if (PointsToAnalysis.outputLevel >= 2) {
                         System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "
-                                                        + PrettyPrinter.methodString(ir.getMethod()) + " for "
-                                                        + PrettyPrinter.instructionString(inv, ir));
+                                                        + PrettyPrinter.methodString(ir.getMethod()));
                     }
                     addFromMethod(q, m);
                 }
             }
 
-            registration.handle(info);
+            registrar.handle(info);
         }
-        if (outputLevel >= 1) {
-            System.err.println("Registered " + registration.getRegistrar().getAllStatements().size() + " statements.");
+        if (PointsToAnalysis.outputLevel >= 1) {
+            System.err.println("Registered " + registrar.getAllStatements().size() + " statements.");
             System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
         }
         if (PROFILE) {
@@ -137,10 +133,10 @@ public class StatementRegistrationPass {
     }
 
     public StatementRegistrar getRegistrar() {
-        return registration.getRegistrar();
+        return registrar;
     }
 
     public ReferenceVariableCache getAllLocals() {
-        return registration.getAllLocals();
+        return registrar.getAllLocals();
     }
 }

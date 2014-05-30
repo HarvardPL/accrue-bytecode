@@ -29,6 +29,10 @@ public class SpecialCallStatement extends CallStatement {
      * Receiver of the call
      */
     private final ReferenceVariable receiver;
+    /**
+     * summary nodes for formals and exits of the callee
+     */
+    private final MethodSummaryNodes calleeSummary;
 
     /**
      * Points-to statement for a special method invocation.
@@ -54,9 +58,10 @@ public class SpecialCallStatement extends CallStatement {
                                     ReferenceVariable result, ReferenceVariable receiver,
                                     List<ReferenceVariable> actuals, ReferenceVariable exception,
                                     MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception, calleeSummary);
+        super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
+        this.calleeSummary = calleeSummary;
     }
 
     @Override
@@ -68,7 +73,7 @@ public class SpecialCallStatement extends CallStatement {
 
         boolean changed = false;
         for (InstanceKey recHeapCtxt : s) {
-            changed |= processCall(context, recHeapCtxt, callee, g, haf);
+            changed |= processCall(context, recHeapCtxt, callee, g, haf, calleeSummary);
         }
         return changed;
     }

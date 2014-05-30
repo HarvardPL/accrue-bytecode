@@ -35,6 +35,14 @@ public abstract class PointsToAnalysis {
         this.haf = haf;
     }
 
+    /**
+     * Perform the analysis using the constraints from the points-to statement registrar
+     * 
+     * @param registrar
+     *            points-to statements
+     * 
+     * @return points-to graph consistent with the statements in the registrar
+     */
     public abstract PointsToGraph solve(StatementRegistrar registrar);
 
     /**

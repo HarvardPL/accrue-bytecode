@@ -41,7 +41,7 @@ public abstract class PointsToStatement {
      * 
      * @return resolved method
      */
-    protected IMethod getMethod() {
+    public IMethod getMethod() {
         return m;
     }
 

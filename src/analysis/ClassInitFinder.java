@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.registrar.RegistrationUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -56,7 +56,7 @@ public class ClassInitFinder {
             if (ins.isStatic()) {
                 IMethod callee = AnalysisUtil.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
-                    if (RegistrationUtil.outputLevel >= 2) {
+                    if (PointsToAnalysis.outputLevel >= 2) {
                         System.err.println("Trying to get class initializer for " + i + " and could not resolve "
                                                         + PrettyPrinter.methodString(ins.getDeclaredTarget()));
                     }

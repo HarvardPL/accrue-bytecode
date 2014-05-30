@@ -35,6 +35,10 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
+/**
+ * Graph mapping local variables (in a particular context) and fields to abstract heap locations (representing zero or
+ * more actual heap locations)
+ */
 public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";

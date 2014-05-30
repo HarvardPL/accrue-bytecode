@@ -5,8 +5,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.registrar.MethodSummaryNodes;
+import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -282,10 +284,8 @@ public class StatementFactory {
      *            Reference variable for the local variable the exception is assigned to after being created
      * @param exceptionClass
      *            Class for the exception
-     * @param ir
-     *            code containing the instruction throwing the exception
-     * @param i
-     *            exception throwing the exception
+     * @param m
+     *            method containing the instruction throwing the exception
      * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
     public static NewStatement newForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
@@ -296,6 +296,50 @@ public class StatementFactory {
 
         NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, m);
         assert statementMap.put(new StatementKey(exceptionAssignee), s) == null;
+        return s;
+    }
+
+    /**
+     * Get a points-to statement representing allocation generated for a native method with no signature
+     * 
+     * @param summary
+     *            Reference variable for the method summary node assigned to after being created
+     * @param allocatedClass
+     *            Class being allocated
+     * @param m
+     *            native method
+     * @return a statement representing the allocation for a native method with no signature
+     */
+    public static NewStatement newForNative(ReferenceVariable summary, IClass allocatedClass, IMethod m) {
+        assert summary != null;
+        assert allocatedClass != null;
+        assert m != null;
+        assert m.isNative();
+
+        NewStatement s = new NewStatement(summary, allocatedClass, m);
+        assert statementMap.put(new StatementKey(summary), s) == null;
+        return s;
+    }
+
+    /**
+     * Get a points-to statement representing the allocation of an inner array of a multidimensional array
+     * 
+     * @param innerArray
+     *            Reference variable for the local variable the array is assigned to after being created
+     * @param innerArrayClass
+     *            Class for the array
+     * @param m
+     *            method containing the instruction creating the multidimensional array
+     * @return a statement representing the allocation of the inner array of a multidimensional array
+     */
+    public static NewStatement newForInnerArray(ReferenceVariable innerArray, IClass innerArrayClass, IMethod m) {
+        assert innerArray != null;
+        assert innerArrayClass != null;
+        assert m != null;
+
+        String name = PrettyPrinter.getCanonical("GENERATED-" + PrettyPrinter.typeString(innerArrayClass));
+        NewStatement s = new NewStatement(name, innerArray, innerArrayClass, m);
+        assert statementMap.put(new StatementKey(innerArray), s) == null;
         return s;
     }
 
@@ -407,25 +451,25 @@ public class StatementFactory {
      * 
      * @param callSite
      *            Method call site
-     * @param callee
-     *            Method being called
      * @param caller
      *            caller method
+     * @param callee
+     *            Method being called
      * @param result
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param exception
+     * @param callerException
      *            Node in the caller representing the exceptions thrown by the callee
      * @param calleeSummary
      *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
-    public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod callee, IMethod caller,
+    public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod caller, IMethod callee,
                                     ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                    List<ReferenceVariable> actuals, ReferenceVariable callerException,
                                     MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
@@ -433,11 +477,11 @@ public class StatementFactory {
         assert result != null;
         assert receiver != null;
         assert actuals != null;
-        assert exception != null;
+        assert callerException != null;
         assert calleeSummary != null;
 
         SpecialCallStatement s = new SpecialCallStatement(callSite, caller, callee, result, receiver, actuals,
-                                        exception, calleeSummary);
+                                        callerException, calleeSummary);
         assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }
@@ -447,32 +491,32 @@ public class StatementFactory {
      * 
      * @param callSite
      *            Method call site
-     * @param callee
-     *            Method being called
      * @param caller
      *            caller method
+     * @param callee
+     *            Method being called
      * @param result
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param actuals
      *            Actual arguments to the call
-     * @param exception
+     * @param callerException
      *            Node in the caller representing the exception thrown by the callee
      * @param calleeSummary
      *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
-    public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod callee, IMethod caller,
+    public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod caller, IMethod callee,
                                     ReferenceVariable result, List<ReferenceVariable> actuals,
-                                    ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
+                                    ReferenceVariable callerException, MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
         assert result != null;
         assert actuals != null;
-        assert exception != null;
+        assert callerException != null;
         assert calleeSummary != null;
 
-        StaticCallStatement s = new StaticCallStatement(callSite, callee, caller, result, actuals, exception,
+        StaticCallStatement s = new StaticCallStatement(callSite, caller, callee, result, actuals, callerException,
                                         calleeSummary);
         assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
@@ -532,37 +576,37 @@ public class StatementFactory {
      * 
      * @param callSite
      *            Method call site
-     * @param callee
-     *            Method being called
      * @param caller
      *            caller method
+     * @param callee
+     *            Method being called
      * @param result
      *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param exception
+     * @param callerException
      *            Node representing the exception thrown by this call (if any)
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * @param rvFactory
+     *            factory used to find callee summary nodes
      * @return statement to be processed during pointer analysis
      */
-    public static VirtualCallStatement virtualCall(CallSiteReference callSite, MethodReference callee, IMethod caller,
+    public static VirtualCallStatement virtualCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                     ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                    MethodSummaryNodes calleeSummary) {
+                                    List<ReferenceVariable> actuals, ReferenceVariable callerException,
+                                    ReferenceVariableFactory rvFactory) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
         assert receiver != null;
         assert result != null;
         assert actuals != null;
-        assert exception != null;
-        assert calleeSummary != null;
+        assert callerException != null;
+        assert rvFactory != null;
 
-        VirtualCallStatement s = new VirtualCallStatement(callSite, callee, caller, result, receiver, actuals,
-                                        exception, calleeSummary);
+        VirtualCallStatement s = new VirtualCallStatement(callSite, caller, callee, result, receiver, actuals,
+                                        callerException, rvFactory);
         assert statementMap.put(new StatementKey(callSite), s) == null;
         return s;
     }

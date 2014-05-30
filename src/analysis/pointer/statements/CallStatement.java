@@ -27,7 +27,7 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      */
-    private final ReferenceVariable resultNode;
+    private final ReferenceVariable result;
     /**
      * Actual arguments to the call
      */
@@ -35,11 +35,7 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Node representing the exception thrown by this call (if any)
      */
-    private final ReferenceVariable exceptionNode;
-    /**
-     * summary nodes for formals and exits of the callee
-     */
-    private MethodSummaryNodes calleeSummary;
+    private final ReferenceVariable exception;
 
     /**
      * Points-to statement for a special method invocation.
@@ -55,18 +51,14 @@ public abstract class CallStatement extends PointsToStatement {
      * @param exception
      *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
      *            thrown by this statement
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
      */
     protected CallStatement(CallSiteReference callSite, IMethod caller, ReferenceVariable result,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                    MethodSummaryNodes calleeSummary) {
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception) {
         super(caller);
         this.callSite = new CallSiteLabel(caller, callSite);
         this.actuals = actuals;
-        this.resultNode = result;
-        this.exceptionNode = exception;
-        this.calleeSummary = calleeSummary;
+        this.result = result;
+        this.exception = exception;
     }
 
     /**
@@ -82,10 +74,12 @@ public abstract class CallStatement extends PointsToStatement {
      *            points-to graph (may be modified)
      * @param haf
      *            abstraction factory used for creating new context from existing
+     * @param calleeSummary
+     *            summary nodes for formals and exits of the callee
      * @return true if the points-to graph has changed
      */
     protected final boolean processCall(Context callerContext, InstanceKey receiver, IMethod callee, PointsToGraph g,
-                                    HeapAbstractionFactory haf) {
+                                    HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert receiver != null;
         assert callee != null;
@@ -102,10 +96,10 @@ public abstract class CallStatement extends PointsToStatement {
         // Add edge from the return formal to the result
         // If the result Node is null then either this is void return, there is
         // no assignment after the call, or the return type is not a reference
-        if (resultNode != null) {
-            ReferenceVariableReplica resultRep = new ReferenceVariableReplica(callerContext, resultNode);
+        if (result != null) {
+            ReferenceVariableReplica resultRep = new ReferenceVariableReplica(callerContext, result);
             ReferenceVariableReplica calleeReturn = new ReferenceVariableReplica(calleeContext,
-                                            calleeSummary.getReturnNode());
+                                            calleeSummary.getReturn());
 
             Set<InstanceKey> returnHCs = g.getPointsToSet(calleeReturn);
             assert checkForNonEmpty(returnHCs, calleeReturn, "CALL RETURN: " + PrettyPrinter.methodString(callee));
@@ -154,7 +148,7 @@ public abstract class CallStatement extends PointsToStatement {
 
         // ///////////////// Exceptions //////////////////
 
-        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exceptionNode);
+        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exception);
         ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
 
         Set<InstanceKey> exHCs = g.getPointsToSet(calleeEx);
@@ -172,7 +166,7 @@ public abstract class CallStatement extends PointsToStatement {
      * @return return result node (in the caller)
      */
     protected final ReferenceVariable getResult() {
-        return resultNode;
+        return result;
     }
 
     /**

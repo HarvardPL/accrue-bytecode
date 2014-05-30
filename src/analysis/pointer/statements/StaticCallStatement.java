@@ -22,6 +22,10 @@ public class StaticCallStatement extends CallStatement {
      * Called method
      */
     private final IMethod callee;
+    /**
+     * summary nodes for formals and exits of the callee
+     */
+    private final MethodSummaryNodes calleeSummary;
 
     /**
      * Points-to statement for a static method invocation.
@@ -46,13 +50,14 @@ public class StaticCallStatement extends CallStatement {
     protected StaticCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee, ReferenceVariable result,
                                     List<ReferenceVariable> actuals, ReferenceVariable exception,
                                     MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception, calleeSummary);
+        super(callSite, caller, result, actuals, exception);
         this.callee = callee;
+        this.calleeSummary = calleeSummary;
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        return processCall(context, null, callee, g, haf);
+        return processCall(context, null, callee, g, haf, calleeSummary);
     }
 
     @Override

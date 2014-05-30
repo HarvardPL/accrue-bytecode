@@ -591,8 +591,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array, n));
         if (pointsTo.isEmpty()) {
-            ptg.getPointsToSet(getReplica(array, n));
-            throw new RuntimeException("Array doesn't point to anything. " + PrettyPrinter.valString(array, n.getIR())
+            throw new RuntimeException("Array doesn't point to anything. " + getReplica(array, n)
                                             + " in " + PrettyPrinter.cgNodeString(n));
         }
 
@@ -614,7 +613,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return Reference variable replica in the current context for the local
      */
     public ReferenceVariableReplica getReplica(int local, CGNode n) {
-        ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getIR());
+        ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getMethod());
         return new ReferenceVariableReplica(n.getContext(), rv);
     }
 }
