@@ -45,7 +45,7 @@ import com.ibm.wala.ssa.IR;
  */
 public class TestMain {
 
-    private static String classPath;
+    private static String classPath = "classes/test:classes/signatures";
 
     /**
      * Run one of the selected tests
@@ -278,12 +278,16 @@ public class TestMain {
         ReferenceVariableCache rvCache = pass.getAllLocals();
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
-        HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
+        HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
+        HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
+
         PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
 
-        System.out.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        System.err.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
         if (outputLevel >= 2) {
             for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
                 System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
@@ -317,7 +321,7 @@ public class TestMain {
         StatementRegistrar online = new StatementRegistrar();
         PointsToGraph g = analysis.solveAndRegister(online);
 
-        System.out.println("Registered statements: " + online.getAllStatements().size());
+        System.err.println("Registered statements: " + online.getAllStatements().size());
         if (outputLevel >= 2) {
             for (PointsToStatement s : online.getAllStatements()) {
                 System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");

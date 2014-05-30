@@ -10,6 +10,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -32,7 +33,7 @@ public class StatementFactory {
      * whether two identical points-to statements are created that are not the same Object. This is only active when
      * assertions are turned on.
      */
-    private static final Map<StatementKey, PointsToStatement> statementMap = new HashMap<>();
+    private static final Map<StatementKey, PointsToStatement> map = new HashMap<>();
 
     /**
      * Description used for a string literal value field
@@ -63,7 +64,7 @@ public class StatementFactory {
         assert m != null;
 
         ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, m);
-        assert statementMap.put(new StatementKey(v), s) == null;
+        assert map.put(new StatementKey(v), s) == null;
         return s;
     }
 
@@ -85,7 +86,7 @@ public class StatementFactory {
 
         ClassInitStatement s = new ClassInitStatement(clinits, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert statementMap.put(new StatementKey(clinits, i), s) == null;
+        assert map.put(new StatementKey(clinits, i), s) == null;
         return s;
     }
 
@@ -104,6 +105,8 @@ public class StatementFactory {
      *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
+    // "unused": if SINGLETON_GENERATED_EXCEPTIONS is true then the second half of the assert is dead
+    @SuppressWarnings("unused")
     public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
                                     Set<IClass> notType, IMethod m) {
         assert thrown != null;
@@ -112,7 +115,8 @@ public class StatementFactory {
         assert m != null;
 
         ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown, caught, notType, m);
-        assert statementMap.put(new StatementKey(thrown, caught), s) == null;
+        assert StatementRegistrar.SINGLETON_GENERATED_EXCEPTIONS
+                                        || map.put(new StatementKey(thrown, caught), s) == null;
         return s;
 
     }
@@ -138,7 +142,7 @@ public class StatementFactory {
         assert m != null;
 
         FieldToLocalStatment s = new FieldToLocalStatment(l, o, f, m);
-        assert statementMap.put(new StatementKey(l), s) == null;
+        assert map.put(new StatementKey(l), s) == null;
         return s;
     }
 
@@ -166,7 +170,7 @@ public class StatementFactory {
 
         LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert statementMap.put(new StatementKey(array, local, i), s) == null;
+        assert map.put(new StatementKey(array, local, i), s) == null;
         return s;
     }
 
@@ -193,7 +197,7 @@ public class StatementFactory {
 
         LocalToFieldStatement s = new LocalToFieldStatement(o, f, v, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert statementMap.put(new StatementKey(o, f, i), s) == null;
+        assert map.put(new StatementKey(o, f, i), s) == null;
         return s;
     }
 
@@ -214,7 +218,7 @@ public class StatementFactory {
         assert m != null;
 
         LocalToLocalStatement s = new LocalToLocalStatement(left, right, m);
-        assert statementMap.put(new StatementKey(left), s) == null;
+        assert map.put(new StatementKey(left), s) == null;
         return s;
     }
 
@@ -240,7 +244,7 @@ public class StatementFactory {
 
         LocalToStaticFieldStatement s = new LocalToStaticFieldStatement(staticField, local, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert statementMap.put(new StatementKey(staticField, i), s) == null;
+        assert map.put(new StatementKey(staticField, i), s) == null;
         return s;
     }
 
@@ -272,7 +276,7 @@ public class StatementFactory {
         assert m != null;
 
         LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), m);
-        assert statementMap.put(new StatementKey(outerArray, innerArray), s) == null;
+        assert map.put(new StatementKey(outerArray, innerArray), s) == null;
         return s;
     }
 
@@ -295,7 +299,7 @@ public class StatementFactory {
         assert m != null;
 
         NewStatement s = new NewStatement(exceptionAssignee, exceptionClass, m);
-        assert statementMap.put(new StatementKey(exceptionAssignee), s) == null;
+        assert map.put(new StatementKey(exceptionAssignee), s) == null;
         return s;
     }
 
@@ -317,7 +321,7 @@ public class StatementFactory {
         assert m.isNative();
 
         NewStatement s = new NewStatement(summary, allocatedClass, m);
-        assert statementMap.put(new StatementKey(summary), s) == null;
+        assert map.put(new StatementKey(summary), s) == null;
         return s;
     }
 
@@ -339,7 +343,7 @@ public class StatementFactory {
 
         String name = PrettyPrinter.getCanonical("GENERATED-" + PrettyPrinter.typeString(innerArrayClass));
         NewStatement s = new NewStatement(name, innerArray, innerArrayClass, m);
-        assert statementMap.put(new StatementKey(innerArray), s) == null;
+        assert map.put(new StatementKey(innerArray), s) == null;
         return s;
     }
 
@@ -360,7 +364,7 @@ public class StatementFactory {
         assert m != null;
 
         NewStatement s = new NewStatement(result, newClass, m);
-        assert statementMap.put(new StatementKey(result), s) == null;
+        assert map.put(new StatementKey(result), s) == null;
         return s;
     }
 
@@ -378,7 +382,7 @@ public class StatementFactory {
         assert m != null;
 
         NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, AnalysisUtil.getStringValueClass(), m);
-        assert statementMap.put(new StatementKey(local, STRING_LIT_FIELD_DESC), s) == null;
+        assert map.put(new StatementKey(local, STRING_LIT_FIELD_DESC), s) == null;
         return s;
     }
 
@@ -396,7 +400,7 @@ public class StatementFactory {
         assert m != null;
 
         NewStatement s = new NewStatement(STRING_LIT_DESC, local, AnalysisUtil.getStringClass(), m);
-        assert statementMap.put(new StatementKey(local, STRING_LIT_DESC), s) == null;
+        assert map.put(new StatementKey(local, STRING_LIT_DESC), s) == null;
         return s;
     }
 
@@ -417,7 +421,7 @@ public class StatementFactory {
         assert m != null;
 
         PhiStatement s = new PhiStatement(v, xs, m);
-        assert statementMap.put(new StatementKey(v), s) == null;
+        assert map.put(new StatementKey(v), s) == null;
         return s;
     }
 
@@ -442,7 +446,7 @@ public class StatementFactory {
         assert m != null;
 
         ReturnStatement s = new ReturnStatement(result, returnSummary, m);
-        assert statementMap.put(new StatementKey(result, i), s) == null;
+        assert map.put(new StatementKey(result, i), s) == null;
         return s;
     }
 
@@ -474,7 +478,6 @@ public class StatementFactory {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
-        assert result != null;
         assert receiver != null;
         assert actuals != null;
         assert callerException != null;
@@ -482,7 +485,7 @@ public class StatementFactory {
 
         SpecialCallStatement s = new SpecialCallStatement(callSite, caller, callee, result, receiver, actuals,
                                         callerException, calleeSummary);
-        assert statementMap.put(new StatementKey(callSite), s) == null;
+        assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
         return s;
     }
 
@@ -511,14 +514,13 @@ public class StatementFactory {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
-        assert result != null;
         assert actuals != null;
         assert callerException != null;
         assert calleeSummary != null;
 
         StaticCallStatement s = new StaticCallStatement(callSite, caller, callee, result, actuals, callerException,
                                         calleeSummary);
-        assert statementMap.put(new StatementKey(callSite), s) == null;
+        assert map.put(new StatementKey(callSite, caller, callee, result, null, actuals, callerException), s) == null;
         return s;
     }
 
@@ -540,7 +542,7 @@ public class StatementFactory {
         assert m != null;
 
         StaticFieldToLocalStatement s = new StaticFieldToLocalStatement(local, staticField, m);
-        assert statementMap.put(new StatementKey(local), s) == null;
+        assert map.put(new StatementKey(local), s) == null;
         return s;
     }
 
@@ -567,7 +569,7 @@ public class StatementFactory {
         assert value.getName().toString().equals("value")
                                         && value.getDeclaringClass().equals(TypeReference.JavaLangString) : "This method should only be called for String.value for a string literal";
         LocalToFieldStatement s = new LocalToFieldStatement(string, value, rv, m);
-        assert statementMap.put(new StatementKey(string, value), s) == null;
+        assert map.put(new StatementKey(string, value), s) == null;
         return s;
     }
 
@@ -600,14 +602,13 @@ public class StatementFactory {
         assert callee != null;
         assert caller != null;
         assert receiver != null;
-        assert result != null;
         assert actuals != null;
         assert callerException != null;
         assert rvFactory != null;
 
         VirtualCallStatement s = new VirtualCallStatement(callSite, caller, callee, result, receiver, actuals,
                                         callerException, rvFactory);
-        assert statementMap.put(new StatementKey(callSite), s) == null;
+        assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
         return s;
     }
 
@@ -619,23 +620,49 @@ public class StatementFactory {
         private final Object key1;
         private final Object key2;
         private final Object key3;
+        private final Object key4;
+        private final Object key5;
+        private final Object key6;
+        private final Object key7;
 
         public StatementKey(Object key1) {
             this.key1 = key1;
             this.key2 = null;
             this.key3 = null;
+            this.key4 = null;
+            this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
         }
 
         public StatementKey(Object key1, Object key2) {
             this.key1 = key1;
             this.key2 = key2;
             this.key3 = null;
+            this.key4 = null;
+            this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
         }
 
         public StatementKey(Object key1, Object key2, Object key3) {
             this.key1 = key1;
             this.key2 = key2;
             this.key3 = key3;
+            this.key4 = null;
+            this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = key5;
+            this.key6 = key6;
+            this.key7 = key7;
         }
 
         @Override
@@ -662,6 +689,26 @@ public class StatementFactory {
                     return false;
             } else if (!key3.equals(other.key3))
                 return false;
+            if (key4 == null) {
+                if (other.key4 != null)
+                    return false;
+            } else if (!key4.equals(other.key4))
+                return false;
+            if (key5 == null) {
+                if (other.key5 != null)
+                    return false;
+            } else if (!key5.equals(other.key5))
+                return false;
+            if (key6 == null) {
+                if (other.key6 != null)
+                    return false;
+            } else if (!key6.equals(other.key6))
+                return false;
+            if (key7 == null) {
+                if (other.key7 != null)
+                    return false;
+            } else if (!key7.equals(other.key7))
+                return false;
             return true;
         }
 
@@ -672,6 +719,10 @@ public class StatementFactory {
             result = prime * result + ((key1 == null) ? 0 : key1.hashCode());
             result = prime * result + ((key2 == null) ? 0 : key2.hashCode());
             result = prime * result + ((key3 == null) ? 0 : key3.hashCode());
+            result = prime * result + ((key4 == null) ? 0 : key4.hashCode());
+            result = prime * result + ((key5 == null) ? 0 : key5.hashCode());
+            result = prime * result + ((key6 == null) ? 0 : key6.hashCode());
+            result = prime * result + ((key7 == null) ? 0 : key7.hashCode());
             return result;
         }
     }

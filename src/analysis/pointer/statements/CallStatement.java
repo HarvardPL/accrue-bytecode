@@ -81,7 +81,6 @@ public abstract class CallStatement extends PointsToStatement {
     protected final boolean processCall(Context callerContext, InstanceKey receiver, IMethod callee, PointsToGraph g,
                                     HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
-        assert receiver != null;
         assert callee != null;
         assert calleeSummary != null;
 

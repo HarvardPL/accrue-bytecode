@@ -64,8 +64,7 @@ public class StatementRegistrationPass {
      *            element j is a super class of element j+1)
      * @return true if any new class initializer was seen
      */
-    private boolean addClassInitializers(SSAInstruction trigger, IR containingCode, WorkQueue<InstructionInfo> q,
-                                    List<IMethod> clinits) {
+    private boolean addClassInitializers(WorkQueue<InstructionInfo> q, List<IMethod> clinits) {
         assert !clinits.isEmpty();
         boolean added = false;
         for (int j = clinits.size() - 1; j >= 0; j--) {
@@ -76,7 +75,6 @@ public class StatementRegistrationPass {
             }
             added |= oneAdded;
         }
-        registrar.registerClassInitializers(trigger, containingCode, clinits);
         return added;
     }
 
@@ -93,14 +91,9 @@ public class StatementRegistrationPass {
             SSAInstruction i = info.instruction;
             IR ir = info.ir;
 
-            // Add any class initializers required before executing this instruction
-            // TODO can be even more precise if we add a LoadClassStatement for each
-            // possible clinit, add that to the list of statements for the method
-            // containing the instruction that could load, and then make sure to
-            // only handle each one once in the pointer analysis
             List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
             if (!inits.isEmpty()) {
-                addClassInitializers(i, ir, q, inits);
+                addClassInitializers(q, inits);
             }
 
             if (i instanceof SSAInvokeInstruction) {

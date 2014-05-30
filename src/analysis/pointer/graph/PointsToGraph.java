@@ -410,7 +410,9 @@ public class PointsToGraph {
         }
 
         for (PointsToGraphNode n : graph.keySet()) {
+            System.err.println("NODE: " + n2s.get(n) + "(" + n + ")");
             for (InstanceKey ik : graph.get(n)) {
+                System.err.println("\t" + k2s.get(ik) + "(" + ik + ")");
                 writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
             }
         }

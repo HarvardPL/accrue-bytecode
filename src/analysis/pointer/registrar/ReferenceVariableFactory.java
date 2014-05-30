@@ -50,6 +50,10 @@ public class ReferenceVariableFactory {
      */
     private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries = new LinkedHashMap<>();
     /**
+     * Nodes for exception within native method
+     */
+    private final Map<OrderedPair<IMethod, TypeReference>, ReferenceVariable> nativeExceptions = new LinkedHashMap<>();
+    /**
      * Nodes for singleton generated exceptions if they are created, there can be only one per type. The points-to
      * analysis will be less precise, but the points-to graph will be smaller and the points-to analysis faster. The
      * creation is governed by a flag in {@link StatementRegistrar}
@@ -164,6 +168,23 @@ public class ReferenceVariableFactory {
                                         + PrettyPrinter.typeString(type) + ")", type, false);
         // These should only be created once assert that this is true
         assert methodExitSummaries.put(new MethodSummaryKey(method, exitType), rv) == null;
+        return rv;
+    }
+
+    /**
+     * Create a reference variable representing the local variable for an exception within a native method
+     * 
+     * @param exType
+     *            exception type
+     * @param m
+     *            native method
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable createNativeException(TypeReference exType, IMethod m) {
+        assert m.isNative();
+        ReferenceVariable rv = new ReferenceVariable("NATIVE-" + PrettyPrinter.typeString(exType), exType, false);
+        // These should only be created once assert that this is true
+        assert nativeExceptions.put(new OrderedPair<>(m, exType), rv) == null;
         return rv;
     }
 
@@ -424,7 +445,7 @@ public class ReferenceVariableFactory {
          *            index of the formal
          */
         public MethodSummaryKey(IMethod method, int paramNum) {
-            assert paramNum > 0;
+            assert paramNum >= 0;
             assert method != null;
             this.exitType = null;
             this.paramNum = paramNum;

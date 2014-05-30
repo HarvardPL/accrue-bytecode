@@ -633,7 +633,8 @@ public class PrettyPrinter {
         sb.append(receiver);
         sb.append(".");
         sb.append(mr.getName());
-        sb.append("(" + params + ")");
+        sb.append("(" + params + ")@");
+        sb.append(instruction.getCallSite().getProgramCounter());
         sb.append(" throws " + valString(instruction.getException()));
         return sb.toString();
     }
