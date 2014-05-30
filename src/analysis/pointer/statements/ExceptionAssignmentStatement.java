@@ -63,7 +63,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return caught + " = " + thrown + "(" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
+        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
                                         + ")";
     }
 }

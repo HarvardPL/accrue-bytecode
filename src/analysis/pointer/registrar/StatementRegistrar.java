@@ -986,7 +986,7 @@ public final class StatementRegistrar {
             }
             int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
-            addStatement(StatementFactory.localToLocal(methodSummary.getFormal(i), param, ir.getMethod()));
+            addStatement(StatementFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod()));
         }
     }
 

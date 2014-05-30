@@ -117,10 +117,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
 
-            s.process(c, haf, g, registrar);
             if (outputLevel >= 1) {
-                System.err.println("PROCESSED: " + sac);
+                System.err.println("\tPROCESSING: " + sac);
             }
+            s.process(c, haf, g, registrar);
+
             numProcessed++;
 
             // Get the changes from the graph
