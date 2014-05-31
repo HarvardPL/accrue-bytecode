@@ -216,7 +216,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
-        if (i >= 900) {
+        if (i >= 100) {
             throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
         }
         return i;

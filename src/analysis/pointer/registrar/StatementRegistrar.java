@@ -170,7 +170,6 @@ public final class StatementRegistrar {
         if (PointsToAnalysis.outputLevel >= 1) {
             System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
             CFGWriter.writeToFile(ir);
-            TypeRepository.printToFile(m);
             System.err.println();
         }
 

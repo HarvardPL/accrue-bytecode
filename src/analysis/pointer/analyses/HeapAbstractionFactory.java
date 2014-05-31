@@ -158,6 +158,7 @@ public abstract class HeapAbstractionFactory {
                 return false;
             if (getClass() != obj.getClass())
                 return false;
+            @SuppressWarnings("unchecked")
             Wrapper<T> other = (Wrapper<T>) obj;
             if (c == other.c) {
                 assert Arrays.equals(memoKeys, other.memoKeys);
