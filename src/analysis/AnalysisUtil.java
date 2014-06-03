@@ -11,12 +11,14 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
+import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
@@ -203,6 +205,38 @@ public class AnalysisUtil {
         }
 
         return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+    }
+
+    /**
+     * Get the def-use results for the given method, returns null for native methods without signatures
+     * 
+     * @param resolvedMethod
+     *            method to get the def-use results for
+     * @return the def-use for the given method, null for native methods
+     */
+    public static DefUse getDefUse(IMethod resolvedMethod) {
+        IR sigIR = signatures.getSignatureIR(resolvedMethod);
+        if (sigIR != null) {
+            return new DefUse(sigIR);
+        }
+
+        if (resolvedMethod.isNative()) {
+            // Native method with no signature
+            return null;
+        }
+
+        return cache.getSSACache().findOrCreateDU(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+    }
+
+    /**
+     * Get the IR for the method represented by the call graph node, returns null for native methods without signatures
+     * 
+     * @param n
+     *            call graph node
+     * @return the code for the given call graph node, null for native methods without signatures
+     */
+    public static IR getIR(CGNode n) {
+        return getIR(n.getMethod());
     }
 
     /**
