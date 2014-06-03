@@ -5,6 +5,13 @@ dir=`dirname "$0"`/..
 
 classpath="$dir/classes"
 
+if [ -z "$WALA_HOME" ]; then
+  WALA_HOME=$dir/../WALA
+fi
+if [ ! -d "$WALA_HOME" ]; then
+  echo "WALA not found try defining the WALA_HOME environment variable to the directory containing all the WALA projects."
+fi
+
 run() {
     if [ "$assert" = 1 ]; then
         cmmd="-classpath '$classpath' -ea test.integration.TestMain"
@@ -53,9 +60,12 @@ while true; do
 done
 
 classpath="$dir/classes"
-classpath="$classpath:$dir/lib/wala-core.jar"
-classpath="$classpath:$dir/lib/wala-util.jar"
-classpath="$classpath:$dir/lib/wala-shrike.jar"
+classpath="$classpath:$WALA_HOME/com.ibm.wala.core/bin/"
+classpath="$classpath:$WALA_HOME/com.ibm.wala.util/bin/"
+classpath="$classpath:$WALA_HOME/com.ibm.wala.shrike/bin/"
+classpath="$classpath:$WALA_HOME/com.ibm.wala.core/classes/"
+classpath="$classpath:$WALA_HOME/com.ibm.wala.util/classes/"
+classpath="$classpath:$WALA_HOME/com.ibm.wala.shrike/classes/"
 
 run "$args"
 

@@ -38,8 +38,8 @@
 			<accessrule ignoreifbetter="true" kind="nonaccessible" pattern="**/*"/>
 		</accessrules>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/wala-shrike.jar" sourcepath="/com.ibm.wala.shrike"/>
-	<classpathentry kind="lib" path="lib/wala-util.jar" sourcepath="/com.ibm.wala.util"/>
-	<classpathentry kind="lib" path="lib/wala-core.jar" sourcepath="/com.ibm.wala.core"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.core"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.shrike"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.util"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>
