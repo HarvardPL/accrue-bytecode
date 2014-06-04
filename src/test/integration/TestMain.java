@@ -12,6 +12,8 @@ import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
+import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
@@ -94,9 +96,31 @@ public class TestMain {
             PointsToGraph g;
             ReferenceVariableCache rvCache;
             switch (testName) {
+            // case "pointsto":
+            // AnalysisUtil.init(classPath, entryPoint);
+            // results = generatePointsToGraph(outputLevel);
+            // g = results.fst();
+            // g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+            // ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
+            //
+            // System.err.println(g.getNodes().size() + " Nodes");
+            // int num = 0;
+            // for (PointsToGraphNode n : g.getNodes()) {
+            // num += g.getPointsToSet(n).size();
+            // }
+            // System.err.println(num + " Edges");
+            // System.err.println(g.getAllHContexts().size() + " HContexts");
+            //
+            // int numNodes = 0;
+            // for (@SuppressWarnings("unused")
+            // CGNode n : g.getCallGraph()) {
+            // numNodes++;
+            // }
+            // System.err.println(numNodes + " CGNodes");
+            // break;
             case "pointsto":
                 AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraph(outputLevel);
+                results = generatePointsToGraphOnline(outputLevel);
                 g = results.fst();
                 g.dumpPointsToGraphToFile(fileName + "_ptg", false);
                 ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
@@ -116,37 +140,19 @@ public class TestMain {
                 }
                 System.err.println(numNodes + " CGNodes");
                 break;
-            case "pointsto2":
-                AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraphOnline(outputLevel);
-                g = results.fst();
-                g.dumpPointsToGraphToFile(fileName + "_ptg", false);
-                ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
-
-                System.err.println(g.getNodes().size() + " Nodes");
-                num = 0;
-                for (PointsToGraphNode n : g.getNodes()) {
-                    num += g.getPointsToSet(n).size();
-                }
-                System.err.println(num + " Edges");
-                System.err.println(g.getAllHContexts().size() + " HContexts");
-
-                numNodes = 0;
-                for (@SuppressWarnings("unused")
-                CGNode n : g.getCallGraph()) {
-                    numNodes++;
-                }
-                System.err.println(numNodes + " CGNodes");
-                break;
             case "maincfg":
                 AnalysisUtil.init(classPath, entryPoint);
                 entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
                 ir = AnalysisUtil.getIR(entry.getMethod());
                 printSingleCFG(ir, fileName + "_main");
                 break;
+            case "bool":
+                AnalysisUtil.init(classPath, entryPoint);
+                runBooleanConstant(entryPoint, outputLevel);
+                break;
             case "nonnull":
                 AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraph(otherOutputLevel);
+                results = generatePointsToGraphOnline(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache);
@@ -155,7 +161,7 @@ public class TestMain {
                 break;
             case "precise-ex":
                 AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraph(otherOutputLevel);
+                results = generatePointsToGraphOnline(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 r = runReachability(otherOutputLevel, g, rvCache);
@@ -165,7 +171,7 @@ public class TestMain {
                 break;
             case "reachability":
                 AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraph(otherOutputLevel);
+                results = generatePointsToGraphOnline(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 r = runReachability(outputLevel, g, rvCache);
@@ -173,13 +179,13 @@ public class TestMain {
                 break;
             case "cfg":
                 AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraph(otherOutputLevel);
+                results = generatePointsToGraphOnline(otherOutputLevel);
                 g = results.fst();
                 printAllCFG(g);
                 break;
             case "pdg":
                 AnalysisUtil.init(classPath, entryPoint);
-                results = generatePointsToGraph(otherOutputLevel);
+                results = generatePointsToGraphOnline(otherOutputLevel);
                 g = results.fst();
                 rvCache = results.snd();
                 r = runReachability(otherOutputLevel, g, rvCache);
@@ -258,7 +264,8 @@ public class TestMain {
         sb.append("\tprecise-ex - prints the results of an interprocedural precise exception analysis to the tests folder prepended with \"precise_ex_\"\n");
         sb.append("\treachability - prints the results of an interprocedural reachability analysis to the tests folder prepended with \"reachability_\"\n");
         sb.append("\tcfg - prints the cfg for the all methods to the tests folder prepended with : \"cfg_\"\n");
-        sb.append("\tpdg - prints the pdg in graphviz dot formattests folder prepended with : \"pdg_\"\n");
+        sb.append("\tpdg - prints the pdg in graphviz dot format to the tests folder prepended with : \"pdg_\"\n");
+        sb.append("\tbool - prints the results of an analysis determining which variables are boolean constants in graphviz dot format to the tests folder prepended with : \"bool_\"\n");
         return sb.toString();
     }
 
@@ -269,6 +276,9 @@ public class TestMain {
      *            print level
      * @return the resulting points-to graph, and cache of reference variables
      */
+    @SuppressWarnings("unused")
+    // Use the online analysis
+    @Deprecated
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel) {
 
         // Gather all the points-to statements
@@ -365,8 +375,8 @@ public class TestMain {
      *            results of a reachability analysis
      * @return the results of the non-null analysis
      */
-    private static NonNullResults runNonNull(int outputLevel, PointsToGraph g,
-                                    ReachabilityResults r, ReferenceVariableCache rvCache) {
+    private static NonNullResults runNonNull(int outputLevel, PointsToGraph g, ReachabilityResults r,
+                                    ReferenceVariableCache rvCache) {
         NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
@@ -386,9 +396,8 @@ public class TestMain {
      *            results of a non-null analysis
      * @return the results of the precise exceptions analysis
      */
-    private static PreciseExceptionResults runPreciseExceptions(int outputLevel,
-                                    PointsToGraph g, ReachabilityResults r, NonNullResults nonNull,
-                                    ReferenceVariableCache rvCache) {
+    private static PreciseExceptionResults runPreciseExceptions(int outputLevel, PointsToGraph g,
+                                    ReachabilityResults r, NonNullResults nonNull, ReferenceVariableCache rvCache) {
         PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g, nonNull, r,
                                         rvCache);
         analysis.setOutputLevel(outputLevel);
@@ -424,12 +433,47 @@ public class TestMain {
      *            results of a precise exceptions analysis
      * @return the program dependence graph
      */
-    private static ProgramDependenceGraph runPDG(int outputLevel, PointsToGraph g,
-                                    ReachabilityResults r, PreciseExceptionResults preciseEx,
-                                    ReferenceVariableCache rvCache) {
+    private static ProgramDependenceGraph runPDG(int outputLevel, PointsToGraph g, ReachabilityResults r,
+                                    PreciseExceptionResults preciseEx, ReferenceVariableCache rvCache) {
         PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
+    }
+
+    /**
+     * Run the analysis to determine which locals are boolean constants and print the results
+     * 
+     * @param entryPoint
+     *            full name of class to print results for contained methods
+     * @param outputLevel
+     *            amount of debugging
+     */
+    private static void runBooleanConstant(String entryPoint, int outputLevel) {
+        OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraphOnline(0);
+        BooleanConstantDataFlow df = null;
+        System.err.println("ENTRY: " + entryPoint);
+        for (CGNode n : results.fst().getCallGraph()) {
+            if (PrettyPrinter.methodString(n.getMethod()).contains(entryPoint)) {
+                System.err.println("Analyzing: " + PrettyPrinter.cgNodeString(n));
+                df = new BooleanConstantDataFlow(n, results.fst(), results.snd());
+                BooleanConstantResults r = df.run();
+                try {
+                    r.writeResultsToFiles();
+                } catch (IOException e) {
+                    System.err.println("Could not write DOT to file for " + PrettyPrinter.cgNodeString(n) + ", "
+                                                    + e.getMessage());
+                }
+
+                if (outputLevel >= 1) {
+                    CFGWriter.writeToFile(n.getIR());
+                }
+            }
+        }
+
+        if (df == null) {
+            System.err.println("Could not find methods in: " + entryPoint);
+            return;
+        }
     }
 }
