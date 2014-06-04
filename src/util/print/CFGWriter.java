@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import analysis.AnalysisUtil;
+import analysis.dataflow.DataFlow;
 import analysis.dataflow.interprocedural.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -17,6 +18,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 
 /**
@@ -182,7 +184,7 @@ public class CFGWriter {
             for (ISSABasicBlock succ : cfg.getNormalSuccessors(current)) {
                 String edge;
                 if (getUnreachableSuccessors(current, cfg).contains(succ)) {
-                    edge = "UNREACHABLE";
+                    edge = "UNREACHABLE " + getNormalEdgeLabel(current, succ, ir);
                 } else {
                     edge = getNormalEdgeLabel(current, succ, ir);
                 }
@@ -303,8 +305,19 @@ public class CFGWriter {
      * @param ir
      * @return
      */
-    @SuppressWarnings("unused")
     protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
+        if (DataFlow.getLastInstruction(source) instanceof SSAConditionalBranchInstruction) {
+            ISSABasicBlock trueSucc = DataFlow.getTrueSuccessor(source, ir.getControlFlowGraph());
+            ISSABasicBlock falseSucc = DataFlow.getFalseSuccessor(source, ir.getControlFlowGraph());
+            if (target.equals(trueSucc)) {
+                return "TRUE";
+            } else if (target.equals(falseSucc)) {
+                return "FALSE";
+            } else {
+                throw new RuntimeException("Something besides a true or false successor for a branch.");
+            }
+
+        }
         return ExitType.NORMAL.toString();
     }
 }

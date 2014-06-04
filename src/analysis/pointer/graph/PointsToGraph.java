@@ -383,6 +383,8 @@ public class PointsToGraph {
         this.outputLevel = outputLevel;
     }
 
+    public int clinitCount = 0;
+
     /**
      * Add class initialization methods
      * 
@@ -406,6 +408,7 @@ public class PointsToGraph {
                 }
                 recordContext(clinit, c);
                 callGraph.registerEntrypoint(initNode);
+                clinitCount++;
             } else {
                 // Already added an initializer and thus must have added initializers for super classes. These are all
                 // that are left to process since we are adding from sub class to super class order

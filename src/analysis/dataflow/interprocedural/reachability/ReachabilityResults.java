@@ -121,9 +121,9 @@ public class ReachabilityResults implements AnalysisResults {
             @Override
             protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
                 if (results.isUnreachable(source, target)) {
-                    return "UNREACHABLE";
+                    return "UNREACHABLE " + super.getNormalEdgeLabel(source, target, ir);
                 }
-                return "REACHABLE";
+                return "REACHABLE " + super.getNormalEdgeLabel(source, target, ir);
             }
         };
 

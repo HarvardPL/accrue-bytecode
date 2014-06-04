@@ -856,7 +856,7 @@ public class PrettyPrinter {
 
         if (!m.isStatic() && st.getParameter(0) == valueNumber) {
             // The first parameter of non-static methods is "this"
-            name = getCanonical("this");
+            name = getCanonical("this" + "{v" + valueNumber + "}");
             locals.put(valueNumber, name);
             return name;
         }
@@ -875,14 +875,14 @@ public class PrettyPrinter {
                 // the boolean case does not trigger, they are just integers
                 assert false;
             }
-            name = getCanonical(c);
+            name = getCanonical(c + "{v" + valueNumber + "}");
             locals.put(valueNumber, name);
             return name;
         }
 
         String ret = getActualName(valueNumber);
         if (ret != null) {
-            name = getCanonical(ret);
+            name = getCanonical(ret + "{v" + valueNumber + "}");
             locals.put(valueNumber, name);
             return name;
         }

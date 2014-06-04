@@ -111,6 +111,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         int numProcessed = 0;
+        Set<StmtAndContext> visited = new HashSet<>();
         while (!q.isEmpty()) {
             StmtAndContext sac = q.poll();
             incrementCounter(sac);
@@ -123,6 +124,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             s.process(c, haf, g, registrar);
 
             numProcessed++;
+            if (outputLevel >= 1) {
+                visited.add(sac);
+            }
 
             // Get the changes from the graph
             Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
@@ -184,13 +188,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             if (numProcessed % 100000 == 0) {
-                System.err.println("PROCESSED: " + numProcessed + " in " + (System.currentTimeMillis() - startTime)
+                System.err.println("PROCESSED: " + numProcessed
+                                                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
+                                                + (System.currentTimeMillis() - startTime)
                                                 / 1000 + "s");
             }
         }
 
         long endTime = System.currentTimeMillis();
-        System.err.println("Processed " + numProcessed + " (statement, context) pairs. It took "
+        System.err.println("Processed " + numProcessed + " (statement, context) pairs"
+                                        + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + ". It took "
                                         + (endTime - startTime) + "ms.");
 
         if (outputLevel >= 5) {
