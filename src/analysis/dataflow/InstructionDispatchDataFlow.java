@@ -84,7 +84,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
         if (current.iterator().hasNext()) {
             last = getLastInstruction(current);
         } else {
-            // empty block, just pass through the input
+            // empty block, handle specially
             outItems = flowEmptyBlock(inItems, cfg, current);
         }
         for (SSAInstruction i : current) {
