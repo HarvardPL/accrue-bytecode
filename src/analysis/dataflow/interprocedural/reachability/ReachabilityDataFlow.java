@@ -219,7 +219,6 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        System.err.println("INS " + i.toString(currentNode.getIR().getSymbolTable()));
         ReachabilityAbsVal in = confluence(previousItems, current);
         if (in == ReachabilityAbsVal.UNREACHABLE) {
             // The branching statement is unreachable so both children are as well

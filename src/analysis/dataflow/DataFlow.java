@@ -133,8 +133,9 @@ public abstract class DataFlow<F> {
                     if (isBasicBlockunreachable) {
                         // Do not analyze this block if it cannot be reached
                         // from any predecessor
-                        if (outputLevel >= 1) {
-                            System.err.println("UNREACHABLE basic block: BB" + current.getNumber());
+                        if (outputLevel >= 2) {
+                            System.err.println("UNREACHABLE basic block: BB" + current.getNumber() + " in "
+                                                            + PrettyPrinter.methodString(ir.getMethod()));
                         }
                         continue;
                     }
