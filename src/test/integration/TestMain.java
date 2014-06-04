@@ -339,6 +339,7 @@ public class TestMain {
         }
         System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
+        System.err.println(g.clinitCount + " Class initializers.");
 
         ReferenceVariableCache rvCache = online.getAllLocals();
         return new OrderedPair<>(g, rvCache);
@@ -458,12 +459,7 @@ public class TestMain {
                 System.err.println("Analyzing: " + PrettyPrinter.cgNodeString(n));
                 df = new BooleanConstantDataFlow(n, results.fst(), results.snd());
                 BooleanConstantResults r = df.run();
-                try {
-                    r.writeResultsToFiles();
-                } catch (IOException e) {
-                    System.err.println("Could not write DOT to file for " + PrettyPrinter.cgNodeString(n) + ", "
-                                                    + e.getMessage());
-                }
+                r.writeResultsToFile();
 
                 if (outputLevel >= 1) {
                     CFGWriter.writeToFile(n.getIR());

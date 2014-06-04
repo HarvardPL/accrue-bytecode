@@ -617,4 +617,13 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getMethod());
         return new ReferenceVariableReplica(n.getContext(), rv);
     }
+
+    /**
+     * Get the cache containing reference variables for local variables
+     * 
+     * @return reference variable cache
+     */
+    public ReferenceVariableCache getRvCache() {
+        return rvCache;
+    }
 }

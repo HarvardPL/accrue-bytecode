@@ -68,7 +68,7 @@ public abstract class DataFlow<F> {
      *            code for the method to perform the dataflow for
      */
     protected final void dataflow(IR ir) {
-        if (outputLevel >= 3) {
+        if (outputLevel >= 1) {
             CFGWriter.writeToFile(ir);
         }
         ControlFlowGraph<SSAInstruction, ISSABasicBlock> g = ir.getControlFlowGraph();
@@ -449,7 +449,7 @@ public abstract class DataFlow<F> {
      *            control-flow graph
      * @return basic block on the outgoing "true" edge
      */
-    protected final ISSABasicBlock getTrueSuccessor(ISSABasicBlock bb,
+    public static final ISSABasicBlock getTrueSuccessor(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return getTrueFalseSuccessors(bb, cfg).fst();
     }
@@ -464,7 +464,7 @@ public abstract class DataFlow<F> {
      *            control-flow graph
      * @return basic block on the outgoing "false" edge
      */
-    protected final ISSABasicBlock getFalseSuccessor(ISSABasicBlock bb,
+    public static final ISSABasicBlock getFalseSuccessor(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         return getTrueFalseSuccessors(bb, cfg).snd();
     }
@@ -478,7 +478,7 @@ public abstract class DataFlow<F> {
      *            control-flow graph
      * @return pair of basic block for "true" successor and "false" successor in that order
      */
-    private final OrderedPair<ISSABasicBlock, ISSABasicBlock> getTrueFalseSuccessors(ISSABasicBlock bb,
+    private static final OrderedPair<ISSABasicBlock, ISSABasicBlock> getTrueFalseSuccessors(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         if (cfg.getSuccNodeCount(bb) != 2) {
             throw new RuntimeException("Branches have exactly 2 successors. This has " + cfg.getSuccNodeCount(bb));
@@ -487,7 +487,7 @@ public abstract class DataFlow<F> {
         ISSABasicBlock falseBranch = null;
         int falseBranchNum = bb.getGraphNodeId() + 1;
 
-        Iterator<ISSABasicBlock> iter = getSuccs(bb, cfg);
+        Iterator<ISSABasicBlock> iter = cfg.getSuccNodes(bb);
         while (iter.hasNext()) {
             ISSABasicBlock branch = iter.next();
             if (branch.getNumber() != falseBranchNum) {
@@ -603,7 +603,7 @@ public abstract class DataFlow<F> {
      * @return the last instruction of the basic block, null if the basic block contains no instructions (e.g. if it is
      *         an entry or exit block).
      */
-    protected static SSAInstruction getLastInstruction(ISSABasicBlock bb) {
+    public static SSAInstruction getLastInstruction(ISSABasicBlock bb) {
         SSAInstruction last = null;
         Iterator<SSAInstruction> iter = bb.iterator();
         if (!iter.hasNext()) {

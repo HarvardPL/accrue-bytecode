@@ -103,6 +103,23 @@ public class BooleanConstantResults implements AnalysisResults {
     }
 
     /**
+     * If the value is constant then get the constant value. Returns null if called on a non-constant
+     * 
+     * @param i
+     *            instruction
+     * @param value
+     *            value number of variable to check
+     * @return constant boolean value (if any) or null (if non-constant or non-boolean)
+     */
+    public Boolean getConstant(SSAInstruction i, int value) {
+        Map<Integer, Boolean> vals = constants.get(i);
+        if (vals == null) {
+            return null;
+        }
+        return vals.get(value);
+    }
+
+    /**
      * Record that a value number corresponds to a variable that is a constant boolean right before executing
      * <code>i</code>
      * 
@@ -128,11 +145,13 @@ public class BooleanConstantResults implements AnalysisResults {
      * @throws IOException
      *             file troubles
      */
-    public void writeResultsToFiles() throws IOException {
+    public void writeResultsToFile() {
         String fileName = "tests/bool_" + PrettyPrinter.methodString(ir.getMethod()) + ".dot";
         try (Writer w = new FileWriter(fileName)) {
             writeResults(w);
             System.err.println("DOT written to " + fileName);
+        } catch (IOException e) {
+            System.err.println("Could not write DOT to file " + fileName + ", " + e.getMessage());
         }
     }
 

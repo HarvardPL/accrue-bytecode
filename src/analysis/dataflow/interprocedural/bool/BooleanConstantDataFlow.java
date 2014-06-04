@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural.bool;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +50,13 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Analysis that uses the results of the pointer analysis to determine which booleans are constants. Used to find dead
  * code branches.
+ * <p>
+ * This is a special case of a constant determination analysis. WALA does constant propagation so most constants are
+ * literals and this kind of analysis is trivial. This analysis also tells us when the results of an instanceof check
+ * are known statically (using the points-to results), and propagates those results as well as any boolean constant
+ * literals (although those are turned into integer 0 and 1 by WALA). Unless this becomes an inter-procedural analysis
+ * there is not much benefit to tracking other constants (although the results of this analysis may mean that some
+ * non-constants become constants).
  */
 public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarContext<BooleanAbsVal>> {
 
@@ -69,7 +77,18 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
         this.results = new BooleanConstantResults(ir);
     }
 
+    @Override
+    protected Map<ISSABasicBlock, VarContext<BooleanAbsVal>> flow(Set<VarContext<BooleanAbsVal>> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        if (current.isEntryBlock()) {
+            inItems = Collections.<VarContext<BooleanAbsVal>> singleton(new BooleanConstantVarContext());
+        }
+        return super.flow(inItems, cfg, current);
+    }
+
     private static VarContext<BooleanAbsVal> confluence(Set<VarContext<BooleanAbsVal>> facts) {
+        // TODO can do a bit better when merging if we track impossible branches
+        // Not sure if this is simple since the results of this analysis are unsound until it completes
         return VarContext.join(facts);
     }
 
@@ -275,31 +294,32 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
                                     Set<VarContext<BooleanAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         if (i.isIntegerComparison()) {
-            // May be the comparison between two booleans, lets see if one of them is constant
-            // Note that constant booleans are turned into integers and that 0 is true (for some strange reason)
-            // They are also normalized so that the constant is always on the right
+            // This may be the comparison between two booleans, lets see if one of them is constant
+            // Note that constant booleans are turned into integers and that 0 is false
+            // They are also normalized so that the constant is always on the right and always 0 (false)
             int left = i.getUse(0);
             if (types.getType(left).equals(TypeReference.Boolean)) {
                 int right = i.getUse(1);
                 if (ir.getSymbolTable().isIntegerConstant(right)) {
-                    // This is a boolean compared with a constant (it must be zero)
+                    // This is a boolean compared with a constant (it must be zero which corresponds to false)
                     assert ir.getSymbolTable().getIntValue(right) == 0;
                     VarContext<BooleanAbsVal> in = confluence(previousItems);
+                    in = in.setLocal(right, BooleanAbsVal.FALSE);
                     Map<ISSABasicBlock, VarContext<BooleanAbsVal>> out = new LinkedHashMap<>();
                     ISSABasicBlock trueBB = getTrueSuccessor(current, cfg);
                     ISSABasicBlock falseBB = getFalseSuccessor(current, cfg);
                     switch (i.getOperator().toString()) {
                     case "eq":
-                        // if (b == true)
-                        VarContext<BooleanAbsVal> trueBranch = in.setLocal(left, BooleanAbsVal.TRUE);
-                        VarContext<BooleanAbsVal> falseBranch = in.setLocal(left, BooleanAbsVal.FALSE);
+                        // if (b == false)
+                        VarContext<BooleanAbsVal> trueBranch = in.setLocal(left, BooleanAbsVal.FALSE);
+                        VarContext<BooleanAbsVal> falseBranch = in.setLocal(left, BooleanAbsVal.TRUE);
                         out.put(trueBB, trueBranch);
                         out.put(falseBB, falseBranch);
                         return out;
                     case "ne":
-                        // if (b != true)
-                        trueBranch = in.setLocal(left, BooleanAbsVal.FALSE);
-                        falseBranch = in.setLocal(left, BooleanAbsVal.TRUE);
+                        // if (b != false)
+                        trueBranch = in.setLocal(left, BooleanAbsVal.TRUE);
+                        falseBranch = in.setLocal(left, BooleanAbsVal.FALSE);
                         out.put(trueBB, trueBranch);
                         out.put(falseBB, falseBranch);
                         return out;
@@ -442,9 +462,6 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
     @Override
     protected Map<ISSABasicBlock, VarContext<BooleanAbsVal>> flowEmptyBlock(Set<VarContext<BooleanAbsVal>> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        if (current.isEntryBlock()) {
-            return factToMap(new BooleanConstantVarContext(), current, cfg);
-        }
         return mergeAndCreateMap(inItems, current, cfg);
     }
 
