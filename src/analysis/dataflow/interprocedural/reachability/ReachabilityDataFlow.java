@@ -146,6 +146,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     @Override
     protected ReachabilityAbsVal flowInstanceOf(SSAInstanceofInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        // TODO Could keep track of results of instanceof to find dead branches
         return confluence(previousItems, current);
     }
 

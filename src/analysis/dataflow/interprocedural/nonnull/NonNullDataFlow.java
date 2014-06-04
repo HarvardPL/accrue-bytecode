@@ -378,6 +378,11 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
             val = VarContext.safeJoinValues(val, in.getLocation(loc));
         }
+        if (val == null) {
+            // TODO Array doesn't point to anything, this could be OK, this could be dead code
+            // to be safe assume the contents could be null
+            val = NonNullAbsVal.MAY_BE_NULL;
+        }
         normal = normal.setLocal(i.getDef(), val);
 
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> out = new LinkedHashMap<>();

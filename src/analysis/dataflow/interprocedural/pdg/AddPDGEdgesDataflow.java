@@ -907,8 +907,11 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         } else if (nodesToMerge.size() == 1) {
             return nodesToMerge.iterator().next();
         } else {
-            throw new RuntimeException("Empty set of nodes to merge, DESC: " + mergeNodeDesc + " KEY: "
-                                            + disambiguationKey);
+            if (outputLevel >= 1) {
+                // TODO Probably an empty points-to set, sometimes this is due to dead code
+                System.err.println("Empty set of nodes to merge, DESC: " + mergeNodeDesc + " KEY: " + disambiguationKey);
+            }
+            return PDGNodeFactory.findOrCreateOther(mergeNodeDesc, mergeNodeType, currentNode, disambiguationKey);
         }
 
         return result;

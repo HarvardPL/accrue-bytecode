@@ -591,10 +591,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array, n));
-        // if (pointsTo.isEmpty()) {
-        // throw new RuntimeException("Array doesn't point to anything. " + getReplica(array, n)
-        // + " in " + PrettyPrinter.cgNodeString(n));
-        // }
+        if (outputLevel >= 1 && pointsTo.isEmpty()) {
+            System.err.println("Array doesn't point to anything. " + getReplica(array, n) + " in "
+                                            + PrettyPrinter.cgNodeString(n));
+        }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
         for (InstanceKey o : pointsTo) {
