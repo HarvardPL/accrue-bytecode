@@ -13,6 +13,7 @@ import types.TypeRepository;
 import util.InstructionType;
 import util.OrderedPair;
 import util.SingletonValueMap;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 
@@ -47,7 +48,7 @@ public abstract class DataFlow<F> {
     /**
      * determines printing volume
      */
-    private int verbose = 0;
+    protected int outputLevel = 0;
 
     /**
      * Create a new intra-procedural data-flow
@@ -67,6 +68,9 @@ public abstract class DataFlow<F> {
      *            code for the method to perform the dataflow for
      */
     protected final void dataflow(IR ir) {
+        if (outputLevel >= 3) {
+            CFGWriter.writeToFile(ir);
+        }
         ControlFlowGraph<SSAInstruction, ISSABasicBlock> g = ir.getControlFlowGraph();
         Graph<ISSABasicBlock> flowGraph = g;
         if (!forward) {
@@ -129,7 +133,7 @@ public abstract class DataFlow<F> {
                     if (isBasicBlockunreachable) {
                         // Do not analyze this block if it cannot be reached
                         // from any predecessor
-                        if (verbose >= 1) {
+                        if (outputLevel >= 1) {
                             System.err.println("UNREACHABLE basic block: BB" + current.getNumber());
                         }
                         continue;
@@ -140,13 +144,13 @@ public abstract class DataFlow<F> {
                         continue;
                     }
 
-                    if (verbose >= 3) {
+                    if (outputLevel >= 3) {
                         System.err.println("FLOWING BB" + current.getNumber() + ": in "
                                                         + PrettyPrinter.methodString(ir.getMethod()));
                     }
 
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
-                        if (verbose >= 1) {
+                        if (outputLevel >= 1) {
                             System.err.print("NO INPUT for BB" + current.getGraphNodeId() + " in "
                                                             + PrettyPrinter.methodString(ir.getMethod())
                                                             + " SKIPPING. Preds: [");
@@ -174,7 +178,7 @@ public abstract class DataFlow<F> {
                     putRecord(current, newResults);
 
                     if (oldOutItems == null || !oldOutItems.equals(outItems)) {
-                        if (verbose >= 3) {
+                        if (outputLevel >= 3) {
                             System.err.println("OUTPUT BB" + current.getNumber() + ":\n\t" + outItems);
                         }
                         changed = true;
@@ -575,7 +579,7 @@ public abstract class DataFlow<F> {
      *            level of the output, higher means more output
      */
     public void setOutputLevel(int level) {
-        this.verbose = level;
+        outputLevel = level;
     }
 
     /**
@@ -584,7 +588,7 @@ public abstract class DataFlow<F> {
      * @return integer verbosity level
      */
     protected int getOutputLevel() {
-        return verbose;
+        return outputLevel;
     }
 
     /**

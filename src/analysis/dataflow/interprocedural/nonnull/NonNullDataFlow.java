@@ -9,6 +9,7 @@ import java.util.Set;
 
 import types.TypeRepository;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.util.AbstractLocation;
@@ -97,7 +98,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             Map<ExitType, VarContext<NonNullAbsVal>> out;
             int[] formals;
             VarContext<NonNullAbsVal> initial = nonNull.clearLocalsAndExits();
-            if (callee.getMethod().isNative()) {
+            if (callee.getMethod().isNative() && !AnalysisUtil.hasSignature(callee.getMethod())) {
                 // Create fake formals so they can be restored at the end
                 formals = new int[numParams];
                 for (int j = 0; j < numParams; j++) {

@@ -11,6 +11,7 @@ import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
@@ -350,7 +351,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         incrementCounter(n);
         currentlyProcessing.add(n);
         Map<ExitType, F> output;
-        if (n.getMethod().isNative()) {
+        if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             output = analyzeNative(n, input);
         } else {
             output = analyze(n, input);
@@ -590,10 +591,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array, n));
-        if (pointsTo.isEmpty()) {
-            throw new RuntimeException("Array doesn't point to anything. " + getReplica(array, n)
-                                            + " in " + PrettyPrinter.cgNodeString(n));
-        }
+        // if (pointsTo.isEmpty()) {
+        // throw new RuntimeException("Array doesn't point to anything. " + getReplica(array, n)
+        // + " in " + PrettyPrinter.cgNodeString(n));
+        // }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
         for (InstanceKey o : pointsTo) {

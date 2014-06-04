@@ -98,7 +98,7 @@ public class PreciseExceptionResults implements AnalysisResults {
     public boolean canProcedureThrowException(TypeReference type, CGNode n) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         
-        if (n.getMethod().isNative()) {
+        if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             IClass exClass = cha.lookupClass(type);
             if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass)) {
                 // assume native methods can throw RTE
@@ -156,7 +156,7 @@ public class PreciseExceptionResults implements AnalysisResults {
      * @return true if the call graph node can throw any exception
      */
     public boolean canProcedureThrowAnyException(CGNode n) {
-        if (n.getMethod().isNative()) {
+        if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             // assume native methods can throw something
             return true;
         }

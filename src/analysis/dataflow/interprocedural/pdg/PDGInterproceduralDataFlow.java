@@ -7,6 +7,7 @@ import java.util.Map;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
@@ -199,7 +200,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
      * @return whether the method can terminate normally in the given context
      */
     protected boolean canProcedureTerminateNormally(CGNode n) {
-        if (n.getMethod().isNative()) {
+        if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             // assume native methods can terminate normally
             return true;
         }

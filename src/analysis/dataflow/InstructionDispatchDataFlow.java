@@ -94,7 +94,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
                 outItems = flowInstruction(i, previousItems, cfg, current);
             } else {
                 // Pass the results of this "flow" into the next
-                previousItems = new HashSet<>(flowInstruction(i, inItems, cfg, current).values());
+                previousItems = new HashSet<>(flowInstruction(i, previousItems, cfg, current).values());
             }
         }
 
@@ -118,6 +118,11 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      */
     protected Map<ISSABasicBlock, F> flowInstruction(SSAInstruction i, Set<F> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        if (outputLevel >= 4) {
+            System.err.println("\tINSTRUCTION: " + i);
+            System.err.println("\t\tINPUT: " + inItems);
+        }
+
         SSAInstruction last = getLastInstruction(current);
         Map<ISSABasicBlock, F> output;
         if (i == last) {
@@ -128,6 +133,10 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
             output = factToMap(flowNonBranchingInstruction(i, inItems, cfg, current), current, cfg);
         }
         insToRecord.put(i, new AnalysisRecord<>(inItems, output));
+
+        if (outputLevel >= 3) {
+            System.err.println("\t\tOUTPUT: " + output);
+        }
         return output;
     }
 
