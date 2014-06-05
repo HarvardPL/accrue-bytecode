@@ -38,7 +38,7 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     }
 
     @Override
-    protected Map<ExitType, ReachabilityAbsVal> analyzeNative(CGNode n, ReachabilityAbsVal input) {
+    protected Map<ExitType, ReachabilityAbsVal> analyzeMissingCode(CGNode n, ReachabilityAbsVal input) {
         if (getOutputLevel() >= 2) {
             System.err.println("ANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }

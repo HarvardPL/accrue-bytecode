@@ -61,7 +61,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     }
 
     @Override
-    protected Map<ExitType, Unit> analyzeNative(CGNode n, Unit input) {
+    protected Map<ExitType, Unit> analyzeMissingCode(CGNode n, Unit input) {
         // Create edges from the input context and formals to the output context
         // This is unsound if the method has heap side effects, but is sound if
         // it doesn't

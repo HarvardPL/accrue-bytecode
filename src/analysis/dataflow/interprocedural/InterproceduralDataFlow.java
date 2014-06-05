@@ -352,7 +352,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         currentlyProcessing.add(n);
         Map<ExitType, F> output;
         if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
-            output = analyzeNative(n, input);
+            output = analyzeMissingCode(n, input);
         } else {
             output = analyze(n, input);
         }
@@ -441,7 +441,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            initial data-flow fact
      * @return output facts resulting from analyzing <code>n</code>
      */
-    protected abstract Map<ExitType, F> analyzeNative(CGNode n, F input);
+    protected abstract Map<ExitType, F> analyzeMissingCode(CGNode n, F input);
 
     /**
      * Get the default output data-flow facts (given an input fact), this is used as the output for a recursive call
