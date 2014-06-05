@@ -74,7 +74,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
         types = new TypeRepository(ir);
         this.ptg = ptg;
         this.rvCache = rvCache;
-        this.results = new BooleanConstantResults(ir);
+        this.results = new BooleanConstantResults(currentNode);
     }
 
     @Override
@@ -108,23 +108,25 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         VarContext<BooleanAbsVal> in = confluence(previousItems);
 
-        IOperator op = i.getOperator();
-        switch (op.toString()) {
-        case "and":
-            BooleanAbsVal left = in.getLocal(i.getUse(0));
-            BooleanAbsVal right = in.getLocal(i.getUse(1));
-            return in.setLocal(i.getDef(), BooleanAbsVal.and(left, right));
-        case "or":
-            left = in.getLocal(i.getUse(0));
-            right = in.getLocal(i.getUse(1));
-            return in.setLocal(i.getDef(), BooleanAbsVal.or(left, right));
-        case "xor":
-            left = in.getLocal(i.getUse(0));
-            right = in.getLocal(i.getUse(1));
-            return in.setLocal(i.getDef(), BooleanAbsVal.xor(left, right));
-        default:
-            // Non-boolean binary operation
-            break;
+        if (types.getType(i.getDef()).equals(TypeReference.Boolean)) {
+            IOperator op = i.getOperator();
+            switch (op.toString()) {
+            case "and":
+                BooleanAbsVal left = in.getLocal(i.getUse(0));
+                BooleanAbsVal right = in.getLocal(i.getUse(1));
+                return in.setLocal(i.getDef(), BooleanAbsVal.and(left, right));
+            case "or":
+                left = in.getLocal(i.getUse(0));
+                right = in.getLocal(i.getUse(1));
+                return in.setLocal(i.getDef(), BooleanAbsVal.or(left, right));
+            case "xor":
+                left = in.getLocal(i.getUse(0));
+                right = in.getLocal(i.getUse(1));
+                return in.setLocal(i.getDef(), BooleanAbsVal.xor(left, right));
+            default:
+                // Non-boolean binary operation
+                break;
+            }
         }
 
         return in;
@@ -300,9 +302,8 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
             int left = i.getUse(0);
             if (types.getType(left).equals(TypeReference.Boolean)) {
                 int right = i.getUse(1);
-                if (ir.getSymbolTable().isIntegerConstant(right)) {
+                if (ir.getSymbolTable().isZeroOrFalse(right)) {
                     // This is a boolean compared with a constant (it must be zero which corresponds to false)
-                    assert ir.getSymbolTable().getIntValue(right) == 0;
                     VarContext<BooleanAbsVal> in = confluence(previousItems);
                     in = in.setLocal(right, BooleanAbsVal.FALSE);
                     Map<ISSABasicBlock, VarContext<BooleanAbsVal>> out = new LinkedHashMap<>();

@@ -63,7 +63,14 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
 
         ReachabilityAbsVal in = confluence(inItems, bb);
-        // Start out assuming successors are unreachable, if
+        if (in == ReachabilityAbsVal.UNREACHABLE) {
+            // This call is unreachable so no need to analyze the callee
+            // In fact if we do we could sat that exits are reachable due to imprecision (the same method can be
+            // reachable and unreachable at different call sites, but in the same context).
+            return factToMap(ReachabilityAbsVal.UNREACHABLE, bb, cfg);
+        }
+
+        // Start out assuming successors are unreachable, if one target can exit then it will change in the loop below
         ReachabilityAbsVal normal = ReachabilityAbsVal.UNREACHABLE;
         ReachabilityAbsVal exceptional = ReachabilityAbsVal.UNREACHABLE;
         assert !cg.getPossibleTargets(currentNode, i.getCallSite()).isEmpty() : "No calls to "
@@ -74,8 +81,8 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
             normal = normal.join(out.get(ExitType.NORMAL));
             exceptional = exceptional.join(out.get(ExitType.EXCEPTIONAL));
         }
-        // If non-static assume exceptional successors are as reachable as the in item (reachable at least
-        // via NPE)
+
+        // If non-static assume exceptional successors are as reachable as the in item (reachable at least via NPE)
         return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : in.join(exceptional), bb, cfg);
     }
 
@@ -229,7 +236,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         int rightValNum = i.getUse(1);
         SymbolTable st = currentNode.getIR().getSymbolTable();
 
-        // See if both are literal constants
+        // See if both are constants
         Object left = null;
         Object right = null;
         if (st.isConstant(leftValNum) && st.isConstant(rightValNum)) {
@@ -238,11 +245,11 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         } else if (i.isIntegerComparison()) {
             // This may be the comparison between two booleans, lets see if both of them are constant
             // Note that literal constant booleans are turned into integers and that 0 is false
-            if (booleanResults.isConstant(i, leftValNum) && booleanResults.isConstant(i, rightValNum)) {
+            if (booleanResults.isConstant(i, leftValNum)) {
                 left = booleanResults.getConstant(i, leftValNum);
             }
             if (booleanResults.isConstant(i, rightValNum)) {
-                right = booleanResults.getConstant(i, leftValNum);
+                right = booleanResults.getConstant(i, rightValNum);
             }
         }
 
@@ -396,8 +403,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowThrow(SSAThrowInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // This cannot terminate normally, but there is no normal termination
-        // edge either
+        // This cannot terminate normally, but there is no normal termination edge either
         return mergeAndCreateMap(previousItems, current, cfg);
     }
 }

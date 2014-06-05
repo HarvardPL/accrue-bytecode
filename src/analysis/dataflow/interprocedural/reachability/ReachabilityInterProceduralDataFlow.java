@@ -43,11 +43,11 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
             System.err.println("ANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
 
-        // Assume all native methods can both terminate normally and throw an
-        // exception
+        // If the method is reachable then the exits are reachable
+        // If the method is reachable then the exits are unreachable
         Map<ExitType, ReachabilityAbsVal> results = new HashMap<>();
-        results.put(ExitType.NORMAL, ReachabilityAbsVal.REACHABLE);
-        results.put(ExitType.EXCEPTIONAL, ReachabilityAbsVal.REACHABLE);
+        results.put(ExitType.NORMAL, input);
+        results.put(ExitType.EXCEPTIONAL, input);
         return results;
     }
 

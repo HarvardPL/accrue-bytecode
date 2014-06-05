@@ -104,6 +104,8 @@ public class BooleanAbsVal implements AbstractValue<BooleanAbsVal> {
     }
 
     public static BooleanAbsVal and(BooleanAbsVal left, BooleanAbsVal right) {
+        assert left != null;
+        assert right != null;
         if (left == UNKNOWN || right == UNKNOWN) {
             return UNKNOWN;
         }
@@ -112,6 +114,8 @@ public class BooleanAbsVal implements AbstractValue<BooleanAbsVal> {
     }
 
     public static BooleanAbsVal or(BooleanAbsVal left, BooleanAbsVal right) {
+        assert left != null;
+        assert right != null;
         if (left == UNKNOWN || right == UNKNOWN) {
             return UNKNOWN;
         }
@@ -120,6 +124,8 @@ public class BooleanAbsVal implements AbstractValue<BooleanAbsVal> {
     }
 
     public static BooleanAbsVal xor(BooleanAbsVal left, BooleanAbsVal right) {
+        assert left != null;
+        assert right != null;
         if (left == UNKNOWN || right == UNKNOWN) {
             return UNKNOWN;
         }

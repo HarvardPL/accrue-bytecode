@@ -14,6 +14,7 @@ import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.AnalysisResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -29,13 +30,13 @@ public class BooleanConstantResults implements AnalysisResults {
      */
     private final Map<SSAInstruction, Map<Integer, Boolean>> constants;
     /**
-     * IR used to generate these results
+     * Call graph node used to generate these results
      */
-    private final IR ir;
+    private final CGNode n;
 
-    protected BooleanConstantResults(IR ir) {
+    protected BooleanConstantResults(CGNode n) {
         constants = new HashMap<>();
-        this.ir = ir;
+        this.n = n;
     }
 
     /**
@@ -50,6 +51,10 @@ public class BooleanConstantResults implements AnalysisResults {
      *         <code>i</code>
      */
     public boolean isTrueConstant(SSAInstruction i, int value) {
+        if (n.getIR().getSymbolTable().isOneOrTrue(value)) {
+            return true;
+        }
+
         Map<Integer, Boolean> vals = constants.get(i);
         if (vals == null) {
             return false;
@@ -73,6 +78,10 @@ public class BooleanConstantResults implements AnalysisResults {
      *         <code>i</code>
      */
     public boolean isFalseConstant(SSAInstruction i, int value) {
+        if (n.getIR().getSymbolTable().isZeroOrFalse(value)) {
+            return true;
+        }
+
         Map<Integer, Boolean> vals = constants.get(i);
         if (vals == null) {
             return false;
@@ -95,6 +104,13 @@ public class BooleanConstantResults implements AnalysisResults {
      * @return true if the given value number corresponds to a boolean constant right before executing <code>i</code>
      */
     public boolean isConstant(SSAInstruction i, int value) {
+        if (n.getIR().getSymbolTable().isOneOrTrue(value)) {
+            return true;
+        }
+        if (n.getIR().getSymbolTable().isZeroOrFalse(value)) {
+            return true;
+        }
+
         Map<Integer, Boolean> vals = constants.get(i);
         if (vals == null) {
             return false;
@@ -112,6 +128,14 @@ public class BooleanConstantResults implements AnalysisResults {
      * @return constant boolean value (if any) or null (if non-constant or non-boolean)
      */
     public Boolean getConstant(SSAInstruction i, int value) {
+        if (n.getIR().getSymbolTable().isOneOrTrue(value)) {
+            return true;
+        }
+
+        if (n.getIR().getSymbolTable().isZeroOrFalse(value)) {
+            return false;
+        }
+
         Map<Integer, Boolean> vals = constants.get(i);
         if (vals == null) {
             return null;
@@ -146,7 +170,11 @@ public class BooleanConstantResults implements AnalysisResults {
      *             file troubles
      */
     public void writeResultsToFile() {
-        String fileName = "tests/bool_" + PrettyPrinter.methodString(ir.getMethod()) + ".dot";
+        String cgString = PrettyPrinter.cgNodeString(n);
+        if (cgString.length() > 200) {
+            cgString = cgString.substring(0, 200);
+        }
+        String fileName = "tests/bool_" + cgString + ".dot";
         try (Writer w = new FileWriter(fileName)) {
             writeResults(w);
             System.err.println("DOT written to " + fileName);
@@ -156,9 +184,9 @@ public class BooleanConstantResults implements AnalysisResults {
     }
 
     private void writeResults(Writer writer) throws IOException {
+        final IR ir = n.getIR();
         CFGWriter w = new CFGWriter(ir) {
 
-            @SuppressWarnings("synthetic-access")
             PrettyPrinter pp = new PrettyPrinter(ir);
 
             @SuppressWarnings("synthetic-access")

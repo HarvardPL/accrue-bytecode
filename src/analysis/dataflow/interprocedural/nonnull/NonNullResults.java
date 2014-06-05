@@ -192,7 +192,11 @@ public class NonNullResults implements AnalysisResults {
 
     public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/nonnull_" + PrettyPrinter.cgNodeString(n) + ".dot";
+            String cgString = PrettyPrinter.cgNodeString(n);
+            if (cgString.length() > 200) {
+                cgString = cgString.substring(0, 200);
+            }
+            String fileName = "tests/nonnull_" + cgString + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n, reachable);
                 System.err.println("DOT written to " + fileName);
