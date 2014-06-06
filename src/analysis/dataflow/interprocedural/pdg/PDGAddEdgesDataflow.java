@@ -57,9 +57,9 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Part of an inter-procedural data-flow, this intra-procedural data-flow adds edges to a program dependence graph
  * (PDG). The nodes at basic block and instruction boundaries and for the program points just after possible exceptions
- * are based on the results of another analysis (e.g. {@link ComputePDGNodesDataflow}.
+ * are based on the results of another analysis (e.g. {@link PDGComputeNodesDataflow}.
  */
-public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
+public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Call graph node this data-flow is over
@@ -131,7 +131,7 @@ public class AddPDGEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      *            Map from basic block to context holding the PC node and exception node for the program point just
      *            after an exception (of a particular type) is thrown in that basic block
      */
-    public AddPDGEdgesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc,
+    public PDGAddEdgesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc,
                                     Map<PDGNode, Set<PDGNode>> mergeNodes,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts,

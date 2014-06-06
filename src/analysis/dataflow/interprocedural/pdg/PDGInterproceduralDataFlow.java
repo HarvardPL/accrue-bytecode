@@ -54,7 +54,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING:\n\t" + PrettyPrinter.cgNodeString(n));
         }
-        ComputePDGNodesDataflow df = new ComputePDGNodesDataflow(n, this);
+        PDGComputeNodesDataflow df = new PDGComputeNodesDataflow(n, this);
         df.setOutputLevel(getOutputLevel());
         df.dataflow();
         return UNIT_MAP;

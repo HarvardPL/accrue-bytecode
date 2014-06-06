@@ -55,7 +55,7 @@ import com.ibm.wala.util.graph.impl.GraphInverter;
 /**
  * Data-flow that computes nodes entering and leaving instructions and for exceptional control flow
  */
-public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGContext> {
+public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGContext> {
 
     private final CGNode currentNode;
     private final PDGInterproceduralDataFlow interProc;
@@ -70,7 +70,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     private final Map<ISSABasicBlock, PDGContext> mostRecentConfluence;
     private final PrettyPrinter pp;
 
-    public ComputePDGNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc) {
+    public PDGComputeNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc) {
         super(true);
         this.currentNode = currentNode;
         this.interProc = interProc;
@@ -117,7 +117,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         if (getOutputLevel() >= 4) {
             System.err.println("ADDING EDGES for " + PrettyPrinter.cgNodeString(currentNode));
         }
-        AddPDGEdgesDataflow edgeDF = new AddPDGEdgesDataflow(currentNode, interProc, mergeNodes, trueExceptionContexts,
+        PDGAddEdgesDataflow edgeDF = new PDGAddEdgesDataflow(currentNode, interProc, mergeNodes, trueExceptionContexts,
                                         falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
                                         getInstructionInput());
         edgeDF.setOutputLevel(getOutputLevel());
@@ -234,7 +234,7 @@ public class ComputePDGNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Do not call this method except to merge upon entering a basic block. Use
-     * {@link ComputePDGNodesDataflow#mergeContexts()} instead.
+     * {@link PDGComputeNodesDataflow#mergeContexts()} instead.
      * <p>
      * Facts should be non-empty
      * <p>
