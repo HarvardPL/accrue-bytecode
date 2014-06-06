@@ -151,7 +151,7 @@ public abstract class DataFlow<F> {
                     }
 
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
-                        if (outputLevel >= 1) {
+                        if (outputLevel >= 2) {
                             System.err.print("NO INPUT for BB" + current.getGraphNodeId() + " in "
                                                             + PrettyPrinter.methodString(ir.getMethod())
                                                             + " SKIPPING. Preds: [");

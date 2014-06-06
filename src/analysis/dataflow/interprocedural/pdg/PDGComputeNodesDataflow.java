@@ -107,6 +107,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             flowInput = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode)
                                             .getEntryContext());
         }
+        // call confluence to make sure the results make it into the memo to be restored at post-dominators
+        confluence(flowInput, current);
         return super.flow(flowInput, cfg, current);
     }
 
@@ -183,52 +185,78 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      * @return The PC node of the post dominated node, null if this node is not a post-dominator
      */
     private PDGNode handlePostDominators(ISSABasicBlock bb) {
-
         if (bb.equals(ir.getControlFlowGraph().exit())) {
             // Do not restore for exit block since we don't actually use that PC
             // anywhere
             return null;
         }
 
+        if (getNumPreds(bb, ir.getControlFlowGraph()) <= 1) {
+            // Don't restore if this is not a merge point in the control flow graph, any intermediate nodes are created
+            // for clarity and do not change the precision.
+            return null;
+        }
+
+        // This is a merge point that is not the method exit block
+
         // The iterator from the dominators is immutable and we need to remove
         // elements so we will create a set iterator and use that
-        Set<ISSABasicBlock> postDoms = IteratorSet.make(postDominators.dominators(bb));
-        postDoms.remove(bb);
-        if (postDoms.size() > 1) {
-            Iterator<ISSABasicBlock> iter = postDoms.iterator();
-            while (iter.hasNext()) {
-                // If there is more than one post-dominated node try to find the
-                // one that dominates the others
-                ISSABasicBlock dom = iter.next();
-                Set<ISSABasicBlock> doms = IteratorSet.make(dominators.dominators(dom));
-                doms.retainAll(postDoms);
-                if (!doms.isEmpty()) {
-                    // one of the doms is also in pd, so we can drop this one
-                    iter.remove();
+        Set<ISSABasicBlock> doms = IteratorSet.make(dominators.dominators(bb));
+        // Every node dominates itself, but it doesn't make sense to restore from a PC from the same block
+        doms.remove(bb);
+
+        // Need to find if this bb is a post-dominator of any nodes that dominate it
+        Iterator<ISSABasicBlock> iter = doms.iterator();
+        Set<ISSABasicBlock> postdominated = new LinkedHashSet<>();
+        while (iter.hasNext()) {
+            ISSABasicBlock dom = iter.next();
+            Iterator<ISSABasicBlock> postdoms = postDominators.dominators(dom);
+            while (postdoms.hasNext()) {
+                ISSABasicBlock pd = postdoms.next();
+                if (pd.equals(bb)) {
+                    postdominated.add(dom);
+                    break;
                 }
             }
         }
-        if (postDoms.size() == 1) {
+
+
+        if (postdominated.size() > 1) {
+            Iterator<ISSABasicBlock> iter2 = postdominated.iterator();
+            while (iter2.hasNext()) {
+                // If there is more than one post-dominated node try to find the
+                // one that dominates the others
+                ISSABasicBlock pd = iter2.next();
+                Set<ISSABasicBlock> pddoms = IteratorSet.make(dominators.dominators(pd));
+                pddoms.remove(pd);
+                pddoms.retainAll(postdominated);
+                if (!pddoms.isEmpty()) {
+                    // one of the dominators is also post-dominated, so we can drop this one
+                    iter2.remove();
+                }
+            }
+        }
+        if (postdominated.size() == 1) {
             // there is exactly one basic block, bb, such that the current basic
             // block is the immediate post-dominator of bb and bb is not
             // dominated by another basic block bb2 such that the current basic
             // block is the immediate post-dominator of bb2.
 
             // Restore the PC!
-            ISSABasicBlock postDominated = postDoms.iterator().next();
+            ISSABasicBlock postDominated = postdominated.iterator().next();
 
             assert !postDominated.equals(bb);
             AnalysisRecord<PDGContext> rec = getAnalysisRecord(postDominated);
             if (rec != null) {
                 PDGContext postDomContext = mostRecentConfluence.get(postDominated);
+                assert postDomContext != null;
                 return postDomContext.getPCNode();
             }
             // Have not analyzed the post-dom yet, must be a back edge, will
             // restore after it has been analyzed
             return null;
         }
-        // we can't restore the PC, since there is no unique PC to restore
-        // it to.
+        // we can't restore the PC, since there is no unique PC to restore it to.
         return null;
     }
 
@@ -241,19 +269,18 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      * {@inheritDoc}
      */
     protected PDGContext confluence(Set<PDGContext> facts, ISSABasicBlock bb) {
-        assert !facts.isEmpty() : "Empty facts in confluence entering " + bb.getNumber() + "IN "
+        assert !facts.isEmpty() : "Empty facts in confluence entering BB" + bb.getNumber() + " IN "
                                         + PrettyPrinter.cgNodeString(currentNode);
-
-        PDGContext c;
-        if (facts.size() == 1) {
-            return facts.iterator().next();
-        }
-
         if (confluenceMemo.containsKey(new OrderedPair<>(facts, bb))) {
             return confluenceMemo.get(new OrderedPair<>(facts, bb));
         }
 
-        c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
+        PDGContext c;
+        if (facts.size() == 1) {
+            c = facts.iterator().next();
+        } else {
+            c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
+        }
 
         PDGNode restorePC = handlePostDominators(bb);
         if (restorePC != null) {
@@ -261,6 +288,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             c = new PDGContext(c.getReturnNode(), c.getExceptionNode(), restorePC);
         }
 
+        assert c != null;
         confluenceMemo.put(new OrderedPair<>(facts, bb), c);
         mostRecentConfluence.put(bb, c);
         return c;
@@ -481,7 +509,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         String cond = pp.valString(i.getUse(0)) + " " + PrettyPrinter.conditionalOperatorString(i.getOperator()) + " "
                                         + pp.valString(i.getUse(1));
         PDGNode truePC = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.BOOLEAN_TRUE_PC, currentNode, i);
-        PDGNode falsePC = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.BOOLEAN_FALSE_PC, currentNode, i);
+        PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + cond + ")", PDGNodeType.BOOLEAN_FALSE_PC,
+                                        currentNode, i);
 
         Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
 
