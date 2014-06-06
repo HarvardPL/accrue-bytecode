@@ -16,7 +16,7 @@ public class InferenceImprecisionForInterfaces {
         y = x.foo();
     }
 
-    private static void bar(Foo x) {
+    private static void bar(@SuppressWarnings("unused") Foo x) {
         // TODO Auto-generated method stub
 
     }
@@ -26,12 +26,14 @@ public class InferenceImprecisionForInterfaces {
     }
 
     public static class C1 implements Foo {
+        @Override
         public Foo foo() {
             return this;
         }
     }
 
     public static class C2 implements Foo {
+        @Override
         public Foo foo() {
             return this;
         }

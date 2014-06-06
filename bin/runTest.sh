@@ -60,6 +60,7 @@ while true; do
 done
 
 classpath="$dir/classes"
+classpath="$classpath:$dir/lib/JSON-java.jar"
 classpath="$classpath:$WALA_HOME/com.ibm.wala.core/bin/"
 classpath="$classpath:$WALA_HOME/com.ibm.wala.util/bin/"
 classpath="$classpath:$WALA_HOME/com.ibm.wala.shrike/bin/"

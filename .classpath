@@ -41,5 +41,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.core"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.shrike"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.util"/>
+	<classpathentry kind="lib" path="lib/JSON-java.jar"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>

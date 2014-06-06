@@ -70,6 +70,15 @@ public class AbstractLocation {
         return new AbstractLocation(null, field, false);
     }
 
+    /**
+     * Get the heap context for the receiver. Will be null if this represents a static field.
+     * 
+     * @return Heap context (null for static)
+     */
+    public InstanceKey getReceiverContext() {
+        return receiverContext;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;

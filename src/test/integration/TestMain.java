@@ -192,11 +192,12 @@ public class TestMain {
                 nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
                 preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
                 ProgramDependenceGraph pdg = runPDG(outputLevel, g, r, preciseEx, rvCache);
-                String fullName = "tests/pdg_" + fileName + ".dot";
+                String fullName = "tests/pdg_" + fileName + ".json";
                 FileWriter file = new FileWriter(fullName);
-                pdg.writeDot(file, true, 1);
+                pdg.writeJSON(file);
+                // pdg.writeDot(file, true, 1);
                 file.close();
-                System.err.println("DOT written to " + fullName);
+                System.err.println("JSON written to " + fullName);
                 if (fileLevel >= 1) {
                     pdg.intraProcDotToFile(1);
                 }

@@ -1,9 +1,16 @@
 package analysis.dataflow.interprocedural.pdg.graph.node;
 
+import java.io.Writer;
+
+import org.json.JSONException;
+
+import analysis.dataflow.interprocedural.pdg.serialization.JSONSerializable;
+import analysis.dataflow.interprocedural.pdg.serialization.PDGNodeClassName;
+
 /**
  * Node in a program dependence graph
  */
-public abstract class PDGNode {
+public abstract class PDGNode implements JSONSerializable {
 
     /**
      * human readable description of this node
@@ -78,5 +85,24 @@ public abstract class PDGNode {
     @Override
     public final int hashCode() {
         return System.identityHashCode(this);
+    }
+
+    /**
+     * Class name used for serialization
+     * 
+     * @return name of the concrete subclass
+     */
+    public abstract PDGNodeClassName getClassName();
+
+    /**
+     * String representation of the analysis context, used for serialization
+     * 
+     * @return
+     */
+    public abstract String contextString();
+
+    @Override
+    public final void writeJSON(Writer out) throws JSONException {
+        toJSON().write(out);
     }
 }

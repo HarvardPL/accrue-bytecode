@@ -2,21 +2,32 @@ package analysis.dataflow.interprocedural.pdg.graph;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.io.Writer;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
+import analysis.dataflow.interprocedural.pdg.graph.node.ProcedurePDGNode;
+import analysis.dataflow.interprocedural.pdg.serialization.JSONSerializable;
+import analysis.dataflow.interprocedural.pdg.serialization.JSONUtil;
+
+import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.CGNode;
 
 /**
- * Program Dependence Graph combining control flow and data-flow dependency
- * information between entities
+ * Program Dependence Graph combining control flow and data-flow dependency information between entities
  */
-public class ProgramDependenceGraph implements AnalysisResults {
+public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable {
 
     /**
      * All nodes in the PDG
@@ -134,8 +145,8 @@ public class ProgramDependenceGraph implements AnalysisResults {
      * @param writer
      *            writer to write to
      * @param cluster
-     *            if true then the graph will contain subgraphs for each
-     *            procedure, one for the heap, and other subgraphs for each
+     *            if true then the graph will contain subgraphs for each procedure, one for the heap, and other
+     *            subgraphs for each
      * @param spread
      *            Separation between nodes in inches different
      * @throws IOException
@@ -216,8 +227,8 @@ public class ProgramDependenceGraph implements AnalysisResults {
      * @param writer
      *            writer to write to
      * @param cluster
-     *            if true then the graph will contain subgraphs for each
-     *            procedure, one for the heap, and other subgraphs for each
+     *            if true then the graph will contain subgraphs for each procedure, one for the heap, and other
+     *            subgraphs for each
      * @param spread
      *            Separation between nodes in inches different
      * @throws IOException
@@ -231,8 +242,10 @@ public class ProgramDependenceGraph implements AnalysisResults {
 
         Map<PDGNode, String> nodeToDot = new LinkedHashMap<>();
         Map<String, Integer> dotToCount = new LinkedHashMap<>();
-        Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<>();
-        Map<String, Set<PDGEdge>> analysisUnitToEdges = new LinkedHashMap<>();
+        Map<CGNode, Set<PDGNode>> cgNodeToNodes = new LinkedHashMap<>();
+        Map<CGNode, Set<PDGEdge>> cgNodeToEdges = new LinkedHashMap<>();
+        // Nodes from other CGNodes that touch nodes from the key CGNode
+        Map<CGNode, Map<CGNode, Set<PDGNode>>> auxNodes = new LinkedHashMap<>();
 
         for (PDGNode n : nodes) {
             String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
@@ -246,37 +259,80 @@ public class ProgramDependenceGraph implements AnalysisResults {
                 dotToCount.put(nodeString, count + 1);
             }
 
-            String groupName = n.groupingName();
-            if (groupName != null) {
-                Set<PDGNode> nodesInContext = analysisUnitToNodes.get(groupName);
-                if (nodesInContext == null) {
-                    nodesInContext = new LinkedHashSet<>();
-                    analysisUnitToNodes.put(groupName, nodesInContext);
+            if (n instanceof ProcedurePDGNode) {
+                CGNode cg = ((ProcedurePDGNode) n).getCGNode();
+                Set<PDGNode> nodesForCG = cgNodeToNodes.get(cg);
+                if (nodesForCG == null) {
+                    nodesForCG = new LinkedHashSet<>();
+                    cgNodeToNodes.put(cg, nodesForCG);
                 }
-                nodesInContext.add(n);
+                nodesForCG.add(n);
             }
         }
 
         for (PDGEdge e : edgeSet) {
-            if (e.source.groupingName().equals(e.target.groupingName())) {
-                Set<PDGEdge> es = analysisUnitToEdges.get(e.source.groupingName());
-                if (es == null) {
-                    es = new LinkedHashSet<>();
-                    analysisUnitToEdges.put(e.source.groupingName(), es);
+            if (e.source instanceof ProcedurePDGNode && e.target instanceof ProcedurePDGNode) {
+                CGNode cg1 = ((ProcedurePDGNode) e.source).getCGNode();
+                CGNode cg2 = ((ProcedurePDGNode) e.target).getCGNode();
+                Set<PDGEdge> es1 = cgNodeToEdges.get(cg1);
+                if (es1 == null) {
+                    es1 = new LinkedHashSet<>();
+                    cgNodeToEdges.put(cg1, es1);
                 }
-                es.add(e);
+                es1.add(e);
+
+                Set<PDGEdge> es2 = cgNodeToEdges.get(cg2);
+                if (es2 == null) {
+                    es2 = new LinkedHashSet<>();
+                    cgNodeToEdges.put(cg2, es2);
+                }
+                es2.add(e);
+
+                if (!cg1.equals(cg2)) {
+                    // Add to the aux node set for cg1
+                    Map<CGNode, Set<PDGNode>> auxNodes1 = auxNodes.get(cg1);
+                    if (auxNodes1 == null) {
+                        auxNodes1 = new LinkedHashMap<>();
+                        auxNodes.put(cg1, auxNodes1);
+                    }
+                    Set<PDGNode> setAux1 = auxNodes1.get(cg2);
+                    if (setAux1 == null) {
+                        setAux1 = new LinkedHashSet<>();
+                        auxNodes1.put(cg2, setAux1);
+                    }
+                    setAux1.add(e.target);
+                    
+                    // Add to the aux node set for cg2
+                    Map<CGNode, Set<PDGNode>> auxNodes2 = auxNodes.get(cg2);
+                    if (auxNodes2 == null) {
+                        auxNodes2 = new LinkedHashMap<>();
+                        auxNodes.put(cg2, auxNodes2);
+                    }
+                    Set<PDGNode> setAux2 = auxNodes2.get(cg1);
+                    if (setAux2 == null) {
+                        setAux2 = new LinkedHashSet<>();
+                        auxNodes2.put(cg1, setAux2);
+                    }
+                    setAux2.add(e.source);
+                    
+                }
             }
         }
 
-        for (String c : analysisUnitToNodes.keySet()) {
-            String fileName = "tests/pdg_intra_" + c + ".dot";
+        Set<IMethod> visited = new HashSet<>();
+        for (CGNode cg : cgNodeToNodes.keySet()) {
+            if (visited.contains(cg.getMethod())) {
+                // Different methods should be identical
+                continue;
+            }
+            String fileName = "tests/" + PrettyPrinter.methodString(cg.getMethod()) + ".dot";
             try (Writer writer = new FileWriter(fileName)) {
-                String label = c.replace("\"", "").replace("\\", "\\\\");
+                String label = fileName.replace("\"", "").replace("\\", "\\\\");
                 writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                                                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
                                                 + "edge [fontsize=10]" + ";\n" + "label=\"" + label + "\";\n");
 
-                for (PDGNode n : analysisUnitToNodes.get(c)) {
+                for (PDGNode n : cgNodeToNodes.get(cg)) {
                     String nodeLabel = "";
                     if (n.getNodeType().isPathCondition()) {
                         nodeLabel = "[style=filled, fillcolor=gray95]";
@@ -284,8 +340,27 @@ public class ProgramDependenceGraph implements AnalysisResults {
                     writer.write("\t\t\"" + nodeToDot.get(n) + "\" " + nodeLabel + "\n");
                 }
 
-                if (analysisUnitToEdges.get(c) != null) {
-                    for (PDGEdge edge : analysisUnitToEdges.get(c)) {
+                Map<CGNode, Set<PDGNode>> aux = auxNodes.get(cg);
+                if (aux != null) {
+                    for (CGNode cg2 : aux.keySet()) {
+
+                        String clusterLabel = PrettyPrinter.methodString(cg2.getMethod()).replace("\"", "")
+                                                        .replace("\\", "\\\\");
+                        writer.write("\tsubgraph \"cluster_" + clusterLabel + "\"{\n");
+                        writer.write("\tlabel=\"" + clusterLabel + "\";\n");
+                        for (PDGNode n : aux.get(cg2)) {
+                            String nodeLabel = "";
+                            if (n.getNodeType().isPathCondition()) {
+                                nodeLabel = "[style=filled, fillcolor=gray95]";
+                            }
+                            writer.write("\t\t\"" + nodeToDot.get(n) + "\" " + nodeLabel + "\n");
+                        }
+                        writer.write("\t}\n"); // subgraph close
+                    }
+                }
+
+                if (cgNodeToEdges.get(cg) != null) {
+                    for (PDGEdge edge : cgNodeToEdges.get(cg)) {
                         PDGEdgeType type = edge.type;
                         String edgeLabel = "[label=\"" + type.shortName()
                                                         + (edge.label != null ? " " + edge.label : "") + "\"]";
@@ -311,7 +386,7 @@ public class ProgramDependenceGraph implements AnalysisResults {
     /**
      * Directed edge in the PDG
      */
-    private static class PDGEdge {
+    private static class PDGEdge implements JSONSerializable {
 
         /**
          * source of the edge
@@ -326,8 +401,8 @@ public class ProgramDependenceGraph implements AnalysisResults {
          */
         final PDGEdgeType type;
         /**
-         * label of the call site one of these nodes is a summary for, null if
-         * this is not an edge to/from a summary node
+         * label of the call site one of these nodes is a summary for, null if this is not an edge to/from a summary
+         * node
          */
         final CallSiteEdgeLabel label;
 
@@ -394,5 +469,75 @@ public class ProgramDependenceGraph implements AnalysisResults {
                 return false;
             return true;
         }
+
+        @Override
+        public JSONObject toJSON() {
+            JSONObject json = new JSONObject();
+            try {
+                json.put("source", JSONUtil.getNodeID(source));
+                json.put("dest", JSONUtil.getNodeID(target));
+                json.put("type", type.toString());
+                JSONUtil.addJSON(json, label);
+            } catch (JSONException e) {
+                throw new RuntimeException("Serialization error for PDGEdge " + this + ", message: " + e.getMessage());
+            }
+            return json;
+        }
+
+        @Override
+        public void writeJSON(Writer out) throws JSONException {
+            toJSON().write(out);
+        }
     }
+
+    @Override
+    public JSONObject toJSON() {
+        try (StringWriter sw = new StringWriter()) {
+            writeJSON(sw);
+            JSONObject json = new JSONObject(sw.toString());
+            return json;
+        } catch (JSONException | IOException e) {
+            System.err.println("Cannot write JSON: " + e);
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @Override
+    public void writeJSON(Writer out) throws JSONException {
+        try {
+            out.write('{');
+            out.write(" nodes:");
+            out.write("[");
+            boolean first = true;
+            for (PDGNode n : this.nodes) {
+                if (first) {
+                    first = false;
+                } else {
+                    out.write(", ");
+                }
+                n.writeJSON(out);
+            }
+
+            out.write("]");
+            out.write(",\n  edges:");
+            out.write("[");
+            first = true;
+            for (PDGEdgeType t : this.edges.keySet()) {
+                for (PDGEdge e : edges.get(t)) {
+                    if (first) {
+                        first = false;
+                    } else {
+                        out.write(", ");
+                    }
+                    e.writeJSON(out);
+                }
+            }
+            out.write("]");
+            out.write("\n}");
+        } catch (IOException e) {
+            throw new JSONException(e);
+        }
+    }
+
 }
