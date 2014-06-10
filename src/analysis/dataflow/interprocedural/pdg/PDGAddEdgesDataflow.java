@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural.pdg;
 
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -307,15 +308,41 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Unit flowPhi(SSAPhiInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        // Need to create an "assignment" into each argument to record the PC, this may have already happened in a
+        // branch, but often assignments in different branches will be translated away into a single phi statement.
         PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
-        Set<PDGNode> choices = new LinkedHashSet<>();
+
+        Set<PDGNode> temporaryAssignments = new LinkedHashSet<>();
+
+        Iterator<ISSABasicBlock> preds = cfg.getPredNodes(current);
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            choices.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp));
+            ISSABasicBlock pred = preds.next();
+            Map<ISSABasicBlock, PDGContext> predMap = outputFacts.get(pred);
+            if (predMap == null) {
+                assert isUnreachable(pred, current) : "No output at all for pred BB" + pred.getNumber() + " in "
+                                                + PrettyPrinter.cgNodeString(currentNode);
+                continue;
+            }
+
+            PDGContext predContext = predMap.get(current);
+            if (predContext == null) {
+                assert isUnreachable(pred, current) : "No output from pred BB" + pred.getNumber() + " to BB"
+                                                + current.getNumber() + " in "
+                                                + PrettyPrinter.cgNodeString(currentNode);
+                continue;
+            }
+
+            PDGNode v_j = PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp);
+            PDGNode assignment_j = PDGNodeFactory.findOrCreateOther("temp = " + v_j, PDGNodeType.OTHER_EXPRESSION,
+                                            currentNode, new OrderedPair<>(i.getDef(), j));
+            temporaryAssignments.add(assignment_j);
+            addEdge(v_j, assignment_j, PDGEdgeType.COPY);
+            addEdge(predContext.getPCNode(), assignment_j, PDGEdgeType.IMPLICIT);
         }
 
         PDGContext in = instructionInput.get(i);
 
-        addEdgesForMerge(choices, result);
+        addEdgesForMerge(temporaryAssignments, result);
         addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
         return Unit.VALUE;

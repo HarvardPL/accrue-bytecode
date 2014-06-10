@@ -764,7 +764,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             PDGNode truePC = PDGNodeFactory.findOrCreateOther(branchDescription, PDGNodeType.BOOLEAN_TRUE_PC,
                                             currentNode, i);
 
-            PDGNode falsePC = PDGNodeFactory.findOrCreateOther(branchDescription, PDGNodeType.BOOLEAN_FALSE_PC,
+            PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + branchDescription + ")",
+                                            PDGNodeType.BOOLEAN_FALSE_PC,
                                             currentNode, i);
             PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
 

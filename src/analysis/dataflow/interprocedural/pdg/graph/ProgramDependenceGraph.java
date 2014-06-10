@@ -110,7 +110,8 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
     /**
      * Print some diagnostic information about the PDG
      */
-    public void printCounts() {
+    public void printDetailedCounts() {
+        printSimpleCounts();
         String result = "";
         for (PDGEdgeType t : edges.keySet()) {
             result += edges.get(t).size() + " edges of type " + t + "\n";
@@ -130,9 +131,9 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
     }
 
     /**
-     * Print the stats for a graph
+     * Print the number of nodes and edges in the PDG
      */
-    public void printStats() {
+    public void printSimpleCounts() {
         String result = "";
         result += numNodes() + " nodes\n";
         result += numEdges() + " edges\n";
@@ -325,7 +326,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                 // Different methods should be identical
                 continue;
             }
-            String fileName = "tests/" + PrettyPrinter.methodString(cg.getMethod()) + ".dot";
+            String fileName = "tests/pdg_" + PrettyPrinter.methodString(cg.getMethod()) + ".dot";
             try (Writer writer = new FileWriter(fileName)) {
                 String label = fileName.replace("\"", "").replace("\\", "\\\\");
                 writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"

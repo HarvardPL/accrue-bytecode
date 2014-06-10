@@ -192,6 +192,7 @@ public class TestMain {
                 nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
                 preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
                 ProgramDependenceGraph pdg = runPDG(outputLevel, g, r, preciseEx, rvCache);
+                pdg.printDetailedCounts();
                 String fullName = "tests/pdg_" + fileName + ".json";
                 FileWriter file = new FileWriter(fullName);
                 pdg.writeJSON(file);
@@ -199,6 +200,7 @@ public class TestMain {
                 file.close();
                 System.err.println("JSON written to " + fullName);
                 if (fileLevel >= 1) {
+                    printAllCFG(g);
                     pdg.intraProcDotToFile(1);
                 }
 
@@ -206,7 +208,6 @@ public class TestMain {
                     r.writeAllToFiles();
                     nonNull.writeAllToFiles(r);
                     preciseEx.writeAllToFiles(r);
-                    printAllCFG(g);
                 }
                 break;
             default:
