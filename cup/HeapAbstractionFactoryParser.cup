@@ -1,0 +1,111 @@
+//From root:
+//java -jar lib/java-cup-11a.jar -destdir src/analysis/pointer/analyses/parser -parser HeapAbstractionFactoryParser -interface cup/HeapAbstractionFactoryParser.cup 
+package analysis.pointer.analyses.parser;
+
+import java.util.*;
+import java.io.*;
+import java_cup.runtime.Symbol;
+import util.OrderedPair;
+
+parser code {:  
+    HeapAbstractionFactoryLexer lexer;
+    List<OrderedPair<String, List<Integer>>> classesAndArgs = new LinkedList<>();
+        
+   public HeapAbstractionFactoryParser(InputStream str) {
+        super(new HeapAbstractionFactoryLexer(str));
+        lexer = (HeapAbstractionFactoryLexer)getScanner();
+    }
+    
+    public HeapAbstractionFactoryParser(Reader r) {
+        super( new HeapAbstractionFactoryLexer(r) );
+        lexer = (HeapAbstractionFactoryLexer)getScanner();
+    }
+    
+    public static List<OrderedPair<String, List<Integer>>> parse(String hafString) throws Exception {
+        StringReader reader = new StringReader(hafString);
+        HeapAbstractionFactoryParser p = new HeapAbstractionFactoryParser(reader);
+        return (List<OrderedPair<String, List<Integer>>>) p.parse().value;  
+    }
+    
+    public void report_error(String message) {
+        throw new RuntimeException("HeapAbstractionFactory parser error: " + message);
+    }
+    
+:};
+        
+
+/* short names */
+terminal                TYPE, SCS, CS, FULL;
+
+/* Separators */
+terminal                DOT, COMMA, LPAR, RPAR, LBRACK, RBRACK;
+
+terminal String         INT_LITERAL;
+terminal String         IDENTIFIER;
+
+/* Class and arguments */
+non terminal OrderedPair<String, List<Integer>>              class;
+non terminal List<OrderedPair<String, List<Integer>>>        classes;
+non terminal String                                          className;
+non terminal List<Integer>                                   args;
+non terminal Integer                                         arg;
+non terminal String                                          name;
+non terminal String                                          simple_name;
+non terminal String                                          qualified_name;
+
+/* List of class names */
+classes ::= class:c 
+        {: List<OrderedPair<String, List<Integer>>> classList = new ArrayList<>();
+           classList.add(c);
+           RESULT = classList; :}
+        | classes:cs COMMA class:c
+        {: cs.add(c); 
+           RESULT = cs; :}
+        | LBRACK classes:cs RBRACK 
+        {: RESULT = cs; :}
+        ;
+        
+class ::= className:c
+        {: RESULT = new OrderedPair<> (c, Collections.<Integer> emptyList()); :}
+        | className:c LPAR args:as RPAR
+        {: RESULT = new OrderedPair<> (c, as); :}
+        ;
+        
+className ::= TYPE
+        {: RESULT = "analysis.pointer.analyses.TypeSensitive"; :}
+        | SCS
+        {: RESULT = "analysis.pointer.analyses.StaticCallSiteSensitive"; :}
+        | CS
+        {: RESULT = "analysis.pointer.analyses.CallSiteSensitive"; :}
+        | FULL
+        {: RESULT = "analysis.pointer.analyses.FullObjSensitive"; :}
+        | name:s
+        {: RESULT = s; :}
+        ;
+     
+name    ::=     simple_name:sn
+        {: RESULT = sn; :}
+        |       qualified_name:qn
+        {: RESULT = qn; :}
+        ;
+simple_name ::= IDENTIFIER:i
+        {: RESULT = i; :}
+        ;
+qualified_name ::=
+        name:n DOT IDENTIFIER:i
+        {: RESULT = n + "." + i; :}
+        ;
+                
+args ::= arg:a 
+        {: List<Integer> argList = new ArrayList<>();
+           argList.add(a);
+           RESULT = argList; :}
+        | args:as COMMA arg:a
+        {: as.add(a); 
+           RESULT = as; :}
+        ;
+        
+arg ::= INT_LITERAL:i 
+        {: RESULT = Integer.valueOf(i); :}
+        ;
+         

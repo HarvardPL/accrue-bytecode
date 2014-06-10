@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="test"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
 	<classpathentry kind="lib" path="/Applications/eclipse/plugins/org.junit_4.11.0.v201303080030/junit.jar" sourcepath="/Applications/eclipse/plugins/org.junit.source_4.11.0.v201303080030.jar">
 		<attributes>
@@ -42,5 +43,8 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.shrike"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/com.ibm.wala.util"/>
 	<classpathentry kind="lib" path="lib/JSON-java.jar"/>
+	<classpathentry kind="lib" path="lib/jcommander-1.35.jar" sourcepath="lib/jcommander-1.35-src.jar"/>
+	<classpathentry kind="lib" path="lib/java-cup-11a.jar"/>
+	<classpathentry kind="lib" path="lib/JFlex.jar"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>

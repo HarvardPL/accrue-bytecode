@@ -3,13 +3,11 @@
 vmargs="-Xmx16G -Xms16G"
 dir=`dirname "$0"`/..
 
-classpath="$dir/classes"
-
 if [ -z "$WALA_HOME" ]; then
   WALA_HOME=$dir/../WALA
 fi
 if [ ! -d "$WALA_HOME" ]; then
-  echo "WALA not found try defining the WALA_HOME environment variable to the directory containing all the WALA projects."
+  echo "WALA not found: try defining the WALA_HOME environment variable to the directory containing all the WALA projects."
 fi
 
 run() {
@@ -32,7 +30,7 @@ clean() {
 	rm "$file"
     done
     cleaned=true
-    echo removed files from tests directory
+    echo removed *.dot files from tests directory
 }
 
 while true; do
