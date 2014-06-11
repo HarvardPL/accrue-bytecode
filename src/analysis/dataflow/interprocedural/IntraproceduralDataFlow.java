@@ -48,8 +48,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
      */
     private F input;
     /**
-     * Data-flow facts upon exit, one for normal termination and one for
-     * exception
+     * Data-flow facts upon exit, one for normal termination and one for exception
      */
     private Map<ExitType, F> output;
 
@@ -71,10 +70,8 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
     }
 
     /**
-     * Kick off an intra-procedural data-flow analysis for the current call
-     * graph node with the given initial data-flow fact, this will use the
-     * {@link InterproceduralDataFlow} to get results for calls to other call
-     * graph nodes.
+     * Kick off an intra-procedural data-flow analysis for the current call graph node with the given initial data-flow
+     * fact, this will use the {@link InterproceduralDataFlow} to get results for calls to other call graph nodes.
      * 
      * @param initial
      *            initial data-flow fact
@@ -111,6 +108,24 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
      * @return Data-flow fact for each successor after processing the call
      */
     protected abstract Map<ISSABasicBlock, F> call(SSAInvokeInstruction i, Set<F> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
+
+    /**
+     * Guess the results of running the analysis when there are not targets of a particular call
+     * 
+     * @param input
+     *            data-flow fact upon entering the call
+     * @param i
+     *            invocation instruction in the caller
+     * @param ir
+     *            caller IR
+     * @param cfg
+     *            caller control flow graph
+     * @param bb
+     *            caller basic block containing the call
+     * @return Data-flow fact for each successor after processing the call
+     */
+    protected abstract Map<ISSABasicBlock, F> guessResultsForMissingReceiver(SSAInvokeInstruction i, F input,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
 
     /**
@@ -182,8 +197,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
     }
 
     /**
-     * Merge given facts to create a new data-flow fact and map each successor
-     * node number to that fact.
+     * Merge given facts to create a new data-flow fact and map each successor node number to that fact.
      * 
      * @param facts
      *            facts to merge

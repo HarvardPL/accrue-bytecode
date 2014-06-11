@@ -45,6 +45,7 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.ssa.SymbolTable;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -60,18 +61,19 @@ import com.ibm.wala.types.TypeReference;
  */
 public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarContext<BooleanAbsVal>> {
 
-    private final IR ir;
     private final TypeRepository types;
     private final CGNode currentNode;
     private final PointsToGraph ptg;
     private final ReferenceVariableCache rvCache;
     private final BooleanConstantResults results;
+    private final SymbolTable st;
 
     public BooleanConstantDataFlow(CGNode currentNode, PointsToGraph ptg, ReferenceVariableCache rvCache) {
         super(true);
         this.currentNode = currentNode;
-        ir = currentNode.getIR();
+        IR ir = currentNode.getIR();
         types = new TypeRepository(ir);
+        st = ir.getSymbolTable();
         this.ptg = ptg;
         this.rvCache = rvCache;
         this.results = new BooleanConstantResults(currentNode);
@@ -98,7 +100,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
      * @return results of the analysis
      */
     public BooleanConstantResults run() {
-        this.dataflow(ir);
+        this.dataflow(currentNode.getIR());
         return results;
     }
 
@@ -112,16 +114,16 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
             IOperator op = i.getOperator();
             switch (op.toString()) {
             case "and":
-                BooleanAbsVal left = in.getLocal(i.getUse(0));
-                BooleanAbsVal right = in.getLocal(i.getUse(1));
+                BooleanAbsVal left = getLocal(i.getUse(0), in);
+                BooleanAbsVal right = getLocal(i.getUse(1), in);
                 return in.setLocal(i.getDef(), BooleanAbsVal.and(left, right));
             case "or":
-                left = in.getLocal(i.getUse(0));
-                right = in.getLocal(i.getUse(1));
+                left = getLocal(i.getUse(0), in);
+                right = getLocal(i.getUse(1), in);
                 return in.setLocal(i.getDef(), BooleanAbsVal.or(left, right));
             case "xor":
-                left = in.getLocal(i.getUse(0));
-                right = in.getLocal(i.getUse(1));
+                left = getLocal(i.getUse(0), in);
+                right = getLocal(i.getUse(1), in);
                 return in.setLocal(i.getDef(), BooleanAbsVal.xor(left, right));
             default:
                 // Non-boolean binary operation
@@ -143,10 +145,10 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
         if (left == right) {
             // Same value on both sides of the comparison
             result = BooleanAbsVal.TRUE;
-        } else if (ir.getSymbolTable().isConstant(left) && ir.getSymbolTable().isConstant(right)) {
+        } else if (st.isConstant(left) && st.isConstant(right)) {
             // Both sides of the comparison are constant
-            Object leftC = ir.getSymbolTable().getConstantValue(left);
-            Object rightC = ir.getSymbolTable().getConstantValue(right);
+            Object leftC = st.getConstantValue(left);
+            Object rightC = st.getConstantValue(right);
             if (leftC.equals(rightC)) {
                 result = BooleanAbsVal.TRUE;
             } else {
@@ -188,7 +190,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
         IClass checkedClass = AnalysisUtil.getClassHierarchy().lookupClass(i.getCheckedType());
 
         VarContext<BooleanAbsVal> in = confluence(previousItems);
-        if (ir.getSymbolTable().isNullConstant(i.getRef())) {
+        if (st.isNullConstant(i.getRef())) {
             // null is an instance of anything
             return in.setLocal(i.getDef(), BooleanAbsVal.TRUE);
         }
@@ -231,9 +233,9 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
         if (types.getType(i.getDef()).equals(TypeReference.Boolean)) {
             for (int j = 0; j < i.getNumberOfUses(); j++) {
                 if (result == null) {
-                    result = in.getLocal(i.getUse(j));
+                    result = getLocal(i.getUse(j), in);
                 } else {
-                    result = result.join(in.getLocal(i.getUse(j)));
+                    result = result.join(getLocal(i.getUse(j), in));
                 }
             }
             return in.setLocal(i.getDef(), result);
@@ -302,7 +304,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
             int left = i.getUse(0);
             if (types.getType(left).equals(TypeReference.Boolean)) {
                 int right = i.getUse(1);
-                if (ir.getSymbolTable().isZeroOrFalse(right)) {
+                if (st.isZeroOrFalse(right)) {
                     // This is a boolean compared with a constant (it must be zero which corresponds to false)
                     VarContext<BooleanAbsVal> in = confluence(previousItems);
                     in = in.setLocal(right, BooleanAbsVal.FALSE);
@@ -475,10 +477,10 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
                                             + PrettyPrinter.cgNodeString(currentNode);
             VarContext<BooleanAbsVal> input = confluence(getAnalysisRecord(i).getInput());
             for (Integer val : input.getLocals()) {
-                if (input.getLocal(val) == BooleanAbsVal.TRUE) {
+                if (getLocal(val, input) == BooleanAbsVal.TRUE) {
                     results.recordConstant(i, val, true);
                 }
-                if (input.getLocal(val) == BooleanAbsVal.FALSE) {
+                if (getLocal(val, input) == BooleanAbsVal.FALSE) {
                     results.recordConstant(i, val, false);
                 }
             }
@@ -525,5 +527,31 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
     @Override
     protected void post(IR ir) {
         // Intentionally left blank
+    }
+
+    /**
+     * Get the abstract value for the given local variable
+     * 
+     * @param i
+     *            local variable value number
+     * @param c
+     *            context to look up values in
+     * @return abstract value for the local variable
+     */
+    private BooleanAbsVal getLocal(int i, VarContext<BooleanAbsVal> c) {
+        BooleanAbsVal val = c.getLocal(i);
+        if (val != null) {
+            return val;
+        }
+        if (st.isOneOrTrue(i)) {
+            // Literal true
+            return BooleanAbsVal.TRUE;
+        }
+        if (st.isZeroOrFalse(i)) {
+            // Literal false
+            return BooleanAbsVal.FALSE;
+        }
+        // Variable is not assigned yet be conservative
+        return BooleanAbsVal.UNKNOWN;
     }
 }

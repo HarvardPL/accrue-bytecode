@@ -43,6 +43,7 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.ssa.SymbolTable;
 import com.ibm.wala.ssa.Value;
 import com.ibm.wala.types.TypeReference;
 
@@ -55,6 +56,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
      * Type inference results
      */
     private final TypeRepository types;
+    private final SymbolTable st;
 
     /**
      * Intra-procedural part of an inter-procedural non-null analysis
@@ -67,6 +69,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc) {
         super(currentNode, interProc);
         this.types = new TypeRepository(currentNode.getIR());
+        this.st = currentNode.getIR().getSymbolTable();
     }
 
     @Override
@@ -94,7 +97,13 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         NonNullAbsVal calleeReturn = null;
         boolean canThrowException = false;
         boolean canTerminateNormally = false;
-        for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
+        Set<CGNode> targets = cg.getPossibleTargets(currentNode, i.getCallSite());
+
+        if (targets.isEmpty()) {
+            return guessResultsForMissingReceiver(i, nonNull, cfg, bb);
+        }
+
+        for (CGNode callee : targets) {
             Map<ExitType, VarContext<NonNullAbsVal>> out;
             int[] formals;
             VarContext<NonNullAbsVal> initial = nonNull.clearLocalsAndExits();
@@ -109,7 +118,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             }
 
             for (int j = 0; j < numParams; j++) {
-                NonNullAbsVal actualVal = nonNull.getLocal(actuals.get(j));
+                NonNullAbsVal actualVal = getLocal(actuals.get(j), nonNull);
                 if (actualVal == null) {
                     if (types.getType(actuals.get(j)).isPrimitiveType()) {
                         actualVal = NonNullAbsVal.NON_NULL;
@@ -140,7 +149,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
                 for (int j = 0; j < formals.length; j++) {
-                    NonNullAbsVal newVal = normal.getLocal(formals[j]).join(newNormalActualValues.get(j));
+                    NonNullAbsVal newVal = getLocal(formals[j], normal).join(newNormalActualValues.get(j));
                     newNormalActualValues.set(j, newVal);
                 }
             }
@@ -151,8 +160,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 // If the method can throw an exception record any changes to
                 // the arguments
                 for (int j = 0; j < formals.length; j++) {
-                    assert exception.getLocal(formals[j]) != null;
-                    NonNullAbsVal newVal = exception.getLocal(formals[j]).join(newExceptionActualValues.get(j));
+                    assert getLocal(formals[j], exception) != null;
+                    NonNullAbsVal newVal = getLocal(formals[j], exception).join(newExceptionActualValues.get(j));
                     newExceptionActualValues.set(j, newVal);
                 }
             }
@@ -200,6 +209,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                         // TODO only join contexts if the callee could throw one
                         ret.put(exSucc, npe.join(callerExContext));
                     } else {
+                        assert nonNull != null : "Null context when an NPE cannot be thrown.";
                         ret.put(exSucc, nonNull.join(callerExContext));
                     }
                 }
@@ -207,14 +217,29 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         } else {
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
-                    if (npeSuccs != null && npeSuccs.contains(exSucc)) {
-                        ret.put(exSucc, npe);
-                    }
+                    ret.put(exSucc, npe);
                 }
             }
         }
 
         return ret;
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> guessResultsForMissingReceiver(SSAInvokeInstruction i,
+                                    VarContext<NonNullAbsVal> input,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
+        if (outputLevel >= 0) {
+            System.err.println("No calls to " + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
+                                            + PrettyPrinter.cgNodeString(currentNode));
+        }
+        // TODO This is unsound as some of the formals could be set to null inside the missing procedure
+        VarContext<NonNullAbsVal> normal = input;
+        if (!i.getDeclaredTarget().getReturnType().isPrimitiveType()) {
+            normal = normal.setLocal(i.getReturnValue(0), NonNullAbsVal.MAY_BE_NULL);
+        }
+        VarContext<NonNullAbsVal> exception = input.setExceptionValue(NonNullAbsVal.NON_NULL);
+        return factsToMapWithExceptions(normal, exception, bb, cfg);
     }
 
     /**
@@ -254,7 +279,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), justProcessed);
             Set<Integer> nonNulls = new HashSet<>();
             for (Integer j : input.getLocals()) {
-                if (input.getLocal(j).isNonnull()) {
+                if (getLocal(j, input).isNonnull()) {
                     nonNulls.add(j);
                 }
             }
@@ -328,7 +353,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         NonNullAbsVal val = NonNullAbsVal.NON_NULL;
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            val = val.join(in.getLocal(i.getUse(j)));
+            val = val.join(getLocal(i.getUse(j), in));
         }
 
         return in.setLocal(i.getDef(), val);
@@ -343,7 +368,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             return in;
         }
         VarContext<NonNullAbsVal> out = in.setLocation(AbstractLocation.createStatic(i.getDeclaredField()),
-                                        in.getLocal(i.getVal()));
+                                        getLocal(i.getVal(), in));
         return out;
     }
 
@@ -422,7 +447,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
 
-        NonNullAbsVal val = in.getLocal(i.getValue());
+        NonNullAbsVal val = getLocal(i.getValue(), in);
         for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
             normal = normal.setLocation(loc, val);
         }
@@ -476,7 +501,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // we know the casted object was not null
         exception = exception.setLocal(i.getUse(0), NonNullAbsVal.NON_NULL);
 
-        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(), in.getLocal(i.getUse(0)));
+        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(), getLocal(i.getUse(0), in));
 
         return factsToMapWithExceptions(out, exception, current, cfg);
     }
@@ -543,6 +568,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
                                         currentNode)) {
             newValue = VarContext.safeJoinValues(newValue, in.getLocation(loc));
+        }
+        if (newValue == null) {
+            // There were no locations found be conservative
+            newValue = NonNullAbsVal.MAY_BE_NULL;
         }
 
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
@@ -640,7 +669,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
-        NonNullAbsVal inVal = in.getLocal(i.getVal());
+        NonNullAbsVal inVal = getLocal(i.getVal(), in);
         for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
                                         currentNode)) {
             normal = normal.setLocation(loc, inVal);
@@ -664,10 +693,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             } else if (i.returnsPrimitiveType()) {
                 out = in.setReturnResult(NonNullAbsVal.NON_NULL);
             } else {
-                NonNullAbsVal res = in.getLocal(i.getResult());
+                NonNullAbsVal res = getLocal(i.getResult(), in);
                 assert res != null : "null NonNullAbsval for local " + i + " in "
                                                 + PrettyPrinter.cgNodeString(currentNode);
-                out = in.setReturnResult(in.getLocal(i.getResult()));
+                out = in.setReturnResult(getLocal(i.getResult(), in));
             }
         }
 
@@ -701,5 +730,27 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
         return super.isUnreachable(source, target);
+    }
+
+    /**
+     * Get the abstract value for a local variable
+     * 
+     * @param i
+     *            value number for the local
+     * @param c
+     *            context to look up the value in
+     * @return abstract value for the local
+     */
+    private NonNullAbsVal getLocal(int i, VarContext<NonNullAbsVal> c) {
+        NonNullAbsVal val = c.getLocal(i);
+        if (val != null) {
+            return val;
+        }
+        if (st.isStringConstant(i)) {
+            // Literal string
+            return NonNullAbsVal.NON_NULL;
+        }
+        // Variable is not assigned yet be conservative
+        return NonNullAbsVal.MAY_BE_NULL;
     }
 }

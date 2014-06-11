@@ -567,7 +567,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver, n));
         if (pointsTo.isEmpty()) {
-            throw new RuntimeException("Field target doesn't point to anything. "
+            System.err.println("Field target doesn't point to anything. v" + receiver + " in "
+                                            + PrettyPrinter.cgNodeString(n) + " accessing field: "
                                             + PrettyPrinter.typeString(field.getDeclaringClass()) + "."
                                             + field.getName());
         }

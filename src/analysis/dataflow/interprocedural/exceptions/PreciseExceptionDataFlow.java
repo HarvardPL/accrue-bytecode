@@ -1,6 +1,7 @@
 package analysis.dataflow.interprocedural.exceptions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
@@ -19,9 +21,11 @@ import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
@@ -80,8 +84,13 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
 
+        Set<CGNode> targets = cg.getPossibleTargets(currentNode, i.getCallSite());
+        if (targets.isEmpty()) {
+            return guessResultsForMissingReceiver(i, new PreciseExceptionAbsVal(throwables), cfg, bb);
+        }
+
         PreciseExceptionAbsVal exceptionResult = null;
-        for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
+        for (CGNode callee : targets) {
             Map<ExitType, PreciseExceptionAbsVal> out = interProc.getResults(currentNode, callee,
                                             PreciseExceptionAbsVal.EMPTY);
 
@@ -104,6 +113,33 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
         if (exceptionResult != null) {
             throwables.addAll(exceptionResult.getThrowables());
+        }
+        return computeResults(throwables, cfg, bb);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, PreciseExceptionAbsVal> guessResultsForMissingReceiver(SSAInvokeInstruction i,
+                                    PreciseExceptionAbsVal input, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock bb) {
+        if (outputLevel >= 1) {
+            System.err.println("No calls to " + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
+                                            + PrettyPrinter.cgNodeString(currentNode));
+        }
+        // Assume this can throw RuntimeException and any declared exceptions
+        // TODO Unsound since catch blocks for sub-types will not be reachable along edges that throw the super-type
+        // Also unsound since we have to try to resolve as best we can, but might miss some declared exceptions
+        Set<TypeReference> throwables = new LinkedHashSet<>(input.getThrowables());
+        throwables.add(TypeReference.JavaLangRuntimeException);
+
+        IMethod resolved = AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget());
+        if (resolved == null) {
+            System.err.println("Could not resolve method with missing receiver. Precise exceptions will be unsound.");
+        } else {
+            try {
+                throwables.addAll(Arrays.asList(resolved.getDeclaredExceptions()));
+            } catch (UnsupportedOperationException | InvalidClassFileException e) {
+                System.err.println("Could not resolve method with missing receiver. Precise exceptions will be unsound.");
+            }
         }
         return computeResults(throwables, cfg, bb);
     }

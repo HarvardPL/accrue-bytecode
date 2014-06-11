@@ -61,7 +61,6 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> call(SSAInvokeInstruction i, Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-
         ReachabilityAbsVal in = confluence(inItems, bb);
         if (in == ReachabilityAbsVal.UNREACHABLE) {
             // This call is unreachable so no need to analyze the callee
@@ -73,10 +72,13 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         // Start out assuming successors are unreachable, if one target can exit then it will change in the loop below
         ReachabilityAbsVal normal = ReachabilityAbsVal.UNREACHABLE;
         ReachabilityAbsVal exceptional = ReachabilityAbsVal.UNREACHABLE;
-        assert !cg.getPossibleTargets(currentNode, i.getCallSite()).isEmpty() : "No calls to "
-                                        + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
-                                        + PrettyPrinter.cgNodeString(currentNode);
-        for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
+
+        Set<CGNode> targets = cg.getPossibleTargets(currentNode, i.getCallSite());
+        if (targets.isEmpty()) {
+            return guessResultsForMissingReceiver(i, in, cfg, bb);
+        }
+
+        for (CGNode callee : targets) {
             Map<ExitType, ReachabilityAbsVal> out = interProc.getResults(currentNode, callee, in);
             normal = normal.join(out.get(ExitType.NORMAL));
             exceptional = exceptional.join(out.get(ExitType.EXCEPTIONAL));
@@ -84,6 +86,17 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
         // If non-static assume exceptional successors are as reachable as the in item (reachable at least via NPE)
         return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : in.join(exceptional), bb, cfg);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> guessResultsForMissingReceiver(SSAInvokeInstruction i,
+                                    ReachabilityAbsVal input, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock bb) {
+        if (outputLevel >= 1) {
+            System.err.println("No calls to " + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
+                                            + PrettyPrinter.cgNodeString(currentNode));
+        }
+        return factToMap(input, bb, cfg);
     }
 
     @Override
