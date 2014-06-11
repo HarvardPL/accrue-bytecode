@@ -1,5 +1,5 @@
 //From root:
-//java -jar lib/jflex.jar -d src/analysis/pointer/analyses/parser cup/HeapAbstractionFactoryLexer.jflex 
+//java -jar lib/jflex.jar -d generated-sources/analysis/pointer/analyses/parser cup/HeapAbstractionFactoryLexer.jflex 
 package analysis.pointer.analyses.parser;
 
 import java_cup.runtime.Symbol;

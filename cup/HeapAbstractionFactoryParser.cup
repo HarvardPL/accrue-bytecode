@@ -1,5 +1,5 @@
 //From root:
-//java -jar lib/java-cup-11a.jar -destdir src/analysis/pointer/analyses/parser -parser HeapAbstractionFactoryParser -interface cup/HeapAbstractionFactoryParser.cup 
+//java -jar lib/java-cup-11a.jar -destdir generated-sources/analysis/pointer/analyses/parser -parser HeapAbstractionFactoryParser -interface cup/HeapAbstractionFactoryParser.cup 
 package analysis.pointer.analyses.parser;
 
 import java.util.*;
