@@ -271,7 +271,7 @@ public final class AccrueAnalysisOptions {
     protected static String analysisNameUsage() {
         StringBuilder sb = new StringBuilder();
         sb.append("Supported analyses:\n");
-        sb.append("\tpointsto - runs the points-to analysis test, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
+        sb.append("\tpointsto - runs the points-to analysis, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
         sb.append("\tmaincfg - prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
         sb.append("\tnonnull - prints the results of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
         sb.append("\tprecise-ex - prints the results of an interprocedural precise exception analysis to the tests folder prepended with \"precise_ex_\"\n");
@@ -289,7 +289,7 @@ public final class AccrueAnalysisOptions {
         sb.append("\tscs - Analysis that tracks call-sites for static methods (default parameter 2 call-sites)\n");
         sb.append("\tcs - Analysis that tracks call-sites (default parameter 2 call-sites)\n");
         sb.append("\tfull - Full Object Sensitive analyis (default parameter 2 allocation sites -- always 1H)\n");
-        sb.append("\t(OTHER) - specify the full class name or simple class name if it is in the analysis.pointer.analyses directory plus any integer parameters\n");
+        sb.append("\t(OTHER) - specify the full class name or simple class name if it is in the analysis.pointer.analyses package plus any integer parameters\n");
         return sb.toString();
     }
 
