@@ -42,7 +42,7 @@ public final class AccrueAnalysisOptions {
     /**
      * Analysis entry point (contains the main method)
      */
-    @Parameter(names = { "-e", "-entry" }, description = "The entry point (containing a main method) written as a full class name with packages separated by dots (e.g. java.lang.String)")
+    @Parameter(names = { "-e", "-entry", "-s", "-start" }, description = "The entry point (containing a main method) written as a full class name with packages separated by dots (e.g. java.lang.String)")
     private String entryPoint;
 
     /**
