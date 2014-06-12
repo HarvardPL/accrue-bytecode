@@ -419,7 +419,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
         List<Integer> dimensions = new ArrayList<>(i.getNumberOfUses());
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            // see if jth dimension is a positive integer constant
+            // see if jth dimension is a non-negative integer constant
             Integer jthSize = null;
             if (currentNode.getIR().getSymbolTable().isConstant(i.getUse(j))
                                             && currentNode.getIR().getSymbolTable().getIntValue(i.getUse(j)) >= 0) {
