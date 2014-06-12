@@ -34,6 +34,7 @@ import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
+import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
 import com.ibm.wala.ssa.SSAComparisonInstruction;
 import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
@@ -690,7 +691,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                 addEdge(formalAssignments.get(j), formal, PDGEdgeType.MERGE, entry);
             }
 
-            if (interProc.canProcedureTerminateNormally(callee)) {
+            if (canProcedureTerminateNormally(callee)) {
                 PDGContext calleeNormal = calleeSummary.getNormalExitContext();
                 calleeNormalReturns.add(calleeNormal.getReturnNode());
                 calleeNormalPCs.add(calleeNormal.getPCNode());
@@ -878,7 +879,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
-        return interProc.isUnreachable(source, target, currentNode);
+        return interProc.getReachabilityResults().isUnreachable(source, target, currentNode);
     }
 
     /**
@@ -1003,5 +1004,29 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowEmptyBlock(Set<Unit> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return factToMap(Unit.VALUE, current, cfg);
+    }
+
+    /**
+     * Check whether the procedure can terminate normally (in a particular context).
+     * 
+     * @param n
+     *            call graph node containing the method and context
+     * @return whether the method can terminate normally in the given context
+     */
+    private boolean canProcedureTerminateNormally(CGNode n) {
+        if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
+            // assume native methods can terminate normally
+            return true;
+        }
+
+        SSACFG cfg = n.getIR().getControlFlowGraph();
+        ISSABasicBlock exit = cfg.exit();
+
+        for (ISSABasicBlock pred : cfg.getNormalPredecessors(exit)) {
+            if (!interProc.getReachabilityResults().isUnreachable(pred, exit, n)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
