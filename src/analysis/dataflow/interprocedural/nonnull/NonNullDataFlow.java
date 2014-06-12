@@ -229,7 +229,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> guessResultsForMissingReceiver(SSAInvokeInstruction i,
                                     VarContext<NonNullAbsVal> input,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-        if (outputLevel >= 0) {
+        if (outputLevel >= 1) {
             System.err.println("No calls to " + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
                                             + PrettyPrinter.cgNodeString(currentNode));
         }
