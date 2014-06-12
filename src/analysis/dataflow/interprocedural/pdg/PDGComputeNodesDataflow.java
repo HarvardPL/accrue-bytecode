@@ -17,6 +17,7 @@ import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
+import analysis.dataflow.util.Unit;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -119,6 +120,23 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         if (getOutputLevel() >= 4) {
             System.err.println("ADDING EDGES for " + PrettyPrinter.cgNodeString(currentNode));
         }
+
+        // Make sure there are outputs for all the predecessors of the exit node
+        ISSABasicBlock exit = ir.getExitBlock();
+        for (ISSABasicBlock pred : ir.getControlFlowGraph().getExceptionalPredecessors(exit)) {
+            if (!isUnreachable(pred, exit)) {
+                assert getOutputContexts().get(pred) != null;
+                assert getOutputContexts().get(pred).get(exit) != null;
+            }
+        }
+
+        for (ISSABasicBlock pred : ir.getControlFlowGraph().getNormalPredecessors(exit)) {
+            if (!isUnreachable(pred, exit)) {
+                assert getOutputContexts().get(pred) != null;
+                assert getOutputContexts().get(pred).get(exit) != null;
+            }
+        }
+
         PDGAddEdgesDataflow edgeDF = new PDGAddEdgesDataflow(currentNode, interProc, mergeNodes, trueExceptionContexts,
                                         falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
                                         getInstructionInput());
@@ -220,7 +238,6 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             }
         }
 
-
         if (postdominated.size() > 1) {
             Iterator<ISSABasicBlock> iter2 = postdominated.iterator();
             while (iter2.hasNext()) {
@@ -315,7 +332,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected PDGContext flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return confluence(previousItems, current);
+        PDGContext in = confluence(previousItems, current);
+        return new PDGContext(null, null, in.getPCNode());
     }
 
     @Override
@@ -594,6 +612,9 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         boolean canCalleeThrowNPE = false;
         for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
+            // Trigger the analysis of the callee
+            interProc.getResults(currentNode, callee, Unit.VALUE);
+
             if (interProc.getPreciseExceptionResults().canProcedureThrowException(
                                             TypeReference.JavaLangNullPointerException, callee)) {
                 canCalleeThrowNPE = true;
@@ -656,9 +677,17 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected Map<ISSABasicBlock, PDGContext> flowLoadMetadata(SSALoadMetadataInstruction i,
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // TODO load metadata can throw a ClassNotFoundException, but this could
-        // be known statically if all the class files were known.
-        return factToMap(confluence(previousItems, current), current, cfg);
+        // TODO load metadata can throw a ClassNotFoundException, but this could be known statically if all the class
+        // files were known (closed world).
+        PDGContext in = confluence(previousItems, current);
+        String desc = PrettyPrinter.typeString(i.getType()) + " not found";
+        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassNotFoundException, in,
+                                        desc, current);
+
+        PDGContext cnf = afterEx.get(ExitType.EXCEPTIONAL);
+        PDGContext normal = afterEx.get(ExitType.NORMAL);
+
+        return factsToMapWithExceptions(normal, cnf, current, cfg);
     }
 
     @Override
@@ -737,7 +766,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     @Override
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
-        return interProc.isUnreachable(source, target, currentNode);
+        return interProc.getReachabilityResults().isUnreachable(source, target, currentNode);
     }
 
     /**
@@ -765,8 +794,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                             currentNode, i);
 
             PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + branchDescription + ")",
-                                            PDGNodeType.BOOLEAN_FALSE_PC,
-                                            currentNode, i);
+                                            PDGNodeType.BOOLEAN_FALSE_PC, currentNode, i);
             PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
 
             PDGContext ex = new PDGContext(null, exceptionValue, truePC);
