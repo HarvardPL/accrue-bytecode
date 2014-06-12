@@ -107,7 +107,13 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         System.err.println("RUNNING: " + getAnalysisName());
         long start = System.currentTimeMillis();
 
-        preAnalysis(cg, q);
+        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
+
+        // These are the class initializers
+        q.addAll(entryPoints);
+        // Also add the fake root method (which calls main)
+        q.add(cg.getFakeRootNode());
+
         while (!q.isEmpty()) {
             CGNode current = q.poll();
             if (getOutputLevel() >= 2) {
@@ -126,30 +132,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             processCallGraphNode(current, input, results == null ? null : results.getOutput());
         }
 
-        postAnalysis();
-
         System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
-    }
-
-    /**
-     * Initialize the work-queue and Perform other operations before this inter-procedural data-flow analysis begins.
-     */
-    protected void preAnalysis(CallGraph cg, WorkQueue<CGNode> q) {
-        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
-
-        // These are the class initializers
-        q.addAll(entryPoints);
-        // Also add the fake root method (which calls main)
-        q.add(cg.getFakeRootNode());
-    }
-
-    /**
-     * Perform operations after this inter-procedural data-flow analysis has completed. This could be used to construct
-     * analysis results.
-     */
-    protected void postAnalysis() {
-        // Intentionally blank
-        // Subclasses should override as needed
     }
 
     protected abstract String getAnalysisName();
@@ -566,7 +549,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver, n));
-        if (pointsTo.isEmpty()) {
+        if (pointsTo.isEmpty() && outputLevel >= 1) {
             System.err.println("Field target doesn't point to anything. v" + receiver + " in "
                                             + PrettyPrinter.cgNodeString(n) + " accessing field: "
                                             + PrettyPrinter.typeString(field.getDeclaringClass()) + "."
