@@ -132,4 +132,21 @@ public class BooleanAbsVal implements AbstractValue<BooleanAbsVal> {
 
         return forBoolean(left.getValue() ^ right.getValue());
     }
+
+    @Override
+    public String toString() {
+        if (this == TRUE) {
+            return "TRUE";
+        }
+        if (this == FALSE) {
+            return "FALSE";
+        }
+        if (this == UNKNOWN) {
+            return "UNKNOWN";
+        }
+        if (this == NONE) {
+            return "NONE";
+        }
+        throw new RuntimeException("Unknown BooleanAbsVal: " + super.toString());
+    }
 }
