@@ -11,6 +11,7 @@ import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -97,6 +98,37 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                                             + PrettyPrinter.cgNodeString(currentNode));
         }
         return factToMap(input, bb, cfg);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flow(Set<ReachabilityAbsVal> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        Map<ISSABasicBlock, ReachabilityAbsVal> out = super.flow(inItems, cfg, current);
+
+        PreciseExceptionResults pe = ((ReachabilityInterProceduralDataFlow) interProc).getPreciseEx();
+        if (pe == null) {
+            return out;
+        }
+
+        Map<ISSABasicBlock, ReachabilityAbsVal> newOutItems = new LinkedHashMap<>();
+        for (ISSABasicBlock bb : getExceptionalSuccs(current, cfg)) {
+            // Modify outItems based on the precise exceptions analysis
+            if (out.get(bb) == ReachabilityAbsVal.REACHABLE && pe.getExceptions(current, bb, currentNode).isEmpty()) {
+                // This is an exception edge with no exceptions
+                newOutItems.put(bb, ReachabilityAbsVal.UNREACHABLE);
+            }
+        }
+
+        if (!newOutItems.isEmpty()) {
+            for (ISSABasicBlock bb : out.keySet()) {
+                if (!newOutItems.containsKey(bb)) {
+                    newOutItems.put(bb, out.get(bb));
+                }
+            }
+        } else {
+            newOutItems = out;
+        }
+        return newOutItems;
     }
 
     @Override
@@ -384,11 +416,10 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowNewObject(SSANewInstruction i,
-                                    Set<ReachabilityAbsVal> previousItems,
+                                    Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // There is an error from new Object() but we are not tracking errors
-        return factsToMapWithExceptions(confluence(previousItems, current), ReachabilityAbsVal.UNREACHABLE, current,
-                                        cfg);
+        return factsToMapWithExceptions(confluence(inItems, current), ReachabilityAbsVal.UNREACHABLE, current, cfg);
     }
 
     @Override

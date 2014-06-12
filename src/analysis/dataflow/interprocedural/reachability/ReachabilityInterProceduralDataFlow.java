@@ -6,6 +6,7 @@ import java.util.Map;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 
@@ -17,9 +18,22 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow<ReachabilityAbsVal> {
 
     private final ReachabilityResults results = new ReachabilityResults();
+    private final PreciseExceptionResults preciseEx;
 
-    public ReachabilityInterProceduralDataFlow(PointsToGraph ptg, ReferenceVariableCache rvCache) {
+    /**
+     * Create an inter-procedural analysis to compute which basic blocks are reachable
+     * 
+     * @param ptg
+     *            points to graph
+     * @param rvCache
+     *            reference variable cache
+     * @param preciseEx
+     *            results of an inter-procedural precise exceptions analysis (null if no results are available)
+     */
+    public ReachabilityInterProceduralDataFlow(PointsToGraph ptg, ReferenceVariableCache rvCache,
+                                    PreciseExceptionResults preciseEx) {
         super(ptg, ReachabilityResults.ALWAYS_REACHABLE, rvCache);
+        this.preciseEx = preciseEx;
     }
 
     @Override
@@ -84,5 +98,14 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     @Override
     public ReachabilityResults getAnalysisResults() {
         return results;
+    }
+
+    /**
+     * Results of a precise exceptions analysis
+     * 
+     * @return results of a precise exceptions analysis or null if there are no such results
+     */
+    public PreciseExceptionResults getPreciseEx() {
+        return preciseEx;
     }
 }

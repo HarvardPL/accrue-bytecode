@@ -145,7 +145,7 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraphOnline(otherOutputLevel);
             g = results.fst();
             rvCache = results.snd();
-            ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache);
+            ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
             NonNullResults nonNull = runNonNull(outputLevel, g, r, rvCache);
             nonNull.writeAllToFiles(r);
             break;
@@ -154,7 +154,7 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraphOnline(otherOutputLevel);
             g = results.fst();
             rvCache = results.snd();
-            r = runReachability(otherOutputLevel, g, rvCache);
+            r = runReachability(otherOutputLevel, g, rvCache, null);
             nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
             PreciseExceptionResults preciseEx = runPreciseExceptions(outputLevel, g, r, nonNull, rvCache);
             preciseEx.writeAllToFiles(r);
@@ -164,7 +164,7 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraphOnline(otherOutputLevel);
             g = results.fst();
             rvCache = results.snd();
-            r = runReachability(outputLevel, g, rvCache);
+            r = runReachability(outputLevel, g, rvCache, null);
             r.writeAllToFiles();
             break;
         case "cfg":
@@ -178,10 +178,12 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraphOnline(otherOutputLevel);
             g = results.fst();
             rvCache = results.snd();
-            r = runReachability(otherOutputLevel, g, rvCache);
+            r = runReachability(otherOutputLevel, g, rvCache, null);
             nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
             preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
-            ProgramDependenceGraph pdg = runPDG(outputLevel, g, r, preciseEx, rvCache);
+            ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
+            // r2.writeAllToFiles();
+            ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, rvCache);
             pdg.printDetailedCounts();
             String fullName = "tests/pdg_" + fileName + ".json";
             FileWriter file = new FileWriter(fullName);
@@ -378,9 +380,14 @@ public class AccrueAnalysisMain {
      *            logging level
      * @param g
      *            points-to graph
+     * @param rvCache
+     *            cache of points-to analysis reference variables
+     * @param preciseEx
+     *            results of a precise exceptions analysis or null if none has been run yet
      */
-    private static ReachabilityResults runReachability(int outputLevel, PointsToGraph g, ReferenceVariableCache rvCache) {
-        ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g, rvCache);
+    private static ReachabilityResults runReachability(int outputLevel, PointsToGraph g,
+                                    ReferenceVariableCache rvCache, PreciseExceptionResults preciseEx) {
+        ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g, rvCache, preciseEx);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
