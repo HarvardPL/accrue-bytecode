@@ -51,7 +51,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Nodes that are currently being processed, used to detect recursive calls
      */
-    private final Set<CGNode> currentlyProcessing = new HashSet<>();
+    protected final Set<CGNode> currentlyProcessing = new HashSet<>();
     /**
      * Record of which CG nodes need to be re-analyzed if a given node changes
      */
@@ -330,7 +330,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            previous analysis results, used to determine if the output changed
      * @return output after analyzing the given node with the given input
      */
-    private AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
+    protected final AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
         incrementCounter(n);
         currentlyProcessing.add(n);
         Map<ExitType, F> output;

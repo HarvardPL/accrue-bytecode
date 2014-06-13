@@ -1,8 +1,11 @@
 package analysis.dataflow.interprocedural.pdg;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 
+import util.SingletonValueMap;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
@@ -88,7 +91,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     @Override
     protected boolean outputChanged(Map<ExitType, Unit> previousOutput, Map<ExitType, Unit> currentOutput) {
-        return previousOutput == null;
+        return false;
     }
 
     @Override
@@ -103,5 +106,20 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
+    }
+    
+    /**
+     * Map from exit type to unit
+     */
+    private static final Map<ExitType, Unit> EXIT_MAP = new SingletonValueMap<>(new LinkedHashSet<>(
+                                    Arrays.asList(ExitType.values())), Unit.VALUE);
+
+    @Override
+    public Map<ExitType, Unit> getResults(CGNode caller, CGNode callee, Unit input) {
+        if (!currentlyProcessing.contains(callee) && recordedResults.get(callee) == null) {
+            AnalysisRecord<Unit> results = processCallGraphNode(callee, Unit.VALUE, null);
+            recordedResults.put(callee, results);
+        }
+        return EXIT_MAP;
     }
 }

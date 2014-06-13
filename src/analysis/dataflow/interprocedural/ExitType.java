@@ -3,18 +3,18 @@ package analysis.dataflow.interprocedural;
 /**
  * Key indicating the type of procedure termination
  */
-public class ExitType {
+public enum ExitType {
     /**
      * Exit edge key for normal termination
      */
-    public static final ExitType NORMAL = new ExitType("NT");
+    NORMAL("NT"),
     /**
      * Exit edge key for exceptional termination
      */
-    public static final ExitType EXCEPTIONAL = new ExitType("EX");
+    EXCEPTIONAL("EX");
 
     /**
-     * String indicating exit type
+     * Short name for the exit type
      */
     private final String type;
 
@@ -22,7 +22,7 @@ public class ExitType {
      * Create a new type for the given string.
      * 
      * @param type
-     *            string representation of the type of exit
+     *            Short name for exit type
      */
     private ExitType(String type) {
         this.type = type;
@@ -32,30 +32,4 @@ public class ExitType {
     public String toString() {
         return type;
     }
-
-    @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((type == null) ? 0 : type.hashCode());
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        ExitType other = (ExitType) obj;
-        if (type == null) {
-            if (other.type != null)
-                return false;
-        } else if (!type.equals(other.type))
-            return false;
-        return true;
-    }
-
 }
