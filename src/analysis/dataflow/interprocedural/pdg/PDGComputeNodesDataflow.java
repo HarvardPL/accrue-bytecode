@@ -20,7 +20,6 @@ import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.util.Unit;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
@@ -66,7 +65,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     private final Map<PDGNode, Set<PDGNode>> mergeNodes;
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts;
     private final Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts;
-    private final Map<CallSiteReference, PDGContext> calleeExceptionContexts;
+    private final Map<SSAInvokeInstruction, PDGContext> calleeExceptionContexts;
     private final Map<OrderedPair<Set<PDGContext>, ISSABasicBlock>, PDGContext> confluenceMemo;
     private final Map<ISSABasicBlock, PDGContext> mostRecentConfluence;
     private final PrettyPrinter pp;
@@ -634,7 +633,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode, pp);
         PDGContext exContext = new PDGContext(null, exValue, exExitPC);
-        calleeExceptionContexts.put(i.getCallSite(), exContext);
+        calleeExceptionContexts.put(i, exContext);
 
         PDGContext npeExitContext = npe;
         if (npe != null && canCalleeThrowNPE) {

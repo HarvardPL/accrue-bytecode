@@ -24,7 +24,6 @@ import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.Unit;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -106,7 +105,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     /**
      * Context created for the program point just after a callee throws an exception
      */
-    private final Map<CallSiteReference, PDGContext> calleeExceptionContexts;
+    private final Map<SSAInvokeInstruction, PDGContext> calleeExceptionContexts;
 
     /**
      * Create a data-flow that adds edge to a PDG for the given call graph node.
@@ -137,7 +136,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                     Map<PDGNode, Set<PDGNode>> mergeNodes,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> trueExceptionContexts,
                                     Map<ISSABasicBlock, Map<TypeReference, PDGContext>> falseExceptionContexts,
-                                    Map<CallSiteReference, PDGContext> calleeExceptionContexts,
+                                    Map<SSAInvokeInstruction, PDGContext> calleeExceptionContexts,
                                     Map<ISSABasicBlock, Map<ISSABasicBlock, PDGContext>> outputFacts,
                                     Map<SSAInstruction, PDGContext> instructionInput) {
         super(true);
@@ -641,8 +640,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // Labels for the entry and exit to this particular call these are used
         // to associate call sites with the associated exit (normal or
         // exceptional) sites
-        CallSiteEdgeLabel entry = new CallSiteEdgeLabel(i.getCallSite(), currentNode, SiteType.ENTRY);
-        CallSiteEdgeLabel exit = new CallSiteEdgeLabel(i.getCallSite(), currentNode, SiteType.EXIT);
+        CallSiteEdgeLabel entry = new CallSiteEdgeLabel(i, currentNode, SiteType.ENTRY);
+        CallSiteEdgeLabel exit = new CallSiteEdgeLabel(i, currentNode, SiteType.EXIT);
 
         List<PDGNode> params = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
@@ -742,7 +741,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             // this captures the fact that we can only throw an exception if we
             // first call the procedure
 
-            PDGContext exExitContext = calleeExceptionContexts.get(i.getCallSite());
+            PDGContext exExitContext = calleeExceptionContexts.get(i);
             addEdge(calleeExPC, exExitContext.getPCNode(), PDGEdgeType.CONJUNCTION, exit);
             addEdge(normal.getPCNode(), exExitContext.getPCNode(), PDGEdgeType.CONJUNCTION);
 

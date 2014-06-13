@@ -50,3 +50,7 @@ TODO record the choice of receiver in the PC for PDGs
 TODO String should call <init> after allocation not the value field hack, read about Strings in the JVM spec 5.1
 
 TODO reachability based on non-null when there is a branch on a comparison with literal "null"
+
+TODO only create PC merge nodes when the PC will not be restored from a post-dominated node
+
+WALA-BUG: Call sites are not unique even within a single IR/CGNode due to duplication of finally blocks :(
