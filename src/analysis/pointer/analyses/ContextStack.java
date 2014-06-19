@@ -71,9 +71,11 @@ class ContextStack<E> implements Iterable<E>, Context {
     public ContextStack<E> push(E e, int depth) {
         @SuppressWarnings("unchecked")
         E[] newElements = (E[]) new Object[depth];
-        newElements[0] = e;
+        if (depth > 0) {
+            newElements[0] = e;
+            System.arraycopy(elements, 0, newElements, 1, Math.min(elements.length, depth - 1));
+        }
 
-        System.arraycopy(elements, 0, newElements, 1, Math.min(elements.length, depth - 1));
         return HeapAbstractionFactory.memoize(new ContextStack<>(newElements), Arrays.asList(newElements));
     }
 
