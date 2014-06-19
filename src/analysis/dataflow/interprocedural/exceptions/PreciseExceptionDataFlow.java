@@ -1,6 +1,7 @@
 package analysis.dataflow.interprocedural.exceptions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,9 +21,11 @@ import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
@@ -56,8 +59,12 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
      */
     private final NonNullResults nonNullResults;
     /**
-     * Map from array to list of integer dimensions for the array (from outside
-     * in), value in the list is null if the dimension is not a static integer
+     * Types of local variables
+     */
+    private final TypeRepository types;
+    /**
+     * Map from array to list of integer dimensions for the array (from outside in), value in the list is null if the
+     * dimension is not a static integer
      */
     private final Map<Integer, List<Integer>> arrayDimensions = new HashMap<>();
 
@@ -65,6 +72,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                                     InterproceduralDataFlow<PreciseExceptionAbsVal> interProc) {
         super(currentNode, interProc);
         this.nonNullResults = nonNullResults;
+        this.types = new TypeRepository(currentNode.getIR());
     }
 
     @Override
@@ -72,12 +80,17 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                                     Set<PreciseExceptionAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
         Set<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
-        if (!i.isStatic() && nonNullResults.isNonNull(i.getReceiver(), i, currentNode)) {
+        if (!i.isStatic() && nonNullResults.isNonNull(i.getReceiver(), i, currentNode, types)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
 
+        Set<CGNode> targets = cg.getPossibleTargets(currentNode, i.getCallSite());
+        if (targets.isEmpty()) {
+            return guessResultsForMissingReceiver(i, new PreciseExceptionAbsVal(throwables), cfg, bb);
+        }
+
         PreciseExceptionAbsVal exceptionResult = null;
-        for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
+        for (CGNode callee : targets) {
             Map<ExitType, PreciseExceptionAbsVal> out = interProc.getResults(currentNode, callee,
                                             PreciseExceptionAbsVal.EMPTY);
 
@@ -105,6 +118,33 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     }
 
     @Override
+    protected Map<ISSABasicBlock, PreciseExceptionAbsVal> guessResultsForMissingReceiver(SSAInvokeInstruction i,
+                                    PreciseExceptionAbsVal input, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock bb) {
+        if (outputLevel >= 1) {
+            System.err.println("No calls to " + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
+                                            + PrettyPrinter.cgNodeString(currentNode));
+        }
+        // Assume this can throw RuntimeException and any declared exceptions
+        // TODO Unsound since catch blocks for sub-types will not be reachable along edges that throw the super-type
+        // Also unsound since we have to try to resolve as best we can, but might miss some declared exceptions
+        Set<TypeReference> throwables = new LinkedHashSet<>(input.getThrowables());
+        throwables.add(TypeReference.JavaLangRuntimeException);
+
+        IMethod resolved = AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget());
+        if (resolved == null) {
+            System.err.println("Could not resolve method with missing receiver. Precise exceptions will be unsound.");
+        } else {
+            try {
+                throwables.addAll(Arrays.asList(resolved.getDeclaredExceptions()));
+            } catch (UnsupportedOperationException | InvalidClassFileException e) {
+                System.err.println("Could not resolve method with missing receiver. Precise exceptions will be unsound.");
+            }
+        }
+        return computeResults(throwables, cfg, bb);
+    }
+
+    @Override
     protected PreciseExceptionAbsVal confluence(Set<PreciseExceptionAbsVal> items, ISSABasicBlock bb) {
         assert !items.isEmpty();
         PreciseExceptionAbsVal val = null;
@@ -121,9 +161,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
         for (ISSABasicBlock next : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(next) != null && !outItems.get(next).isEmpty()) {
-                throw new RuntimeException("Exceptions for normal successor of\n"
-                                                + PrettyPrinter.basicBlockString(currentNode.getIR(), justProcessed,
-                                                                                "\t", "\n") + " from BB"
+                throw new RuntimeException("Exceptions for normal successor of " + " BB"
                                                 + justProcessed.getGraphNodeId() + " to BB" + next.getGraphNodeId());
             }
         }
@@ -203,7 +241,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowArrayLength(SSAArrayLengthInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return computeResults(i, !nonNullResults.isNonNull(i.getArrayRef(), i, currentNode), cfg, current);
+        return computeResults(i, !nonNullResults.isNonNull(i.getArrayRef(), i, currentNode, types), cfg, current);
     }
 
     @Override
@@ -225,7 +263,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             arrayDimensions.put(i.getDef(), subDims);
         }
 
-        if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode)) {
+        if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode, types)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
 
@@ -239,19 +277,21 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
 
         Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
-        if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode)) {
+        if (nonNullResults.isNonNull(i.getArrayRef(), i, currentNode, types)) {
             throwables.remove(TypeReference.JavaLangNullPointerException);
         }
 
         TypeReference elementType = i.getElementType();
-        TypeReference storedType = TypeRepository.getType(i.getUse(2), currentNode.getIR());
+        TypeReference storedType = types.getType(i.getUse(2));
         if (!elementType.isPrimitiveType() && currentNode.getIR().getSymbolTable().isNullConstant(i.getUse(2))) {
             // Null can be passed into any non-primitive array
             throwables.remove(TypeReference.JavaLangArrayStoreException);
         } else if (elementType.isPrimitiveType() && isWideningPrimitiveConversion(storedType, elementType)) {
             // Implicitly castable primitive
             throwables.remove(TypeReference.JavaLangArrayStoreException);
-        } else if (!elementType.isPrimitiveType() && cha.isAssignableFrom(cha.lookupClass(storedType), cha.lookupClass(elementType))) {
+        } else if (!elementType.isPrimitiveType()
+                                        && cha.isAssignableFrom(cha.lookupClass(storedType),
+                                                                        cha.lookupClass(elementType))) {
             // Storing a subtype
             throwables.remove(TypeReference.JavaLangArrayStoreException);
         }
@@ -318,7 +358,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowGetField(SSAGetInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode), cfg, current);
+        return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode, types), cfg, current);
     }
 
     @Override
@@ -367,7 +407,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowMonitor(SSAMonitorInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode), cfg, current);
+        return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode, types), cfg, current);
     }
 
     @Override
@@ -379,7 +419,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
         List<Integer> dimensions = new ArrayList<>(i.getNumberOfUses());
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            // see if jth dimension is a positive integer constant
+            // see if jth dimension is a non-negative integer constant
             Integer jthSize = null;
             if (currentNode.getIR().getSymbolTable().isConstant(i.getUse(j))
                                             && currentNode.getIR().getSymbolTable().getIntValue(i.getUse(j)) >= 0) {
@@ -410,7 +450,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     protected Map<ISSABasicBlock, PreciseExceptionAbsVal> flowPutField(SSAPutInstruction i,
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode), cfg, current);
+        return computeResults(i, !nonNullResults.isNonNull(i.getRef(), i, currentNode, types), cfg, current);
     }
 
     @Override
@@ -432,14 +472,13 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
                                     Set<PreciseExceptionAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Collection<TypeReference> throwables = new LinkedHashSet<>(PreciseExceptionResults.implicitExceptions(i));
-        throwables.add(TypeRepository.getType(i.getException(), currentNode.getIR()));
-        return computeResults(i, !nonNullResults.isNonNull(i.getException(), i, currentNode), cfg, current);
+        throwables.add(types.getType(i.getException()));
+        return computeResults(i, !nonNullResults.isNonNull(i.getException(), i, currentNode, types), cfg, current);
     }
 
     /**
-     * Many of the instructions can be computed in the same way, look up the set
-     * of implicit exceptions this exception could throw and copy elements of
-     * that set on each exceptions edge that could throw it
+     * Many of the instructions can be computed in the same way, look up the set of implicit exceptions this exception
+     * could throw and copy elements of that set on each exceptions edge that could throw it
      * 
      * @param i
      *            instruction
@@ -449,8 +488,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
      *            control flow graph
      * @param current
      *            current call graph node
-     * @return map from successor basic block number to exceptions thrown on
-     *         that edge
+     * @return map from successor basic block number to exceptions thrown on that edge
      */
     private Map<ISSABasicBlock, PreciseExceptionAbsVal> computeResults(SSAInstruction i, boolean canThrowNPE,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
@@ -472,8 +510,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
      *            control flow graph
      * @param current
      *            current call graph node
-     * @return map from successor basic block number to exceptions thrown on
-     *         that edge
+     * @return map from successor basic block number to exceptions thrown on that edge
      */
     private Map<ISSABasicBlock, PreciseExceptionAbsVal> computeResults(Collection<TypeReference> types,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
@@ -513,15 +550,13 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     }
 
     /**
-     * Decide whether the given index is definitely in bounds for the given
-     * array
+     * Decide whether the given index is definitely in bounds for the given array
      * 
      * @param arrayValNumber
      *            value number for array
      * @param indexValNumber
      *            value number for index (not the actual index)
-     * @return true if this access cannot throw an
-     *         {@link ArrayIndexOutOfBoundsException}
+     * @return true if this access cannot throw an {@link ArrayIndexOutOfBoundsException}
      */
     private boolean isSafeArrayIndex(int arrayValNumber, int indexValNumber) {
         // TODO track array indices inter-procedurally
@@ -542,8 +577,8 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     }
 
     /**
-     * Is the conversion between primitive types from sourceType to targetType a
-     * widening conversion (meaning it can be done implicitly). See JLS 5.1.2.
+     * Is the conversion between primitive types from sourceType to targetType a widening conversion (meaning it can be
+     * done implicitly). See JLS 5.1.2.
      * <p>
      * i.e is target = source valid with no cast
      * <ul>
@@ -559,8 +594,8 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
      *            type of the target variable
      * @param sourceType
      *            type of the source expression
-     * @return true if it is safe to assign a primitive of type sourceType to
-     *         one of type targetType with no explicit cast
+     * @return true if it is safe to assign a primitive of type sourceType to one of type targetType with no explicit
+     *         cast
      */
     private static boolean isWideningPrimitiveConversion(TypeReference sourceType, TypeReference targetType) {
         assert sourceType.isPrimitiveType();
@@ -570,29 +605,24 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             return true;
         }
 
-        if (sourceType == TypeReference.Byte){
-            if (targetType == TypeReference.Short || 
-                targetType == TypeReference.Int || 
-                targetType == TypeReference.Long || 
-                targetType == TypeReference.Float || 
-                targetType == TypeReference.Double) {
+        if (sourceType == TypeReference.Byte) {
+            if (targetType == TypeReference.Short || targetType == TypeReference.Int
+                                            || targetType == TypeReference.Long || targetType == TypeReference.Float
+                                            || targetType == TypeReference.Double) {
                 return true;
             }
         }
 
         if (sourceType.equals(TypeReference.Short)) {
-            if (targetType == TypeReference.Int || 
-                targetType == TypeReference.Long || 
-                targetType == TypeReference.Float || 
-                targetType == TypeReference.Double) {
+            if (targetType == TypeReference.Int || targetType == TypeReference.Long
+                                            || targetType == TypeReference.Float || targetType == TypeReference.Double) {
                 return true;
             }
         }
 
         if (sourceType.equals(TypeReference.Int)) {
-            if (targetType == TypeReference.Long || 
-                targetType == TypeReference.Float || 
-                targetType == TypeReference.Double) {
+            if (targetType == TypeReference.Long || targetType == TypeReference.Float
+                                            || targetType == TypeReference.Double) {
                 return true;
             }
         }

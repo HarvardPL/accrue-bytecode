@@ -11,6 +11,7 @@ import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
@@ -50,7 +51,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Nodes that are currently being processed, used to detect recursive calls
      */
-    private final Set<CGNode> currentlyProcessing = new HashSet<>();
+    protected final Set<CGNode> currentlyProcessing = new HashSet<>();
     /**
      * Record of which CG nodes need to be re-analyzed if a given node changes
      */
@@ -106,7 +107,13 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         System.err.println("RUNNING: " + getAnalysisName());
         long start = System.currentTimeMillis();
 
-        preAnalysis(cg, q);
+        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
+
+        // These are the class initializers
+        q.addAll(entryPoints);
+        // Also add the fake root method (which calls main)
+        q.add(cg.getFakeRootNode());
+
         while (!q.isEmpty()) {
             CGNode current = q.poll();
             if (getOutputLevel() >= 2) {
@@ -125,30 +132,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             processCallGraphNode(current, input, results == null ? null : results.getOutput());
         }
 
-        postAnalysis();
-
         System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
-    }
-
-    /**
-     * Initialize the work-queue and Perform other operations before this inter-procedural data-flow analysis begins.
-     */
-    protected void preAnalysis(CallGraph cg, WorkQueue<CGNode> q) {
-        Collection<CGNode> entryPoints = cg.getEntrypointNodes();
-
-        // These are the class initializers
-        q.addAll(entryPoints);
-        // Also add the fake root method (which calls main)
-        q.add(cg.getFakeRootNode());
-    }
-
-    /**
-     * Perform operations after this inter-procedural data-flow analysis has completed. This could be used to construct
-     * analysis results.
-     */
-    protected void postAnalysis() {
-        // Intentionally blank
-        // Subclasses should override as needed
     }
 
     protected abstract String getAnalysisName();
@@ -346,12 +330,12 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            previous analysis results, used to determine if the output changed
      * @return output after analyzing the given node with the given input
      */
-    private AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
+    protected final AnalysisRecord<F> processCallGraphNode(CGNode n, F input, Map<ExitType, F> previousOutput) {
         incrementCounter(n);
         currentlyProcessing.add(n);
         Map<ExitType, F> output;
-        if (n.getMethod().isNative()) {
-            output = analyzeNative(n, input);
+        if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
+            output = analyzeMissingCode(n, input);
         } else {
             output = analyze(n, input);
         }
@@ -440,7 +424,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            initial data-flow fact
      * @return output facts resulting from analyzing <code>n</code>
      */
-    protected abstract Map<ExitType, F> analyzeNative(CGNode n, F input);
+    protected abstract Map<ExitType, F> analyzeMissingCode(CGNode n, F input);
 
     /**
      * Get the default output data-flow facts (given an input fact), this is used as the output for a recursive call
@@ -565,8 +549,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver, n));
-        if (pointsTo.isEmpty()) {
-            throw new RuntimeException("Field target doesn't point to anything. "
+        if (pointsTo.isEmpty() && outputLevel >= 1) {
+            System.err.println("Field target doesn't point to anything. v" + receiver + " in "
+                                            + PrettyPrinter.cgNodeString(n) + " accessing field: "
                                             + PrettyPrinter.typeString(field.getDeclaringClass()) + "."
                                             + field.getName());
         }
@@ -590,10 +575,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
         Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array, n));
-        if (pointsTo.isEmpty()) {
-            ptg.getPointsToSet(getReplica(array, n));
-            throw new RuntimeException("Array doesn't point to anything. " + PrettyPrinter.valString(array, n.getIR())
-                                            + " in " + PrettyPrinter.cgNodeString(n));
+        if (outputLevel >= 1 && pointsTo.isEmpty()) {
+            System.err.println("Array doesn't point to anything. " + getReplica(array, n) + " METHOD: "
+                                            + PrettyPrinter.methodString(n.getMethod()));
         }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
@@ -614,7 +598,16 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return Reference variable replica in the current context for the local
      */
     public ReferenceVariableReplica getReplica(int local, CGNode n) {
-        ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getIR());
+        ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getMethod());
         return new ReferenceVariableReplica(n.getContext(), rv);
+    }
+
+    /**
+     * Get the cache containing reference variables for local variables
+     * 
+     * @return reference variable cache
+     */
+    public ReferenceVariableCache getRvCache() {
+        return rvCache;
     }
 }

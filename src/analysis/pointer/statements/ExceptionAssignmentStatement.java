@@ -4,7 +4,6 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -12,9 +11,9 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
@@ -23,25 +22,22 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     private final Set<IClass> notType;
 
     /**
-     * Statement for the assignment from a thrown exception to a caught
-     * exception or the summary node for the exceptional exit to a method
+     * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
+     * exceptional exit to a method
      * 
      * @param thrown
      *            reference variable for the exception being thrown
      * @param caught
-     *            reference variable for the caught exception (or summary for
-     *            the method exit)
-     * @param i
-     *            instruction throwing the exception
-     * @param ir
-     *            code containing the instruction that throws the exception
+     *            reference variable for the caught exception (or summary for the method exit)
      * @param notType
-     *            types that the exception being caught cannot have since those
-     *            types must have been caught by previous catch blocks
+     *            types that the exception being caught cannot have since those types must have been caught by previous
+     *            catch blocks
+     * @param m
+     *            method the exception is thrown in
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, SSAInstruction i, IR ir,
-                                    Set<IClass> notType) {
-        super(ir, i);
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
+                                    IMethod m) {
+        super(m);
         this.thrown = thrown;
         this.caught = caught;
         this.notType = notType;
@@ -59,24 +55,15 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        if (DEBUG && g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).isEmpty()
-                                        && PointsToAnalysis.outputLevel >= 6) {
-            System.err.println("GENERATED EXCEPTION: " + r + "\n\t"
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()) + " caught type: "
-                                            + PrettyPrinter.typeString(caught.getExpectedType())
-                                            + "\n\tAlready caught: " + notType);
-        }
+        Set<InstanceKey> s = g.getPointsToSetFiltered(r, caught.getExpectedType(), notType);
+        assert checkForNonEmpty(s, r, "EX ASSIGN filtered on " + caught.getExpectedType() + " not " + notType);
 
-        // System.err.println("SIZE: " + g.getPointsToSetFiltered(r, caught.getExpectedType(), notType).size()
-        // + " EX ASS: " + PrettyPrinter.typeString(l.getExpectedType()) + " = "
-        // + PrettyPrinter.typeString(r.getExpectedType()));
-        return g.addEdges(l, g.getPointsToSetFiltered(r, caught.getExpectedType(), notType));
+        return g.addEdges(l, s);
     }
 
     @Override
     public String toString() {
-        return caught + " = " + thrown + "(" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
+        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
                                         + ")";
     }
 }

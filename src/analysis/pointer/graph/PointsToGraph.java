@@ -9,7 +9,6 @@ import java.util.AbstractSet;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -31,10 +30,13 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
+/**
+ * Graph mapping local variables (in a particular context) and fields to abstract heap locations (representing zero or
+ * more actual heap locations)
+ */
 public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
@@ -99,10 +101,6 @@ public class PointsToGraph {
     }
 
     public boolean addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
-        if (heapContexts.isEmpty()) {
-            return false;
-        }
-
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
             pointsToSet = new LinkedHashSet<>();
@@ -150,43 +148,7 @@ public class PointsToGraph {
             return s;
         }
 
-        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-
-        // ANDREW: add stuff here
-        if (false) {
-            return new FilteredSet(s, type);
-        }
-
-        Iterator<InstanceKey> i = s.iterator();
-        Set<InstanceKey> toRemove = new HashSet<>();
-        while (i.hasNext()) {
-            InstanceKey k = i.next();
-            IClass klass = k.getConcreteType();
-            if (!cha.isAssignableFrom(cha.lookupClass(type), klass)) {
-                // XXX Arrays can sometimes be imprecisely labeled as Object
-                // types. Imprecisely, but soundly don't remove any arrays from
-                // the points-to set if the type we are filtering on is
-                // java.lang.Object and vice versa
-                if (!(klass.isArrayClass() && type.equals(TypeReference.JavaLangObject))) {
-                    if (DEBUG && outputLevel >= 6) {
-                        System.err.println("Removing " + PrettyPrinter.typeString(klass.getReference()) + " for "
-                                                        + PrettyPrinter.typeString(type));
-                    }
-                    toRemove.add(k);
-                }
-            }
-        }
-
-        if (DEBUG && s.isEmpty() && outputLevel >= 6) {
-            System.err.println("\tEMPTY FILTERED POINTS-TO SET for " + node + " filtered on " + type);
-        }
-
-        if (toRemove.isEmpty()) {
-            return s;
-        }
-        Set<InstanceKey> toRetain = new HashSet<>(s);
-        toRetain.removeAll(toRemove);
-        return Collections.unmodifiableSet(toRetain);
+        return new FilteredSet(s, type);
     }
 
     /**
@@ -207,56 +169,7 @@ public class PointsToGraph {
             return s;
         }
 
-        // ANDREW: add stuff here
-        if (false) {
-            return new FilteredSet(s, isType, notTypes);
-        }
-
-        boolean areNotTypes = notTypes != null && !notTypes.isEmpty();
-
-        IClass isClass = AnalysisUtil.getClassHierarchy().lookupClass(isType);
-        Iterator<InstanceKey> iter = s.iterator();
-        Set<InstanceKey> toRemove = new HashSet<>();
-        while (iter.hasNext()) {
-            InstanceKey k = iter.next();
-            IClass klass = k.getConcreteType();
-            // TODO assuming we have a precise type could be dangerous
-            if (TypeRepository.isAssignableFrom(isClass, klass)) {
-                if (areNotTypes) {
-                    assert notTypes != null;
-                    for (IClass notClass : notTypes) {
-                        if (TypeRepository.isAssignableFrom(notClass, klass)) {
-                            // klass is a subclass of one of the classes we do
-                            // not want
-                            toRemove.add(k);
-                            break;
-                        }
-                    }
-                }
-            } else {
-                // XXX Arrays can sometimes be imprecisely labeled as Object
-                // types. Imprecisely, but soundly don't remove any arrays from
-                // the points-to set if the type we are filtering on is
-                // java.lang.Object
-                if (!(klass.isArrayClass() && isType.equals(TypeReference.JavaLangObject))) {
-                    toRemove.add(k);
-                }
-            }
-
-        }
-        if (DEBUG && s.isEmpty() && outputLevel >= 6) {
-            System.err.println("\tEMPTY FILTERED/NOTTED POINTS-TO SET for " + node + " filtered on " + isType
-                                            + " not type " + notTypes);
-        }
-
-        if (toRemove.isEmpty()) {
-            // Nothing to remove
-            return s;
-        }
-
-        Set<InstanceKey> toRetain = new HashSet<>(s);
-        toRetain.removeAll(toRemove);
-        return Collections.unmodifiableSet(toRetain);
+        return new FilteredSet(s, isType, notTypes);
     }
 
     @SuppressWarnings("deprecation")
@@ -388,8 +301,8 @@ public class PointsToGraph {
             if (count == null) {
                 dotToCount.put(nStr, 1);
             } else {
-                nStr += " (" + count + ")";
                 dotToCount.put(nStr, count + 1);
+                nStr += " (" + count + ")";
             }
             n2s.put(n, nStr);
         }
@@ -399,8 +312,8 @@ public class PointsToGraph {
             if (count == null) {
                 dotToCount.put(kStr, 1);
             } else {
-                kStr += " (" + count + ")";
                 dotToCount.put(kStr, count + 1);
+                kStr += " (" + count + ")";
             }
             k2s.put(k, kStr);
         }
@@ -470,6 +383,8 @@ public class PointsToGraph {
         this.outputLevel = outputLevel;
     }
 
+    public int clinitCount = 0;
+
     /**
      * Add class initialization methods
      * 
@@ -493,6 +408,7 @@ public class PointsToGraph {
                 }
                 recordContext(clinit, c);
                 callGraph.registerEntrypoint(initNode);
+                clinitCount++;
             } else {
                 // Already added an initializer and thus must have added initializers for super classes. These are all
                 // that are left to process since we are adding from sub class to super class order
@@ -514,13 +430,11 @@ public class PointsToGraph {
         FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes) {
             this.s = s;
             this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
-            this.notTypes = notTypes.isEmpty() ? null : notTypes;
+            this.notTypes = notTypes;
         }
 
         FilteredSet(Set<InstanceKey> s, TypeReference isType) {
-            this.s = s;
-            this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
-            this.notTypes = null;
+            this(s, isType, null);
         }
 
         @Override

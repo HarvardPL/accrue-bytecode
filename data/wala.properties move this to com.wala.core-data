@@ -17,8 +17,8 @@
 #
 # Info: Location must be absolute.
 #####
-#java_runtime_dir = /System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/
-java_runrime_dir = /Library/Java/JavaVirtualMachines/jdk1.7.0_45.jdk/Contents/Home/jre/lib
+java_runtime_dir = /System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/
+#java_runtime_dir = /Library/Java/JavaVirtualMachines/jdk1.7.0_45.jdk/Contents/Home/jre/lib
 
 ################### Mandatory settings with default value ######################
 

@@ -2,8 +2,8 @@ package analysis.dataflow.interprocedural.pdg.graph;
 
 import java.util.HashMap;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 
 /**
  * Label for an edge from a call site or to a return site.
@@ -16,8 +16,7 @@ public class CallSiteEdgeLabel {
     private final Integer callSiteID;
 
     /**
-     * Map from the call site to ID for the edge, used to correlate call and
-     * return sites
+     * Map from the call site to ID for the edge, used to correlate call and return sites
      */
     private static final HashMap<CallSiteKey, Integer> idMap = new HashMap<>();
 
@@ -36,7 +35,7 @@ public class CallSiteEdgeLabel {
      * @param type
      *            Indication of whether this is an entry or exit
      */
-    public CallSiteEdgeLabel(CallSiteReference site, CGNode caller, SiteType type) {
+    public CallSiteEdgeLabel(SSAInvokeInstruction site, CGNode caller, SiteType type) {
         this.callSiteID = getID(site, caller);
         this.type = type;
     }
@@ -51,7 +50,7 @@ public class CallSiteEdgeLabel {
      * 
      * @return Unique ID for the call site
      */
-    private static Integer getID(CallSiteReference site, CGNode n) {
+    private static Integer getID(SSAInvokeInstruction site, CGNode n) {
         CallSiteKey key = new CallSiteKey(site, n);
         Integer id = idMap.get(key);
         if (id == null) {
@@ -67,8 +66,7 @@ public class CallSiteEdgeLabel {
     private final SiteType type;
 
     /**
-     * Whether this edge is into an entry node or out of an exit node for the
-     * procedure
+     * Whether this edge is into an entry node or out of an exit node for the procedure
      */
     public enum SiteType {
         /**
@@ -126,7 +124,7 @@ public class CallSiteEdgeLabel {
         /**
          * call or return site
          */
-        private final CallSiteReference site;
+        private final SSAInvokeInstruction site;
         /**
          * method and context for caller
          */
@@ -140,7 +138,7 @@ public class CallSiteEdgeLabel {
          * @param caller
          *            method and context for caller
          */
-        public CallSiteKey(CallSiteReference site, CGNode caller) {
+        public CallSiteKey(SSAInvokeInstruction site, CGNode caller) {
             this.site = site;
             this.caller = caller;
         }

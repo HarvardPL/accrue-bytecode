@@ -11,6 +11,7 @@ import java.util.Set;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.AnalysisResults;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -87,7 +88,7 @@ public class ReachabilityResults implements AnalysisResults {
 
     public void writeAllToFiles() {
         for (CGNode n : allResults.keySet()) {
-            if (n.getMethod().isNative()) {
+            if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
                 System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
                 continue;
             }
@@ -120,9 +121,9 @@ public class ReachabilityResults implements AnalysisResults {
             @Override
             protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
                 if (results.isUnreachable(source, target)) {
-                    return "UNREACHABLE";
+                    return "UNREACHABLE " + super.getNormalEdgeLabel(source, target, ir);
                 }
-                return "REACHABLE";
+                return "REACHABLE " + super.getNormalEdgeLabel(source, target, ir);
             }
         };
 

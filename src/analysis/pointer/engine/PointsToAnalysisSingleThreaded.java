@@ -12,7 +12,6 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
-import analysis.pointer.registrar.RegistrationUtil;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
@@ -53,13 +52,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     @Override
     public PointsToGraph solve(StatementRegistrar registrar) {
-        return solveSmarter(registrar, null);
+        return solveSmarter(registrar, false);
     }
 
-    public PointsToGraph solveAndRegister(RegistrationUtil onlineRegistrar) {
-        StatementRegistrar registrar = onlineRegistrar.getRegistrar();
+    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
         onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
-        return solveSmarter(registrar, onlineRegistrar);
+        return solveSmarter(onlineRegistrar, true);
     }
 
     /**
@@ -93,12 +91,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * 
      * @param registrar
      *            points-to statement registrar
-     * @param pass
-     *            if non-null then this will be used to perform the statement registration together with the points-to
-     *            analysis or (if null) the statement registrar already contains all points-to statements
+     * @param registerOnline
+     *            Whether to generate points-to statements during the points-to analysis, otherwise the registrar will
+     *            already be populated
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(StatementRegistrar registrar, RegistrationUtil online) {
+    public PointsToGraph solveSmarter(StatementRegistrar registrar, boolean registerOnline) {
         PointsToGraph g = new PointsToGraph(registrar, haf);
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
@@ -107,23 +105,28 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         // Add initial contexts
         for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getCode().getMethod())) {
+            for (Context c : g.getContexts(s.getMethod())) {
                 q.add(new StmtAndContext(s, c));
             }
         }
 
         int numProcessed = 0;
+        Set<StmtAndContext> visited = new HashSet<>();
         while (!q.isEmpty()) {
             StmtAndContext sac = q.poll();
             incrementCounter(sac);
             PointsToStatement s = sac.stmt;
             Context c = sac.context;
 
-            s.process(c, haf, g, registrar);
-            if (outputLevel >= 1) {
-                System.err.println("PROCESSED: " + sac);
+            if (outputLevel >= 3) {
+                System.err.println("\tPROCESSING: " + sac);
             }
+            s.process(c, haf, g, registrar);
+
             numProcessed++;
+            if (outputLevel >= 1) {
+                visited.add(sac);
+            }
 
             // Get the changes from the graph
             Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
@@ -132,20 +135,20 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             // Add new contexts
             for (IMethod m : newContexts.keySet()) {
-                if (outputLevel >= 1) {
+                if (outputLevel >= 4) {
                     System.err.println("\tNEW CONTEXTS for " + PrettyPrinter.methodString(m));
                     for (Context context : newContexts.get(m)) {
                         System.err.println("\t" + context);
                     }
                 }
 
-                if (online != null) {
+                if (registerOnline) {
                     // Add statements for the given method to the registrar
-                    online.registerMethod(m);
+                    registrar.registerMethod(m);
                 }
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
-                    if (outputLevel >= 1) {
+                    if (outputLevel >= 4) {
                         System.err.println("\t\tADDING " + stmt);
                     }
 
@@ -155,7 +158,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
             }
 
-            if (outputLevel >= 1 && !readNodes.isEmpty()) {
+            if (outputLevel >= 4 && !readNodes.isEmpty()) {
                 System.err.println("\tREAD:");
                 for (PointsToGraphNode read : readNodes) {
                     System.err.println("\t\t" + read);
@@ -167,7 +170,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 addDependency(n, sac);
             }
 
-            if (outputLevel >= 1 && !changedNodes.isEmpty()) {
+            if (outputLevel >= 4 && !changedNodes.isEmpty()) {
                 for (PointsToGraphNode n : changedNodes) {
                     System.err.println("\tCHANGED: " + n);
                     if (!getDependencies(n).isEmpty()) {
@@ -185,19 +188,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             if (numProcessed % 100000 == 0) {
-                System.err.println("PROCESSED: " + numProcessed + " in " + (System.currentTimeMillis() - startTime)
+                System.err.println("PROCESSED: " + numProcessed
+                                                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
+                                                + (System.currentTimeMillis() - startTime)
                                                 / 1000 + "s");
             }
         }
 
         long endTime = System.currentTimeMillis();
-        System.err.println("Processed " + numProcessed + " (statement, context) pairs. It took "
+        System.err.println("Processed " + numProcessed + " (statement, context) pairs"
+                                        + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + ". It took "
                                         + (endTime - startTime) + "ms.");
 
         if (outputLevel >= 5) {
             System.err.println("****************************** CHECKING ******************************");
             PointsToGraph.DEBUG = true;
-            PointsToStatement.DEBUG = true;
             DEBUG_SOLVED = true;
             processAllStatements(g, registrar);
         }
@@ -218,7 +223,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
-        if (i >= 900) {
+        if (i >= 100) {
             throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
         }
         return i;
@@ -236,7 +241,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
         for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getCode().getMethod())) {
+            for (Context c : g.getContexts(s.getMethod())) {
                 changed |= s.process(c, haf, g, registrar);
             }
         }

@@ -6,6 +6,7 @@ import java.util.Map;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 
@@ -17,9 +18,22 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow<ReachabilityAbsVal> {
 
     private final ReachabilityResults results = new ReachabilityResults();
+    private final PreciseExceptionResults preciseEx;
 
-    public ReachabilityInterProceduralDataFlow(PointsToGraph ptg, ReferenceVariableCache rvCache) {
+    /**
+     * Create an inter-procedural analysis to compute which basic blocks are reachable
+     * 
+     * @param ptg
+     *            points to graph
+     * @param rvCache
+     *            reference variable cache
+     * @param preciseEx
+     *            results of an inter-procedural precise exceptions analysis (null if no results are available)
+     */
+    public ReachabilityInterProceduralDataFlow(PointsToGraph ptg, ReferenceVariableCache rvCache,
+                                    PreciseExceptionResults preciseEx) {
         super(ptg, ReachabilityResults.ALWAYS_REACHABLE, rvCache);
+        this.preciseEx = preciseEx;
     }
 
     @Override
@@ -38,16 +52,16 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     }
 
     @Override
-    protected Map<ExitType, ReachabilityAbsVal> analyzeNative(CGNode n, ReachabilityAbsVal input) {
+    protected Map<ExitType, ReachabilityAbsVal> analyzeMissingCode(CGNode n, ReachabilityAbsVal input) {
         if (getOutputLevel() >= 2) {
             System.err.println("ANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }
 
-        // Assume all native methods can both terminate normally and throw an
-        // exception
+        // If the method is reachable then the exits are reachable
+        // If the method is reachable then the exits are unreachable
         Map<ExitType, ReachabilityAbsVal> results = new HashMap<>();
-        results.put(ExitType.NORMAL, ReachabilityAbsVal.REACHABLE);
-        results.put(ExitType.EXCEPTIONAL, ReachabilityAbsVal.REACHABLE);
+        results.put(ExitType.NORMAL, input);
+        results.put(ExitType.EXCEPTIONAL, input);
         return results;
     }
 
@@ -84,5 +98,14 @@ public class ReachabilityInterProceduralDataFlow extends InterproceduralDataFlow
     @Override
     public ReachabilityResults getAnalysisResults() {
         return results;
+    }
+
+    /**
+     * Results of a precise exceptions analysis
+     * 
+     * @return results of a precise exceptions analysis or null if there are no such results
+     */
+    public PreciseExceptionResults getPreciseEx() {
+        return preciseEx;
     }
 }

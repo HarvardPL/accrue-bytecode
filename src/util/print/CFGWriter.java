@@ -9,12 +9,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import analysis.AnalysisUtil;
+import analysis.dataflow.DataFlow;
 import analysis.dataflow.interprocedural.ExitType;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSACFG;
+import com.ibm.wala.ssa.SSAConditionalBranchInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 
 /**
@@ -42,6 +46,10 @@ public class CFGWriter {
      * String to append to instructions
      */
     private String postfix;
+    /**
+     * Pretty printer
+     */
+    private PrettyPrinter pp;
 
     /**
      * Create a writer for the given IR
@@ -54,6 +62,7 @@ public class CFGWriter {
     public CFGWriter(IR ir) {
         assert ir != null : "Cannot print CFG for null IR";
         this.ir = ir;
+        this.pp = new PrettyPrinter(ir);
     }
 
     /**
@@ -101,6 +110,17 @@ public class CFGWriter {
     }
 
     /**
+     * Write the cfg for the given method to a dot file in the "tests" directory with the filename equal to the method
+     * name prepended with "cfg_"
+     * 
+     * @param m
+     *            method to write CFG for
+     */
+    public static final void writeToFile(IMethod m) {
+        writeToFile(AnalysisUtil.getIR(m));
+    }
+
+    /**
      * Write the cfg for the given IR to a dot file in the tests directory with the given name
      * 
      * @param ir
@@ -118,6 +138,18 @@ public class CFGWriter {
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
+    }
+
+    /**
+     * Write the cfg for the given method to a dot file in the tests directory with the given name
+     * 
+     * @param m
+     *            to write CFG for
+     * @param filename
+     *            file to be saved in "tests" directory with .dot appended
+     */
+    public static final void writeToFile(IMethod m, String filename) {
+        writeToFile(AnalysisUtil.getIR(m), filename);
     }
 
     /**
@@ -152,7 +184,7 @@ public class CFGWriter {
             for (ISSABasicBlock succ : cfg.getNormalSuccessors(current)) {
                 String edge;
                 if (getUnreachableSuccessors(current, cfg).contains(succ)) {
-                    edge = "UNREACHABLE";
+                    edge = "UNREACHABLE " + getNormalEdgeLabel(current, succ, ir);
                 } else {
                     edge = getNormalEdgeLabel(current, succ, ir);
                 }
@@ -190,7 +222,7 @@ public class CFGWriter {
             if (bb.isEntryBlock()) {
                 sb.append("ENTRY\\l");
                 for (int j = 0; j < ir.getNumberOfParameters(); j++) {
-                    sb.append(PrettyPrinter.valString(ir.getParameter(j), ir) + " = param(" + j + ")\\l");
+                    sb.append(pp.valString(ir.getParameter(j)) + " = param(" + j + ")\\l");
                 }
             }
             if (bb.isExitBlock()) {
@@ -199,7 +231,7 @@ public class CFGWriter {
 
             if (verbose) {
                 for (SSAInstruction i : bb) {
-                    sb.append(getPrefix(i) + PrettyPrinter.instructionString(i, ir) + getPostfix(i));
+                    sb.append(getPrefix(i) + pp.instructionString(i) + getPostfix(i));
                 }
             }
             bbString = escapeDot(sb.toString());
@@ -273,8 +305,19 @@ public class CFGWriter {
      * @param ir
      * @return
      */
-    @SuppressWarnings("unused")
     protected String getNormalEdgeLabel(ISSABasicBlock source, ISSABasicBlock target, IR ir) {
+        if (DataFlow.getLastInstruction(source) instanceof SSAConditionalBranchInstruction) {
+            ISSABasicBlock trueSucc = DataFlow.getTrueSuccessor(source, ir.getControlFlowGraph());
+            ISSABasicBlock falseSucc = DataFlow.getFalseSuccessor(source, ir.getControlFlowGraph());
+            if (target.equals(trueSucc)) {
+                return "TRUE";
+            } else if (target.equals(falseSucc)) {
+                return "FALSE";
+            } else {
+                throw new RuntimeException("Something besides a true or false successor for a branch.");
+            }
+
+        }
         return ExitType.NORMAL.toString();
     }
 }

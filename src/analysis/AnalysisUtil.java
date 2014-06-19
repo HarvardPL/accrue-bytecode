@@ -11,12 +11,14 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
+import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
@@ -44,21 +46,26 @@ public class AnalysisUtil {
      */
     private static FakeRootMethod fakeRoot;
     /**
-     * WALA representation of java.lang.String
+     * Class for java.lang.String
      */
     private static IClass stringClass;
     /**
-     * WALA representation of the class for the value field of a string
-     */
-    private static IClass stringValueClass;
-    /**
-     * WALA representation of the class for java.lang.Throwable
+     * Class for java.lang.Throwable
      */
     private static IClass throwableClass;
     /**
-     * WALA representation of the class for java.lang.Error
+     * Class for java.lang.Error
      */
     private static IClass errorClass;
+    /**
+     * type of the field in java.lang.String
+     */
+    public static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
+    /**
+     * Class for value field of java.lang.String
+     */
+    private static IClass stringValueClass;
+
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
      */
@@ -72,9 +79,9 @@ public class AnalysisUtil {
      */
     private static final String DEFAULT_CLASSPATH = "classes";
     /**
-     * type of the field in java.lang.String
+     * Signatures
      */
-    private static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
+    public static final Signatures signatures = new Signatures();
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -187,7 +194,7 @@ public class AnalysisUtil {
      * @return the code for the given method, null for native methods
      */
     public static IR getIR(IMethod resolvedMethod) {
-        IR sigIR = Signatures.getSignatureIR(resolvedMethod);
+        IR sigIR = signatures.getSignatureIR(resolvedMethod);
         if (sigIR != null) {
             return sigIR;
         }
@@ -201,21 +208,44 @@ public class AnalysisUtil {
     }
 
     /**
+     * Get the def-use results for the given method, returns null for native methods without signatures
+     * 
+     * @param resolvedMethod
+     *            method to get the def-use results for
+     * @return the def-use for the given method, null for native methods
+     */
+    public static DefUse getDefUse(IMethod resolvedMethod) {
+        IR sigIR = signatures.getSignatureIR(resolvedMethod);
+        if (sigIR != null) {
+            return new DefUse(sigIR);
+        }
+
+        if (resolvedMethod.isNative()) {
+            // Native method with no signature
+            return null;
+        }
+
+        return cache.getSSACache().findOrCreateDU(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+    }
+
+    /**
+     * Get the IR for the method represented by the call graph node, returns null for native methods without signatures
+     * 
+     * @param n
+     *            call graph node
+     * @return the code for the given call graph node, null for native methods without signatures
+     */
+    public static IR getIR(CGNode n) {
+        return getIR(n.getMethod());
+    }
+
+    /**
      * Get the canonical class for java.lang.String
      * 
      * @return class
      */
     public static IClass getStringClass() {
         return stringClass;
-    }
-
-    /**
-     * Get the canonical class for the value field of java.lang.String
-     * 
-     * @return class
-     */
-    public static IClass getStringValueClass() {
-        return stringValueClass;
     }
 
     /**
@@ -234,5 +264,20 @@ public class AnalysisUtil {
      */
     public static IClass getErrorClass() {
         return errorClass;
+    }
+
+    /**
+     * Check whether the given method has a signature
+     * 
+     * @param m
+     *            method to check
+     * @return true if the method has a signature implementation
+     */
+    public static boolean hasSignature(IMethod m) {
+        return signatures.hasSignature(m);
+    }
+
+    public static IClass getStringValueClass() {
+        return stringValueClass;
     }
 }

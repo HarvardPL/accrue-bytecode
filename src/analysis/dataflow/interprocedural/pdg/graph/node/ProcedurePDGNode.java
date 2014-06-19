@@ -1,6 +1,10 @@
 package analysis.dataflow.interprocedural.pdg.graph.node;
 
+import org.json.JSONObject;
+
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.pdg.serialization.JSONUtil;
+import analysis.dataflow.interprocedural.pdg.serialization.PDGNodeClassName;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 
@@ -46,5 +50,26 @@ public class ProcedurePDGNode extends PDGNode {
     @Override
     public String groupingName() {
         return PrettyPrinter.cgNodeString(n);
+    }
+
+    @Override
+    public PDGNodeClassName getClassName() {
+        return PDGNodeClassName.EXPR;
+    }
+
+    @Override
+    public JSONObject toJSON() {
+        // TODO "paramName" for function parameters
+        // TODO "exception" for generated exception type
+        // TODO "exitkey" for exit nodes
+        JSONObject json = JSONUtil.toJSON(this);
+        JSONUtil.addJSON(json, "code", PrettyPrinter.methodString(n.getMethod()));
+        JSONUtil.addJSON(json, "isShortCircuit", false);
+        return json;
+    }
+
+    @Override
+    public String contextString() {
+        return n.getContext().toString();
     }
 }

@@ -27,75 +27,63 @@ public class PDGNodeFactory {
     }
 
     /**
-     * Find the unique node for the local variable or constant used by
-     * instruction, <code>i</code>, in position <code>useNumber</code>. Create
-     * if necessary.
+     * Find the unique node for the local variable or constant used by instruction, <code>i</code>, in position
+     * <code>useNumber</code>. Create if necessary.
      * 
      * @param i
      *            instruction with at least <code>useNumber</code> + 1 uses
      * @param useNumber
      *            valid use index (uses are 0 indexed)
      * @param cgNode
-     *            call graph node containing the code and context for the
-     *            instruction
+     *            call graph node containing the code and context for the instruction
      * @return PDG node for the use with the given use number in <code>i</code>
      */
-    public static PDGNode findOrCreateUse(SSAInstruction i, int useNumber, CGNode cgNode) {
+    public static PDGNode findOrCreateUse(SSAInstruction i, int useNumber, CGNode cgNode, PrettyPrinter pp) {
         assert i.getNumberOfUses() > useNumber : "Use number: " + useNumber + " bigger than the numbe of uses: "
-                                        + i.getNumberOfUses() + " for "
-                                        + PrettyPrinter.instructionString(i, cgNode.getIR()) + "\nIN "
+                                        + i.getNumberOfUses() + " for " + i + " IN "
                                         + PrettyPrinter.cgNodeString(cgNode);
         int valueNumber = i.getUse(useNumber);
-        return findOrCreateLocal(valueNumber, cgNode);
+        return findOrCreateLocal(valueNumber, cgNode, pp);
     }
 
     /**
-     * Find the unique node for the local variable or constant given by the
-     * value number. Create if necessary.
+     * Find the unique node for the local variable or constant given by the value number. Create if necessary.
      * 
      * @param valueNumber
      *            value number for the local variable
      * @param cgNode
-     *            call graph node containing the code and context for the local
-     *            variable
+     *            call graph node containing the code and context for the local variable
      * @return PDG node for the local variable
      */
-    public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode) {
+    public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode, PrettyPrinter pp) {
         assert valueNumber >= 0 : "negative value number for local " + valueNumber + " for\n"
                                         + PrettyPrinter.cgNodeString(cgNode);
         IR ir = cgNode.getIR();
         PDGNode n;
         if (ir.getSymbolTable().isConstant(valueNumber)) {
-            n = PDGNodeFactory.findOrCreateOther(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.BASE_VALUE,
-                                            cgNode, valueNumber);
+            n = PDGNodeFactory.findOrCreateOther(pp.valString(valueNumber), PDGNodeType.BASE_VALUE, cgNode, valueNumber);
         } else {
-            n = PDGNodeFactory.findOrCreateOther(PrettyPrinter.valString(valueNumber, ir), PDGNodeType.LOCAL, cgNode,
-                                            valueNumber);
+            n = PDGNodeFactory.findOrCreateOther(pp.valString(valueNumber), PDGNodeType.LOCAL, cgNode, valueNumber);
         }
 
         return n;
     }
 
     /**
-     * Find the unique node with the given type in the code and context given by
-     * the call graph node, <code>n</code>. In order to ensure that this node is
-     * unique a disambiguation key must be specified to distinguish different
-     * nodes created with the same type in the same call graph node. If no such
-     * node exists one will be created.
+     * Find the unique node with the given type in the code and context given by the call graph node, <code>n</code>. In
+     * order to ensure that this node is unique a disambiguation key must be specified to distinguish different nodes
+     * created with the same type in the same call graph node. If no such node exists one will be created.
      * 
      * @param description
-     *            human readable description of the node, will not be used to
-     *            disambiguate nodes and may later be changed
+     *            human readable description of the node, will not be used to disambiguate nodes and may later be
+     *            changed
      * @param type
      *            type of expression node being created
      * @param n
-     *            call graph node containing the code and context for the
-     *            expression
+     *            call graph node containing the code and context for the expression
      * @param disambuationKey
-     *            key used to distinguish nodes (in addition to the call graph
-     *            node and type)
-     * @return unique PDG node of the given type created in the given call graph
-     *         node with the given disambiguation key
+     *            key used to distinguish nodes (in addition to the call graph node and type)
+     * @return unique PDG node of the given type created in the given call graph node with the given disambiguation key
      */
     public static ProcedurePDGNode findOrCreateOther(String description, PDGNodeType type, CGNode n,
                                     Object disambuationKey) {
@@ -109,14 +97,13 @@ public class PDGNodeFactory {
     }
 
     /**
-     * Find the unique node for the generated exception of the given type thrown
-     * by <code>i</code> in the code and context given by the call graph node.
+     * Find the unique node for the generated exception of the given type thrown by <code>i</code> in the code and
+     * context given by the call graph node.
      * 
      * @param type
      *            type of the generated exception
      * @param n
-     *            call graph node containing the code and context the exception
-     *            is generated in
+     *            call graph node containing the code and context the exception is generated in
      * @param i
      *            instruction the exception is generated for
      * @return PDG node for the generated exception
@@ -126,36 +113,31 @@ public class PDGNodeFactory {
     }
 
     /**
-     * Find a the unique node corresponding to the (first) local variable
-     * defined by the instruction, <code>i</code>. Create this node if it does
-     * not already exist.
+     * Find a the unique node corresponding to the (first) local variable defined by the instruction, <code>i</code>.
+     * Create this node if it does not already exist.
      * 
      * @param i
      *            instruction that defines a local variable
      * @param n
-     *            call graph node containing the code and context the local is
-     *            defined in
-     * @return unique node for the (first) local variable defined by
-     *         <code>i</code>
+     *            call graph node containing the code and context the local is defined in
+     * @return unique node for the (first) local variable defined by <code>i</code>
      */
-    public static ProcedurePDGNode findOrCreateLocalDef(SSAInstruction i, CGNode n) {
-        assert i.hasDef() : "Trying to create def node for instruction that has no def "
-                                        + PrettyPrinter.instructionString(i, n.getIR());
+    public static ProcedurePDGNode findOrCreateLocalDef(SSAInstruction i, CGNode n, PrettyPrinter pp) {
+        assert i.hasDef() : "Trying to create def node for instruction that has no def " + pp.instructionString(i);
         ExpressionNodeKey key = new ExpressionNodeKey(PDGNodeType.LOCAL, n, i.getDef());
         ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {
-            node = new ProcedurePDGNode(PrettyPrinter.instructionString(i, n.getIR()), PDGNodeType.LOCAL, n);
+            node = new ProcedurePDGNode(pp.instructionString(i), PDGNodeType.LOCAL, n);
             expressionNodes.put(key, node);
         } else {
-            node.setDescription(PrettyPrinter.instructionString(i, n.getIR()));
+            node.setDescription(pp.instructionString(i));
         }
         return node;
     }
 
     /**
-     * Nodes at the edges of and intra-procedural dependence graph representing
-     * formal arguments, returns, exceptions and control flow into and out of
-     * the method (and context) represented by the call graph node. Create if
+     * Nodes at the edges of and intra-procedural dependence graph representing formal arguments, returns, exceptions
+     * and control flow into and out of the method (and context) represented by the call graph node. Create if
      * necessary.
      * 
      * @param n

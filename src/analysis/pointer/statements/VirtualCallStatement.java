@@ -6,6 +6,7 @@ import java.util.Set;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory;
@@ -17,8 +18,6 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.MethodReference;
 
 /**
@@ -34,38 +33,40 @@ public class VirtualCallStatement extends CallStatement {
      * Reference variable for the receiver of the call
      */
     private final ReferenceVariable receiver;
+    /**
+     * Factory used to create callee summary nodes
+     */
+    private final ReferenceVariableFactory rvFactory;
 
     /**
      * Points-to statement for a virtual method invocation.
      * 
      * @param callSite
      *            Method call site
+     * @param caller
+     *            caller method
      * @param callee
      *            Method being called
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver
      *            Receiver of the call
      * @param actuals
      *            Actual arguments to the call
-     * @param resultNode
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param exceptionNode
+     * @param exception
      *            Node representing the exception thrown by this call (if any)
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
      * @param rvFactory
      *            factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteReference callSite, MethodReference callee, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable resultNode,
-                                    ReferenceVariable exceptionNode, IR ir,
-                                    SSAInvokeInstruction i, ReferenceVariableFactory rvFactory) {
-        super(callSite, actuals, resultNode, exceptionNode, ir, i, rvFactory);
-        assert receiver != null;
-        assert callee != null;
+    protected VirtualCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
+                                    ReferenceVariable result, ReferenceVariable receiver,
+                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                    ReferenceVariableFactory rvFactory) {
+        super(callSite, caller, result, actuals, exception);
+
         this.callee = callee;
         this.receiver = receiver;
+        this.rvFactory = rvFactory;
     }
 
     // private static Map<ReferenceVariableReplica, Integer> lots = new HashMap<>();
@@ -73,16 +74,12 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-        ReferenceVariableReplica receiverRep = getReplica(context, receiver);
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
 
-        if (DEBUG && g.getPointsToSet(receiverRep).isEmpty()) {
-            System.err.println("RECEIVER: " + receiverRep + "\n\t"
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        Set<InstanceKey> s = g.getPointsToSet(receiverRep);
+        assert checkForNonEmpty(s, receiverRep, "VIRTUAL RECEIVER");
 
         boolean changed = false;
-        Set<InstanceKey> s = g.getPointsToSet(receiverRep);
         // if (s.size() > 5000) {
         // Integer i = lots.get(receiverRep);
         // if (i == null || s.size() > (i + 1000)) {
@@ -107,6 +104,12 @@ public class VirtualCallStatement extends CallStatement {
             if (resolvedCallee == null) {
                 // XXX Try the type of the reference variable instead
                 // This is probably a variable created for the return of a native method, then cast down
+                if (PointsToAnalysis.outputLevel >= 1) {
+                    System.err.println("Could not resolve " + recHeapContext.getConcreteType() + " "
+                                                    + callee.getSelector());
+                    System.err.println("\ttrying reference variable type "
+                                                    + cha.lookupClass(receiverRep.getExpectedType()));
+                }
                 resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverRep.getExpectedType()), callee.getSelector());
             }
 
@@ -120,7 +123,8 @@ public class VirtualCallStatement extends CallStatement {
             // If we wanted to be very robust, check to make sure that
             // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
-            changed |= processCall(context, recHeapContext, resolvedCallee, g, registrar, haf);
+            changed |= processCall(context, recHeapContext, resolvedCallee, g, haf,
+                                            registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory));
         }
         return changed;
     }
@@ -128,10 +132,10 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
-        if (getResultNode() != null) {
-            s.append(getResultNode().toString() + " = ");
+        if (getResult() != null) {
+            s.append(getResult().toString() + " = ");
         }
-        s.append("invokevirtual " + PrettyPrinter.methodString(getCallSiteLabel().getCallee()));
+        s.append("invokevirtual " + PrettyPrinter.methodString(callee));
 
         return s.toString();
     }

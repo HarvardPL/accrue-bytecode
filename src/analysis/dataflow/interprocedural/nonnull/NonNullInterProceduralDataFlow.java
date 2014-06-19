@@ -57,7 +57,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
     }
 
     @Override
-    protected Map<ExitType, VarContext<NonNullAbsVal>> analyzeNative(CGNode n, VarContext<NonNullAbsVal> input) {
+    protected Map<ExitType, VarContext<NonNullAbsVal>> analyzeMissingCode(CGNode n, VarContext<NonNullAbsVal> input) {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }

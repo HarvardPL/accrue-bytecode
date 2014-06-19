@@ -8,11 +8,9 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSANewInstruction;
 
 /**
  * Points-to graph statement for a "new" statement, e.g. Object o = new Object()
@@ -29,41 +27,21 @@ public class NewStatement extends PointsToStatement {
     private final AllocSiteNode alloc;
 
     /**
-     * Points-to graph statement for a "new" instruction, e.g. Object o = new Object()
+     * Points-to graph statement for an allocation resulting from a new instruction, e.g. o = new Object
      * 
      * @param result
      *            Points-to graph node for the assignee of the new
      * @param newClass
      *            Class being created
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
+     * @param pc
+     *            program counter of the allocation
      */
-    protected NewStatement(ReferenceVariable result, IClass newClass, IR ir, SSANewInstruction i) {
-        super(ir, i);
+    protected NewStatement(ReferenceVariable result, IClass newClass, IMethod m, int pc) {
+        super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.getAllocationNode(newClass, ir.getMethod().getDeclaringClass(), i,
-                                        "Normal Allocation");
-    }
-
-    /**
-     * Points-to graph statement for an allocation of a generated exception that does not result from a new instruction
-     * 
-     * @param result
-     *            the assignee of the new allocation
-     * @param allocatedClass
-     *            Class being created
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
-     */
-    protected NewStatement(ReferenceVariable result, IClass allocatedClass, IR ir, SSAInstruction i) {
-        super(ir, i);
-        this.result = result;
-        alloc = AllocSiteNodeFactory.getGeneratedExceptionNode(allocatedClass, ir.getMethod().getDeclaringClass(), i,
-                                        result);
+        alloc = AllocSiteNodeFactory.createNormal(newClass, m.getDeclaringClass(), result, pc);
     }
 
     /**
@@ -75,24 +53,22 @@ public class NewStatement extends PointsToStatement {
      *            the assignee of the new allocation
      * @param allocatedClass
      *            Class being created
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      */
-    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IR ir, SSAInstruction i) {
-        super(ir, i);
+    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IMethod m) {
+        super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.getGeneratedAllocationNode(name, allocatedClass, ir.getMethod()
-                                        .getDeclaringClass(), i, result);
+        alloc = AllocSiteNodeFactory.createGenerated(name, allocatedClass, m.getDeclaringClass(), result);
     }
 
     @Override
     public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
-        InstanceKey k = haf.record(alloc, context);
-        assert k != null;
+        InstanceKey newHeapContext = haf.record(alloc, context);
+        assert newHeapContext != null;
+
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
-        return g.addEdge(r, k);
+        return g.addEdge(r, newHeapContext);
     }
 
     @Override

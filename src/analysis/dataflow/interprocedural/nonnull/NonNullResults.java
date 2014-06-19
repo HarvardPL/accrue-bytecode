@@ -30,20 +30,18 @@ public class NonNullResults implements AnalysisResults {
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
     /**
-     * Whether the variable with the given value number is non-null just
-     * <i>before</i> executing the given instruction
+     * Whether the variable with the given value number is non-null just <i>before</i> executing the given instruction
      * 
      * @param valNum
      *            variable value number
      * @param i
-     *            instruction
+     *            instruction TODO Necessary to use the SSAInstruction for non-null results? Could be memory inefficient
      * @param containingNode
      *            containing call graph node (context and code)
-     * @return true if the variable represented by the value number is
-     *         definitely not null
+     * @return true if the variable represented by the value number is definitely not null
      */
-    public boolean isNonNull(int valNum, SSAInstruction i, CGNode containingNode) {
-        if (TypeRepository.getType(valNum, containingNode.getIR()).isPrimitiveType()) {
+    public boolean isNonNull(int valNum, SSAInstruction i, CGNode containingNode, TypeRepository types) {
+        if (types.getType(valNum).isPrimitiveType()) {
             // All primitives are non-null
             return true;
         }
@@ -69,9 +67,8 @@ public class NonNullResults implements AnalysisResults {
     }
 
     /**
-     * Record that the variables with the given value numbers are non-null just
-     * <i>before</i> executing the given instruction in the given call graph
-     * node
+     * Record that the variables with the given value numbers are non-null just <i>before</i> executing the given
+     * instruction in the given call graph node
      * 
      * @param nonNullValues
      *            variable value numbers for non-null values
@@ -94,8 +91,7 @@ public class NonNullResults implements AnalysisResults {
      */
     private static class ResultsForNode {
         /**
-         * Map from instruction to value numbers that are definitely non-null
-         * just before executing the instruction.
+         * Map from instruction to value numbers that are definitely non-null just before executing the instruction.
          */
         private final Map<SSAInstruction, Set<Integer>> results = new HashMap<>();
 
@@ -103,15 +99,14 @@ public class NonNullResults implements AnalysisResults {
         }
 
         /**
-         * Whether the variable with the given value number is non-null just
-         * <i>before</i> executing the given instruction
+         * Whether the variable with the given value number is non-null just <i>before</i> executing the given
+         * instruction
          * 
          * @param valNum
          *            variable value number
          * @param i
          *            instruction
-         * @return true if the variable represented by the value number is
-         *         definitely not null
+         * @return true if the variable represented by the value number is definitely not null
          */
         public boolean isNonNull(int valNum, SSAInstruction i) {
             Set<Integer> nonNulls = results.get(i);
@@ -137,9 +132,8 @@ public class NonNullResults implements AnalysisResults {
         }
 
         /**
-         * Record that the variable with the given value number is non-null just
-         * <i>before</i> executing the given instruction, replace the current
-         * set of values if there are any
+         * Record that the variable with the given value number is non-null just <i>before</i> executing the given
+         * instruction, replace the current set of values if there are any
          * 
          * @param nonNullValues
          *            variable value number for non-null value
@@ -198,7 +192,11 @@ public class NonNullResults implements AnalysisResults {
 
     public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            String fileName = "tests/nonnull_" + PrettyPrinter.cgNodeString(n) + ".dot";
+            String cgString = PrettyPrinter.cgNodeString(n);
+            if (cgString.length() > 200) {
+                cgString = cgString.substring(0, 200);
+            }
+            String fileName = "tests/nonnull_" + cgString + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n, reachable);
                 System.err.println("DOT written to " + fileName);
@@ -211,6 +209,9 @@ public class NonNullResults implements AnalysisResults {
         final ResultsForNode results = allResults.get(n);
 
         CFGWriter w = new CFGWriter(n.getIR()) {
+
+            PrettyPrinter pp = new PrettyPrinter(n.getIR());
+
             @Override
             public String getPrefix(SSAInstruction i) {
                 if (results == null) {
@@ -220,7 +221,7 @@ public class NonNullResults implements AnalysisResults {
 
                 Set<String> strings = new HashSet<>();
                 for (Integer val : results.getAllNonNull(i)) {
-                    strings.add(PrettyPrinter.valString(val, n.getIR()));
+                    strings.add(pp.valString(val));
                 }
                 return strings + "\\l";
             }

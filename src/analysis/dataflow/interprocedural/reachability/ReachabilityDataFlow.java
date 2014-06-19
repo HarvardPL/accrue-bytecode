@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural.reachability;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -8,6 +9,9 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
+import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
+import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -36,40 +40,100 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.ssa.SymbolTable;
 
 /**
  * Intra-procedural part of an inter-procedural reachability analysis
  */
 public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAbsVal> {
 
+    private final BooleanConstantResults booleanResults;
+
     public ReachabilityDataFlow(CGNode n, ReachabilityInterProceduralDataFlow interProc) {
         super(n, interProc);
+        BooleanConstantDataFlow bcdf = new BooleanConstantDataFlow(n, ptg, interProc.getRvCache());
+        bcdf.setOutputLevel(interProc.getOutputLevel());
+        this.booleanResults = bcdf.run();
+        if (interProc.getOutputLevel() >= 1) {
+            booleanResults.writeResultsToFile();
+        }
     }
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> call(SSAInvokeInstruction i, Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
-
         ReachabilityAbsVal in = confluence(inItems, bb);
-        // Start out assuming successors are unreachable, if
+        if (in == ReachabilityAbsVal.UNREACHABLE) {
+            // This call is unreachable so no need to analyze the callee
+            // In fact if we do we could sat that exits are reachable due to imprecision (the same method can be
+            // reachable and unreachable at different call sites, but in the same context).
+            return factToMap(ReachabilityAbsVal.UNREACHABLE, bb, cfg);
+        }
+
+        // Start out assuming successors are unreachable, if one target can exit then it will change in the loop below
         ReachabilityAbsVal normal = ReachabilityAbsVal.UNREACHABLE;
         ReachabilityAbsVal exceptional = ReachabilityAbsVal.UNREACHABLE;
-        assert !cg.getPossibleTargets(currentNode, i.getCallSite()).isEmpty() : "No calls to "
-                                        + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
-                                        + PrettyPrinter.cgNodeString(currentNode);
-        for (CGNode callee : cg.getPossibleTargets(currentNode, i.getCallSite())) {
+
+        Set<CGNode> targets = cg.getPossibleTargets(currentNode, i.getCallSite());
+        if (targets.isEmpty()) {
+            return guessResultsForMissingReceiver(i, in, cfg, bb);
+        }
+
+        for (CGNode callee : targets) {
             Map<ExitType, ReachabilityAbsVal> out = interProc.getResults(currentNode, callee, in);
             normal = normal.join(out.get(ExitType.NORMAL));
             exceptional = exceptional.join(out.get(ExitType.EXCEPTIONAL));
         }
-        // If non-static assume exceptional successors are as reachable as the in item (reachable at least
-        // via NPE)
+
+        // If non-static assume exceptional successors are as reachable as the in item (reachable at least via NPE)
         return factsToMapWithExceptions(normal, i.isStatic() ? exceptional : in.join(exceptional), bb, cfg);
     }
 
     @Override
-    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                    ISSABasicBlock justProcessed, Map<ISSABasicBlock, ReachabilityAbsVal> outItems) {
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> guessResultsForMissingReceiver(SSAInvokeInstruction i,
+                                    ReachabilityAbsVal input, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                    ISSABasicBlock bb) {
+        if (outputLevel >= 1) {
+            System.err.println("No calls to " + PrettyPrinter.methodString(i.getDeclaredTarget()) + " from "
+                                            + PrettyPrinter.cgNodeString(currentNode));
+        }
+        return factToMap(input, bb, cfg);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flow(Set<ReachabilityAbsVal> inItems,
+                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        Map<ISSABasicBlock, ReachabilityAbsVal> out = super.flow(inItems, cfg, current);
+
+        PreciseExceptionResults pe = ((ReachabilityInterProceduralDataFlow) interProc).getPreciseEx();
+        if (pe == null) {
+            return out;
+        }
+
+        Map<ISSABasicBlock, ReachabilityAbsVal> newOutItems = new LinkedHashMap<>();
+        for (ISSABasicBlock bb : getExceptionalSuccs(current, cfg)) {
+            // Modify outItems based on the precise exceptions analysis
+            if (out.get(bb) == ReachabilityAbsVal.REACHABLE && pe.getExceptions(current, bb, currentNode).isEmpty()) {
+                // This is an exception edge with no exceptions
+                newOutItems.put(bb, ReachabilityAbsVal.UNREACHABLE);
+            }
+        }
+
+        if (!newOutItems.isEmpty()) {
+            for (ISSABasicBlock bb : out.keySet()) {
+                if (!newOutItems.containsKey(bb)) {
+                    newOutItems.put(bb, out.get(bb));
+                }
+            }
+        } else {
+            newOutItems = out;
+        }
+        return newOutItems;
+    }
+
+    @Override
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+                                    Map<ISSABasicBlock, ReachabilityAbsVal> outItems) {
 
         for (ISSABasicBlock bb : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(bb) == null) {
@@ -146,6 +210,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     @Override
     protected ReachabilityAbsVal flowInstanceOf(SSAInstanceofInstruction i, Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        // TODO Could keep track of results of instanceof to find dead branches
         return confluence(previousItems, current);
     }
 
@@ -187,7 +252,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return mergeAndCreateMap(previousItems, current, cfg);
     }
-    
+
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowBinaryOpWithException(SSABinaryOpInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
@@ -206,6 +271,83 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        ReachabilityAbsVal in = confluence(previousItems, current);
+        if (in == ReachabilityAbsVal.UNREACHABLE) {
+            // The branching statement is unreachable so both children are as well
+            return factToMap(in, current, cfg);
+        }
+
+        int leftValNum = i.getUse(0);
+        int rightValNum = i.getUse(1);
+        SymbolTable st = currentNode.getIR().getSymbolTable();
+
+        // See if both are constants
+        Object left = null;
+        Object right = null;
+        if (st.isConstant(leftValNum) && st.isConstant(rightValNum)) {
+            left = st.getConstantValue(leftValNum);
+            right = st.getConstantValue(rightValNum);
+        } else if (i.isIntegerComparison()) {
+            // This may be the comparison between two booleans, lets see if both of them are constant
+            // Note that literal constant booleans are turned into integers and that 0 is false
+            if (booleanResults.isConstant(i, leftValNum)) {
+                left = booleanResults.getConstant(i, leftValNum);
+            }
+            if (booleanResults.isConstant(i, rightValNum)) {
+                right = booleanResults.getConstant(i, rightValNum);
+            }
+        }
+
+        if (left != null && right != null) {
+            // Results are statically known
+
+            Map<ISSABasicBlock, ReachabilityAbsVal> out = new LinkedHashMap<>();
+            boolean result;
+            switch (i.getOperator().toString()) {
+            case "eq":
+                // if (left == right)
+                result = left.equals(right);
+                break;
+            case "ne":
+                // if (left != right)
+                result = !left.equals(right);
+                break;
+
+            // The rest are only numerical comparisons and Double is always a safe (widening, loss-less) cast
+            case "lt":
+                // if (left < right)
+                result = st.getDoubleValue(leftValNum) < st.getDoubleValue(rightValNum);
+                break;
+            case "ge":
+                // if (left >= right)
+                result = st.getDoubleValue(leftValNum) >= st.getDoubleValue(rightValNum);
+                break;
+            case "gt":
+                // if (left > right)
+                result = st.getDoubleValue(leftValNum) > st.getDoubleValue(rightValNum);
+                break;
+            case "le":
+                // if (left <= right)
+                result = st.getDoubleValue(leftValNum) <= st.getDoubleValue(rightValNum);
+                break;
+            default:
+                throw new IllegalArgumentException("operator not found " + i.getOperator());
+            }
+            // We know the result so one brach is unreachable
+            ISSABasicBlock trueBB = getTrueSuccessor(current, cfg);
+            ISSABasicBlock falseBB = getFalseSuccessor(current, cfg);
+            if (result) {
+                // Statically true
+                out.put(trueBB, ReachabilityAbsVal.REACHABLE);
+                out.put(falseBB, ReachabilityAbsVal.UNREACHABLE);
+            } else {
+                // Statically false
+                out.put(trueBB, ReachabilityAbsVal.UNREACHABLE);
+                out.put(falseBB, ReachabilityAbsVal.REACHABLE);
+            }
+            return out;
+        }
+
         return mergeAndCreateMap(previousItems, current, cfg);
     }
 
@@ -274,11 +416,10 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
     @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowNewObject(SSANewInstruction i,
-                                    Set<ReachabilityAbsVal> previousItems,
+                                    Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // There is an error from new Object() but we are not tracking errors
-        return factsToMapWithExceptions(confluence(previousItems, current), ReachabilityAbsVal.UNREACHABLE, current,
-                                        cfg);
+        return factsToMapWithExceptions(confluence(inItems, current), ReachabilityAbsVal.UNREACHABLE, current, cfg);
     }
 
     @Override
@@ -306,8 +447,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flowThrow(SSAThrowInstruction i,
                                     Set<ReachabilityAbsVal> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // This cannot terminate normally, but there is no normal termination
-        // edge either
+        // This cannot terminate normally, but there is no normal termination edge either
         return mergeAndCreateMap(previousItems, current, cfg);
     }
 }

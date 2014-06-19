@@ -70,7 +70,7 @@ public class PreciseExceptionInterproceduralDataFlow extends InterproceduralData
     }
 
     @Override
-    protected Map<ExitType, PreciseExceptionAbsVal> analyzeNative(CGNode n, PreciseExceptionAbsVal input) {
+    protected Map<ExitType, PreciseExceptionAbsVal> analyzeMissingCode(CGNode n, PreciseExceptionAbsVal input) {
         if (getOutputLevel() >= 2) {
             System.err.println("\tANALYZING NATIVE:\n\t" + PrettyPrinter.cgNodeString(n) + "\n\tINPUT: " + input);
         }

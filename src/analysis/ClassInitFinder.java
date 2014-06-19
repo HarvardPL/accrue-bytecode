@@ -5,7 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.registrar.RegistrationUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
@@ -56,7 +56,7 @@ public class ClassInitFinder {
             if (ins.isStatic()) {
                 IMethod callee = AnalysisUtil.getClassHierarchy().resolveMethod(ins.getDeclaredTarget());
                 if (callee == null) {
-                    if (RegistrationUtil.outputLevel >= 2) {
+                    if (PointsToAnalysis.outputLevel >= 2) {
                         System.err.println("Trying to get class initializer for " + i + " and could not resolve "
                                                         + PrettyPrinter.methodString(ins.getDeclaredTarget()));
                     }
@@ -113,17 +113,18 @@ public class ClassInitFinder {
      * 
      * @param clazz
      *            class to be initialized
-     * @return List of class init methods that need to be called
+     * @return List of class init methods that need to be called in the order they need to be initialized in
      */
     public static List<IMethod> getClassInitializersForClass(IClass clazz) {
         IClass klass = clazz;
         if (klass != null) {
-            IClass object = AnalysisUtil.getClassHierarchy().getRootClass();
+            IClass objectClass = AnalysisUtil.getClassHierarchy().getRootClass();
             LinkedList<IMethod> inits = new LinkedList<>();
-            // Need to also call clinit for any super classes
-            // Note that object doesn't have any clinit, and interface clinits are not called until a field is actually
-            // accessed
-            while (!klass.isInterface() && !(klass == object)) {
+            // Need to also add clinit for any super classes
+
+            // Note that object doesn't have any clinit, and interface clinits are not called until a static field is
+            // actually accessed
+            while (!klass.isInterface() && !(klass == objectClass)) {
                 if (klass.getClassInitializer() != null) {
                     // class has an initializer so add it
                     inits.addFirst(klass.getClassInitializer());

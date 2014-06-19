@@ -3,7 +3,6 @@ package analysis.pointer.registrar;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import types.TypeRepository;
 import util.ImplicitEx;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -15,13 +14,14 @@ import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
-import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
+/**
+ * Factory for creating unique reference variables for locals, static fields, and method summaries.
+ * <p>
+ * If assertions are turned on then duplication of nodes will throw an AssertionError where appropriate.
+ */
 public class ReferenceVariableFactory {
 
     /**
@@ -44,11 +44,15 @@ public class ReferenceVariableFactory {
     /**
      * Nodes for local variables
      */
-    private final Map<OrderedPair<Integer, IR>, ReferenceVariable> locals = new LinkedHashMap<>();
+    private final Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals = new LinkedHashMap<>();
     /**
      * Nodes for method exit
      */
     private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries = new LinkedHashMap<>();
+    /**
+     * Nodes for exception within native method
+     */
+    private final Map<OrderedPair<IMethod, TypeReference>, ReferenceVariable> nativeExceptions = new LinkedHashMap<>();
     /**
      * Nodes for singleton generated exceptions if they are created, there can be only one per type. The points-to
      * analysis will be less precise, but the points-to graph will be smaller and the points-to analysis faster. The
@@ -57,146 +61,153 @@ public class ReferenceVariableFactory {
     private final Map<ImplicitEx, ReferenceVariable> singletons = new LinkedHashMap<>();
 
     /**
-     * Get the reference variable for the given local in the given IR. The local should not have a primitive type or
+     * Get the reference variable for the given local in the given method. The local should not have a primitive type or
      * null. Create a reference variable if one does not already exist
      * 
      * @param local
      *            local ID, the type of this should not be primitive or null
-     * @param ir
-     *            method intermediate representation
+     * @param method
+     *            method
+     * @param pp
+     *            Pretty printer used to get a name for the local (default name will be used if null)
+     * 
      * @return reference variable for the local
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateLocal(int local, IR ir) {
-        assert !TypeRepository.getType(local, ir).isPrimitiveType() : "No local nodes for primitives: "
-                                        + PrettyPrinter.typeString(TypeRepository.getType(local, ir));
-        OrderedPair<Integer, IR> key = new OrderedPair<>(local, ir);
-        ReferenceVariable node = locals.get(key);
-        if (node == null) {
-            TypeReference type = TypeRepository.getType(local, ir);
-            node = new ReferenceVariable(PrettyPrinter.valString(local, ir), type, ir);
-            locals.put(key, node);
+    protected ReferenceVariable getOrCreateLocal(int local, TypeReference type, IMethod method, PrettyPrinter pp) {
+        assert !type.isPrimitiveType() : "No reference variables for primitives: " + PrettyPrinter.typeString(type);
+        assert !(type == TypeReference.Null) : "Null literal don't have reference variables";
+        OrderedPair<Integer, IMethod> key = new OrderedPair<>(local, method);
+        ReferenceVariable rv = locals.get(key);
+        if (rv == null) {
+            String name;
+            if (pp != null) {
+                name = pp.valString(local);
+            } else {
+                name = PrettyPrinter.getCanonical("v" + local);
+            }
+            rv = new ReferenceVariable(name, type, false);
+            locals.put(key, rv);
         }
-        return node;
+        return rv;
     }
 
     /**
-     * Create a reference variable for the exception caught by a "getcaught" instruction
+     * Create the reference variable for an inner array of a multidimensional array. This should only be called once for
+     * any given arguments.
      * 
-     * @param catchIns
-     *            instruction that catches the exception
-     * @param ir
-     *            code containing the catch instruction
-     * @return reference variable for the caught exception
-     */
-    public ReferenceVariable getOrCreateCaughtEx(SSAGetCaughtExceptionInstruction catchIns, IR ir) {
-        return getOrCreateLocal(catchIns.getException(), ir);
-    }
-
-    /**
-     * Get the reference variable for the given formal parameter in the method given by the IR (for a non-static method
-     * parameter 0 is "this")
-     * 
-     * @param local
-     *            parameter index
-     * @param ir
-     *            method intermediate representation
-     * @return reference variable for the formal parameter
-     */
-    public ReferenceVariable getOrCreateFormalParameter(int paramNum, IR ir) {
-        assert !ir.getParameterType(paramNum).isPrimitiveType() : "No reference variables for primitive formals: "
-                                        + PrettyPrinter.typeString(ir.getParameterType(paramNum));
-        int local = ir.getParameter(paramNum);
-        return getOrCreateLocal(local, ir);
-    }
-
-    /**
-     * Create a reference variable for an inner array of a multidimensional array
      * 
      * @param dim
-     *            dimension we are creating (used to disambiguate if there are more than 2 dimensions)
-     * @param type
-     *            type of the inner array
-     * @param i
-     *            multidimensional array allocation instruction
-     * @param ir
-     *            code containing the allocation
-     * @return Reference variable for the inner array
+     *            Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared
+     *            multi-dimensional array
+     * @param pc
+     *            program counter for allocation instruction of the new array
+     * @param method
+     *            Method containing the instruction
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateInnerArray(int dim, TypeReference type, SSANewInstruction i, IR ir) {
-        ArrayContentsKey key = new ArrayContentsKey(dim, i, ir);
-        ReferenceVariable local = arrayContentsTemps.get(key);
-        if (local == null) {
-            local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim, type, ir);
-            arrayContentsTemps.put(key, local);
-        }
+    protected ReferenceVariable createInnerArray(int dim, int pc, TypeReference type, IMethod method) {
+        ReferenceVariable local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim, type, false);
+        // These should only be created once assert that this is true
+        assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method), local) == null;
         return local;
     }
 
     /**
-     * Get a reference variable for an implicitly thrown exception/error, create it if it does not already exist
+     * Create a reference variable for an implicitly thrown exception/error. This should only be called once for any
+     * given arguments.
      * 
      * @param type
-     *            type of the exception
-     * @param i
-     *            instruction that throws
-     * @param ir
-     *            method containing the instruction that throws
+     *            type of exception being thrown
+     * @param basicBlockID
+     *            ID number of the basic block throwing the exception
+     * @param method
+     *            Method in which the exception is thrown
      * @return reference variable for an implicit throwable
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateImplicitExceptionNode(TypeReference type, SSAInstruction i, IR ir) {
-        ImplicitThrowKey key = new ImplicitThrowKey(type, ir, i);
-        ReferenceVariable node = implicitThrows.get(key);
-        if (node == null) {
-            String name = ImplicitEx.fromType(type).toString();
-            if (RegistrationUtil.outputLevel >= 1) {
-                name = name + "(" + PrettyPrinter.instructionString(i, ir) + ")";
-            }
-            node = new ReferenceVariable(name, type, ir);
-            implicitThrows.put(key, node);
-        }
-        return node;
+    protected ReferenceVariable createImplicitExceptionNode(ImplicitEx type, int basicBlockID, IMethod method) {
+        ReferenceVariable rv = new ReferenceVariable(type.toString(), type.toType(), false);
+        // These should only be created once assert that this is true
+        assert implicitThrows.put(new ImplicitThrowKey(type, basicBlockID, method), rv) == null;
+        return rv;
     }
 
     /**
      * Create a singleton node for a generated exception. This can be used to decrease the size of the points-to graph
-     * and the run-time of the pointer analysis at the cost of less precision.
+     * and the run-time of the pointer analysis at the cost of less precision. This should only be called once for any
+     * given exception type.
      * 
      * @param type
      *            type of exception to get the node for
      * @return singleton reference variable for exceptions of the given type
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateSingletonException(ImplicitEx type) {
-        ReferenceVariable rv = singletons.get(type);
-        if (rv == null) {
-            rv = new ReferenceVariable(type + "(SINGLETON)", type.toType(), true);
-            singletons.put(type, rv);
-        }
+    protected ReferenceVariable createSingletonException(ImplicitEx type) {
+        ReferenceVariable rv = new ReferenceVariable(type + "(SINGLETON)", type.toType(), true);
+        // These should only be created once assert that this is true
+        assert singletons.put(type, rv) == null;
         return rv;
     }
 
     /**
-     * Get a reference variable for a method exit summary node, create it if it does not already exist
+     * Get a reference variable for a method exit summary node. This should only be called once for any given arguments
      * 
      * @param type
-     *            type of the exception
+     *            type of the exception or return value
      * @param method
-     *            method containing the instruction that throws
-     * @return reference variable for an implicit throwable
+     *            method the summary node is for
+     * @param exitType
+     *            whether this is for a normal return value or an exception
+     * 
+     * @return reference variable for a return value or an exception thrown by a method
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateMethodExitNode(TypeReference type, IMethod method, ExitType exitType) {
-        MethodSummaryKey key = new MethodSummaryKey(method, exitType);
-        ReferenceVariable node = methodExitSummaries.get(key);
-        if (node == null) {
-            String debugString = PrettyPrinter.methodString(method) + "-" + exitType;
-            node = new ReferenceVariable(debugString, type, false);
-            methodExitSummaries.put(key, node);
-        }
-        return node;
+    protected ReferenceVariable createMethodExit(TypeReference type, IMethod method, ExitType exitType) {
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType + " ("
+                                        + PrettyPrinter.typeString(type) + ")", type, false);
+        // These should only be created once assert that this is true
+        assert methodExitSummaries.put(new MethodSummaryKey(method, exitType), rv) == null;
+        return rv;
+    }
+
+    /**
+     * Create a reference variable representing the local variable for an exception within a native method
+     * 
+     * @param exType
+     *            exception type
+     * @param m
+     *            native method
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable createNativeException(TypeReference exType, IMethod m) {
+        assert m.isNative();
+        ReferenceVariable rv = new ReferenceVariable("NATIVE-" + PrettyPrinter.typeString(exType), exType, false);
+        // These should only be created once assert that this is true
+        assert nativeExceptions.put(new OrderedPair<>(m, exType), rv) == null;
+        return rv;
+    }
+
+    /**
+     * Get a reference variable for a formal parameter summary node. This should only be called once for any given
+     * arguments
+     * 
+     * @param paramNum
+     *            formal parameter index (by convention the 0th argument is "this" for non-static methods)
+     * @param type
+     *            type of the formal
+     * @param method
+     *            method these are summary nodes for
+     * 
+     * @return reference variable for a formal parameter
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method) {
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-formal(" + paramNum + ")",
+                                        type, false);
+        // These should only be created once assert that this is true
+        assert methodExitSummaries.put(new MethodSummaryKey(method, paramNum), rv) == null;
+        return rv;
     }
 
     /**
@@ -216,7 +227,8 @@ public class ReferenceVariableFactory {
                                                 "Trying to create reference variable for a static field with a primitive type.");
             }
 
-            node = new ReferenceVariable(PrettyPrinter.typeString(f.getDeclaringClass().getReference()) + "."
+            node = new ReferenceVariable(
+                                            PrettyPrinter.typeString(f.getDeclaringClass()) + "."
                                             + f.getName().toString(), f.getFieldTypeReference(), true);
             staticFields.put(f, node);
         }
@@ -227,21 +239,17 @@ public class ReferenceVariableFactory {
      * Get a reference variable for the value field of a new String literal
      * 
      * @param local
-     *            local variable for the new string literal
-     * @param i
-     *            instruction that creates the new String literal
-     * @param ir
-     *            code containing the instruction
+     *            local variable ID for the String literal
+     * @param method
+     *            Containing method
      * @return Reference variable for the value field of a String literal
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateStringLitField(TypeReference type, int local, SSAInstruction i, IR ir) {
-        StringValueKey key = new StringValueKey(local, ir, i);
-        if (!stringValueFields.containsKey(key)) {
-            // TODO was java.lang.Object
-            stringValueFields.put(key, new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC, type, ir));
-        }
-        return stringValueFields.get(key);
+    protected ReferenceVariable createStringLitField(int local, IMethod method) {
+        ReferenceVariable rv = new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
+                                        AnalysisUtil.STRING_VALUE_TYPE, false);
+        assert stringValueFields.put(new StringValueKey(local, method), rv) == null;
+        return rv;
     }
 
     /**
@@ -260,37 +268,43 @@ public class ReferenceVariableFactory {
         /**
          * Containing method
          */
-        private final IR ir;
+        private final IMethod method;
         /**
-         * Instruction that throws the exception/error
+         * Local variable for the string literal
          */
-        private final SSAInstruction i;
         private final int local;
+        /**
+         * Compute the hashcode once
+         */
+        private final int memoizedHashCode;
 
         /**
-         * Create a new key
+         * Create a new key for the value field of a string literal
          * 
-         * @param type
-         *            Type of exception/error
-         * @param ir
+         * @param local
+         *            local variable for the string literal
+         * @param method
          *            Containing method
-         * @param i
-         *            Instruction that throws the exception/error
          */
-        public StringValueKey(int local, IR ir, SSAInstruction i) {
-            this.ir = ir;
-            this.i = i;
+        public StringValueKey(int local, IMethod method) {
+            assert local >= 0;
+            assert method != null;
+            this.method = method;
             this.local = local;
+            this.memoizedHashCode = computeHashCode();
+        }
+
+        private int computeHashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + local;
+            result = prime * result + method.hashCode();
+            return result;
         }
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((i == null) ? 0 : i.hashCode());
-            result = prime * result + ((ir == null) ? 0 : ir.hashCode());
-            result = prime * result + local;
-            return result;
+            return memoizedHashCode;
         }
 
         @Override
@@ -302,17 +316,9 @@ public class ReferenceVariableFactory {
             if (getClass() != obj.getClass())
                 return false;
             StringValueKey other = (StringValueKey) obj;
-            if (i == null) {
-                if (other.i != null)
-                    return false;
-            } else if (!i.equals(other.i))
-                return false;
-            if (ir == null) {
-                if (other.ir != null)
-                    return false;
-            } else if (!ir.equals(other.ir))
-                return false;
             if (local != other.local)
+                return false;
+            if (!method.equals(other.method))
                 return false;
             return true;
         }
@@ -323,42 +329,54 @@ public class ReferenceVariableFactory {
      */
     private static class ImplicitThrowKey {
         /**
-         * Containing method
+         * Method in which the exception is thrown
          */
-        private final IR ir;
+        private final IMethod method;
         /**
-         * Instruction that throws the exception/error
+         * Number for basic block that throws the exception/error
          */
-        private final SSAInstruction i;
+        private final int basicBlockID;
         /**
          * Type of exception/error
          */
-        private final TypeReference type;
+        private final ImplicitEx type;
+        /**
+         * Compute the hashcode once
+         */
+        private final int memoizedHashCode;
 
         /**
-         * Create a new key
+         * Create a key that uniquely identifies an implicitly thrown exception.
          * 
          * @param type
-         *            Type of exception/error
-         * @param ir
-         *            Containing method
-         * @param i
-         *            Instruction that throws the exception/error
+         *            type of exception being thrown
+         * @param basicBlockID
+         *            ID number of the basic block throwing the exception
+         * @param method
+         *            Method in which the exception is thrown
          */
-        public ImplicitThrowKey(TypeReference type, IR ir, SSAInstruction i) {
+        public ImplicitThrowKey(ImplicitEx type, int basicBlockID, IMethod method) {
+            assert type != null;
+            assert basicBlockID >= 0;
+            assert method != null;
             this.type = type;
-            this.ir = ir;
-            this.i = i;
+            this.basicBlockID = basicBlockID;
+            this.method = method;
+            this.memoizedHashCode = computeHashCode();
+        }
+
+        private int computeHashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + basicBlockID;
+            result = prime * result + ((method == null) ? 0 : method.hashCode());
+            result = prime * result + ((type == null) ? 0 : type.hashCode());
+            return result;
         }
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((i == null) ? 0 : i.hashCode());
-            result = prime * result + ((ir == null) ? 0 : ir.hashCode());
-            result = prime * result + ((type == null) ? 0 : type.hashCode());
-            return result;
+            return memoizedHashCode;
         }
 
         @Override
@@ -370,20 +388,11 @@ public class ReferenceVariableFactory {
             if (getClass() != obj.getClass())
                 return false;
             ImplicitThrowKey other = (ImplicitThrowKey) obj;
-            if (i == null) {
-                if (other.i != null)
-                    return false;
-            } else if (!i.equals(other.i))
+            if (basicBlockID != other.basicBlockID)
                 return false;
-            if (ir == null) {
-                if (other.ir != null)
-                    return false;
-            } else if (!ir.equals(other.ir))
+            if (!method.equals(other.method))
                 return false;
-            if (type == null) {
-                if (other.type != null)
-                    return false;
-            } else if (!type.equals(other.type))
+            if (type != other.type)
                 return false;
             return true;
         }
@@ -397,31 +406,65 @@ public class ReferenceVariableFactory {
          * Containing method
          */
         private final IMethod method;
-
+        /**
+         * Is this node for normal or exceptional exit
+         */
         private final ExitType exitType;
+        /**
+         * Compute the hashcode once
+         */
+        private final int memoizedHashCode;
+        /**
+         * If this is a summary node for a formal parameter then this is the parameter number
+         */
+        private final int paramNum;
 
         /**
-         * Create a new key
+         * Create a new key for a method exit
          * 
-         * @param type
-         *            Type of exception/error
          * @param method
-         *            Containing method
+         *            method this node is for
          * @param exitType
-         *            normal or exceptional termination
+         *            normal or exceptional exit
          */
         public MethodSummaryKey(IMethod method, ExitType exitType) {
+            assert method != null;
+            assert exitType != null;
             this.method = method;
             this.exitType = exitType;
+            this.paramNum = -1;
+            this.memoizedHashCode = computeHashCode();
+        }
+
+        /**
+         * Create a new key for a formal parameter
+         * 
+         * @param method
+         *            method this node is for
+         * @param paramNum
+         *            index of the formal
+         */
+        public MethodSummaryKey(IMethod method, int paramNum) {
+            assert paramNum >= 0;
+            assert method != null;
+            this.exitType = null;
+            this.paramNum = paramNum;
+            this.method = method;
+            this.memoizedHashCode = computeHashCode();
+        }
+
+        public int computeHashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
+            result = prime * result + method.hashCode();
+            result = prime * result + paramNum;
+            return result;
         }
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
-            result = prime * result + ((method == null) ? 0 : method.hashCode());
-            return result;
+            return memoizedHashCode;
         }
 
         @Override
@@ -438,10 +481,9 @@ public class ReferenceVariableFactory {
                     return false;
             } else if (!exitType.equals(other.exitType))
                 return false;
-            if (method == null) {
-                if (other.method != null)
-                    return false;
-            } else if (!method.equals(other.method))
+            if (!method.equals(other.method))
+                return false;
+            if (paramNum != other.paramNum)
                 return false;
             return true;
         }
@@ -457,13 +499,17 @@ public class ReferenceVariableFactory {
          */
         private final int dim;
         /**
-         * instruction for new array
+         * program counter for allocation instruction of the new array
          */
-        private final SSANewInstruction i;
+        private final int programCounter;
         /**
-         * Code containing the instruction
+         * Method containing the instruction
          */
-        private final IR ir;
+        private final IMethod method;
+        /**
+         * Compute the hashcode once
+         */
+        private final int memoizedHashCode;
 
         /**
          * Create a new key for the contents of the inner dimensions of multi-dimensional arrays
@@ -471,25 +517,35 @@ public class ReferenceVariableFactory {
          * @param dim
          *            Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared
          *            multi-dimensional array
-         * @param i
-         *            instruction for new array
-         * @param ir
-         *            Code containing the instruction
+         * @param pc
+         *            program counter for allocation instruction of the new array
+         * @param method
+         *            Method containing the instruction
          */
-        public ArrayContentsKey(int dim, SSANewInstruction i, IR ir) {
+        public ArrayContentsKey(int dim, int pc, IMethod method) {
+            // The 0th dimension is the entire array not the contents which is handled elsewhere (when allocating the
+            // new array)
+            assert dim > 0;
+            assert pc >= 0;
+            assert method != null;
             this.dim = dim;
-            this.i = i;
-            this.ir = ir;
+            this.programCounter = pc;
+            this.method = method;
+            this.memoizedHashCode = computeHashCode();
+        }
+
+        public int computeHashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + dim;
+            result = prime * result + ((method == null) ? 0 : method.hashCode());
+            result = prime * result + programCounter;
+            return result;
         }
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + dim;
-            result = prime * result + ((i == null) ? 0 : i.hashCode());
-            result = prime * result + ((ir == null) ? 0 : ir.hashCode());
-            return result;
+            return memoizedHashCode;
         }
 
         @Override
@@ -503,15 +559,12 @@ public class ReferenceVariableFactory {
             ArrayContentsKey other = (ArrayContentsKey) obj;
             if (dim != other.dim)
                 return false;
-            if (i == null) {
-                if (other.i != null)
+            if (method == null) {
+                if (other.method != null)
                     return false;
-            } else if (!i.equals(other.i))
+            } else if (!method.equals(other.method))
                 return false;
-            if (ir == null) {
-                if (other.ir != null)
-                    return false;
-            } else if (!ir.equals(other.ir))
+            if (programCounter != other.programCounter)
                 return false;
             return true;
         }
@@ -523,7 +576,8 @@ public class ReferenceVariableFactory {
     public static class ReferenceVariable {
 
         /**
-         * True if this node represents a static field
+         * True if this node represents a static field, or other node for which only one global reference variable
+         * should be created
          */
         private final boolean isSingleton;
         /**
@@ -534,62 +588,27 @@ public class ReferenceVariableFactory {
          * Type of the reference variable
          */
         private final TypeReference expectedType;
-        /**
-         * Code the reference variable was created in
-         */
-        private final IR ir;
 
         /**
-         * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis
+         * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis.
          * 
          * @param debugString
          *            String used for debugging and printing
          * @param expectedType
          *            Type of the variable this represents
-         * @param isStatic
-         *            True if this node represents a static field
+         * @param isSingleton
+         *            Whether this reference variable represents a static field, or other global singleton (for which
+         *            only one reference variable replica will be created usually in the initial context)
          */
-        private ReferenceVariable(String debugString, TypeReference expectedType, IR ir) {
+        private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton) {
+            assert debugString != null;
+            assert !debugString.equals("null");
+            assert expectedType != null;
             assert (!expectedType.isPrimitiveType());
+
             this.debugString = debugString;
             this.expectedType = expectedType;
-            this.isSingleton = false;
-            this.ir = ir;
-            if (debugString == null) {
-                throw new RuntimeException("Need debug string");
-            }
-            if ("null".equals(debugString)) {
-                throw new RuntimeException("Weird debug string");
-            }
-        }
-
-        /**
-         * Create a new (unique) reference variable for a variable that is not associated with a specific instruction.
-         * Examples are static fields, method summary nodes, and singleton nodes (e.g. for generated exceptions).
-         * 
-         * @param debugString
-         *            String used for debugging and printing
-         * @param expectedType
-         *            Type of the variable this represents
-         * @param isStatic
-         *            True if this node represents a static field
-         */
-        private ReferenceVariable(String debugString, TypeReference expectedType, boolean isStatic) {
-            assert (!expectedType.isPrimitiveType());
-            this.debugString = debugString;
-            this.expectedType = expectedType;
-            this.isSingleton = isStatic;
-            this.ir = null;
-            if (debugString == null) {
-                throw new RuntimeException("Need debug string");
-            }
-            if ("null".equals(debugString)) {
-                throw new RuntimeException("Weird debug string");
-            }
-        }
-
-        public IR getCode() {
-            return ir;
+            this.isSingleton = isSingleton;
         }
 
         @Override
@@ -617,9 +636,9 @@ public class ReferenceVariableFactory {
         }
 
         /**
-         * Is this graph base node a singleton? That is, should there be only a single ReferenceVariableReplica for it?
-         * This should return true for reference variables that represent e.g., static fields. Because there is only one
-         * location represented by the static field, there should not be multiple replicas of the reference variable
+         * Is this reference variable a singleton? That is, should there be only a single ReferenceVariableReplica for
+         * it? This should return true for reference variables that represent e.g., static fields. Because there is only
+         * one location represented by the static field, there should not be multiple replicas of the reference variable
          * that represents the static field.
          * 
          * @return true if this is a static variable

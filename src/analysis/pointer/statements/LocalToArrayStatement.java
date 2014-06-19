@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
-import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -11,11 +10,9 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.ssa.IR;
-import com.ibm.wala.ssa.SSAArrayStoreInstruction;
-import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -45,45 +42,11 @@ public class LocalToArrayStatement extends PointsToStatement {
      *            points-to graph node for assigned value
      * @param baseType
      *            type of the array elements
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            Instruction that generated this points-to statement
+     * @param m
+     *            method the points-to statement came from
      */
-    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IR ir,
-                                    SSAArrayStoreInstruction i) {
-        super(ir, i);
-        this.array = a;
-        this.value = v;
-        this.baseType = baseType;
-    }
-
-    /**
-     * Statement for array contents assigned to an inner array during multidimensional array creation. This means that
-     * any assignments to the inner array will correctly point to an array with dimension one less than the outer array.
-     * <p>
-     * int[] b = new int[5][4]
-     * <p>
-     * results in
-     * <p>
-     * COMPILER-GENERATED = new int[5]
-     * <p>
-     * b.[contents] = COMPILER-GENERATED
-     * 
-     * @param outerArray
-     *            points-to graph node for outer array
-     * @param innerArray
-     *            points-to graph node for inner array
-     * @param innerArrayType
-     *            type of the inner array
-     * @param ir
-     *            Code for the method the points-to statement came from
-     * @param i
-     *            New Array instruction that generated the multidimensional array
-     */
-    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IR ir,
-                                    SSANewInstruction i) {
-        super(ir, i);
+    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IMethod m) {
+        super(m);
         this.array = a;
         this.value = v;
         this.baseType = baseType;
@@ -95,21 +58,13 @@ public class LocalToArrayStatement extends PointsToStatement {
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
         Set<InstanceKey> valHeapContexts = g.getPointsToSet(v);
+        assert checkForNonEmpty(valHeapContexts, v, "LOCAL: " + this);
 
-        if (DEBUG && valHeapContexts.isEmpty()) {
-            System.err.println("LOCAL: " + v + "\n\t for "
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
-
-        if (DEBUG && g.getPointsToSet(a).isEmpty()) {
-            System.err.println("ARRAY: " + a + "\n\t for "
-                                            + PrettyPrinter.instructionString(getInstruction(), getCode()) + " in "
-                                            + PrettyPrinter.methodString(getCode().getMethod()));
-        }
+        Set<InstanceKey> arrayHCs = g.getPointsToSet(a);
+        assert checkForNonEmpty(arrayHCs, a, "LOCAL:");
 
         boolean changed = false;
-        for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
+        for (InstanceKey arrHeapContext : arrayHCs) {
             ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
             changed |= g.addEdges(contents, valHeapContexts);
         }
