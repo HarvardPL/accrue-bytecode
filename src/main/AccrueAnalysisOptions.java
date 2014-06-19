@@ -8,8 +8,6 @@ import java.util.List;
 import util.OrderedPair;
 import analysis.pointer.analyses.CrossProduct;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StaticCallSiteSensitive;
-import analysis.pointer.analyses.TypeSensitive;
 import analysis.pointer.analyses.parser.HeapAbstractionFactoryParser;
 
 import com.beust.jcommander.IParameterValidator;
@@ -85,7 +83,7 @@ public final class AccrueAnalysisOptions {
     /**
      * Heap abstraction factory definition
      */
-    @Parameter(names = { "-haf", "-heapAbstractionFactory" }, description = "The HeapAbstractionFactory class defining how analysis contexts are created.")
+    @Parameter(names = { "-haf", "-heapAbstractionFactory" }, validateWith = AccrueAnalysisOptions.HafValidator.class, description = "The HeapAbstractionFactory class defining how analysis contexts are created.")
     private String hafString = "[type(2,1), scs(2)]";
     /**
      * {@link HeapAbstractionFactory} defining how analysis contexts are created
@@ -96,87 +94,12 @@ public final class AccrueAnalysisOptions {
      * Validate the requested {@link HeapAbstractionFactory} name. SIDE EFFECT: If the parameter is valid then this sets
      * the {@link HeapAbstractionFactory} in {@link AccrueAnalysisOptions}.
      */
-    public class HafValidator implements IParameterValidator {
+    public static class HafValidator implements IParameterValidator {
         @Override
         public void validate(String name, String value) throws ParameterException {
-            List<OrderedPair<String, List<Integer>>> classes;
-            try {
-                classes = HeapAbstractionFactoryParser.parse(value);
-            } catch (Exception e) {
-                System.err.println("Could not parse HeapAbstractionFactory name: " + value);
-                System.err.println(heapAbstractionUsage());
-                throw new ParameterException(e);
-            }
-
-            List<HeapAbstractionFactory> children = new LinkedList<>();
-            for (OrderedPair<String, List<Integer>> constructor : classes) {
-                String className = constructor.fst();
-                List<Integer> args = constructor.snd();
-                Class<?> c;
-                try {
-                    if (className == null) {
-                        System.err.println(value);
-                        System.err.println();
-                    }
-                    c = Class.forName(className);
-                } catch (ClassNotFoundException e) {
-                    // try again but prepend the analysis package
-                    try {
-                        c = Class.forName("analysis.pointer.analyses." + className);
-                    } catch (ClassNotFoundException e1) {
-                        System.err.println("HeapAbstractionFactory class not found: " + className);
-                        System.err.println("\tin: " + value);
-                        System.err.println(heapAbstractionUsage());
-                        throw new ParameterException(e1);
-                    }
-                }
-                Class<?>[] intClasses = new Class[args.size()];
-                int j = 0;
-                for (@SuppressWarnings("unused")
-                Integer i : args) {
-                    intClasses[j] = int.class;
-                    j++;
-                }
-
-                Constructor<?> cons;
-                try {
-                    cons = c.getConstructor(intClasses);
-                } catch (NoSuchMethodException | SecurityException e) {
-                    System.err.println("HeapAbstractionFactory constructor not found: " + className + " with "
-                                                    + args.size() + " int arguments");
-                    System.err.println("\tin: " + value);
-                    System.err.println(heapAbstractionUsage());
-                    throw new ParameterException(e);
-                }
-
-                try {
-                    children.add((HeapAbstractionFactory) cons.newInstance(args.toArray()));
-                } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-                                                | InvocationTargetException e) {
-                    System.err.println("Could not invoke HeapAbstractionFactory constructor: " + className + " with "
-                                                    + args.size() + " int arguments");
-                    System.err.println("Arguments were: " + args);
-                    System.err.println("\tin: " + value);
-                    System.err.println(heapAbstractionUsage());
-                    throw new ParameterException(e);
-                }
-            }
-
-            if (children.size() == 0) {
-                System.err.println("Parser parsed no HeapAbstractionFactory for: " + value);
-                System.err.println(heapAbstractionUsage());
-                throw new ParameterException("Parser parsed no HeapAbstractionFactory for: " + value);
-            }
-
-            HeapAbstractionFactory hf = null;
-            for (HeapAbstractionFactory haf : children) {
-                if (hf == null) {
-                    hf = haf;
-                } else {
-                    hf = new CrossProduct(hf, haf);
-                }
-            }
-            setHaf(hf);
+            // validate by attempting to construct the heap abstraction factory.
+            // This will unfortunately end up creating the heap abstraction factory multiple times
+            constructHaf(value);
         }
     }
 
@@ -232,18 +155,93 @@ public final class AccrueAnalysisOptions {
         return analysisClassPath;
     }
 
-    void setHaf(HeapAbstractionFactory haf) {
-        this.haf = haf;
-    }
 
     public HeapAbstractionFactory getHaf() {
-        if (haf == null) {
-            // No HeapAbstractionFactory was specified use the default
-            TypeSensitive ts = new TypeSensitive();
-            StaticCallSiteSensitive scs = new StaticCallSiteSensitive();
-            setHaf(new CrossProduct(ts, scs));
+        if (this.haf == null) {
+            this.haf = constructHaf(this.hafString);
         }
-        return haf;
+        return this.haf;
+    }
+
+    protected static HeapAbstractionFactory constructHaf(String hafString) {
+        List<OrderedPair<String, List<Integer>>> classes;
+        try {
+            classes = HeapAbstractionFactoryParser.parse(hafString);
+        } catch (Exception e) {
+            System.err.println("Could not parse HeapAbstractionFactory name: " + hafString);
+            System.err.println(heapAbstractionUsage());
+            throw new ParameterException(e);
+        }
+
+        List<HeapAbstractionFactory> children = new LinkedList<>();
+        for (OrderedPair<String, List<Integer>> constructor : classes) {
+            String className = constructor.fst();
+            List<Integer> args = constructor.snd();
+            Class<?> c;
+            try {
+                if (className == null) {
+                    System.err.println(hafString);
+                    System.err.println();
+                }
+                c = Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                // try again but prepend the analysis package
+                try {
+                    c = Class.forName("analysis.pointer.analyses." + className);
+                } catch (ClassNotFoundException e1) {
+                    System.err.println("HeapAbstractionFactory class not found: " + className);
+                    System.err.println("\tin: " + hafString);
+                    System.err.println(heapAbstractionUsage());
+                    throw new ParameterException(e1);
+                }
+            }
+            Class<?>[] intClasses = new Class[args.size()];
+            int j = 0;
+            for (@SuppressWarnings("unused")
+            Integer i : args) {
+                intClasses[j] = int.class;
+                j++;
+            }
+
+            Constructor<?> cons;
+            try {
+                cons = c.getConstructor(intClasses);
+            } catch (NoSuchMethodException | SecurityException e) {
+                System.err.println("HeapAbstractionFactory constructor not found: " + className + " with "
+                                                + args.size() + " int arguments");
+                System.err.println("\tin: " + hafString);
+                System.err.println(heapAbstractionUsage());
+                throw new ParameterException(e);
+            }
+
+            try {
+                children.add((HeapAbstractionFactory) cons.newInstance(args.toArray()));
+            } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+                                            | InvocationTargetException e) {
+                System.err.println("Could not invoke HeapAbstractionFactory constructor: " + className + " with "
+                                                + args.size() + " int arguments");
+                System.err.println("Arguments were: " + args);
+                System.err.println("\tin: " + hafString);
+                System.err.println(heapAbstractionUsage());
+                throw new ParameterException(e);
+            }
+        }
+
+        if (children.size() == 0) {
+            System.err.println("Parser parsed no HeapAbstractionFactory for: " + hafString);
+            System.err.println(heapAbstractionUsage());
+            throw new ParameterException("Parser parsed no HeapAbstractionFactory for: " + hafString);
+        }
+
+        HeapAbstractionFactory hf = null;
+        for (HeapAbstractionFactory haf : children) {
+            if (hf == null) {
+                hf = haf;
+            } else {
+                hf = new CrossProduct(hf, haf);
+            }
+        }
+        return hf;
     }
 
     /**
