@@ -41,7 +41,6 @@ public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
     private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
-    private final Set<InstanceKey> allHContexts = new LinkedHashSet<>();
 
     private Set<PointsToGraphNode> changedNodes;
     private Set<PointsToGraphNode> readNodes;
@@ -95,7 +94,6 @@ public class PointsToGraph {
         boolean changed = pointsToSet.add(heapContext);
         if (changed) {
             changedNodes.add(node);
-            allHContexts.add(heapContext);
         }
         return changed;
     }
@@ -110,7 +108,6 @@ public class PointsToGraph {
 
         if (changed) {
             changedNodes.add(node);
-            this.allHContexts.addAll(heapContexts);
         }
         return changed;
     }
@@ -306,7 +303,7 @@ public class PointsToGraph {
             }
             n2s.put(n, nStr);
         }
-        for (InstanceKey k : allHContexts) {
+        for (InstanceKey k : getAllHContexts()) {
             String kStr = escape(k.toString());
             Integer count = dotToCount.get(kStr);
             if (count == null) {
@@ -329,12 +326,17 @@ public class PointsToGraph {
     }
 
     /**
-     * Set containing all Heap contexts
+     * Set containing all Heap contexts. This is really expensive. Don't do it unless debugging small graphs.
      * 
      * @return set with all the Heap contexts
      */
     public Set<InstanceKey> getAllHContexts() {
-        return allHContexts;
+        Set<InstanceKey> all = new LinkedHashSet<>();
+
+        for (Set<InstanceKey> s : graph.values()) {
+            all.addAll(s);
+        }
+        return all;
     }
 
     /**
