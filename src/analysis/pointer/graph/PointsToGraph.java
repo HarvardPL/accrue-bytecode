@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.text.SimpleDateFormat;
 import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -87,7 +88,7 @@ public class PointsToGraph {
         assert node != null && heapContext != null;
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
-            pointsToSet = new LinkedHashSet<>();
+            pointsToSet = new PointsToSet();
             graph.put(node, pointsToSet);
         }
 
@@ -101,7 +102,7 @@ public class PointsToGraph {
     public boolean addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
-            pointsToSet = new LinkedHashSet<>();
+            pointsToSet = new PointsToSet();
             graph.put(node, pointsToSet);
         }
         boolean changed = pointsToSet.addAll(heapContexts);
@@ -126,7 +127,7 @@ public class PointsToGraph {
             if (DEBUG && s.isEmpty() && outputLevel >= 7) {
                 System.err.println("\tEMPTY POINTS-TO SET for " + node);
             }
-            return Collections.unmodifiableSet(s);
+            return s;
         }
 
         if (DEBUG && outputLevel >= 7) {
@@ -144,8 +145,7 @@ public class PointsToGraph {
         if (s.isEmpty()) {
             return s;
         }
-
-        return new FilteredSet(s, type);
+        return new FilteredSet((PointsToSet) s, type);
     }
 
     /**
@@ -166,7 +166,7 @@ public class PointsToGraph {
             return s;
         }
 
-        return new FilteredSet(s, isType, notTypes);
+        return new FilteredSet((PointsToSet) s, isType, notTypes);
     }
 
     @SuppressWarnings("deprecation")
@@ -425,30 +425,30 @@ public class PointsToGraph {
     }
 
     private static class FilteredSet extends AbstractSet<InstanceKey> {
-        final Set<InstanceKey> s;
+        final PointsToSet pts;
         final IClass isType;
         final Set<IClass> notTypes;
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes) {
-            this.s = s;
+        FilteredSet(PointsToSet s, TypeReference isType, Set<IClass> notTypes) {
+            this.pts = s;
             this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
             this.notTypes = notTypes;
         }
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType) {
+        FilteredSet(PointsToSet s, TypeReference isType) {
             this(s, isType, null);
         }
 
         @Override
         public Iterator<InstanceKey> iterator() {
-            return new FilteredIterator(s.iterator());
+            return new FilteredIterator();
         }
 
-        boolean satisfiesFilters(InstanceKey o) {
-            if (isAssignableFrom(isType, o.getConcreteType())) {
+        boolean satisfiesFilters(IClass concreteType) {
+            if (isAssignableFrom(isType, concreteType)) {
                 if (notTypes != null) {
                     for (IClass nt : notTypes) {
-                        if (isAssignableFrom(nt, o.getConcreteType())) {
+                        if (isAssignableFrom(nt, concreteType)) {
                             // it's assignable to a not type...
                             return false;
                         }
@@ -461,7 +461,7 @@ public class PointsToGraph {
 
         @Override
         public boolean contains(Object o) {
-            return s.contains(o) && satisfiesFilters((InstanceKey) o);
+            return pts.contains(o) && satisfiesFilters(((InstanceKey) o).getConcreteType());
         }
 
         private boolean isAssignableFrom(IClass c1, IClass c2) {
@@ -479,34 +479,39 @@ public class PointsToGraph {
         }
 
         class FilteredIterator implements Iterator<InstanceKey> {
-            final Iterator<InstanceKey> iter;
-            InstanceKey next = null;
+            final Iterator<IClass> it;
+            Iterator<InstanceKey> current = null;
 
-            FilteredIterator(Iterator<InstanceKey> iter) {
-                this.iter = iter;
+            FilteredIterator() {
+                this.it = pts.map.keySet().iterator();
             }
 
             @Override
             public boolean hasNext() {
-                if (next != null) {
-                    return true;
-                }
-                while (iter.hasNext()) {
-                    InstanceKey ik = iter.next();
-                    if (satisfiesFilters(ik)) {
-                        this.next = ik;
-                        return true;
+                // we can get away with an if instead of a while here, since we know that the sets are nonempty...
+                if (current == null || !current.hasNext()) {
+                    // find the next key that satisfies the filters
+                    current = null;
+                    while (it.hasNext()) {
+                        IClass ic = it.next();
+                        if (satisfiesFilters(ic)) {
+                           current = pts.map.get(ic).iterator();
+                           break;
+                        }
+                    }
+                    if (current == null && !it.hasNext()) {
+                        return false;
                     }
                 }
-                return false;
+
+                return current.hasNext();
             }
+        
 
             @Override
             public InstanceKey next() {
                 if (hasNext()) {
-                    InstanceKey ik = this.next;
-                    this.next = null;
-                    return ik;
+                    return current.next();
                 }
                 throw new NoSuchElementException();
             }
@@ -517,4 +522,139 @@ public class PointsToGraph {
             }
         }
     }
+
+    private static class PointsToSet implements Set<InstanceKey> {
+        /**
+         * Map from concrete classes to non-empty sets of that class.
+         */
+        private final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
+
+
+        @Override
+        public int size() {
+            int sum = 0;
+            for (Set<InstanceKey> s : map.values()) {
+                sum += s.size();
+            }
+            return sum;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return map.isEmpty();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            if (o instanceof InstanceKey) {
+                InstanceKey ik = (InstanceKey) o;
+                Set<InstanceKey> s = map.get(ik.getConcreteType());
+                if (s != null) {
+                    return s.contains(ik);
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public Iterator<InstanceKey> iterator() {
+            return new PointsToSetIterator(this);
+        }
+
+
+        @Override
+        public boolean add(InstanceKey e) {
+            IClass t = e.getConcreteType();
+            Set<InstanceKey> s = this.map.get(t);
+            if (s == null) {
+                s = new LinkedHashSet<>();
+                this.map.put(t, s);
+            }
+            return s.add(e);
+        }
+
+        @Override
+        public Object[] toArray() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> T[] toArray(T[] a) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            for (Object e : c)
+                if (!contains(e))
+                    return false;
+            return true;
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends InstanceKey> c) {
+            boolean modified = false;
+            for (InstanceKey e : c)
+                if (add(e))
+                    modified = true;
+            return modified;
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class PointsToSetIterator implements Iterator<InstanceKey> {
+        final Iterator<Set<InstanceKey>> it;
+        Iterator<InstanceKey> current = null;
+
+        PointsToSetIterator(PointsToSet pts) {
+            this.it = pts.map.values().iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            // we can get away with an if instead of a while here, since we know that the sets are nonempty...
+            if (current == null || !current.hasNext()) {
+                if (!it.hasNext()) {
+                    return false;
+                }
+                current = it.next().iterator();
+            }
+
+            return current.hasNext();
+        }
+
+        @Override
+        public InstanceKey next() {
+            if (hasNext()) {
+                return current.next();
+            }
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+
+    }
+
 }
