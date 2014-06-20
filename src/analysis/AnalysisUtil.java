@@ -2,17 +2,29 @@ package analysis;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Iterator;
+import java.util.List;
+import java.util.jar.JarFile;
+
+import org.scandroid.util.EntryPoints;
 
 import signatures.Signatures;
+import util.print.CFGWriter;
 
+import com.ibm.wala.classLoader.DexFileModule;
+import com.ibm.wala.classLoader.DexIRFactory;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.classLoader.Module;
+import com.ibm.wala.dex.util.config.DexAnalysisScopeReader;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
+import com.ibm.wala.ipa.callgraph.impl.AbstractRootMethod;
+import com.ibm.wala.ipa.callgraph.impl.DexFakeRootMethod;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
@@ -22,6 +34,7 @@ import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
+import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.config.AnalysisScopeReader;
 
@@ -44,7 +57,7 @@ public class AnalysisUtil {
     /**
      * WALA's fake root method (calls the entry points)
      */
-    private static FakeRootMethod fakeRoot;
+    private static AbstractRootMethod fakeRoot;
     /**
      * Class for java.lang.String
      */
@@ -65,6 +78,8 @@ public class AnalysisUtil {
      * Class for value field of java.lang.String
      */
     private static IClass stringValueClass;
+    public static IClass privilegedActionClass;
+    public static IClass privilegedExceptionActionClass;
 
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
@@ -89,6 +104,60 @@ public class AnalysisUtil {
      */
     private AnalysisUtil() {
         // Intentionally blank
+    }
+
+    public static void initDex(String androidLibLocation, String pathToApp) throws IOException, ClassHierarchyException {
+        cache = new AnalysisCache(new DexIRFactory());
+
+        long start = System.currentTimeMillis();
+        AnalysisScope scope = DexAnalysisScopeReader.makeAndroidBinaryAnalysisScope(pathToApp, EXCLUSIONS_FILE);
+        scope.setLoaderImpl(ClassLoaderReference.Application, "com.ibm.wala.classLoader.WDexClassLoaderImpl");
+
+        scope.setLoaderImpl(ClassLoaderReference.Primordial, "com.ibm.wala.classLoader.WDexClassLoaderImpl");
+
+        ClassHierarchy concreteCHA;
+
+        // From org.SCandroid.util.AndroidAnalysisContext
+        URI androidLib = new File(androidLibLocation).toURI();
+        if (androidLib.getPath().endsWith(".dex")) {
+            Module dexMod = new DexFileModule(new File(androidLib));
+            scope.addToScope(ClassLoaderReference.Primordial, dexMod);
+            try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
+                scope.addToScope(ClassLoaderReference.Application, appModelJar);
+                concreteCHA = ClassHierarchy.make(scope);
+            }
+        } else {
+            try (JarFile androidJar = new JarFile(new File(androidLib))) {
+                scope.addToScope(ClassLoaderReference.Primordial, androidJar);
+                try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
+                    scope.addToScope(ClassLoaderReference.Application, appModelJar);
+                    concreteCHA = ClassHierarchy.make(scope);
+                }
+            }
+        }
+
+        cha = concreteCHA;
+        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
+                                        + (System.currentTimeMillis() - start) + "ms");
+
+        // TODO not sure what this is for
+        // AnalysisScope scope_appmodel =
+        // DexAnalysisScopeReader.makeAndroidBinaryAnalysisScope(
+        // androidLib,
+        // exclusions);
+        // scope_appmodel.setLoaderImpl(ClassLoaderReference.Application,
+        // "com.ibm.wala.classLoader.WDexClassLoaderImpl");
+        //
+        // scope_appmodel.setLoaderImpl(ClassLoaderReference.Primordial,
+        // "com.ibm.wala.classLoader.WDexClassLoaderImpl");
+        // AndroidSpecs.addPossibleListeners(ClassHierarchy.make(scope_appmodel));
+
+        // List<Entrypoint> entrypoints = EntryPoints.appModelEntry(concreteCHA);
+        List<Entrypoint> entrypoints = EntryPoints.defaultEntryPoints(concreteCHA);
+        options = new AnalysisOptions(scope, entrypoints);
+        fakeRoot = new DexFakeRootMethod(cha, options, cache);
+
+        setUpRootMethodAndClasses();
     }
 
     /**
@@ -128,6 +197,10 @@ public class AnalysisUtil {
                                         + entryPoint.replace(".", "/"));
         options = new AnalysisOptions(scope, entrypoints);
 
+        setUpRootMethodAndClasses();
+    }
+
+    private static void setUpRootMethodAndClasses() {
         // Set up the entry points
         fakeRoot = new FakeRootMethod(cha, options, cache);
         for (Iterator<? extends Entrypoint> it = options.getEntrypoints().iterator(); it.hasNext();) {
@@ -144,10 +217,19 @@ public class AnalysisUtil {
         // could have an exception edge and normal edge from the same basic
         // block.
         fakeRoot.addReturn(-1, false);
+        CFGWriter.writeToFile(fakeRoot);
+
         stringClass = cha.lookupClass(TypeReference.JavaLangString);
         stringValueClass = cha.lookupClass(STRING_VALUE_TYPE);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
+        TypeName privTN = TypeName.string2TypeName("Ljava/security/PrivilegedAction");
+        TypeReference privTR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privTN);
+        privilegedActionClass = cha.lookupClass(privTR);
+
+        TypeName privETN = TypeName.string2TypeName("Ljava/security/PrivilegedExceptionAction");
+        TypeReference privETR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privETN);
+        privilegedExceptionActionClass = cha.lookupClass(privETR);
     }
 
     /**
@@ -182,7 +264,7 @@ public class AnalysisUtil {
      * 
      * @return WALA fake root method (sets up and calls actual entry points)
      */
-    public static FakeRootMethod getFakeRoot() {
+    public static AbstractRootMethod getFakeRoot() {
         return fakeRoot;
     }
 

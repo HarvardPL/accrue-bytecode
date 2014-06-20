@@ -15,8 +15,8 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.impl.AbstractRootMethod;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
-import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.util.CancelException;
 
 /**
@@ -32,7 +32,7 @@ public class HafCallGraph extends ExplicitCallGraph {
     /**
      * WALA's fake root method that calls entry points
      */
-    private final FakeRootMethod fakeRoot;
+    private final AbstractRootMethod fakeRoot;
 
     /**
      * Create and initialize a new call graph where contexts are created using
