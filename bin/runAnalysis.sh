@@ -58,6 +58,7 @@ while true; do
 done
 
 classpath="$dir/classes"
+classpath="$classpath:$dir/data"
 classpath="$classpath:$dir/lib/JSON-java.jar"
 classpath="$classpath:$dir/lib/jcommander-1.35.jar"
 classpath="$classpath:$dir/lib/JFlex.jar"
