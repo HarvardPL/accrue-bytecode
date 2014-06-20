@@ -182,25 +182,25 @@ public class TypeRepository {
      * otherwise use {@link IClassHierarchy#isAssignableFrom(IClass, IClass)} directly. This is useful for checking
      * exception sub-typing as the same types show up over and over.
      * 
-     * @param c1
+     * @param supertype
      *            assignee
-     * @param c2
+     * @param subtype
      *            assigned
      * @return true if c1 = c2 type checks
      */
-    public static boolean isAssignableFrom(IClass c1, IClass c2) {
+    public static boolean isAssignableFrom(IClass supertype, IClass subtype) {
         // shortcut a common case.
-        if (c1.equals(c2)) {
+        if (supertype.equals(subtype)) {
             return true;
         }
-        OrderedPair<IClass, IClass> key = new OrderedPair<>(c1, c2);
+        OrderedPair<IClass, IClass> key = new OrderedPair<>(supertype, subtype);
         // count++;
         // if (count % 10000000 == 0) {
         // System.err.println("SIZE: " + isAssignable.size() + " COUNT: " + count);
         // }
         Boolean res = isAssignable.get(key);
         if (res == null) {
-            res = AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
+            res = AnalysisUtil.getClassHierarchy().isAssignableFrom(supertype, subtype);
             isAssignable.put(key, res);
         }
         return res;
