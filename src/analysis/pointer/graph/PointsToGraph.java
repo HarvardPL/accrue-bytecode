@@ -495,8 +495,8 @@ public class PointsToGraph {
                     while (it.hasNext()) {
                         IClass ic = it.next();
                         if (satisfiesFilters(ic)) {
-                           current = pts.map.get(ic).iterator();
-                           break;
+                            current = pts.map.get(ic).iterator();
+                            break;
                         }
                     }
                     if (current == null && !it.hasNext()) {
@@ -506,7 +506,7 @@ public class PointsToGraph {
 
                 return current.hasNext();
             }
-        
+
 
             @Override
             public InstanceKey next() {
@@ -598,11 +598,48 @@ public class PointsToGraph {
 
         @Override
         public boolean addAll(Collection<? extends InstanceKey> c) {
-            boolean modified = false;
-            for (InstanceKey e : c)
-                if (add(e))
-                    modified = true;
-            return modified;
+            // for efficiency, we will have some special cases
+            if (c instanceof PointsToSet) {
+                boolean changed = false;
+                PointsToSet other = (PointsToSet) c;
+                for (IClass key : other.map.keySet()) {
+                    Set<InstanceKey> s = this.map.get(key);
+                    if (s == null) {
+                        s = new LinkedHashSet<>(other.map.get(key));
+                        changed = true;
+                        this.map.put(key, s);
+                    } else {
+                        changed |= s.addAll(other.map.get(key));
+                    }
+                }
+                return changed;
+            } else if (c instanceof FilteredSet) {
+                boolean changed = false;
+                FilteredSet other = (FilteredSet) c;
+                PointsToSet otherPTS = other.pts;
+                for (IClass key : otherPTS.map.keySet()) {
+                    if (other.satisfiesFilters(key)) {
+                        Set<InstanceKey> s = this.map.get(key);
+                        if (s == null) {
+                            s = new LinkedHashSet<>(otherPTS.map.get(key));
+                            changed = true;
+                            this.map.put(key, s);
+                        } else {
+                            changed |= s.addAll(otherPTS.map.get(key));
+                        }
+                    }
+                }
+                return changed;
+
+            } else {
+                // fall back case
+                boolean modified = false;
+                for (InstanceKey e : c)
+                    if (add(e))
+                        modified = true;
+                return modified;
+            }
+
         }
 
         @Override
@@ -637,6 +674,8 @@ public class PointsToGraph {
                     return false;
                 }
                 current = it.next().iterator();
+                // since the sets are guaranteed to be non-empty, we know that there is at least one more element...
+                return true;
             }
 
             return current.hasNext();
