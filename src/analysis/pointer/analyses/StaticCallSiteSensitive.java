@@ -15,7 +15,7 @@ public class StaticCallSiteSensitive extends HeapAbstractionFactory {
      * Default depth of call sites to keep track of
      */
     private static final int DEFAULT_SENSITIVITY = 2;
-    private final CallSiteSensitive delegate;
+    private final int sensitivity;
 
     /**
      * Create a static call site sensitive heap abstraction factory with the default depth, i.e. up to the default
@@ -33,32 +33,37 @@ public class StaticCallSiteSensitive extends HeapAbstractionFactory {
      *            depth of the call site stack
      */
     public StaticCallSiteSensitive(int sensitivity) {
-        this.delegate = new CallSiteSensitive(sensitivity);
+        this.sensitivity = sensitivity;
+    }
+    
+
+    public int getSensitivity() {
+        return sensitivity;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite, Context context) {
-        return delegate.record(allocationSite, context);
+        return AllocationName.create((ContextStack<CallSiteLabel>) context, allocationSite);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        if (callSite.isStatic()) {
-            return delegate.merge(callSite, receiver, callerContext);
+        if (!callSite.isStatic()) {
+            // only track call sites to static methods.
+            callSite = null;
         }
-        // Non-static call push null
-        // TODO could also not push anything here and keep the last static call site for added precision at a cost
-        return delegate.merge(null, receiver, callerContext);
+        return ((ContextStack<CallSiteLabel>) callerContext).push(callSite, sensitivity);
     }
 
     @Override
     public ContextStack<CallSiteLabel> initialContext() {
-        // TODO Auto-generated method stub
-        return delegate.initialContext();
+        return ContextStack.<CallSiteLabel> emptyStack();
     }
 
     @Override
     public String toString() {
-        return "scs(" + delegate.getSensitivity() + ")";
+        return "scs(" + this.getSensitivity() + ")";
     }
 }
