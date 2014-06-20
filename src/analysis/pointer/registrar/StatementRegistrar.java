@@ -873,6 +873,9 @@ public final class StatementRegistrar {
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ReferenceVariable thrown,
                                     ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pp) {
+        
+        IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
+        
         Set<IClass> notType = new LinkedHashSet<>();
         for (ISSABasicBlock succ : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
             ReferenceVariable caught;
@@ -895,8 +898,19 @@ public final class StatementRegistrar {
                 }
                 assert caughtType.equals(types.getType(catchIns.getException()));
 
-                caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
+                IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
+                boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
+                boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
+
+                if (maybeCaught || definitelyCaught) {
+                    caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
+                    addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
+                }
+
+                // if we have definitely caught the exception, no need to add more exception assignment statements.
+                if (definitelyCaught) {
+                    break;
+                }
 
                 // Add this exception to the set of types that have already been caught
                 notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtType));
