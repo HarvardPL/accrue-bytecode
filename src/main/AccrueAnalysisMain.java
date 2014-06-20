@@ -41,7 +41,9 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
+import com.ibm.wala.properties.WalaProperties;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.util.WalaException;
 
 /**
  * Run one of the selected analyses or tests, see usage
@@ -74,6 +76,12 @@ public class AccrueAnalysisMain {
         int fileLevel = options.getFileLevel();
         String classPath = options.getAnalysisClassPath();
         HeapAbstractionFactory haf = options.getHaf();
+
+        try {
+            System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
+        } catch (WalaException e) {
+            e.printStackTrace();
+        }
 
         int otherOutputLevel = 0;
         if (outputLevel >= 9) {
