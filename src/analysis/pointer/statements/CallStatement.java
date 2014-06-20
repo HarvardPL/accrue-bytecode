@@ -83,8 +83,26 @@ public abstract class CallStatement extends PointsToStatement {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
-
+        // if (callee.toString().contains("run")
+        // && (AnalysisUtil.getClassHierarchy().isAssignableFrom(
+        // AnalysisUtil.privilegedActionClass,
+        // receiver.getConcreteType()) || AnalysisUtil
+        // .getClassHierarchy()
+        // .isAssignableFrom(AnalysisUtil.privilegedExceptionActionClass,
+        // receiver.getConcreteType()))) {
+        // System.err.print("");
+        // }
         Context calleeContext = haf.merge(callSite, receiver, callerContext);
+        // if (callee.toString().contains("run")
+        // && (AnalysisUtil.getClassHierarchy().isAssignableFrom(
+        // AnalysisUtil.privilegedActionClass,
+        // receiver.getConcreteType()) || AnalysisUtil
+        // .getClassHierarchy()
+        // .isAssignableFrom(AnalysisUtil.privilegedExceptionActionClass,
+        // receiver.getConcreteType()))) {
+        // System.err.println(calleeContext + " for " + PrettyPrinter.methodString(callee));
+        // System.err.print("");
+        // }
         boolean changed = false;
 
         // Record the call in the call graph
@@ -138,7 +156,9 @@ public abstract class CallStatement extends PointsToStatement {
             // Check whether the types match up appropriately
             assert checkTypes(formalRep, actualRep);
 
-            Set<InstanceKey> actualHCs = g.getPointsToSetFiltered(actualRep, formalRep.getExpectedType());
+            // Set<InstanceKey> actualHCs = g.getPointsToSetFiltered(actualRep, formalRep.getExpectedType());
+            Set<InstanceKey> actualHCs = g.getPointsToSet(actualRep);
+
             assert checkForNonEmpty(actualHCs, actualRep, "ACTUAL-" + i + " " + PrettyPrinter.methodString(callee));
 
             // Add edges from the points-to set for the actual argument to the formal argument

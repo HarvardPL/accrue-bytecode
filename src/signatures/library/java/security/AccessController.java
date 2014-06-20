@@ -1,4 +1,4 @@
-package signatures.library.java.unused_security;
+package signatures.library.java.security;
 
 import java.security.AccessControlContext;
 import java.security.PrivilegedAction;
@@ -23,7 +23,8 @@ public class AccessController {
         try {
             return action.run();
         } catch (Exception e) {
-            throw new PrivilegedActionException(e);
+            return null;
+//            throw new PrivilegedActionException(e);
         }
     }
 
@@ -33,7 +34,8 @@ public class AccessController {
         try {
             return action.run();
         } catch (Exception e) {
-            throw new PrivilegedActionException(e);
+            return null;
+            // throw new PrivilegedActionException(e);
         }
     }
 }

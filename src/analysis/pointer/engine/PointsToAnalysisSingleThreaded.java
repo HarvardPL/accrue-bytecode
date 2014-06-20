@@ -224,6 +224,17 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         i++;
         iterations.put(s, i);
         if (i >= 100) {
+            for (StmtAndContext sac : iterations.keySet()) {
+                int iter = iterations.get(sac);
+                String iterString = String.valueOf(iter);
+                if (iter < 100) {
+                    iterString = "0" + iterString;
+                }
+                if (iter < 10) {
+                    iterString = "0" + iterString;
+                }
+                System.err.println(iterString + ", " + sac);
+            }
             throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
         }
         return i;
