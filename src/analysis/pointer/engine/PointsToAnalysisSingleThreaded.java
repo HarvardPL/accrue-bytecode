@@ -209,7 +209,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         if (outputLevel >= 4 && !changed.isEmpty()) {
             for (PointsToGraphNode n : changed.domain()) {
-                System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSetNoDep(n) + ")");
+                System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSet(n) + ")");
+                g.getAndClearReadNodes();// clear the read nodes so the read above wasn't significant.
                 if (!getDependencies(n).isEmpty()) {
                     System.err.println("\tDEPS:");
                     for (StmtAndContext dep : getDependencies(n)) {
@@ -241,25 +242,25 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
-        if (i >= 5000) {
-            for (StmtAndContext sac : iterations.keySet()) {
-                int iter = iterations.get(sac);
-                if (iter > 4990) {
-                    String iterString = String.valueOf(iter);
-                    if (iter < 1000) {
-                        iterString = "0" + iterString;
-                    }
-                    if (iter < 100) {
-                        iterString = "0" + iterString;
-                    }
-                    if (iter < 10) {
-                        iterString = "0" + iterString;
-                    }
-                    System.err.println(iterString + ", " + sac);
-                }
-            }
-            throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
-        }
+        // if (i >= 5000) {
+        // for (StmtAndContext sac : iterations.keySet()) {
+        // int iter = iterations.get(sac);
+        // if (iter > 4990) {
+        // String iterString = String.valueOf(iter);
+        // if (iter < 1000) {
+        // iterString = "0" + iterString;
+        // }
+        // if (iter < 100) {
+        // iterString = "0" + iterString;
+        // }
+        // if (iter < 10) {
+        // iterString = "0" + iterString;
+        // }
+        // System.err.println(iterString + ", " + sac);
+        // }
+        // }
+        // throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
+        // }
         return i;
     }
 
