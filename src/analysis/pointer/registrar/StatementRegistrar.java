@@ -968,13 +968,16 @@ public final class StatementRegistrar {
 
         boolean containsRTE = false;
         try {
-            for (TypeReference exType : m.getDeclaredExceptions()) {
-                // Allocation of exception of a particular type
-                ReferenceVariable ex = rvFactory.createNativeException(exType, m);
-                addStatement(StatementFactory.exceptionAssignment(ex, methodSummary.getException(),
-                                                Collections.<IClass> emptySet(), m));
-                registerAllocationForNative(m, exType, ex);
-                containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
+            TypeReference[] exceptions = m.getDeclaredExceptions();
+            if (exceptions != null) {
+                for (TypeReference exType : exceptions) {
+                    // Allocation of exception of a particular type
+                    ReferenceVariable ex = rvFactory.createNativeException(exType, m);
+                    addStatement(StatementFactory.exceptionAssignment(ex, methodSummary.getException(),
+                                                    Collections.<IClass> emptySet(), m));
+                    registerAllocationForNative(m, exType, ex);
+                    containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
+                }
             }
         } catch (UnsupportedOperationException | InvalidClassFileException e) {
             throw new RuntimeException(e);
