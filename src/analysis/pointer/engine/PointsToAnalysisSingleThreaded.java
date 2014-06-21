@@ -192,6 +192,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
                                                 + (System.currentTimeMillis() - startTime)
                                                 / 1000 + "s");
+                System.err.println("  current graph size: " + g.getNodes().size() + " nodes ");
             }
         }
 
