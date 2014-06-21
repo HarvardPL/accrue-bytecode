@@ -105,7 +105,7 @@ public abstract class CallStatement extends PointsToStatement {
         // System.err.println(calleeContext + " for " + PrettyPrinter.methodString(callee));
         // System.err.print("");
         // }
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
         g.addCall(callSite.getReference(), getMethod(), callerContext, callee, calleeContext);

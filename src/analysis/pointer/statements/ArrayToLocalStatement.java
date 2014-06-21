@@ -51,7 +51,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
 

@@ -59,7 +59,7 @@ public class LocalToArrayStatement extends PointsToStatement {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
         if (delta == null) {
             // no changes, let's do the processing in a straightforward way.

@@ -69,7 +69,7 @@ public class SpecialCallStatement extends CallStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                                     StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
         if (delta == null) {
             // no delta, do the simple processing

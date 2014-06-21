@@ -65,7 +65,7 @@ public class FieldToLocalStatment extends PointsToStatement {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
         if (delta == null) {
             // let's do the normal processing
@@ -83,7 +83,6 @@ public class FieldToLocalStatment extends PointsToStatement {
                 GraphDelta d1 = g.addEdges(left, fieldHCs);
                 changed = changed.combine(d1);
             }
-            return changed;
         }
         else {
             // we have a delta. Let's be smart about how we use it.
@@ -94,17 +93,17 @@ public class FieldToLocalStatment extends PointsToStatement {
                                                 declaredField.getFieldType());
 
                 Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, left.getExpectedType()); // don't use delta
-                                                                                                 // here: we want the
-                                                                                                 // entire set!
+                // here: we want the
+                // entire set!
                 GraphDelta d1 = g.addEdges(left, fieldHCs);
                 changed = changed.combine(d1);
             }
 
             // Now, let's check if there are any k.f's that have changed, and if so, whether o can point to k.
             Set<InstanceKey> allReceivers = g.getPointsToSetWithDelta(rec, delta); // don't use delta, we want
-                                                                                   // everything that the
-                                                                        // receiver can
-                                                                        // point to!
+            // everything that the
+            // receiver can
+            // point to!
             for (ObjectField f : delta.getObjectFields(declaredField)) {
                 if (allReceivers.contains(f.receiver())) {
                     // the receiver points to the base of the object field (i.e., for object field k.f, it points to k)!
@@ -115,7 +114,7 @@ public class FieldToLocalStatment extends PointsToStatement {
                     changed = changed.combine(d1);
                 }
             }
-            return changed;
         }
+        return changed;
     }
 }

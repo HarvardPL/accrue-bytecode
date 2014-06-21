@@ -57,7 +57,7 @@ public class ClassInitStatement extends PointsToStatement {
             System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
         }
 
-        return new GraphDelta();
+        return new GraphDelta(g);
     }
 
     @Override
