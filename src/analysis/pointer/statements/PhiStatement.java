@@ -51,7 +51,7 @@ public class PhiStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta changed = new GraphDelta();
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);

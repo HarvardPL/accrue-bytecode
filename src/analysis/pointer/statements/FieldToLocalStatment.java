@@ -65,7 +65,7 @@ public class FieldToLocalStatment extends PointsToStatement {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta changed = new GraphDelta();
 
         if (delta == null) {
             // let's do the normal processing
@@ -100,7 +100,7 @@ public class FieldToLocalStatment extends PointsToStatement {
             }
 
             // Now, let's check if there are any k.f's that have changed, and if so, whether o can point to k.
-            Set<InstanceKey> allReceivers = g.getPointsToSetWithDelta(rec, delta); // don't use delta, we want
+            Set<InstanceKey> allReceivers = g.getPointsToSet(rec); // don't use delta, we want
             // everything that the
             // receiver can
             // point to!
@@ -114,6 +114,7 @@ public class FieldToLocalStatment extends PointsToStatement {
                     changed = changed.combine(d1);
                 }
             }
+
         }
         return changed;
     }

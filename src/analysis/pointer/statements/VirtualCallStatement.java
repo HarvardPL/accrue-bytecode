@@ -79,7 +79,7 @@ public class VirtualCallStatement extends CallStatement {
                                     StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta changed = new GraphDelta();
 
         if (delta == null) { 
             // no delta, so do some simple processing.

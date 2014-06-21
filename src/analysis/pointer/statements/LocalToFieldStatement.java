@@ -58,7 +58,7 @@ public class LocalToFieldStatement extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta changed = new GraphDelta();
 
         if (delta == null) {
             // no delta, let's do some simple processing

@@ -2,9 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
-import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -51,7 +49,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta changed = new GraphDelta();
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
 
@@ -60,15 +58,9 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // no delta, so let's do some simple processing.
             for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                if (PointsToAnalysis.DEBUG && g.getPointsToSet(contents).isEmpty()) {
-                    System.err.println("CONTENTS: " + contents + " for " + this + " in "
-                                                    + PrettyPrinter.methodString(getMethod()));
-                }
                 GraphDelta d1 = g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
                 changed = changed.combine(d1);
             }
-            return changed;
-
         }
         else {
             // we have a delta. Let's be smart about how we use it.
@@ -85,7 +77,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             }
 
             // Now, let's check if there are any k[i]'s that have changed, and if so, whether a can point to k.
-            Set<InstanceKey> allArrays = g.getPointsToSetWithDelta(a, delta); // don't use delta, we want everything
+            Set<InstanceKey> allArrays = g.getPointsToSet(a); // don't use delta, we want everything
                                                                               // that the
             // receiver can
             // point to!
@@ -99,9 +91,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
                     changed = changed.combine(d1);
                 }
             }
-            return changed;
         }
-
+        return changed;
     }
 
     @Override

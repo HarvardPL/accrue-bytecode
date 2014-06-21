@@ -90,16 +90,13 @@ public class PointsToGraph {
             graph.put(node, pointsToSet);
         }
 
-        GraphDelta delta = new GraphDelta(this);
+        GraphDelta delta = new GraphDelta();
         if (pointsToSet.add(heapContext)) {
             delta.add(node, heapContext);
         }
         return delta;
     }
 
-    void recordRead(PointsToGraphNode node) {
-        readNodes.add(node);
-    }
     public GraphDelta addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
@@ -107,7 +104,7 @@ public class PointsToGraph {
             graph.put(node, pointsToSet);
         }
 
-        GraphDelta delta = new GraphDelta(this);
+        GraphDelta delta = new GraphDelta();
         for (InstanceKey hc : heapContexts) {
             if (pointsToSet.add(hc)) {
                 delta.add(node, hc);
@@ -136,22 +133,6 @@ public class PointsToGraph {
 
         if (DEBUG && outputLevel >= 7) {
             System.err.println("\tEMPTY POINTS-TO SET for " + node);
-        }
-
-        return Collections.emptySet();
-    }
-
-    /**
-     * Remove this. It is temporary and hacky. It doesn't record a read dependency..
-     * 
-     * @param node
-     * @return
-     */
-    public Set<InstanceKey> getPointsToSetNoDep(PointsToGraphNode node) {
-        // XXX!@!
-        Set<InstanceKey> s = graph.get(node);
-        if (s != null) {
-            return s;
         }
 
         return Collections.emptySet();

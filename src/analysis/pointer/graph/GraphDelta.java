@@ -17,11 +17,9 @@ import com.ibm.wala.types.TypeReference;
  */
 public class GraphDelta {
     private final Map<PointsToGraphNode, Set<InstanceKey>> map;
-    private PointsToGraph g;
 
-    public GraphDelta(PointsToGraph g) {
+    public GraphDelta() {
         this.map = new LinkedHashMap<>();
-        this.g = g;
     }
 
     private Set<InstanceKey> getOrCreateSet(PointsToGraphNode src) {
@@ -39,7 +37,6 @@ public class GraphDelta {
 
     @SuppressWarnings("unchecked")
     public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
-        g.recordRead(node);
         Set<InstanceKey> s = this.map.get(node);
         if (s == null) {
             return Collections.EMPTY_SET;
@@ -67,16 +64,7 @@ public class GraphDelta {
     }
 
     public Set<ObjectField> getObjectFields(FieldReference fieldReference) {
-        Set<ObjectField> possibles = new LinkedHashSet<>();
-        for (PointsToGraphNode src : this.map.keySet()) {
-            if (src instanceof ObjectField) {
-                ObjectField of = (ObjectField) src;
-                if (of.fieldReference() != null && of.fieldReference().equals(fieldReference)) {
-                    possibles.add(of);
-                }
-            }               
-        }
-        return possibles;
+        return this.getObjectFields(fieldReference.getName().toString(), fieldReference.getFieldType());
     }
 
     public Set<ObjectField> getObjectFields(String fieldName, TypeReference expectedType) {

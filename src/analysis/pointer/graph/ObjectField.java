@@ -14,17 +14,12 @@ public class ObjectField implements PointsToGraphNode {
      */
     private final InstanceKey receiver;
 
-    // Either FieldReference is non-null, xor both fieldName and expectedType are non-null
     /**
-     * FieldReference, if one exists
-     */
-    private final FieldReference fieldReference;
-    /**
-     * Name of the field (null if fieldReference is non-null)
+     * Name of the field
      */
     private final String fieldName;
     /**
-     * Type of the field (null if fieldReference is non-null)
+     * Type of the field
      */
     private final TypeReference expectedType;
     /**
@@ -49,7 +44,6 @@ public class ObjectField implements PointsToGraphNode {
         this.receiver = receiver;
         this.fieldName = fieldName;
         this.expectedType = expectedType;
-        this.fieldReference = null;
         this.memoizedHashCode = computeHashCode();
     }
 
@@ -62,18 +56,12 @@ public class ObjectField implements PointsToGraphNode {
      *            the field
      */
     public ObjectField(InstanceKey receiver, FieldReference fieldReference) {
-        assert receiver != null;
-        assert fieldReference != null;
-        this.receiver = receiver;
-        this.fieldName = null;
-        this.expectedType = null;
-        this.fieldReference = fieldReference;
-        this.memoizedHashCode = computeHashCode();
+        this(receiver, fieldReference.getName().toString(), fieldReference.getFieldType());
     }
 
     @Override
     public TypeReference getExpectedType() {
-        return fieldReference == null ? expectedType : fieldReference.getFieldType();
+        return expectedType;
     }
 
     public int computeHashCode() {
@@ -81,7 +69,6 @@ public class ObjectField implements PointsToGraphNode {
         int result = 1;
         result = prime * result + ((expectedType == null) ? 0 : expectedType.hashCode());
         result = prime * result + ((fieldName == null) ? 0 : fieldName.hashCode());
-        result = prime * result + ((fieldReference == null) ? 0 : fieldReference.hashCode());
         result = prime * result + memoizedHashCode;
         result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
         return result;
@@ -120,14 +107,6 @@ public class ObjectField implements PointsToGraphNode {
         else if (!fieldName.equals(other.fieldName)) {
             return false;
         }
-        if (fieldReference == null) {
-            if (other.fieldReference != null) {
-                return false;
-            }
-        }
-        else if (!fieldReference.equals(other.fieldReference)) {
-            return false;
-        }
         if (!receiver.equals(other.receiver)) {
             return false;
         }
@@ -136,22 +115,19 @@ public class ObjectField implements PointsToGraphNode {
 
     @Override
     public String toString() {
-        return "{" + receiver() + "}." + (fieldReference == null ? fieldName : fieldReference.getName().toString());
+        return "{" + receiver() + "}." + fieldName();
     }
 
     public InstanceKey receiver() {
         return this.receiver;
     }
 
-    public FieldReference fieldReference() {
-        return this.fieldReference;
+
+    public String fieldName() {
+        return this.fieldName;
     }
 
-    public Object fieldName() {
-        return this.fieldReference == null ? this.fieldName : this.fieldReference.getName().toString();
-    }
-
-    public Object expectedType() {
-        return this.fieldReference == null ? this.expectedType : this.fieldReference.getFieldType();
+    public TypeReference expectedType() {
+        return this.expectedType;
     }
 }
