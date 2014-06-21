@@ -16,23 +16,19 @@ import com.ibm.wala.types.TypeReference;
  * the changes to the graph since last time they were processed.
  */
 public class GraphDelta {
-    private final Map<PointsToGraphNode, Set<InstanceKey>> d;
+    private final Map<PointsToGraphNode, Set<InstanceKey>> map;
+    private PointsToGraph g;
 
-    public GraphDelta() {
-        this.d = new LinkedHashMap<>();
-    }
-    public GraphDelta(PointsToGraphNode src, InstanceKey trg) {
-        this.d = new LinkedHashMap<>();
-        Set<InstanceKey> s = new LinkedHashSet<>();
-        s.add(trg);
-        this.d.put(src, s);
+    public GraphDelta(PointsToGraph g) {
+        this.map = new LinkedHashMap<>();
+        this.g = g;
     }
 
     private Set<InstanceKey> getOrCreateSet(PointsToGraphNode src) {
-        Set<InstanceKey> s = d.get(src);
+        Set<InstanceKey> s = map.get(src);
         if (s == null) {
             s = new LinkedHashSet<>();
-            d.put(src, s);
+            map.put(src, s);
         }
         return s;
     }
@@ -43,7 +39,8 @@ public class GraphDelta {
 
     @SuppressWarnings("unchecked")
     public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
-        Set<InstanceKey> s = this.d.get(node);
+        g.recordRead(node);
+        Set<InstanceKey> s = this.map.get(node);
         if (s == null) {
             return Collections.EMPTY_SET;
         }
@@ -51,7 +48,7 @@ public class GraphDelta {
     }
 
     public Set<PointsToGraphNode> domain() {
-        return Collections.unmodifiableSet(this.d.keySet());
+        return Collections.unmodifiableSet(this.map.keySet());
     }
 
     /**
@@ -62,8 +59,8 @@ public class GraphDelta {
      */
     public GraphDelta combine(GraphDelta d) {
         if (d != null) {
-            for (PointsToGraphNode src : d.d.keySet()) {
-                this.getOrCreateSet(src).addAll(d.d.get(src));
+            for (PointsToGraphNode src : d.map.keySet()) {
+                this.getOrCreateSet(src).addAll(d.map.get(src));
             }
         }
         return this;
@@ -71,7 +68,7 @@ public class GraphDelta {
 
     public Set<ObjectField> getObjectFields(FieldReference fieldReference) {
         Set<ObjectField> possibles = new LinkedHashSet<>();
-        for (PointsToGraphNode src : this.d.keySet()) {
+        for (PointsToGraphNode src : this.map.keySet()) {
             if (src instanceof ObjectField) {
                 ObjectField of = (ObjectField) src;
                 if (of.fieldReference() != null && of.fieldReference().equals(fieldReference)) {
@@ -84,7 +81,7 @@ public class GraphDelta {
 
     public Set<ObjectField> getObjectFields(String fieldName, TypeReference expectedType) {
         Set<ObjectField> possibles = new LinkedHashSet<>();
-        for (PointsToGraphNode src : this.d.keySet()) {
+        for (PointsToGraphNode src : this.map.keySet()) {
             if (src instanceof ObjectField) {
                 ObjectField of = (ObjectField) src;
                 if (of.fieldName().equals(fieldName) && of.expectedType().equals(expectedType)) {
@@ -96,6 +93,10 @@ public class GraphDelta {
     }
 
     public boolean isEmpty() {
-        return d.isEmpty();
+        return map.isEmpty();
+    }
+
+    public String toString() {
+        return "Delta: ((( " + this.map.toString() + " )))";
     }
 }
