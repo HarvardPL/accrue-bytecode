@@ -6,6 +6,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -39,7 +40,8 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit
@@ -55,7 +57,7 @@ public class ClassInitStatement extends PointsToStatement {
             System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
         }
 
-        return false;
+        return new GraphDelta();
     }
 
     @Override

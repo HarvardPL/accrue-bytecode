@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -46,10 +47,12 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
-        Set<InstanceKey> heapContexts = g.getPointsToSetFiltered(r, left.getExpectedType());
+
+        Set<InstanceKey> heapContexts = g.getPointsToSetFilteredWithDelta(r, left.getExpectedType(), delta);
         assert checkForNonEmpty(heapContexts, r, "LOCAL ASSIGNMENT RHS filtered on " + left.getExpectedType());
 
         return g.addEdges(l, heapContexts);

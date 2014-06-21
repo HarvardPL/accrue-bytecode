@@ -5,6 +5,7 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -65,17 +66,40 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
+        GraphDelta changed = new GraphDelta();
 
-        Set<InstanceKey> s = g.getPointsToSet(receiverRep);
-        assert checkForNonEmpty(s, receiverRep, "SPECIAL RECEIVER");
+        if (delta == null) {
+            // no delta, do the simple processing
+            Set<InstanceKey> s = g.getPointsToSet(receiverRep);
+            assert checkForNonEmpty(s, receiverRep, "SPECIAL RECEIVER");
 
-        boolean changed = false;
-        for (InstanceKey recHeapCtxt : s) {
-            changed |= processCall(context, recHeapCtxt, callee, g, haf, calleeSummary);
+            for (InstanceKey recHeapCtxt : s) {
+                changed = changed.combine(processCall(context, recHeapCtxt, callee, g, delta, haf, calleeSummary));
+            }
+        }
+        else {
+            // delta is not null. Let's be smart.
+            // First, see if the receiver has changed.
+            Set<InstanceKey> s = delta.getPointsToSet(receiverRep);
+            if (!s.isEmpty()) {
+                // the receiver changed, so process the call *without* a delta, i.e., to force everything
+                // to propagate
+                for (InstanceKey recHeapCtxt : s) {
+                    changed = changed.combine(processCall(context, recHeapCtxt, callee, g, null, haf, calleeSummary));
+                }
+            }
+
+            // we'll be a little lazy here, and just do the deltas for every callee...
+            for (InstanceKey recHeapCtxt : g.getPointsToSet(receiverRep)) {
+                changed = changed.combine(processCall(context, recHeapCtxt, callee, g, delta, haf, calleeSummary));
+            }
+
         }
         return changed;
+
     }
 
     @Override

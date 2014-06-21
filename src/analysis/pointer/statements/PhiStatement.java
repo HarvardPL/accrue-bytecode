@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -46,18 +47,20 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
-        boolean changed = false;
 
+        GraphDelta changed = new GraphDelta();
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
 
-            Set<InstanceKey> s = g.getPointsToSet(n);
+            Set<InstanceKey> s = g.getPointsToSetWithDelta(n, delta);
             assert checkForNonEmpty(s, n, "PHI ARG: " + n);
 
-            changed |= g.addEdges(a, s);
+            GraphDelta d1 = g.addEdges(a, s);
+            changed = changed.combine(d1);
         }
         return changed;
     }

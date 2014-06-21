@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -46,12 +47,13 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
 
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
 
-        Set<InstanceKey> s = g.getPointsToSet(r);
+        Set<InstanceKey> s = g.getPointsToSetWithDelta(r, delta);
         assert checkForNonEmpty(s, r, "STATIC FIELD");
 
         return g.addEdges(l, s);

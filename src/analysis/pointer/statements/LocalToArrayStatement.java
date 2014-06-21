@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -53,20 +54,50 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
-        Set<InstanceKey> valHeapContexts = g.getPointsToSet(v);
-        assert checkForNonEmpty(valHeapContexts, v, "LOCAL: " + this);
+        GraphDelta changed = new GraphDelta();
 
-        Set<InstanceKey> arrayHCs = g.getPointsToSet(a);
-        assert checkForNonEmpty(arrayHCs, a, "LOCAL:");
+        if (delta == null) {
+            // no changes, let's do the processing in a straightforward way.
+            Set<InstanceKey> valHeapContexts = g.getPointsToSet(v);
+            if (!valHeapContexts.isEmpty()) {
+                Set<InstanceKey> arrayHCs = g.getPointsToSet(a);
+                assert checkForNonEmpty(arrayHCs, a, "LOCAL:");
 
-        boolean changed = false;
-        for (InstanceKey arrHeapContext : arrayHCs) {
-            ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-            changed |= g.addEdges(contents, valHeapContexts);
+                for (InstanceKey arrHeapContext : arrayHCs) {
+                    ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                    GraphDelta d1 = g.addEdges(contents, valHeapContexts);
+                    changed = changed.combine(d1);
+                }
+            }
+        }
+        else {
+            // delta is non null. Let's do this smart!
+            // First, we see if v has changed, in which case we propagate to everything that a points to.
+            Set<InstanceKey> valHeapContexts = delta.getPointsToSet(v);
+            if (!valHeapContexts.isEmpty()) {
+                Set<InstanceKey> arrayHCs = g.getPointsToSet(a); // note that we don't use delta here, we want to propagate
+                // the change to everything a points to.
+                for (InstanceKey arrHeapContext : arrayHCs) {
+                    ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                    GraphDelta d1 = g.addEdges(contents, valHeapContexts);
+                    changed = changed.combine(d1);
+                }
+            }
+            // Second, we see if a has changed, in which case we want to propate everything that a points to.
+            // Second, we check if a has changed what it points to. If it has, we need to make the new object fields
+            // point to everything that the RHS can.
+            Set<InstanceKey> arrayHCs = delta.getPointsToSet(a);
+            for (InstanceKey arrHeapContext : arrayHCs) {
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                GraphDelta d1 = g.addEdges(contents, g.getPointsToSet(v)); // no use of delta!
+                changed = changed.combine(d1);
+            }
+
         }
 
         return changed;

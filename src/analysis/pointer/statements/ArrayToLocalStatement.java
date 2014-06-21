@@ -1,8 +1,11 @@
 package analysis.pointer.statements;
 
+import java.util.Set;
+
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -43,27 +46,62 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
-        boolean changed = false;
+        GraphDelta changed = new GraphDelta();
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
-        if (PointsToAnalysis.DEBUG && g.getPointsToSet(a).isEmpty()) {
-            System.err.println("ARRAY: " + a + " for " + this + " in " + PrettyPrinter.methodString(getMethod()));
-        }
 
-        for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
-            ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-            if (PointsToAnalysis.DEBUG && g.getPointsToSet(contents).isEmpty()) {
-                System.err.println("CONTENTS: " + contents + " for " + this + " in "
-                                                + PrettyPrinter.methodString(getMethod()));
+        
+        if (delta == null) {
+            // no delta, so let's do some simple processing.
+            for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                if (PointsToAnalysis.DEBUG && g.getPointsToSet(contents).isEmpty()) {
+                    System.err.println("CONTENTS: " + contents + " for " + this + " in "
+                                                    + PrettyPrinter.methodString(getMethod()));
+                }
+                GraphDelta d1 = g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
+                changed = changed.combine(d1);
             }
-            changed |= g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
+            return changed;
+
+        }
+        else {
+            // we have a delta. Let's be smart about how we use it.
+            // Statement is v = a[i]. First check if a points to anything new. If it does now point to some new abstract
+            // object k, add everything that k[i] points to to v's set.
+            for (InstanceKey arrHeapContext : delta.getPointsToSet(a)) {
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+
+                GraphDelta d1 = g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));// don't use
+                                                                                                       // delta here: we
+                                                                                                       // want the
+                                                                                                       // entire set!
+                changed = changed.combine(d1);
+            }
+
+            // Now, let's check if there are any k[i]'s that have changed, and if so, whether a can point to k.
+            Set<InstanceKey> allArrays = g.getPointsToSetWithDelta(a, delta); // don't use delta, we want everything
+                                                                              // that the
+            // receiver can
+            // point to!
+            for (ObjectField f : delta.getObjectFields(PointsToGraph.ARRAY_CONTENTS, baseType)) {
+                if (allArrays.contains(f.receiver())) {
+                    // the receiver points to the base of the object field (i.e., for object field k[i], it points to
+                    // k)!
+
+                    // we use delta here, since we only want to propagate what delta points to.
+                    GraphDelta d1 = g.addEdges(v, g.getPointsToSetFilteredWithDelta(f, v.getExpectedType(), delta));
+                    changed = changed.combine(d1);
+                }
+            }
+            return changed;
         }
 
-        return changed;
     }
 
     @Override

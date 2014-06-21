@@ -5,6 +5,7 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -78,7 +79,8 @@ public abstract class CallStatement extends PointsToStatement {
      *            summary nodes for formals and exits of the callee
      * @return true if the points-to graph has changed
      */
-    protected final boolean processCall(Context callerContext, InstanceKey receiver, IMethod callee, PointsToGraph g,
+    protected final GraphDelta processCall(Context callerContext, InstanceKey receiver, IMethod callee,
+                                    PointsToGraph g, GraphDelta delta,
                                     HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert callee != null;
@@ -103,10 +105,11 @@ public abstract class CallStatement extends PointsToStatement {
         // System.err.println(calleeContext + " for " + PrettyPrinter.methodString(callee));
         // System.err.print("");
         // }
-        boolean changed = false;
+        GraphDelta changed = new GraphDelta();
 
         // Record the call in the call graph
-        changed |= g.addCall(callSite.getReference(), getMethod(), callerContext, callee, calleeContext);
+        g.addCall(callSite.getReference(), getMethod(), callerContext, callee, calleeContext);
+        // XXX!@! should make g.addCall return something?
 
         // ////////////////// Return //////////////////
 
@@ -118,14 +121,15 @@ public abstract class CallStatement extends PointsToStatement {
             ReferenceVariableReplica calleeReturn = new ReferenceVariableReplica(calleeContext,
                                             calleeSummary.getReturn());
 
-            Set<InstanceKey> returnHCs = g.getPointsToSet(calleeReturn);
+            Set<InstanceKey> returnHCs = g.getPointsToSetWithDelta(calleeReturn, delta);
             assert checkForNonEmpty(returnHCs, calleeReturn, "CALL RETURN: " + PrettyPrinter.methodString(callee));
 
             // Check whether the types match up appropriately
             assert checkTypes(resultRep, calleeReturn);
 
             // The assignee can point to anything the return summary node in the callee can point to
-            changed |= g.addEdges(resultRep, returnHCs);
+            GraphDelta retChange = g.addEdges(resultRep, returnHCs);
+            changed = changed.combine(retChange);
         }
 
         // ////////////////// Receiver //////////////////
@@ -134,7 +138,8 @@ public abstract class CallStatement extends PointsToStatement {
         // if this is a static call then the receiver will be null
         if (!callee.isStatic()) {
             ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext, calleeSummary.getFormal(0));
-            changed |= g.addEdge(thisRep, receiver);
+            GraphDelta receiverChange = g.addEdge(thisRep, receiver);
+            changed = changed.combine(receiverChange);
         }
 
         // ////////////////// Formal Arguments //////////////////
@@ -157,12 +162,13 @@ public abstract class CallStatement extends PointsToStatement {
             assert checkTypes(formalRep, actualRep);
 
             // Set<InstanceKey> actualHCs = g.getPointsToSetFiltered(actualRep, formalRep.getExpectedType());
-            Set<InstanceKey> actualHCs = g.getPointsToSet(actualRep);
+            Set<InstanceKey> actualHCs = g.getPointsToSetWithDelta(actualRep, delta);
 
             assert checkForNonEmpty(actualHCs, actualRep, "ACTUAL-" + i + " " + PrettyPrinter.methodString(callee));
 
             // Add edges from the points-to set for the actual argument to the formal argument
-            changed |= g.addEdges(formalRep, actualHCs);
+            GraphDelta d1 = g.addEdges(formalRep, actualHCs);
+            changed = changed.combine(d1);
         }
 
         // ///////////////// Exceptions //////////////////
@@ -170,11 +176,12 @@ public abstract class CallStatement extends PointsToStatement {
         ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exception);
         ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
 
-        Set<InstanceKey> exHCs = g.getPointsToSet(calleeEx);
+        Set<InstanceKey> exHCs = g.getPointsToSetWithDelta(calleeEx, delta);
         assert checkForNonEmpty(exHCs, calleeEx, "CALL EXCEPTION: " + PrettyPrinter.methodString(callee));
 
         // The exception in the caller can point to anything the summary node in the callee can point to
-        changed |= g.addEdges(callerEx, exHCs);
+        GraphDelta exChange = g.addEdges(callerEx, exHCs);
+        changed = changed.combine(exChange);
 
         return changed;
     }

@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -52,19 +53,53 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
-        Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, field.getFieldType());
-        assert checkForNonEmpty(localHeapContexts, local, "LOCAL: filetered on " + field.getFieldType());
 
-        Set<InstanceKey> recHCs = g.getPointsToSet(rec);
-        assert checkForNonEmpty(recHCs, rec, "FIELD RECEIVER");
+        GraphDelta changed = new GraphDelta();
 
-        boolean changed = false;
-        for (InstanceKey recHeapContext : recHCs) {
-            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
-            changed |= g.addEdges(f, localHeapContexts);
+        if (delta == null) {
+            // no delta, let's do some simple processing
+            Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, field.getFieldType());
+            assert checkForNonEmpty(localHeapContexts, local, "LOCAL: filetered on " + field.getFieldType());
+
+            Set<InstanceKey> recHCs = g.getPointsToSet(rec);
+            assert checkForNonEmpty(recHCs, rec, "FIELD RECEIVER");
+
+            for (InstanceKey recHeapContext : recHCs) {
+                ObjectField f = new ObjectField(recHeapContext, field);
+                GraphDelta d1 = g.addEdges(f, localHeapContexts);
+                changed = changed.combine(d1);
+            }
+        }
+        else {
+            // We have a delta, so let's be smart about the processing.
+            // First, for statement o.f = v, if v has changed what it points to, we need to add that to all the points
+            // to sets
+            // on the left hand side.
+            Set<InstanceKey> valHeapContexts = delta.getPointsToSet(local);
+            if (!valHeapContexts.isEmpty()) {
+                Set<InstanceKey> recHCs = g.getPointsToSet(rec); // note that we don't use delta here, we want to propagate
+                // the change to everything o points to.
+                for (InstanceKey recHeapContext : recHCs) {
+                    ObjectField contents = new ObjectField(recHeapContext, field);
+                    GraphDelta d1 = g.addEdges(contents, valHeapContexts);
+                    changed = changed.combine(d1);
+
+                }
+            }
+
+            // Second, we check if o has changed what it points to. If it has, we need to make the new object fields
+            // point to everything that the RHS can.
+            Set<InstanceKey> recHCs = delta.getPointsToSet(rec);
+            for (InstanceKey recHeapContext : recHCs) {
+                ObjectField contents = new ObjectField(recHeapContext, field);
+                GraphDelta d1 = g.addEdges(contents, g.getPointsToSet(local)); // no use of delta!
+                changed = changed.combine(d1);
+
+            }
         }
 
         return changed;

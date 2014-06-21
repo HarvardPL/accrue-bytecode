@@ -43,7 +43,6 @@ public class PointsToGraph {
     public static final String ARRAY_CONTENTS = "[contents]";
     private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
 
-    private Set<PointsToGraphNode> changedNodes;
     private Set<PointsToGraphNode> readNodes;
     private Map<IMethod, Set<Context>> newContexts;
     private final Map<IMethod, Set<Context>> contexts;
@@ -56,7 +55,6 @@ public class PointsToGraph {
     public static boolean DEBUG = false;
 
     public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf) {
-        changedNodes = new LinkedHashSet<>();
         readNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
         classInitializers = new LinkedHashSet<>();
@@ -84,7 +82,7 @@ public class PointsToGraph {
         return init;
     }
 
-    public boolean addEdge(PointsToGraphNode node, InstanceKey heapContext) {
+    public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
@@ -92,32 +90,35 @@ public class PointsToGraph {
             graph.put(node, pointsToSet);
         }
 
-        boolean changed = pointsToSet.add(heapContext);
-        if (changed) {
-            changedNodes.add(node);
+        GraphDelta delta = null;
+        if (pointsToSet.add(heapContext)) {
+            delta = new GraphDelta(node, heapContext);
         }
-        return changed;
+        return delta;
     }
 
-    public boolean addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
+    public GraphDelta addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
             pointsToSet = new PointsToSet();
             graph.put(node, pointsToSet);
         }
-        boolean changed = pointsToSet.addAll(heapContexts);
 
-        if (changed) {
-            changedNodes.add(node);
+        GraphDelta delta = new GraphDelta();
+        for (InstanceKey hc : heapContexts) {
+            if (pointsToSet.add(hc)) {
+                delta.add(node, hc);
+            }
         }
-        return changed;
+
+        return delta;
     }
 
     /**
      * 
      * @param node
      * 
-     * @return Modifiable set of heap contexts that the given node points to
+     * @return Set of heap contexts that the given node points to
      */
     public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
         readNodes.add(node);
@@ -137,15 +138,47 @@ public class PointsToGraph {
         return Collections.emptySet();
     }
 
+    /**
+     * Return a pointsto set for the given node. If delta is non-null, then delta is used, i.e., only the things that
+     * node points to in the delta will be used. If delta is null, then the behavior is the same as getPointsToSet.
+     * 
+     * @param node
+     * @param delta
+     * 
+     * @return Set of heap contexts that the given node points to, restricted to the delta if that is provided
+     */
+    public Set<InstanceKey> getPointsToSetWithDelta(PointsToGraphNode node, GraphDelta delta) {
+        if (delta == null) {
+            return this.getPointsToSet(node);
+        }
+
+        readNodes.add(node);
+        return delta.getPointsToSet(node);
+    }
+
     public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference type) {
         readNodes.add(node);
-
-        Set<InstanceKey> s = getPointsToSet(node);
+        Set<InstanceKey> s = this.getPointsToSet(node);
 
         if (s.isEmpty()) {
             return s;
         }
-        return new FilteredSet((PointsToSet) s, type);
+        return new FilteredSet(s, type);
+    }
+
+    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, TypeReference type, GraphDelta delta) {
+        if (delta == null) {
+            return this.getPointsToSetFiltered(node, type);
+        }
+
+        readNodes.add(node);
+
+        Set<InstanceKey> s = delta.getPointsToSet(node);
+
+        if (s.isEmpty()) {
+            return s;
+        }
+        return new FilteredSet(s, type);
     }
 
     /**
@@ -161,12 +194,26 @@ public class PointsToGraph {
      * @return Set of heap contexts filtered based on type
      */
     public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference isType, Set<IClass> notTypes) {
-        Set<InstanceKey> s = getPointsToSet(node);
+        readNodes.add(node);
+        Set<InstanceKey> s = this.getPointsToSet(node);
         if (s.isEmpty()) {
             return s;
         }
 
-        return new FilteredSet((PointsToSet) s, isType, notTypes);
+        return new FilteredSet(s, isType, notTypes);
+    }
+
+    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, TypeReference isType, Set<IClass> notTypes, GraphDelta delta) {
+        if (delta == null) {
+            return this.getPointsToSetFiltered(node, isType, notTypes);
+        }
+        readNodes.add(node);
+        Set<InstanceKey> s = delta.getPointsToSet(node);
+        if (s.isEmpty()) {
+            return s;
+        }
+
+        return new FilteredSet(s, isType, notTypes);
     }
 
     @SuppressWarnings("deprecation")
@@ -359,16 +406,6 @@ public class PointsToGraph {
         return newC;
     }
 
-    /**
-     * Get the points-to graph nodes that have caused a change since this was last called and clear the set.
-     * 
-     * @return set of changed nodes
-     */
-    public Set<PointsToGraphNode> getAndClearChangedNodes() {
-        Set<PointsToGraphNode> c = changedNodes;
-        changedNodes = new LinkedHashSet<>();
-        return c;
-    }
 
     /**
      * Get the set of nodes that have been read since this was last called and clear the set.
@@ -425,22 +462,25 @@ public class PointsToGraph {
     }
 
     private static class FilteredSet extends AbstractSet<InstanceKey> {
-        final PointsToSet pts;
+        final Set<InstanceKey> s;
         final IClass isType;
         final Set<IClass> notTypes;
 
-        FilteredSet(PointsToSet s, TypeReference isType, Set<IClass> notTypes) {
-            this.pts = s;
+        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes) {
+            this.s = s;
             this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
             this.notTypes = notTypes;
         }
 
-        FilteredSet(PointsToSet s, TypeReference isType) {
+        FilteredSet(Set<InstanceKey> s, TypeReference isType) {
             this(s, isType, null);
         }
 
         @Override
         public Iterator<InstanceKey> iterator() {
+            if (s instanceof PointsToSet) {
+                return new FilteredPTSIterator((PointsToSet) s);
+            }
             return new FilteredIterator();
         }
 
@@ -461,7 +501,7 @@ public class PointsToGraph {
 
         @Override
         public boolean contains(Object o) {
-            return pts.contains(o) && satisfiesFilters(((InstanceKey) o).getConcreteType());
+            return s.contains(o) && satisfiesFilters(((InstanceKey) o).getConcreteType());
         }
 
         private boolean isAssignableFrom(IClass c1, IClass c2) {
@@ -479,10 +519,47 @@ public class PointsToGraph {
         }
 
         class FilteredIterator implements Iterator<InstanceKey> {
+            private final Iterator<InstanceKey> iter;
+            private InstanceKey next = null;
+            FilteredIterator() {
+                this.iter = FilteredSet.this.s.iterator();
+            }
+
+            @Override
+            public boolean hasNext() {
+                while (next == null && iter.hasNext()) {
+                    InstanceKey ik = iter.next();
+                    if (satisfiesFilters(ik.getConcreteType())) {
+                        next = ik;
+                    }
+                }
+
+                return next != null;
+            }
+
+            @Override
+            public InstanceKey next() {
+                if (hasNext()) {
+                    InstanceKey x = next;
+                    next = null;
+                    return x;
+                }
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        class FilteredPTSIterator implements Iterator<InstanceKey> {
+            PointsToSet pts;
             final Iterator<IClass> it;
             Iterator<InstanceKey> current = null;
 
-            FilteredIterator() {
+            FilteredPTSIterator(PointsToSet pts) {
+                this.pts = pts;
                 this.it = pts.map.keySet().iterator();
             }
 
@@ -598,47 +675,11 @@ public class PointsToGraph {
 
         @Override
         public boolean addAll(Collection<? extends InstanceKey> c) {
-            // for efficiency, we will have some special cases
-            if (c instanceof PointsToSet) {
-                boolean changed = false;
-                PointsToSet other = (PointsToSet) c;
-                for (IClass key : other.map.keySet()) {
-                    Set<InstanceKey> s = this.map.get(key);
-                    if (s == null) {
-                        s = new LinkedHashSet<>(other.map.get(key));
-                        changed = true;
-                        this.map.put(key, s);
-                    } else {
-                        changed |= s.addAll(other.map.get(key));
-                    }
-                }
-                return changed;
-            } else if (c instanceof FilteredSet) {
-                boolean changed = false;
-                FilteredSet other = (FilteredSet) c;
-                PointsToSet otherPTS = other.pts;
-                for (IClass key : otherPTS.map.keySet()) {
-                    if (other.satisfiesFilters(key)) {
-                        Set<InstanceKey> s = this.map.get(key);
-                        if (s == null) {
-                            s = new LinkedHashSet<>(otherPTS.map.get(key));
-                            changed = true;
-                            this.map.put(key, s);
-                        } else {
-                            changed |= s.addAll(otherPTS.map.get(key));
-                        }
-                    }
-                }
-                return changed;
-
-            } else {
-                // fall back case
-                boolean modified = false;
-                for (InstanceKey e : c)
-                    if (add(e))
-                        modified = true;
-                return modified;
-            }
+            boolean modified = false;
+            for (InstanceKey e : c)
+                if (add(e))
+                    modified = true;
+            return modified;
 
         }
 

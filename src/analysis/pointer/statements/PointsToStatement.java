@@ -8,6 +8,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -58,11 +59,15 @@ public abstract class PointsToStatement {
      *            factory for creating new analysis contexts
      * @param g
      *            points-to graph (may be modified)
+     * @param delta
+     *            Changes to the graph relevant to this statement since the last time this stmt was processed. Maybe
+     *            null (e.g., if it is the first time the statement is processed, and may be used by the processing to
+     *            improve the performance of processing).
      * @param registrar
      *            Points-to statement registrar
-     * @return true if the points-to graph was modified
+     * @return Changes to the graph as a result of processing this statement. Must be non-null.
      */
-    public abstract boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
+    public abstract GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                                     StatementRegistrar registrar);
 
     @Override

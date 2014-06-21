@@ -3,13 +3,14 @@ package analysis.pointer.engine;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -101,98 +102,37 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
 
-        WorkQueue<StmtAndContext> q = new WorkQueue<>();
+        Map<StmtAndContext, GraphDelta> q = new LinkedHashMap<>();
 
         // Add initial contexts
         for (PointsToStatement s : registrar.getAllStatements()) {
             for (Context c : g.getContexts(s.getMethod())) {
-                q.add(new StmtAndContext(s, c));
+                q.put(new StmtAndContext(s, c), null);
             }
         }
 
         int numProcessed = 0;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!q.isEmpty()) {
-            StmtAndContext sac = q.poll();
+            // get the next sac, and the delta for it.
+            StmtAndContext sac = q.keySet().iterator().next();
+            GraphDelta delta = q.get(sac);
+            q.remove(sac);
             incrementCounter(sac);
-            PointsToStatement s = sac.stmt;
-            Context c = sac.context;
-
-            if (outputLevel >= 3) {
-                System.err.println("\tPROCESSING: " + sac);
-            }
-            s.process(c, haf, g, registrar);
-
             numProcessed++;
             if (outputLevel >= 1) {
                 visited.add(sac);
             }
 
-            // Get the changes from the graph
-            Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
-            Set<PointsToGraphNode> changedNodes = g.getAndClearChangedNodes();
-            Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
 
-            // Add new contexts
-            for (IMethod m : newContexts.keySet()) {
-                if (outputLevel >= 4) {
-                    System.err.println("\tNEW CONTEXTS for " + PrettyPrinter.methodString(m));
-                    for (Context context : newContexts.get(m)) {
-                        System.err.println("\t" + context);
-                    }
-                }
-
-                if (registerOnline) {
-                    // Add statements for the given method to the registrar
-                    registrar.registerMethod(m);
-                }
-
-                for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
-                    if (outputLevel >= 4) {
-                        System.err.println("\t\tADDING " + stmt);
-                    }
-
-                    for (Context context : newContexts.get(m)) {
-                        q.add(new StmtAndContext(stmt, context));
-                    }
-                }
-            }
-
-            if (outputLevel >= 4 && !readNodes.isEmpty()) {
-                System.err.println("\tREAD:");
-                for (PointsToGraphNode read : readNodes) {
-                    System.err.println("\t\t" + read);
-                }
-            }
-
-            // Read nodes are nodes that the current statement depends on
-            for (PointsToGraphNode n : readNodes) {
-                addDependency(n, sac);
-            }
-
-            if (outputLevel >= 4 && !changedNodes.isEmpty()) {
-                for (PointsToGraphNode n : changedNodes) {
-                    System.err.println("\tCHANGED: " + n);
-                    if (!getDependencies(n).isEmpty()) {
-                        System.err.println("\tDEPS:");
-                        for (StmtAndContext dep : getDependencies(n)) {
-                            System.err.println("\t\t" + dep);
-                        }
-                    }
-                }
-            }
-
-            // Add dependencies to the queue
-            for (PointsToGraphNode n : changedNodes) {
-                q.addAll(getDependencies(n));
-            }
+            processSaC(sac, delta, g, registrar, q, registerOnline);
 
             if (numProcessed % 100000 == 0) {
                 System.err.println("PROCESSED: " + numProcessed
                                                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
-                                                + (System.currentTimeMillis() - startTime)
-                                                / 1000 + "s");
+                                                + (System.currentTimeMillis() - startTime) / 1000 + "s");
             }
+
         }
 
         long endTime = System.currentTimeMillis();
@@ -207,6 +147,91 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             processAllStatements(g, registrar);
         }
         return g;
+    }
+
+    private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
+                                    Map<StmtAndContext, GraphDelta> queue, boolean registerOnline) {
+        PointsToStatement s = sac.stmt;
+        Context c = sac.context;
+
+        if (outputLevel >= 3) {
+            System.err.println("\tPROCESSING: " + sac);
+        }
+        GraphDelta changed = s.process(c, haf, g, delta, registrar);
+
+
+        // Get the changes from the graph
+        Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
+        Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
+
+        // Add new contexts
+        for (IMethod m : newContexts.keySet()) {
+            if (outputLevel >= 4) {
+                System.err.println("\tNEW CONTEXTS for " + PrettyPrinter.methodString(m));
+                for (Context context : newContexts.get(m)) {
+                    System.err.println("\t" + context);
+                }
+            }
+
+            if (registerOnline) {
+                // Add statements for the given method to the registrar
+                registrar.registerMethod(m);
+            }
+
+            for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
+                if (outputLevel >= 4) {
+                    System.err.println("\t\tADDING " + stmt);
+                }
+
+                for (Context context : newContexts.get(m)) {
+                    // these are new contexts, so use null for the delta
+                    queue.put(new StmtAndContext(stmt, context), null);
+                }
+            }
+        }
+
+        if (outputLevel >= 4 && !readNodes.isEmpty()) {
+            System.err.println("\tREAD:");
+            for (PointsToGraphNode read : readNodes) {
+                System.err.println("\t\t" + read);
+            }
+        }
+
+        // Read nodes are nodes that the current statement depends on
+        for (PointsToGraphNode n : readNodes) {
+            addDependency(n, sac);
+        }
+
+        if (outputLevel >= 4 && !changed.isEmpty()) {
+            for (PointsToGraphNode n : changed.domain()) {
+                System.err.println("\tCHANGED: " + n);
+                if (!getDependencies(n).isEmpty()) {
+                    System.err.println("\tDEPS:");
+                    for (StmtAndContext dep : getDependencies(n)) {
+                        System.err.println("\t\t" + dep);
+                    }
+                }
+            }
+        }
+
+        // Add dependencies to the queue
+        for (PointsToGraphNode n : changed.domain()) {
+            for (StmtAndContext depsac : getDependencies(n)) {
+                if (queue.containsKey(depsac)) {
+                    GraphDelta existing = queue.get(sac);
+                    if (existing == null) {
+                        // we are already doing full processing, so don't add it.
+                    }
+                    else {
+                        // combine the existing and the new deltas.
+                        queue.put(depsac, existing.combine(changed));
+                    }
+                }
+                else {
+                    queue.put(depsac, changed);
+                }
+            }
+        }
     }
 
     /**
@@ -253,7 +278,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         boolean changed = false;
         for (PointsToStatement s : registrar.getAllStatements()) {
             for (Context c : g.getContexts(s.getMethod())) {
-                changed |= s.process(c, haf, g, registrar);
+                changed |= !s.process(c, haf, g, null, registrar).isEmpty();
             }
         }
         return changed;

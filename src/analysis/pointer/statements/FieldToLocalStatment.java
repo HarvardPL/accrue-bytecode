@@ -4,6 +4,7 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -59,24 +60,62 @@ public class FieldToLocalStatment extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
-        Set<InstanceKey> s = g.getPointsToSet(rec);
-        assert checkForNonEmpty(s, rec, "FIELD RECEIVER: " + this);
+        GraphDelta changed = new GraphDelta();
 
-        boolean changed = false;
-        for (InstanceKey recHeapContext : s) {
-            ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
-                                            declaredField.getFieldType());
+        if (delta == null) {
+            // let's do the normal processing
+            Set<InstanceKey> s = g.getPointsToSetWithDelta(rec, delta);
 
-            Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, left.getExpectedType());
-            assert checkForNonEmpty(fieldHCs, f, "FIELD filtered: " + PrettyPrinter.typeString(left.getExpectedType()));
+            assert checkForNonEmpty(s, rec, "FIELD RECEIVER: " + this);
 
-            changed |= g.addEdges(left, fieldHCs);
+            for (InstanceKey recHeapContext : s) {
+                ObjectField f = new ObjectField(recHeapContext, declaredField);
+
+                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, left.getExpectedType());
+                assert checkForNonEmpty(fieldHCs, f,
+                                                "FIELD filtered: " + PrettyPrinter.typeString(left.getExpectedType()));
+
+                GraphDelta d1 = g.addEdges(left, fieldHCs);
+                changed = changed.combine(d1);
+            }
+            return changed;
         }
+        else {
+            // we have a delta. Let's be smart about how we use it.
+            // Statement is v = o.f. First check if o points to anything new. If it does now point to some new abstract
+            // object k, add everything that k.f points to to v's set.
+            for (InstanceKey recHeapContext : delta.getPointsToSet(rec)) {
+                ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
+                                                declaredField.getFieldType());
 
-        return changed;
+                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, left.getExpectedType()); // don't use delta
+                                                                                                 // here: we want the
+                                                                                                 // entire set!
+                GraphDelta d1 = g.addEdges(left, fieldHCs);
+                changed = changed.combine(d1);
+            }
+
+            // Now, let's check if there are any k.f's that have changed, and if so, whether o can point to k.
+            Set<InstanceKey> allReceivers = g.getPointsToSetWithDelta(rec, delta); // don't use delta, we want
+                                                                                   // everything that the
+                                                                        // receiver can
+                                                                        // point to!
+            for (ObjectField f : delta.getObjectFields(declaredField)) {
+                if (allReceivers.contains(f.receiver())) {
+                    // the receiver points to the base of the object field (i.e., for object field k.f, it points to k)!
+
+                    // we use delta here, since we only want to propagate what delta points to.
+                    Set<InstanceKey> fieldHCs = g.getPointsToSetFilteredWithDelta(f, left.getExpectedType(), delta);
+                    GraphDelta d1 = g.addEdges(left, fieldHCs);
+                    changed = changed.combine(d1);
+                }
+            }
+            return changed;
+        }
     }
 }

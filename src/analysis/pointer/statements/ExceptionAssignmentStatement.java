@@ -4,6 +4,7 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -44,7 +45,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                                    StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
         PointsToGraphNode r;
         if (thrown.isSingleton()) {
@@ -55,7 +57,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        Set<InstanceKey> s = g.getPointsToSetFiltered(r, caught.getExpectedType(), notType);
+        Set<InstanceKey> s = g.getPointsToSetFilteredWithDelta(r, caught.getExpectedType(), notType, delta);
         assert checkForNonEmpty(s, r, "EX ASSIGN filtered on " + caught.getExpectedType() + " not " + notType);
 
         return g.addEdges(l, s);
