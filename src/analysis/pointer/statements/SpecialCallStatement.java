@@ -92,10 +92,9 @@ public class SpecialCallStatement extends CallStatement {
                 }
             }
 
-            // we'll be a little lazy here, and just do the deltas for every callee...
-            for (InstanceKey recHeapCtxt : g.getPointsToSet(receiverRep)) {
-                changed = changed.combine(processCall(context, recHeapCtxt, callee, g, delta, haf, calleeSummary));
-            }
+            // Note that we don't need to go through all of g.getPointsToSet(receiverRep)
+            // and call processCall for that receiver, since all that processCall does
+            // is copy edges, and these will be taken care of by copy dependencies.
 
         }
         return changed;

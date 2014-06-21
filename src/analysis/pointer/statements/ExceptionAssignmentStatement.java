@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -14,7 +15,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
@@ -57,10 +57,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        Set<InstanceKey> s = g.getPointsToSetFilteredWithDelta(r, caught.getExpectedType(), notType, delta);
-        assert checkForNonEmpty(s, r, "EX ASSIGN filtered on " + caught.getExpectedType() + " not " + notType);
+        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(caught.getExpectedType());
 
-        return g.addEdges(l, s);
+        return g.copyFilteredEdgesWithDelta(r, type, notType, l, delta);
+
     }
 
     @Override

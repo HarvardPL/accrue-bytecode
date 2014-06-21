@@ -146,20 +146,11 @@ public class VirtualCallStatement extends CallStatement {
                 }
             }
 
-            // we'll be a little lazy here, and just do the deltas for every callee...
-            // We could try to be smarter and determine which nodes it changed for, and only do those.
-            // This would be good if the delta is small compared to the receiver points to set.
-            for (InstanceKey recHeapCtxt : g.getPointsToSet(receiverRep)) {
-                IMethod resolvedCallee = resolveMethod(recHeapCtxt.getConcreteType(), receiverRep.getExpectedType());
-
-                if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                    System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
-                    continue;
-                }
-
-                changed = changed.combine(processCall(context, recHeapCtxt, resolvedCallee, g, delta, haf,
-                                                registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory)));
-            }
+            // Note that we don't need to go through all of g.getPointsToSet(receiverRep)
+            // and call processCall for that receiver, since all that processCall does
+            // is copy edges, and these will be taken care of by copy dependencies.
+            // XXX TODO: insert runtime check that processCall does not add any interesting dependencies (i.e., non-copy
+            // dependencies)
         }
         return changed;
     }

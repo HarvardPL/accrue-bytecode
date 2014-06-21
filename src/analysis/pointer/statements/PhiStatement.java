@@ -1,7 +1,6 @@
 package analysis.pointer.statements;
 
 import java.util.List;
-import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -13,7 +12,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to graph statement for a phi, representing choice at control flow merges. v = phi(x1, x2, ...)
@@ -56,10 +54,8 @@ public class PhiStatement extends PointsToStatement {
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
 
-            Set<InstanceKey> s = g.getPointsToSetWithDelta(n, delta);
-            assert checkForNonEmpty(s, n, "PHI ARG: " + n);
+            GraphDelta d1 = g.copyEdgesWithDelta(n, a, delta);
 
-            GraphDelta d1 = g.addEdges(a, s);
             changed = changed.combine(d1);
         }
         return changed;

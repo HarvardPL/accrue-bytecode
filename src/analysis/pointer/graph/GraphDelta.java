@@ -7,8 +7,6 @@ import java.util.Map;
 import java.util.Set;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Represents a delta (i.e., a change set) for a PointsToGraph. This is used to both represent the changes that an
@@ -63,27 +61,11 @@ public class GraphDelta {
         return this;
     }
 
-    public Set<ObjectField> getObjectFields(FieldReference fieldReference) {
-        return this.getObjectFields(fieldReference.getName().toString(), fieldReference.getFieldType());
-    }
-
-    public Set<ObjectField> getObjectFields(String fieldName, TypeReference expectedType) {
-        Set<ObjectField> possibles = new LinkedHashSet<>();
-        for (PointsToGraphNode src : this.map.keySet()) {
-            if (src instanceof ObjectField) {
-                ObjectField of = (ObjectField) src;
-                if (of.fieldName().equals(fieldName) && of.expectedType().equals(expectedType)) {
-                    possibles.add(of);
-                }
-            }
-        }
-        return possibles;
-    }
-
     public boolean isEmpty() {
         return map.isEmpty();
     }
 
+    @Override
     public String toString() {
         return "Delta: ((( " + this.map.toString() + " )))";
     }

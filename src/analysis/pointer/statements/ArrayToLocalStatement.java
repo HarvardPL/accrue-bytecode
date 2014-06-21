@@ -1,7 +1,6 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
-
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -11,6 +10,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -48,6 +48,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
+        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(v.getExpectedType());
 
         GraphDelta changed = new GraphDelta();
         // TODO filter only arrays with assignable base types
@@ -58,7 +59,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // no delta, so let's do some simple processing.
             for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));
+                GraphDelta d1 = g.copyFilteredEdges(contents, type, v);
                 changed = changed.combine(d1);
             }
         }
@@ -68,29 +69,15 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // object k, add everything that k[i] points to to v's set.
             for (InstanceKey arrHeapContext : delta.getPointsToSet(a)) {
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-
-                GraphDelta d1 = g.addEdges(v, g.getPointsToSetFiltered(contents, v.getExpectedType()));// don't use
+                GraphDelta d1 = g.copyFilteredEdges(contents, type, v);// don't use
                                                                                                        // delta here: we
                                                                                                        // want the
                                                                                                        // entire set!
                 changed = changed.combine(d1);
             }
 
-            // Now, let's check if there are any k[i]'s that have changed, and if so, whether a can point to k.
-            Set<InstanceKey> allArrays = g.getPointsToSet(a); // don't use delta, we want everything
-                                                                              // that the
-            // receiver can
-            // point to!
-            for (ObjectField f : delta.getObjectFields(PointsToGraph.ARRAY_CONTENTS, baseType)) {
-                if (allArrays.contains(f.receiver())) {
-                    // the receiver points to the base of the object field (i.e., for object field k[i], it points to
-                    // k)!
-
-                    // we use delta here, since we only want to propagate what delta points to.
-                    GraphDelta d1 = g.addEdges(v, g.getPointsToSetFilteredWithDelta(f, v.getExpectedType(), delta));
-                    changed = changed.combine(d1);
-                }
-            }
+            // Note: we do not need to check if there are any k[i]'s that have changed, since that will be
+            // taken care of automatically by copy dependencies.
         }
         return changed;
     }

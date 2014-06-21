@@ -1,7 +1,6 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
-
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -10,9 +9,9 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a local assignment, left = right
@@ -51,11 +50,8 @@ public class LocalToLocalStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
-
-        Set<InstanceKey> heapContexts = g.getPointsToSetFilteredWithDelta(r, left.getExpectedType(), delta);
-        assert checkForNonEmpty(heapContexts, r, "LOCAL ASSIGNMENT RHS filtered on " + left.getExpectedType());
-
-        return g.addEdges(l, heapContexts);
+        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(left.getExpectedType());
+        return g.copyFilteredEdgesWithDelta(r, type, l, delta);
     }
 
     @Override

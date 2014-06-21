@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -12,6 +13,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -66,21 +68,23 @@ public class FieldToLocalStatment extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
         GraphDelta changed = new GraphDelta();
+        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(left.getExpectedType());
+
 
         if (delta == null) {
             // let's do the normal processing
-            Set<InstanceKey> s = g.getPointsToSetWithDelta(rec, delta);
+            Set<InstanceKey> s = g.getPointsToSet(rec);
 
             assert checkForNonEmpty(s, rec, "FIELD RECEIVER: " + this);
 
             for (InstanceKey recHeapContext : s) {
                 ObjectField f = new ObjectField(recHeapContext, declaredField);
 
-                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, left.getExpectedType());
+                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, type);
                 assert checkForNonEmpty(fieldHCs, f,
                                                 "FIELD filtered: " + PrettyPrinter.typeString(left.getExpectedType()));
 
-                GraphDelta d1 = g.addEdges(left, fieldHCs);
+                GraphDelta d1 = g.copyFilteredEdges(f, type, left);
                 changed = changed.combine(d1);
             }
         }
@@ -92,29 +96,13 @@ public class FieldToLocalStatment extends PointsToStatement {
                 ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
                                                 declaredField.getFieldType());
 
-                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, left.getExpectedType()); // don't use delta
-                // here: we want the
-                // entire set!
-                GraphDelta d1 = g.addEdges(left, fieldHCs);
+                GraphDelta d1 = g.copyFilteredEdges(f, type, left); // no use of delta, as we want the
+                                                                                      // entire set!
                 changed = changed.combine(d1);
             }
 
-            // Now, let's check if there are any k.f's that have changed, and if so, whether o can point to k.
-            Set<InstanceKey> allReceivers = g.getPointsToSet(rec); // don't use delta, we want
-            // everything that the
-            // receiver can
-            // point to!
-            for (ObjectField f : delta.getObjectFields(declaredField)) {
-                if (allReceivers.contains(f.receiver())) {
-                    // the receiver points to the base of the object field (i.e., for object field k.f, it points to k)!
-
-                    // we use delta here, since we only want to propagate what delta points to.
-                    Set<InstanceKey> fieldHCs = g.getPointsToSetFilteredWithDelta(f, left.getExpectedType(), delta);
-                    GraphDelta d1 = g.addEdges(left, fieldHCs);
-                    changed = changed.combine(d1);
-                }
-            }
-
+            // Note: we do not need to check if there are any k.f's that have changed, since that will be
+            // taken care of automatically by copy depedencies.
         }
         return changed;
     }

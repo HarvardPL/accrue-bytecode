@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
-
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -12,7 +10,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for an assignment from a local into a static field
@@ -52,10 +49,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(haf.initialContext(), staticField);
         PointsToGraphNode r = new ReferenceVariableReplica(context, local);
 
-        Set<InstanceKey> heapContexts = g.getPointsToSetWithDelta(r, delta);
-        assert checkForNonEmpty(heapContexts, r, "LOCAL");
-
-        return g.addEdges(l, heapContexts);
+        return g.copyEdgesWithDelta(r, l, delta);
     }
 
     @Override

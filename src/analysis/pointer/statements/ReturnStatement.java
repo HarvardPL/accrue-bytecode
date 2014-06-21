@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
-
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -11,7 +9,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a "return" instruction
@@ -49,10 +46,8 @@ public class ReturnStatement extends PointsToStatement {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
 
-        Set<InstanceKey> s = g.getPointsToSetWithDelta(returnRes, delta);
-        assert checkForNonEmpty(s, returnRes, "RETURN");
+        return g.copyEdgesWithDelta(returnRes, summaryRes, delta);
 
-        return g.addEdges(summaryRes, s);
     }
 
     @Override

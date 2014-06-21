@@ -18,9 +18,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import types.TypeRepository;
+import util.OrderedPair;
 import util.print.PrettyPrinter;
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -31,7 +30,6 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
 /**
@@ -44,6 +42,8 @@ public class PointsToGraph {
     private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
 
     private Set<PointsToGraphNode> readNodes;
+    private Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> copies;
+
     private Map<IMethod, Set<Context>> newContexts;
     private final Map<IMethod, Set<Context>> contexts;
     private final Set<IMethod> classInitializers;
@@ -56,6 +56,7 @@ public class PointsToGraph {
 
     public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf) {
         readNodes = new LinkedHashSet<>();
+        copies = new LinkedHashMap<>();
         newContexts = new LinkedHashMap<>();
         classInitializers = new LinkedHashSet<>();
         this.haf = haf;
@@ -84,11 +85,7 @@ public class PointsToGraph {
 
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
-        Set<InstanceKey> pointsToSet = graph.get(node);
-        if (pointsToSet == null) {
-            pointsToSet = new PointsToSet();
-            graph.put(node, pointsToSet);
-        }
+        Set<InstanceKey> pointsToSet = getOrCreatePointsToSet(node);
 
         GraphDelta delta = new GraphDelta();
         if (pointsToSet.add(heapContext)) {
@@ -97,22 +94,145 @@ public class PointsToGraph {
         return delta;
     }
 
-    public GraphDelta addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
+    private Set<InstanceKey> getOrCreatePointsToSet(PointsToGraphNode node) {
         Set<InstanceKey> pointsToSet = graph.get(node);
         if (pointsToSet == null) {
             pointsToSet = new PointsToSet();
             graph.put(node, pointsToSet);
         }
+        return pointsToSet;
+    }
 
-        GraphDelta delta = new GraphDelta();
-        for (InstanceKey hc : heapContexts) {
-            if (pointsToSet.add(hc)) {
-                delta.add(node, hc);
+    /**
+     * Copy the pointsto set of the source to the pointsto set of the target. This should be used when the pointsto set
+     * of the target is a supserset of the pointsto set of the source.
+     * 
+     * @param source
+     * @param target
+     * @return
+     */
+    public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
+        recordCopy(source, target);
+        
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+        Set<InstanceKey> srcPointsToSet = getOrCreatePointsToSet(source);
+
+        GraphDelta changed = new GraphDelta();
+        for (InstanceKey hc : srcPointsToSet) {
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
             }
         }
-
-        return delta;
+        return changed;
     }
+
+    /**
+     * Copy the pointsto set of the source to the pointsto set of the target. This should be used when the pointsto set
+     * of the target is a supserset of the pointsto set of the source.
+     * 
+     * @param source
+     * @param target
+     * @return
+     */
+    public GraphDelta copyFilteredEdges(PointsToGraphNode source, IClass type, PointsToGraphNode target) {
+        recordCopy(source, type, target);
+
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+        Set<InstanceKey> srcPointsToSet = getOrCreatePointsToSet(source);
+
+        GraphDelta changed = new GraphDelta();
+        for (InstanceKey hc : new FilteredSet(srcPointsToSet, type)) {
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
+            }
+        }
+        return changed;
+    }
+
+    public GraphDelta copyFilteredEdges(PointsToGraphNode source, IClass type, Set<IClass> notTypes,
+                                    PointsToGraphNode target) {
+        recordCopy(source, type, notTypes, target);
+
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+        Set<InstanceKey> srcPointsToSet = getOrCreatePointsToSet(source);
+
+        GraphDelta changed = new GraphDelta();
+        for (InstanceKey hc : new FilteredSet(srcPointsToSet, type, notTypes)) {
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
+            }
+        }
+        return changed;
+    }
+
+    public GraphDelta copyFilteredEdgesWithDelta(PointsToGraphNode source, IClass type,
+                                    PointsToGraphNode target, GraphDelta delta) {
+        if (delta == null) {
+            return copyFilteredEdges(source, type, target);
+        }
+        recordCopy(source, type, target);
+
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+        Set<InstanceKey> srcPointsToSet = delta.getPointsToSet(source);
+
+        GraphDelta changed = new GraphDelta();
+        for (InstanceKey hc : new FilteredSet(srcPointsToSet, type)) {
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
+            }
+        }
+        return changed;
+    }
+
+    public GraphDelta copyFilteredEdgesWithDelta(PointsToGraphNode source, IClass type,
+ Set<IClass> notTypes,
+                                    PointsToGraphNode target, GraphDelta delta) {
+        if (delta == null) {
+            return copyFilteredEdges(source, type, notTypes, target);
+        }
+        recordCopy(source, type, notTypes, target);
+
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+        Set<InstanceKey> srcPointsToSet = delta.getPointsToSet(source);
+
+        GraphDelta changed = new GraphDelta();
+        for (InstanceKey hc : new FilteredSet(srcPointsToSet, type, notTypes)) {
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
+            }
+        }
+        return changed;
+    }
+
+    public GraphDelta copyEdgesWithDelta(PointsToGraphNode source, PointsToGraphNode target, GraphDelta delta) {
+        if (delta == null) {
+            return copyEdges(source, target);
+        }
+
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+        Set<InstanceKey> srcPointsToSet = delta.getPointsToSet(source);
+
+        GraphDelta changed = new GraphDelta();
+        for (InstanceKey hc : srcPointsToSet) {
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
+            }
+        }
+        return changed;
+    }
+
+    // public GraphDelta addEdges(PointsToGraphNode node, Set<InstanceKey> heapContexts) {
+    // Set<InstanceKey> pointsToSet = getOrCreatePointsToSet(node);
+    //
+    // GraphDelta delta = new GraphDelta();
+    // for (InstanceKey hc : heapContexts) {
+    // if (pointsToSet.add(hc)) {
+    // delta.add(node, hc);
+    // }
+    // }
+    //
+    // return delta;
+    // }
 
     /**
      * 
@@ -121,7 +241,7 @@ public class PointsToGraph {
      * @return Set of heap contexts that the given node points to
      */
     public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
-        readNodes.add(node);
+        recordRead(node);
 
         Set<InstanceKey> s = graph.get(node);
         if (s != null) {
@@ -152,12 +272,12 @@ public class PointsToGraph {
             return this.getPointsToSet(node);
         }
 
-        readNodes.add(node);
+        recordRead(node);
         return delta.getPointsToSet(node);
     }
 
-    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference type) {
-        readNodes.add(node);
+    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, IClass type) {
+        recordRead(node);
         Set<InstanceKey> s = this.getPointsToSet(node);
 
         if (s.isEmpty()) {
@@ -166,12 +286,12 @@ public class PointsToGraph {
         return new FilteredSet(s, type);
     }
 
-    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, TypeReference type, GraphDelta delta) {
+    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, IClass type, GraphDelta delta) {
         if (delta == null) {
             return this.getPointsToSetFiltered(node, type);
         }
 
-        readNodes.add(node);
+        recordRead(node);
 
         Set<InstanceKey> s = delta.getPointsToSet(node);
 
@@ -193,8 +313,8 @@ public class PointsToGraph {
      *            the node cannot be a subclass of any of these classes
      * @return Set of heap contexts filtered based on type
      */
-    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeReference isType, Set<IClass> notTypes) {
-        readNodes.add(node);
+    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, IClass isType, Set<IClass> notTypes) {
+        recordRead(node);
         Set<InstanceKey> s = this.getPointsToSet(node);
         if (s.isEmpty()) {
             return s;
@@ -203,11 +323,12 @@ public class PointsToGraph {
         return new FilteredSet(s, isType, notTypes);
     }
 
-    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, TypeReference isType, Set<IClass> notTypes, GraphDelta delta) {
+    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, IClass isType,
+                                    Set<IClass> notTypes, GraphDelta delta) {
         if (delta == null) {
             return this.getPointsToSetFiltered(node, isType, notTypes);
         }
-        readNodes.add(node);
+        recordRead(node);
         Set<InstanceKey> s = delta.getPointsToSet(node);
         if (s.isEmpty()) {
             return s;
@@ -418,6 +539,49 @@ public class PointsToGraph {
         return c;
     }
 
+    private void recordRead(PointsToGraphNode node) {
+        this.readNodes.add(node);
+    }
+
+    /**
+     * Get the map of copies that have been made since this was last called and clear the map.
+     * 
+     * @return map describing the copies from source to target(s).
+     */
+    public Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> getAndClearCopies() {
+        Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> c = copies;
+        copies = new LinkedHashMap<>();
+        return c;
+    }
+
+    private void recordCopy(PointsToGraphNode source, PointsToGraphNode target) {
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s = this.copies.get(source);
+        if (s == null) {
+            s = new LinkedHashSet<>();
+            this.copies.put(source, s);
+        }
+        s.add(new OrderedPair<PointsToGraphNode, TypeFilter>(target, null));
+    }
+
+    private void recordCopy(PointsToGraphNode source, IClass isType, PointsToGraphNode target) {
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s = this.copies.get(source);
+        if (s == null) {
+            s = new LinkedHashSet<>();
+            this.copies.put(source, s);
+        }
+        s.add(new OrderedPair<PointsToGraphNode, TypeFilter>(target, new TypeFilter(isType)));
+    }
+
+    private void recordCopy(PointsToGraphNode source, IClass isType, Set<IClass> notTypes,
+                                    PointsToGraphNode target) {
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s = this.copies.get(source);
+        if (s == null) {
+            s = new LinkedHashSet<>();
+            this.copies.put(source, s);
+        }
+        s.add(new OrderedPair<PointsToGraphNode, TypeFilter>(target, new TypeFilter(isType, notTypes)));
+    }
+
     public void setOutputLevel(int outputLevel) {
         this.outputLevel = outputLevel;
     }
@@ -463,16 +627,15 @@ public class PointsToGraph {
 
     private static class FilteredSet extends AbstractSet<InstanceKey> {
         final Set<InstanceKey> s;
-        final IClass isType;
-        final Set<IClass> notTypes;
+        final TypeFilter filter;
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType, Set<IClass> notTypes) {
+        FilteredSet(Set<InstanceKey> s, IClass isType, Set<IClass> notTypes) {
             this.s = s;
-            this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
-            this.notTypes = notTypes;
+            this.filter = new TypeFilter(isType,
+                                            notTypes);
         }
 
-        FilteredSet(Set<InstanceKey> s, TypeReference isType) {
+        FilteredSet(Set<InstanceKey> s, IClass isType) {
             this(s, isType, null);
         }
 
@@ -484,33 +647,10 @@ public class PointsToGraph {
             return new FilteredIterator();
         }
 
-        boolean satisfiesFilters(IClass concreteType) {
-            if (isAssignableFrom(isType, concreteType)) {
-                if (notTypes != null) {
-                    for (IClass nt : notTypes) {
-                        if (isAssignableFrom(nt, concreteType)) {
-                            // it's assignable to a not type...
-                            return false;
-                        }
-                    }
-                }
-                return true;
-            }
-            return false;
-        }
 
         @Override
         public boolean contains(Object o) {
-            return s.contains(o) && satisfiesFilters(((InstanceKey) o).getConcreteType());
-        }
-
-        private boolean isAssignableFrom(IClass c1, IClass c2) {
-            if (notTypes == null) {
-                return AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
-            }
-            // use caching version instead, since notTypes are
-            // used for exceptions, and it's worth caching them.
-            return TypeRepository.isAssignableFrom(c1, c2);
+            return s.contains(o) && filter.satisfies(((InstanceKey) o).getConcreteType());
         }
 
         @Override
@@ -529,7 +669,7 @@ public class PointsToGraph {
             public boolean hasNext() {
                 while (next == null && iter.hasNext()) {
                     InstanceKey ik = iter.next();
-                    if (satisfiesFilters(ik.getConcreteType())) {
+                    if (filter.satisfies(ik.getConcreteType())) {
                         next = ik;
                     }
                 }
@@ -571,7 +711,7 @@ public class PointsToGraph {
                     current = null;
                     while (it.hasNext()) {
                         IClass ic = it.next();
-                        if (satisfiesFilters(ic)) {
+                        if (filter.satisfies(ic)) {
                             current = pts.map.get(ic).iterator();
                             break;
                         }

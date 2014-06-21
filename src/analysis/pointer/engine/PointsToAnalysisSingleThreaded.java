@@ -3,18 +3,21 @@ package analysis.pointer.engine;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 
 import util.OrderedPair;
+import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
@@ -28,10 +31,21 @@ import com.ibm.wala.ipa.callgraph.Context;
 public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     /**
-     * Map from points-to graph nodes to statements that depend on them. If the key changes then everything in the value
-     * set should be recomputed.
+     * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
+     * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
+     * dependencies (which are not interesting dependencies).
      */
-    private final Map<PointsToGraphNode, Set<StmtAndContext>> dependencies = new HashMap<>();
+    private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies = new HashMap<PointsToGraphNode, Set<StmtAndContext>>();
+
+    /**
+     * A copy dependency from node n to node m exists when a modification to the pointstoset of n (i.e., if n changes to
+     * point to more things) copies those changes to the points to set of m. That is, the pointsto set of m is a
+     * superset of the points to set of n. For efficiency, we don't reevaluate the StmtAndCtxt that created the copy
+     * dependency, we just copy the new elements directly. We also track the StmtAndContext that added the copy
+     * dependency. (We do not use this at the moment, and it may not be complete, i.e., more than one StmtAndContext may
+     * indicate a copy dependency).
+     */
+    private Map<PointsToGraphNode, Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>>> copyDepedencies = new HashMap<>();
 
     /**
      * Counters to detect infinite loops
@@ -167,6 +181,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // Get the changes from the graph
         Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
         Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
+        Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> copies = g.getAndClearCopies();
 
         // Add new contexts
         for (IMethod m : newContexts.keySet()) {
@@ -201,29 +216,72 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
+        // Now add the dependencies.
+
         // Read nodes are nodes that the current statement depends on
         for (PointsToGraphNode n : readNodes) {
-            addDependency(n, sac);
+            addInterestingDependency(n, sac);
+        }
+        // Read nodes are nodes that the current statement depends on
+        for (PointsToGraphNode n : copies.keySet()) {
+            addCopyDependency(n, copies.get(n), sac);
         }
 
         if (outputLevel >= 4 && !changed.isEmpty()) {
             for (PointsToGraphNode n : changed.domain()) {
                 System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSet(n) + ")");
                 g.getAndClearReadNodes();// clear the read nodes so the read above wasn't significant.
-                if (!getDependencies(n).isEmpty()) {
+                if (!getInterestingDependencies(n).isEmpty()) {
                     System.err.println("\tDEPS:");
-                    for (StmtAndContext dep : getDependencies(n)) {
+                    for (StmtAndContext dep : getInterestingDependencies(n)) {
                         System.err.println("\t\t" + dep);
                     }
                 }
             }
         }
 
-        // Add dependencies to the queue
-        for (PointsToGraphNode n : changed.domain()) {
-            for (StmtAndContext depsac : getDependencies(n)) {
-                queue.addLast(new OrderedPair<>(depsac, changed));
+        // now handle the changes.
+        handleChanges(queue, changed, g);
+    }
+
+    private void handleChanges(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta initialChanges, PointsToGraph g) {
+        // First, we will make our own workqueue for changes.
+        WorkQueue<GraphDelta> changesQ = new WorkQueue<>();
+        changesQ.add(initialChanges);
+
+        while (!changesQ.isEmpty()) {
+            GraphDelta changes = changesQ.poll();
+
+            // First, let's handle the copy dependencies.
+            for (PointsToGraphNode src : changes.domain()) {
+                Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
+                if (m != null) {
+                    for (PointsToGraphNode trg : m.keySet()) {
+                        for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
+                            TypeFilter filter = p.fst();
+                            GraphDelta newChanges;
+                            if (filter == null) {
+                                newChanges = g.copyEdgesWithDelta(src, trg, changes);
+                            }
+                            else {
+                                newChanges = g.copyFilteredEdgesWithDelta(src, filter.isType, filter.notTypes, trg,
+                                                                changes);
+                            }
+                            if (!newChanges.isEmpty()) {
+                                changesQ.add(newChanges);
+                            }
+                        }
+                    }
+                }
             }
+
+            // Now, let's handle the interesting dependencies.
+            for (PointsToGraphNode n : changes.domain()) {
+                for (StmtAndContext depsac : getInterestingDependencies(n)) {
+                    queue.addLast(new OrderedPair<>(depsac, changes));
+                }
+            }
+
         }
     }
 
@@ -241,25 +299,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
-        // if (i >= 5000) {
-        // for (StmtAndContext sac : iterations.keySet()) {
-        // int iter = iterations.get(sac);
-        // if (iter > 4990) {
-        // String iterString = String.valueOf(iter);
-        // if (iter < 1000) {
-        // iterString = "0" + iterString;
-        // }
-        // if (iter < 100) {
-        // iterString = "0" + iterString;
-        // }
-        // if (iter < 10) {
-        // iterString = "0" + iterString;
-        // }
-        // System.err.println(iterString + ", " + sac);
-        // }
-        // }
-        // throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
-        // }
         return i;
     }
 
@@ -304,8 +343,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            node to get the dependencies for
      * @return set of dependencies
      */
-    private Set<StmtAndContext> getDependencies(PointsToGraphNode n) {
-        Set<StmtAndContext> sacs = dependencies.get(n);
+    private Set<StmtAndContext> getInterestingDependencies(PointsToGraphNode n) {
+        Set<StmtAndContext> sacs = interestingDepedencies.get(n);
         if (sacs == null) {
             return Collections.emptySet();
         }
@@ -313,7 +352,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Add the (statement, context) pair as a dependency of the points-to graph node
+     * Add the (statement, context) pair as a dependency of the points-to graph node. This is an
+     * "interesting dependency", meaning that if the points to set of n is modified, then sac will need to be processed
+     * again.
      * 
      * @param n
      *            node the statement depends on
@@ -321,12 +362,41 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    private boolean addDependency(PointsToGraphNode n, StmtAndContext sac) {
-        Set<StmtAndContext> s = dependencies.get(n);
+    private boolean addInterestingDependency(PointsToGraphNode n, StmtAndContext sac) {
+        Set<StmtAndContext> s = interestingDepedencies.get(n);
         if (s == null) {
             s = new LinkedHashSet<>();
-            dependencies.put(n, s);
+            interestingDepedencies.put(n, s);
         }
         return s.add(sac);
     }
+
+    /**
+     * Add the attached copy dependencies. This means that if the points to set of source is modified, then targets may
+     * need to be updated. For any node t in targets, the points to set of t is a (possibly filtered) superset of the
+     * points to set of source.
+     * 
+     */
+
+    private boolean addCopyDependency(PointsToGraphNode source,
+                                    Set<OrderedPair<PointsToGraphNode, TypeFilter>> targets,
+                                    StmtAndContext sac) {
+        boolean changed = false;
+        Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = copyDepedencies.get(source);
+        if (m == null) {
+            m = new LinkedHashMap<>();
+            copyDepedencies.put(source, m);
+        }
+        for (OrderedPair<PointsToGraphNode, TypeFilter> trg : targets) {
+            Set<OrderedPair<TypeFilter, StmtAndContext>> s = m.get(trg.fst());
+            if (s == null) {
+                s = new LinkedHashSet<>();
+                m.put(trg.fst(), s);
+            }
+            changed |= s.add(new OrderedPair<>(trg.snd(), sac));
+        }
+
+        return changed;
+    }
+
 }

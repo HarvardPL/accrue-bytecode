@@ -63,28 +63,24 @@ public class LocalToArrayStatement extends PointsToStatement {
 
         if (delta == null) {
             // no changes, let's do the processing in a straightforward way.
-            Set<InstanceKey> valHeapContexts = g.getPointsToSet(v);
-            if (!valHeapContexts.isEmpty()) {
-                Set<InstanceKey> arrayHCs = g.getPointsToSet(a);
-                assert checkForNonEmpty(arrayHCs, a, "LOCAL:");
+            Set<InstanceKey> arrayHCs = g.getPointsToSet(a);
+            assert checkForNonEmpty(arrayHCs, a, "LOCAL:");
 
-                for (InstanceKey arrHeapContext : arrayHCs) {
-                    ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                    GraphDelta d1 = g.addEdges(contents, valHeapContexts);
-                    changed = changed.combine(d1);
-                }
+            for (InstanceKey arrHeapContext : arrayHCs) {
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                GraphDelta d1 = g.copyEdges(v, contents);
+                changed = changed.combine(d1);
             }
         }
         else {
             // delta is non null. Let's do this smart!
             // First, we see if v has changed, in which case we propagate to everything that a points to.
-            Set<InstanceKey> valHeapContexts = delta.getPointsToSet(v);
-            if (!valHeapContexts.isEmpty()) {
+            if (!delta.getPointsToSet(v).isEmpty()) {
                 Set<InstanceKey> arrayHCs = g.getPointsToSet(a); // note that we don't use delta here, we want to propagate
                 // the change to everything a points to.
                 for (InstanceKey arrHeapContext : arrayHCs) {
                     ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                    GraphDelta d1 = g.addEdges(contents, valHeapContexts);
+                    GraphDelta d1 = g.copyEdgesWithDelta(v, contents, delta);
                     changed = changed.combine(d1);
                 }
             }
@@ -94,7 +90,7 @@ public class LocalToArrayStatement extends PointsToStatement {
             Set<InstanceKey> arrayHCs = delta.getPointsToSet(a);
             for (InstanceKey arrHeapContext : arrayHCs) {
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.addEdges(contents, g.getPointsToSet(v)); // no use of delta!
+                GraphDelta d1 = g.copyEdges(v, contents); // no use of delta!
                 changed = changed.combine(d1);
             }
 
