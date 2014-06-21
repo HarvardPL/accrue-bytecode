@@ -16,7 +16,6 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.statements.LocalToLocalStatement;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -133,8 +132,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             if (numProcessed % 100000 == 0) {
                 System.err.println("PROCESSED: " + numProcessed
                                                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
-                                                + (System.currentTimeMillis() - startTime) / 1000 + "s");
-                System.err.println("   current size of graph: " + g.getNodes().size() + " nodes");
+                                                + (System.currentTimeMillis() - startTime) / 1000 + "s;  graph is "
+                                                + g.getNodes().size() + " nodes");
             }
 
         }
@@ -285,12 +284,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
                 changed |= !d.isEmpty();
                 if (!d.isEmpty()) {
-                    if (s instanceof LocalToLocalStatement) {
-                        System.err.println("uh oh Failed on " + s + " " + d);
-                        failcount++;
-                        if (failcount > 10) {
-                            System.exit(1);
-                        }
+
+                    System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
+                    failcount++;
+                    if (failcount > 10) {
+                        System.err.println("\nThere may be more failures, but exiting now...");
+                        System.exit(1);
                     }
                 }
             }
