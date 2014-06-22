@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -79,78 +79,30 @@ public class VirtualCallStatement extends CallStatement {
                                     StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
-        if (delta == null) { 
-            // no delta, so do some simple processing.
-            Set<InstanceKey> s = g.getPointsToSet(receiverRep);
-            assert checkForNonEmpty(s, receiverRep, "VIRTUAL RECEIVER");
+        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep) : delta
+                                        .pointsToIterator(receiverRep);
+        while (iter.hasNext()) {
+            InstanceKey recHeapContext = iter.next();
+            // find the callee.
+            // The receiver is recHeapContext, and we want to find a method that matches selector
+            // callee.getSelector() in class recHeapContext.getConcreteType() or
+            // a superclass.
+            IMethod resolvedCallee = resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
 
-            // if (s.size() > 5000) {
-            // Integer i = lots.get(receiverRep);
-            // if (i == null || s.size() > (i + 1000)) {
-            // lots.put(receiverRep, s.size());
-            // System.err.print("Lots of receivers: " + s.size() + " for " + receiverRep + " of type "
-            // + PrettyPrinter.typeString(receiverRep.getExpectedType()));
-            // System.err.println("\tCALLING: " + PrettyPrinter.methodString(callee) + " from "
-            // + PrettyPrinter.methodString(getCode().getMethod()) + "\n");
-            // // CFGWriter.writeToFile(getCode());
-            // System.err.println("\t" + "POINTS-TO SET");
-            // for (InstanceKey ik : s) {
-            // System.err.println("\t\t" + ik + " HashCode: " + ik.hashCode());
-            // }
-            // }
-            // }
-            for (InstanceKey recHeapContext : s) {
-                // find the callee.
-                // The receiver is recHeapContext, and we want to find a method that matches selector
-                // callee.getSelector() in class recHeapContext.getConcreteType() or
-                // a superclass.
-                IMethod resolvedCallee = resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
-
-                if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                    // Abstract method due to a native method that returns an abstract type or interface
-                    // TODO Handle abstract methods in a smarter way
-                    System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
-                    continue;
-                }
-
-                // If we wanted to be very robust, check to make sure that
-                // resolvedCallee overrides
-                // the IMethod returned by ch.resolveMethod(callee).
-                changed = changed.combine( processCall(context, recHeapContext, resolvedCallee, g, null, haf,
-                                                registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory)));
-            }
-        }
-        else {
-            // we have a delta.
-            // delta is not null. Let's be smart.
-            // First, see if the receiver has changed.
-            Set<InstanceKey> s = delta.getPointsToSet(receiverRep);
-            if (!s.isEmpty()) {
-                // the receiver changed, so process the call *without* a delta, i.e., to force everything
-                // to propagate
-                for (InstanceKey recHeapCtxt : s) {
-                    IMethod resolvedCallee = resolveMethod(recHeapCtxt.getConcreteType(),
-                                                    receiverRep.getExpectedType());
-
-                    if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                        // Abstract method due to a native method that returns an abstract type or interface
-                        // TODO Handle abstract methods in a smarter way
-                        System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
-                        continue;
-                    }
-
-                    changed = changed.combine(processCall(context, recHeapCtxt, resolvedCallee, g, null, haf,
-                                                    registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory)));
-                }
+            if (resolvedCallee != null && resolvedCallee.isAbstract()) {
+                // Abstract method due to a native method that returns an abstract type or interface
+                // TODO Handle abstract methods in a smarter way
+                System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
+                continue;
             }
 
-            // Note that we don't need to go through all of g.getPointsToSet(receiverRep)
-            // and call processCall for that receiver, since all that processCall does
-            // is copy edges, and these will be taken care of by copy dependencies.
-            // XXX TODO: insert runtime check that processCall does not add any interesting dependencies (i.e., non-copy
-            // dependencies)
+            // If we wanted to be very robust, check to make sure that
+            // resolvedCallee overrides
+            // the IMethod returned by ch.resolveMethod(callee).
+            changed = changed.combine(processCall(context, recHeapContext, resolvedCallee, g, haf,
+                                            registrar.findOrCreateMethodSummary(resolvedCallee, rvFactory)));
         }
         return changed;
     }

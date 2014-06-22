@@ -58,7 +58,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        return g.copyFilteredEdgesWithDelta(r, filter, l, delta);
+        // don't need to use delta, as this just adds a subset edge
+        return g.copyFilteredEdges(r, filter, l);
 
     }
 

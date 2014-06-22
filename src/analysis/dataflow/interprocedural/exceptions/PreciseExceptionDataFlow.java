@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -329,7 +330,9 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         boolean castAlwaysSucceeds = true;
         IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getDeclaredResultTypes()[0]);
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            for (InstanceKey hContext : ptg.getPointsToSet(interProc.getReplica(i.getVal(), currentNode))) {
+            Iterator<InstanceKey> iter = ptg.pointsToIterator(interProc.getReplica(i.getVal(), currentNode));
+            while (iter.hasNext()) {
+                InstanceKey  hContext = iter.next();
                 IClass actual = hContext.getConcreteType();
                 if (!AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                     castAlwaysSucceeds = false;

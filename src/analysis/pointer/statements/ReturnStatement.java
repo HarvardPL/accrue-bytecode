@@ -46,7 +46,8 @@ public class ReturnStatement extends PointsToStatement {
         ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
         ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
 
-        return g.copyEdgesWithDelta(returnRes, summaryRes, delta);
+        // don't need to use delta, as this just adds a subset edge
+        return g.copyEdges(returnRes, summaryRes);
 
     }
 

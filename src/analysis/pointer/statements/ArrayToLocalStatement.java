@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Iterator;
+
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -49,14 +51,15 @@ public class ArrayToLocalStatement extends PointsToStatement {
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
         TypeFilter filter = new TypeFilter(v.getExpectedType());
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
 
         
         if (delta == null) {
-            // no delta, so let's do some simple processing.
-            for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
+            // let's do the normal processing
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(a); iter.hasNext();) {
+                InstanceKey arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
                 GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -66,17 +69,15 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // we have a delta. Let's be smart about how we use it.
             // Statement is v = a[i]. First check if a points to anything new. If it does now point to some new abstract
             // object k, add everything that k[i] points to to v's set.
-            for (InstanceKey arrHeapContext : delta.getPointsToSet(a)) {
+            for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
+                InstanceKey arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);// don't use
-                                                                                                       // delta here: we
-                                                                                                       // want the
-                                                                                                       // entire set!
+                GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }
 
             // Note: we do not need to check if there are any k[i]'s that have changed, since that will be
-            // taken care of automatically by copy dependencies.
+            // taken care of automatically by the subset relations.
         }
         return changed;
     }

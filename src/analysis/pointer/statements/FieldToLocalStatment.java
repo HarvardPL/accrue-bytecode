@@ -1,8 +1,7 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
+import java.util.Iterator;
 
-import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -66,22 +65,15 @@ public class FieldToLocalStatment extends PointsToStatement {
         PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
         TypeFilter filter = new TypeFilter(left.getExpectedType());
 
 
         if (delta == null) {
             // let's do the normal processing
-            Set<InstanceKey> s = g.getPointsToSet(rec);
-
-            assert checkForNonEmpty(s, rec, "FIELD RECEIVER: " + this);
-
-            for (InstanceKey recHeapContext : s) {
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKey recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, declaredField);
-
-                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, filter);
-                assert checkForNonEmpty(fieldHCs, f,
-                                                "FIELD filtered: " + PrettyPrinter.typeString(left.getExpectedType()));
 
                 GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
                 changed = changed.combine(d1);
@@ -91,17 +83,16 @@ public class FieldToLocalStatment extends PointsToStatement {
             // we have a delta. Let's be smart about how we use it.
             // Statement is v = o.f. First check if o points to anything new. If it does now point to some new abstract
             // object k, add everything that k.f points to to v's set.
-            for (InstanceKey recHeapContext : delta.getPointsToSet(rec)) {
+            for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKey recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
                                                 declaredField.getFieldType());
-
-                GraphDelta d1 = g.copyFilteredEdges(f, filter, left); // no use of delta, as we want the
-                                                                                      // entire set!
+                GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
                 changed = changed.combine(d1);
             }
 
             // Note: we do not need to check if there are any k.f's that have changed, since that will be
-            // taken care of automatically by copy depedencies.
+            // taken care of automatically by subset relations.
         }
         return changed;
     }

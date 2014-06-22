@@ -50,7 +50,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
 
-        return g.copyEdgesWithDelta(r, l, delta);
+        // don't need to use delta, as this just adds a subset edge
+        return g.copyEdges(r, l);
     }
 
     @Override

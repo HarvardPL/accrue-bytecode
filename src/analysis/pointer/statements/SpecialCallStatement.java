@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -69,33 +69,13 @@ public class SpecialCallStatement extends CallStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                                     StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
-        if (delta == null) {
-            // no delta, do the simple processing
-            Set<InstanceKey> s = g.getPointsToSet(receiverRep);
-            assert checkForNonEmpty(s, receiverRep, "SPECIAL RECEIVER");
-
-            for (InstanceKey recHeapCtxt : s) {
-                changed = changed.combine(processCall(context, recHeapCtxt, callee, g, delta, haf, calleeSummary));
-            }
-        }
-        else {
-            // delta is not null. Let's be smart.
-            // First, see if the receiver has changed.
-            Set<InstanceKey> s = delta.getPointsToSet(receiverRep);
-            if (!s.isEmpty()) {
-                // the receiver changed, so process the call *without* a delta, i.e., to force everything
-                // to propagate
-                for (InstanceKey recHeapCtxt : s) {
-                    changed = changed.combine(processCall(context, recHeapCtxt, callee, g, null, haf, calleeSummary));
-                }
-            }
-
-            // Note that we don't need to go through all of g.getPointsToSet(receiverRep)
-            // and call processCall for that receiver, since all that processCall does
-            // is copy edges, and these will be taken care of by copy dependencies.
-
+        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep) : delta
+                                        .pointsToIterator(receiverRep);
+        while (iter.hasNext()) {
+            InstanceKey recHeapCtxt = iter.next();
+            changed = changed.combine(processCall(context, recHeapCtxt, callee, g, haf, calleeSummary));
         }
         return changed;
 

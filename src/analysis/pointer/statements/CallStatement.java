@@ -78,7 +78,7 @@ public abstract class CallStatement extends PointsToStatement {
      * @return true if the points-to graph has changed
      */
     protected final GraphDelta processCall(Context callerContext, InstanceKey receiver, IMethod callee,
-                                    PointsToGraph g, GraphDelta delta,
+                                    PointsToGraph g,
                                     HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert callee != null;
@@ -103,7 +103,7 @@ public abstract class CallStatement extends PointsToStatement {
         // System.err.println(calleeContext + " for " + PrettyPrinter.methodString(callee));
         // System.err.print("");
         // }
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
         g.addCall(callSite.getReference(), getMethod(), callerContext, callee, calleeContext);
@@ -123,7 +123,7 @@ public abstract class CallStatement extends PointsToStatement {
             assert checkTypes(resultRep, calleeReturn);
 
             // The assignee can point to anything the return summary node in the callee can point to
-            GraphDelta retChange = g.copyEdgesWithDelta(calleeReturn, resultRep, delta);
+            GraphDelta retChange = g.copyEdges(calleeReturn, resultRep);
             changed = changed.combine(retChange);
         }
 
@@ -158,7 +158,7 @@ public abstract class CallStatement extends PointsToStatement {
 
 
             // Add edges from the points-to set for the actual argument to the formal argument
-            GraphDelta d1 = g.copyEdgesWithDelta(actualRep, formalRep, delta);
+            GraphDelta d1 = g.copyEdges(actualRep, formalRep);
             changed = changed.combine(d1);
         }
 
@@ -168,7 +168,7 @@ public abstract class CallStatement extends PointsToStatement {
         ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext, calleeSummary.getException());
 
         // The exception in the caller can point to anything the summary node in the callee can point to
-        GraphDelta exChange = g.copyEdgesWithDelta(calleeEx, callerEx, delta);
+        GraphDelta exChange = g.copyEdges(calleeEx, callerEx);
         changed = changed.combine(exChange);
 
         return changed;

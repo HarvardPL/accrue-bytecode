@@ -1,15 +1,8 @@
 package analysis.pointer.graph;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.Writer;
-import java.text.SimpleDateFormat;
 import java.util.AbstractSet;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -17,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.Stack;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -25,7 +19,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -39,11 +32,18 @@ import com.ibm.wala.util.CancelException;
  */
 public class PointsToGraph {
 
+
     public static final String ARRAY_CONTENTS = "[contents]";
-    /**
-     * Underlying data structure for the points-to graph. Not threadsafe.
+
+    /*
+     * The pointsto graph is represented using two relations. If base.get(n).contains(i) then i is in the pointsto set
+     * of n. If isSubsetOf.get(n).contains(<m, f>), then the filtered pointsto set of n is a subset of the points to set
+     * of m. The superset relation is just the reverse of subset.
      */
-    private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<InstanceKey>> base = new LinkedHashMap<>();
+
+    private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSubsetOf = new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSupersetOf = new LinkedHashMap<>();
 
     /**
      * The contexts that a method may appear in.
@@ -65,7 +65,7 @@ public class PointsToGraph {
 
     // private final DependencyRecorder depRecorder;
     private Set<PointsToGraphNode> readNodes;
-    private Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> copies;
+    private Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> newSubsetRelations;
 
     private Map<IMethod, Set<Context>> newContexts;
 
@@ -75,7 +75,7 @@ public class PointsToGraph {
 
     public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf) {
         readNodes = new LinkedHashSet<>();
-        copies = new LinkedHashMap<>();
+        newSubsetRelations = new LinkedHashMap<>();
         newContexts = new LinkedHashMap<>();
 
         this.haf = haf;
@@ -99,6 +99,16 @@ public class PointsToGraph {
         }
     }
 
+    public Map<PointsToGraphNode, Set<InstanceKey>> getBaseNodes() {
+        return this.base;
+    }
+
+    // Return the supersets of n. That is, any node m such that n is a subset of m
+    public Set<OrderedPair<PointsToGraphNode, TypeFilter>> superSetsOf(PointsToGraphNode n) {
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> supersets = isSubsetOf.get(n);
+        return supersets == null ? Collections.<OrderedPair<PointsToGraphNode, TypeFilter>> emptySet() : supersets;
+    }
+
     /**
      * Add an edge from node to heapContext in the graph.
      * 
@@ -108,11 +118,11 @@ public class PointsToGraph {
      */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
-        Set<InstanceKey> pointsToSet = getOrCreatePointsToSet(node);
+        Set<InstanceKey> pointsToSet = getOrCreateBaseSet(node);
 
-        GraphDelta delta = new GraphDelta();
+        GraphDelta delta = new GraphDelta(this);
         if (pointsToSet.add(heapContext)) {
-            delta.add(node, heapContext);
+            delta.addBase(node, heapContext);
         }
         return delta;
     }
@@ -126,24 +136,19 @@ public class PointsToGraph {
      * @return
      */
     public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
-        recordCopy(source, target);
-        Iterator<InstanceKey> srcPointsToSetIter = getOrCreatePointsToSet(source).iterator();
+        // source is a subset of target, target is a superset of source.
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> sourceSubset = getOrCreateSubsetSet(source);
+        OrderedPair<PointsToGraphNode, TypeFilter> trgFilter = new OrderedPair<>(target, null);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(this);
+        if (sourceSubset.add(trgFilter)) {
+            changed.addCopyEdges(source, null, target);
 
-        if (!srcPointsToSetIter.hasNext()) {
-            // empty source.
-            return changed;
+            // make sure the superset relation stays consistent
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> targetSuperset = getOrCreateSupersetSet(target);
+            targetSuperset.add(new OrderedPair<>(source, (TypeFilter)null));
+
         }
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-
-        do {
-            InstanceKey hc = srcPointsToSetIter.next();
-            if (trgPointsToSet.add(hc)) {
-                changed.add(target, hc);
-            }
-        } while (srcPointsToSetIter.hasNext());
-
         return changed;
     }
 
@@ -156,140 +161,30 @@ public class PointsToGraph {
      * @return
      */
     public GraphDelta copyFilteredEdges(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
-        recordCopy(source, filter, target);
-        Iterator<InstanceKey> srcPointsToSetIter = new FilteredSet(getOrCreatePointsToSet(source), filter).iterator();
+        // source is a subset of target, target is a subset of source.
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> sourceSubset = getOrCreateSubsetSet(source);
+        OrderedPair<PointsToGraphNode, TypeFilter> trgFilter = new OrderedPair<>(target, filter);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(this);
+        if (sourceSubset.add(trgFilter)) {
+            changed.addCopyEdges(source, filter, target);
 
-        if (!srcPointsToSetIter.hasNext()) {
-            // empty source.
-            return changed;
+            // make sure the superset relation stays consistent
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> targetSuperset = getOrCreateSupersetSet(target);
+            targetSuperset.add(new OrderedPair<>(source, filter));
         }
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-
-        do {
-            InstanceKey hc = srcPointsToSetIter.next();
-            if (trgPointsToSet.add(hc)) {
-                changed.add(target, hc);
-            }
-        } while (srcPointsToSetIter.hasNext());
-
-        return changed;
-    }
-
-
-    public GraphDelta copyEdgesWithDelta(PointsToGraphNode source, PointsToGraphNode target, GraphDelta delta) {
-        if (delta == null) {
-            return copyEdges(source, target);
-        }
-
-        Iterator<InstanceKey> srcPointsToSetIter = delta.getPointsToSet(source).iterator();
-
-        GraphDelta changed = new GraphDelta();
-
-        if (!srcPointsToSetIter.hasNext()) {
-            // empty source.
-            return changed;
-        }
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-
-        do {
-            InstanceKey hc = srcPointsToSetIter.next();
-            if (trgPointsToSet.add(hc)) {
-                changed.add(target, hc);
-            }
-        } while (srcPointsToSetIter.hasNext());
-
-        return changed;
-    }
-
-    public GraphDelta copyFilteredEdgesWithDelta(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target,
-                                    GraphDelta delta) {
-        if (delta == null) {
-            return copyFilteredEdges(source, filter, target);
-        }
-        Iterator<InstanceKey> srcPointsToSetIter = new FilteredSet(delta.getPointsToSet(source), filter).iterator();
-
-        GraphDelta changed = new GraphDelta();
-
-        if (!srcPointsToSetIter.hasNext()) {
-            // empty source.
-            return changed;
-        }
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-
-        do {
-            InstanceKey hc = srcPointsToSetIter.next();
-            if (trgPointsToSet.add(hc)) {
-                changed.add(target, hc);
-            }
-        } while (srcPointsToSetIter.hasNext());
-
         return changed;
     }
 
     /**
+     * Provide an interatory for the things that n points to. Note that we may not return a set, i.e., some InstanceKeys
+     * may be returned multiple times. XXX we may change this in the future...
      * 
-     * @param node
-     * 
-     * @return Set of heap contexts that the given node points to
+     * @param n
+     * @return
      */
-    public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
-        recordRead(node);
-
-        Set<InstanceKey> s = graph.get(node);
-        if (s != null) {
-            if (DEBUG && s.isEmpty() && outputLevel >= 7) {
-                System.err.println("\tEMPTY POINTS-TO SET for " + node);
-            }
-            return s;
-        }
-
-        if (DEBUG && outputLevel >= 7) {
-            System.err.println("\tEMPTY POINTS-TO SET for " + node);
-        }
-
-        return Collections.emptySet();
-    }
-
-    /**
-     * Return a pointsto set for the given node. If delta is non-null, then delta is used, i.e., only the things that
-     * node points to in the delta will be used. If delta is null, then the behavior is the same as getPointsToSet.
-     * 
-     * @param node
-     * @param delta
-     * 
-     * @return Set of heap contexts that the given node points to, restricted to the delta if that is provided
-     */
-    public Set<InstanceKey> getPointsToSetWithDelta(PointsToGraphNode node, GraphDelta delta) {
-        if (delta == null) {
-            return this.getPointsToSet(node);
-        }
-
-        return delta.getPointsToSet(node);
-    }
-
-    /**
-     * Get the points-to set for the given points-to graph node, filtering out results which do not have a particular
-     * type, or which have one of a set of types
-     * 
-     * @param node
-     *            node to get the points-to set for
-     * @param filter
-     *            Filter to specify what type the heap objects must be, and, optionally, must not be.
-     * @return Set of heap contexts filtered based on type
-     */
-    public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeFilter filter) {
-        recordRead(node);
-        return new FilteredSet(this.getPointsToSet(node), filter);
-    }
-
-    public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, TypeFilter filter, GraphDelta delta) {
-        if (delta == null) {
-            return this.getPointsToSetFiltered(node, filter);
-        }
-
-        return new FilteredSet(delta.getPointsToSet(node), filter);
+    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        return new PointsToIterator(this, n);
     }
 
     /**
@@ -355,14 +250,18 @@ public class PointsToGraph {
         }
     }
 
-    private Set<InstanceKey> getOrCreatePointsToSet(PointsToGraphNode node) {
-        Set<InstanceKey> set = this.graph.get(node);
-        if (set == null) {
-            // Set does not yet exist
-            set = new PointsToSet();
-            this.graph.put(node, set);
-        }
-        return set;
+    private Set<InstanceKey> getOrCreateBaseSet(PointsToGraphNode node) {
+        return PointsToGraph.<PointsToGraphNode, InstanceKey> getOrCreateSet(node, this.base);
+    }
+
+    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSubsetSet(PointsToGraphNode node) {
+        return PointsToGraph.<PointsToGraphNode, OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSet(node,
+                                        this.isSubsetOf);
+    }
+
+    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSupersetSet(PointsToGraphNode node) {
+        return PointsToGraph.<PointsToGraphNode, OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSet(node,
+                                        this.isSupersetOf);
     }
 
     private Set<Context> getOrCreateContextSet(IMethod callee) {
@@ -372,7 +271,9 @@ public class PointsToGraph {
     private static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
         Set<T> set = map.get(key);
         if (set == null) {
-            set = new LinkedHashSet<>();
+            // make these concurrent to avoid ConcurrentModificationExceptions
+            // set = new LinkedHashSet<>();
+            set = AnalysisUtil.createConcurrentSet();
             map.put(key, set);
         }
         return set;
@@ -392,102 +293,94 @@ public class PointsToGraph {
         return Collections.unmodifiableSet(contexts.get(m));
     }
 
-    /**
-     * Get a set containing all the points-to graph nodes
-     * 
-     * @return points-to graph nodes
-     */
-    public Set<PointsToGraphNode> getNodes() {
-        return graph.keySet();
-    }
+    //
+    // /**
+    // * Print the graph in graphviz dot format to a file
+    // *
+    // * @param filename
+    // * name of the file, the file is put in tests/filename.dot
+    // * @param addDate
+    // * if true then the date will be added to the filename
+    // */
+    // public void dumpPointsToGraphToFile(String filename, boolean addDate) {
+    // String dir = "tests";
+    // String file = filename;
+    // if (addDate) {
+    // SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
+    // Date dateNow = new Date();
+    // String now = dateFormat.format(dateNow);
+    // file += now;
+    // }
+    // String fullFilename = dir + "/" + file + ".dot";
+    // try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+    // dumpPointsToGraph(out);
+    // System.err.println("\nDOT written to: " + fullFilename);
+    // } catch (IOException e) {
+    // System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+    // }
+    // }
+    //
+    // private static String escape(String s) {
+    // return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    // }
+    //
+    // private Writer dumpPointsToGraph(Writer writer) throws IOException {
+    // double spread = 1.0;
+    // writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+    // + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
+    // + "edge [fontsize=10]" + ";\n");
+    //
+    // Map<String, Integer> dotToCount = new HashMap<>();
+    // Map<PointsToGraphNode, String> n2s = new HashMap<>();
+    // Map<InstanceKey, String> k2s = new HashMap<>();
+    //
+    // // Need to differentiate between different nodes with the same string
+    // for (PointsToGraphNode n : graph.keySet()) {
+    // String nStr = escape(n.toString());
+    // Integer count = dotToCount.get(nStr);
+    // if (count == null) {
+    // dotToCount.put(nStr, 1);
+    // } else {
+    // dotToCount.put(nStr, count + 1);
+    // nStr += " (" + count + ")";
+    // }
+    // n2s.put(n, nStr);
+    // }
+    // for (InstanceKey k : getAllHContexts()) {
+    // String kStr = escape(k.toString());
+    // Integer count = dotToCount.get(kStr);
+    // if (count == null) {
+    // dotToCount.put(kStr, 1);
+    // } else {
+    // dotToCount.put(kStr, count + 1);
+    // kStr += " (" + count + ")";
+    // }
+    // k2s.put(k, kStr);
+    // }
+    //
+    // for (PointsToGraphNode n : graph.keySet()) {
+    // for (InstanceKey ik : graph.get(n)) {
+    // writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
+    // }
+    // }
+    //
+    // writer.write("\n};\n");
+    // return writer;
+    // }
 
-    /**
-     * Print the graph in graphviz dot format to a file
-     * 
-     * @param filename
-     *            name of the file, the file is put in tests/filename.dot
-     * @param addDate
-     *            if true then the date will be added to the filename
-     */
-    public void dumpPointsToGraphToFile(String filename, boolean addDate) {
-        String dir = "tests";
-        String file = filename;
-        if (addDate) {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
-            Date dateNow = new Date();
-            String now = dateFormat.format(dateNow);
-            file += now;
-        }
-        String fullFilename = dir + "/" + file + ".dot";
-        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            dumpPointsToGraph(out);
-            System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
-            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-        }
-    }
-
-    private static String escape(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
-    private Writer dumpPointsToGraph(Writer writer) throws IOException {
-        double spread = 1.0;
-        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
-                                        + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
-                                        + "edge [fontsize=10]" + ";\n");
-
-        Map<String, Integer> dotToCount = new HashMap<>();
-        Map<PointsToGraphNode, String> n2s = new HashMap<>();
-        Map<InstanceKey, String> k2s = new HashMap<>();
-
-        // Need to differentiate between different nodes with the same string
-        for (PointsToGraphNode n : graph.keySet()) {
-            String nStr = escape(n.toString());
-            Integer count = dotToCount.get(nStr);
-            if (count == null) {
-                dotToCount.put(nStr, 1);
-            } else {
-                dotToCount.put(nStr, count + 1);
-                nStr += " (" + count + ")";
-            }
-            n2s.put(n, nStr);
-        }
-        for (InstanceKey k : getAllHContexts()) {
-            String kStr = escape(k.toString());
-            Integer count = dotToCount.get(kStr);
-            if (count == null) {
-                dotToCount.put(kStr, 1);
-            } else {
-                dotToCount.put(kStr, count + 1);
-                kStr += " (" + count + ")";
-            }
-            k2s.put(k, kStr);
-        }
-
-        for (PointsToGraphNode n : graph.keySet()) {
-            for (InstanceKey ik : graph.get(n)) {
-                writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
-            }
-        }
-
-        writer.write("\n};\n");
-        return writer;
-    }
-
-    /**
-     * Set containing all Heap contexts. This is really expensive. Don't do it unless debugging small graphs.
-     * 
-     * @return set with all the Heap contexts
-     */
-    public Set<InstanceKey> getAllHContexts() {
-        Set<InstanceKey> all = new LinkedHashSet<>();
-
-        for (Set<InstanceKey> s : graph.values()) {
-            all.addAll(s);
-        }
-        return all;
-    }
+    // /**
+    // * Set containing all Heap contexts. This is really expensive. Don't do it unless debugging small graphs.
+    // *
+    // * @return set with all the Heap contexts
+    // */
+    // public Set<InstanceKey> getAllHContexts() {
+    // Set<InstanceKey> all = new LinkedHashSet<>();
+    //
+    // for (Set<InstanceKey> s : graph.values()) {
+    // all.addAll(s);
+    // }
+    // return all;
+    // }
 
     /**
      * Get the procedure call graph
@@ -523,30 +416,6 @@ public class PointsToGraph {
 
     private void recordRead(PointsToGraphNode node) {
         this.readNodes.add(node);
-    }
-
-    /**
-     * Get the map of copies that have been made since this was last called and clear the map.
-     * 
-     * @return map describing the copies from source to target(s).
-     */
-    public Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> getAndClearCopies() {
-        Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> c = copies;
-        copies = new LinkedHashMap<>();
-        return c;
-    }
-
-    private void recordCopy(PointsToGraphNode source, PointsToGraphNode target) {
-        recordCopy(source, null, target);
-    }
-
-    private void recordCopy(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s = this.copies.get(source);
-        if (s == null) {
-            s = new LinkedHashSet<>();
-            this.copies.put(source, s);
-        }
-        s.add(new OrderedPair<PointsToGraphNode, TypeFilter>(target, filter));
     }
 
     public void setOutputLevel(int outputLevel) {
@@ -592,7 +461,7 @@ public class PointsToGraph {
         return cgChanged;
     }
 
-    private static class FilteredSet extends AbstractSet<InstanceKey> {
+    static class FilteredSet extends AbstractSet<InstanceKey> {
         final Set<InstanceKey> s;
         final TypeFilter filter;
 
@@ -603,9 +472,6 @@ public class PointsToGraph {
 
         @Override
         public Iterator<InstanceKey> iterator() {
-            if (s instanceof PointsToSet) {
-                return new FilteredPTSIterator((PointsToSet) s);
-            }
             return new FilteredIterator();
         }
 
@@ -654,227 +520,110 @@ public class PointsToGraph {
                 throw new UnsupportedOperationException();
             }
         }
-
-        class FilteredPTSIterator implements Iterator<InstanceKey> {
-            PointsToSet pts;
-            final Iterator<IClass> it;
-            Iterator<InstanceKey> current = null;
-
-            FilteredPTSIterator(PointsToSet pts) {
-                this.pts = pts;
-                this.it = pts.map.keySet().iterator();
-            }
-
-            @Override
-            public boolean hasNext() {
-                // we can get away with an if instead of a while here, since we know that the sets are nonempty...
-                if (current == null || !current.hasNext()) {
-                    // find the next key that satisfies the filters
-                    current = null;
-                    while (it.hasNext()) {
-                        IClass ic = it.next();
-                        if (filter.satisfies(ic)) {
-                            current = pts.map.get(ic).iterator();
-                            break;
-                        }
-                    }
-                    if (current == null && !it.hasNext()) {
-                        return false;
-                    }
-                }
-
-                return current.hasNext();
-            }
-
-
-            @Override
-            public InstanceKey next() {
-                if (hasNext()) {
-                    return current.next();
-                }
-                throw new NoSuchElementException();
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        }
     }
 
     /**
-     * Specialized implementation of set for this points to graph. This implementation is not thread safe.
+     * We visit using the superset relation in preorder.
      */
-    private static class PointsToSet implements Set<InstanceKey> {
+    public static class PointsToIterator implements Iterator<InstanceKey> {
+        private final PointsToGraphNode n;
+        private final PointsToGraph g;
+        private final Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited;
+        private final Stack<Iterator<OrderedPair<PointsToGraphNode, TypeFilter>>> visitingStack;
+        private Iterator<InstanceKey> currentBaseIter;
+        private Stack<TypeFilter> typeFilters;
+
+        public PointsToIterator(PointsToGraph g, PointsToGraphNode n) {
+            this(g, n, null, null);
+        }
+
+        public PointsToIterator(PointsToGraph g, PointsToGraphNode n, TypeFilter filter,
+                                        Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited) {
+
+            this.g = g;
+            this.n = n;
+            this.visited = new HashSet<>();
+            if (alreadyVisited != null) {
+                visited.addAll(alreadyVisited);
+            }
+            this.visitingStack = new Stack<>();
+            this.typeFilters = new Stack<>();
+            this.typeFilters.push(null);
+            // set up the initial condition, i.e., we are starting to visit n.
+            startVisit(n, filter);
+        }
+
         /**
-         * Map from concrete classes to non-empty sets of that class.
+         * Attempt to start visiting t.\
+         * 
+         * Precondition: currentBaseIter == null
+         * 
+         * Postcondition: currentBaseIter != null if and only if we actually start visiting t.
+         * 
+         * @param t
+         * @param filter
          */
-        private final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
+        private void startVisit(PointsToGraphNode t, TypeFilter filter) {
+            // Compose the current filter (this.typeFilters.peek()), with the
+            // filter for t to obtain the new filter.
+            TypeFilter newFilter = TypeFilter.compose(this.typeFilters.peek(), filter);
 
+            OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter = new OrderedPair<>(t, filter);
 
-        @Override
-        public int size() {
-            int sum = 0;
-            for (Set<InstanceKey> s : map.values()) {
-                sum += s.size();
+            if (visited.contains(tAndNewFilter) || visited.contains(new OrderedPair<>(t, null))) {
+                // we have already visited t with this particular filter (or with no filter at all).
+                return;
             }
-            return sum;
-        }
+            // mark that we have visited node t with filter
+            this.visited.add(tAndNewFilter);
 
-        @Override
-        public boolean isEmpty() {
-            return map.isEmpty();
-        }
+            // push the new filter on the stack.
+            this.typeFilters.push(newFilter);
 
-        @Override
-        public boolean contains(Object o) {
-            if (o instanceof InstanceKey) {
-                InstanceKey ik = (InstanceKey) o;
-                Set<InstanceKey> s = map.get(ik.getConcreteType());
-                if (s != null) {
-                    return s.contains(ik);
-                }
-            }
-            return false;
-        }
+            // set up the current base iterator
+            Set<InstanceKey> s = g.base.get(t);
+            this.currentBaseIter = s == null ? Collections.<InstanceKey> emptyIterator() : (filter == null ? s
+                                            .iterator() : new FilteredSet(s, typeFilters.peek()).iterator());
 
-        @Override
-        public Iterator<InstanceKey> iterator() {
-            return new PointsToSetIterator(this);
-        }
-
-
-        @Override
-        public boolean add(InstanceKey e) {
-            return PointsToGraph.getOrCreateSet(e.getConcreteType(), this.map).add(e);
-        }
-
-        @Override
-        public Object[] toArray() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> T[] toArray(T[] a) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean remove(Object o) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean containsAll(Collection<?> c) {
-            for (Object e : c)
-                if (!contains(e))
-                    return false;
-            return true;
-        }
-
-        @Override
-        public boolean addAll(Collection<? extends InstanceKey> c) {
-            boolean modified = false;
-            for (InstanceKey e : c)
-                if (add(e))
-                    modified = true;
-            return modified;
-
-        }
-
-        @Override
-        public boolean retainAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean removeAll(Collection<?> c) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException();
-        }
-
-        public boolean equals(Object o) {
-            if (o == this)
-                return true;
-
-            if (!(o instanceof Set))
-                return false;
-            Collection c = (Collection) o;
-            if (c.size() != size())
-                return false;
-            try {
-                return containsAll(c);
-            }
-            catch (ClassCastException unused) {
-                return false;
-            }
-            catch (NullPointerException unused) {
-                return false;
-            }
-        }
-
-        public int hashCode() {
-            int h = 0;
-            Iterator<InstanceKey> i = iterator();
-            while (i.hasNext()) {
-                InstanceKey obj = i.next();
-                if (obj != null)
-                    h += obj.hashCode();
-            }
-            return h;
-        }
-
-        public String toString() {
-            Iterator<InstanceKey> it = iterator();
-            if (!it.hasNext())
-                return "[]";
-
-            StringBuilder sb = new StringBuilder();
-            sb.append('[');
-            for (;;) {
-                InstanceKey e = it.next();
-                sb.append(e);
-                if (!it.hasNext())
-                    return sb.append(']').toString();
-                sb.append(',').append(' ');
-            }
-        }
-
-    }
-
-    public static class PointsToSetIterator implements Iterator<InstanceKey> {
-        final Iterator<Set<InstanceKey>> it;
-        Iterator<InstanceKey> current = null;
-
-        PointsToSetIterator(PointsToSet pts) {
-            this.it = pts.map.values().iterator();
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> set = g.isSupersetOf.get(t);
+            this.visitingStack.push(set == null ? Collections
+                                            .<OrderedPair<PointsToGraphNode, TypeFilter>> emptyIterator() : set
+                                            .iterator());
         }
 
         @Override
         public boolean hasNext() {
-            // we can get away with an if instead of a while here, since we know that the sets are nonempty...
-            if (current == null || !current.hasNext()) {
-                if (!it.hasNext()) {
+            while (true) {
+                // first do the current base instances.
+                if (currentBaseIter != null && currentBaseIter.hasNext()) {
+                    return true;
+                }
+                currentBaseIter = null;
+
+                // find another node to start visiting...
+                if (visitingStack.isEmpty()) {
+                    // nothing more to visit.
                     return false;
                 }
-                current = it.next().iterator();
-                // since the sets are guaranteed to be non-empty, we know that there is at least one more element...
-                return true;
+                Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter = visitingStack.peek();
+                if (iter.hasNext()) {
+                    OrderedPair<PointsToGraphNode, TypeFilter> pair = iter.next();
+                    startVisit(pair.fst(), pair.snd());
+                    continue;
+                }
+                // The top most iterator on the stack has no more things for us to visit.
+                // remove the top most element of the stack and try again.
+                visitingStack.pop();
+                typeFilters.pop();
             }
-
-            return current.hasNext();
         }
 
         @Override
         public InstanceKey next() {
-            if (hasNext()) {
-                return current.next();
+            if (!this.hasNext()) {
+                throw new NoSuchElementException();
             }
-            throw new NoSuchElementException();
+            return currentBaseIter.next();
         }
 
         @Override

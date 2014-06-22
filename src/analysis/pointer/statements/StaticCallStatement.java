@@ -59,7 +59,7 @@ public class StaticCallStatement extends CallStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                                     StatementRegistrar registrar) {
-        return processCall(context, null, callee, g, delta, haf, calleeSummary);
+        return processCall(context, null, callee, g, haf, calleeSummary);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package analysis.dataflow.interprocedural.bool;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -197,7 +198,9 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
         boolean castAlwaysSucceeds = true;
         boolean castAlwaysFails = true;
-        for (InstanceKey hContext : ptg.getPointsToSet(getReplica(i.getRef(), currentNode))) {
+        Iterator<InstanceKey> iter = ptg.pointsToIterator(getReplica(i.getRef(), currentNode));
+        while (iter.hasNext()) {
+            InstanceKey  hContext = iter.next();
             if (!(castAlwaysSucceeds || castAlwaysFails)) {
                 // The cast sometimes succeeds and sometimes doesn't
                 break;

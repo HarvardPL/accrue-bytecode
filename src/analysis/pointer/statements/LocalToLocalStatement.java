@@ -50,7 +50,8 @@ public class LocalToLocalStatement extends PointsToStatement {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
         TypeFilter filter = new TypeFilter(left.getExpectedType());
-        return g.copyFilteredEdgesWithDelta(r, filter, l, delta);
+        // don't need to use delta, as this just adds a subset edge
+        return g.copyFilteredEdges(r, filter, l);
     }
 
     @Override

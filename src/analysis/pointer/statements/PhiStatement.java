@@ -49,12 +49,12 @@ public class PhiStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
-
-            GraphDelta d1 = g.copyEdgesWithDelta(n, a, delta);
+            // no need to use delta, as this just adds subset relations.
+            GraphDelta d1 = g.copyEdges(n, a);
 
             changed = changed.combine(d1);
         }

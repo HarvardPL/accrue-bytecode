@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -548,8 +549,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the field
      */
     public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(receiver, n));
-        if (pointsTo.isEmpty() && outputLevel >= 1) {
+        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n));
+        if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Field target doesn't point to anything. v" + receiver + " in "
                                             + PrettyPrinter.cgNodeString(n) + " accessing field: "
                                             + PrettyPrinter.typeString(field.getDeclaringClass()) + "."
@@ -557,7 +558,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
-        for (InstanceKey o : pointsTo) {
+
+        while (pointsToIter.hasNext()) {
+            InstanceKey o = pointsToIter.next();
             AbstractLocation loc = AbstractLocation.createNonStatic(o, field);
             ret.add(loc);
         }
@@ -574,14 +577,15 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the contents of the array
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
-        Set<InstanceKey> pointsTo = ptg.getPointsToSet(getReplica(array, n));
-        if (outputLevel >= 1 && pointsTo.isEmpty()) {
+        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n));
+        if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Array doesn't point to anything. " + getReplica(array, n) + " METHOD: "
                                             + PrettyPrinter.methodString(n.getMethod()));
         }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
-        for (InstanceKey o : pointsTo) {
+        while (pointsToIter.hasNext()) {
+            InstanceKey o = pointsToIter.next();
             AbstractLocation loc = AbstractLocation.createArrayContents(o);
             ret.add(loc);
         }

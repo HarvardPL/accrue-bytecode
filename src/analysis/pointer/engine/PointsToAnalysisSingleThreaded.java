@@ -1,10 +1,8 @@
 package analysis.pointer.engine;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
@@ -17,7 +15,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
-import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
@@ -36,16 +33,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies = new HashMap<PointsToGraphNode, Set<StmtAndContext>>();
-
-    /**
-     * A copy dependency from node n to node m exists when a modification to the pointstoset of n (i.e., if n changes to
-     * point to more things) copies those changes to the points to set of m. That is, the pointsto set of m is a
-     * superset of the points to set of n. For efficiency, we don't reevaluate the StmtAndCtxt that created the copy
-     * dependency, we just copy the new elements directly. We also track the StmtAndContext that added the copy
-     * dependency. (We do not use this at the moment, and it may not be complete, i.e., more than one StmtAndContext may
-     * indicate a copy dependency).
-     */
-    private Map<PointsToGraphNode, Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>>> copyDepedencies = new HashMap<>();
 
     /**
      * Counters to detect infinite loops
@@ -127,7 +114,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        GraphDelta accumulatedChanges = new GraphDelta();
+        GraphDelta accumulatedChanges = new GraphDelta(g);
         int numProcessed = 0;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
@@ -150,7 +137,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 System.err.println("PROCESSED: " + numProcessed
                                                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
                                                 + (System.currentTimeMillis() - startTime) / 1000 + "s;  graph is "
-                                                + g.getNodes().size() + " nodes");
+                                                + g.getBaseNodes().size() + " base nodes");
             }
 
         }
@@ -184,7 +171,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // Get the changes from the graph
         Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
         Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
-        Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> copies = g.getAndClearCopies();
 
         // Add new contexts
         for (IMethod m : newContexts.keySet()) {
@@ -225,81 +211,48 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (PointsToGraphNode n : readNodes) {
             addInterestingDependency(n, sac);
         }
-        // Read nodes are nodes that the current statement depends on
-        for (PointsToGraphNode n : copies.keySet()) {
-            addCopyDependency(n, copies.get(n), sac);
-        }
 
         if (outputLevel >= 4 && !changed.isEmpty()) {
-            for (PointsToGraphNode n : changed.domain()) {
-                System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSet(n) + ")");
-                g.getAndClearReadNodes();// clear the read nodes so the read above wasn't significant.
-                if (!getInterestingDependencies(n).isEmpty()) {
-                    System.err.println("\tDEPS:");
-                    for (StmtAndContext dep : getInterestingDependencies(n)) {
-                        System.err.println("\t\t" + dep);
-                    }
-                }
-            }
+            // for (PointsToGraphNode n : changed.domain()) {
+            // System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSet(n) + ")");
+            // g.getAndClearReadNodes();// clear the read nodes so the read above wasn't significant.
+            // if (!getInterestingDependencies(n).isEmpty()) {
+            // System.err.println("\tDEPS:");
+            // for (StmtAndContext dep : getInterestingDependencies(n)) {
+            // System.err.println("\t\t" + dep);
+            // }
+            // }
+            // }
         }
         return changed;
     }
 
-    private void handleChanges(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta initialChanges, PointsToGraph g) {
-        // First, we will handle the copy dependencies, and build up one massive delta to use for all of the interesting
-        // dependencies.
-        GraphDelta massiveDelta = new GraphDelta();
-
-        // Do a work queue to handle all the copy dependencies.
-        ArrayList<GraphDelta> changesQ = new ArrayList<>();
-        changesQ.add(initialChanges);
-
-        while (!changesQ.isEmpty()) {
-            GraphDelta changes = changesQ.remove(changesQ.size() - 1);
-
-            // Copy dependencies...
-            for (PointsToGraphNode src : changes.domain()) {
-                Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
-                if (m != null) {
-                    for (PointsToGraphNode trg : m.keySet()) {
-                        for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
-                            TypeFilter filter = p.fst();
-                            GraphDelta newChanges;
-                            if (filter == null) {
-                                newChanges = g.copyEdgesWithDelta(src, trg, changes);
-                            }
-                            else {
-                                newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg, changes);
-                            }
-                            if (!newChanges.isEmpty()) {
-                                massiveDelta = massiveDelta.combine(newChanges);
-                                changesQ.add(newChanges);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // combine the initial changes with the massive delta
-        massiveDelta = massiveDelta.combine(initialChanges);
-
-        // Now we handle all the interesting dependencies, using the massive delta
-        for (PointsToGraphNode n : massiveDelta.domain()) {
+    private void handleChanges(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta changes,
+                                    PointsToGraph g) {
+        // Handle all the interesting dependencies
+        for (PointsToGraphNode n : changes.domain()) {
             for (StmtAndContext depsac : getInterestingDependencies(n)) {
-                queue.addLast(new OrderedPair<>(depsac, massiveDelta));
+                queue.addLast(new OrderedPair<>(depsac, changes));
             }
         }
 
-        // // First, we will make our own workqueue for changes.
-        // WorkQueue<GraphDelta> changesQ = new WorkQueue<>();
+        // // First, we will handle the copy dependencies, and build up one massive delta to use for all of the
+        // interesting
+        // // dependencies.
+        // GraphDelta massiveDelta = new GraphDelta(g);
+        //
+        // // Do a work queue to handle all the copy dependencies.
+        // ArrayList<GraphDelta> changesQ = new ArrayList<>();
         // changesQ.add(initialChanges);
         //
         // while (!changesQ.isEmpty()) {
-        // GraphDelta changes = changesQ.poll();
+        // GraphDelta changes = changesQ.remove(changesQ.size() - 1);
         //
-        // // First, let's handle the copy dependencies.
+        // // Copy dependencies...
         // for (PointsToGraphNode src : changes.domain()) {
-        // Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
+        // // The node src had some stuff added to it.
+        // // This means that anything that src is a subset of may have had stuff added.
+        // Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = g.superSetsOf(src);
         // if (m != null) {
         // for (PointsToGraphNode trg : m.keySet()) {
         // for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
@@ -309,25 +262,27 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // newChanges = g.copyEdgesWithDelta(src, trg, changes);
         // }
         // else {
-        // newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg,
-        // changes);
+        // newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg, changes);
         // }
         // if (!newChanges.isEmpty()) {
+        // massiveDelta = massiveDelta.combine(newChanges);
         // changesQ.add(newChanges);
         // }
         // }
         // }
         // }
         // }
-        //
-        // // Now, let's handle the interesting dependencies.
-        // for (PointsToGraphNode n : changes.domain()) {
+        // }
+        // // combine the initial changes with the massive delta
+        // massiveDelta = massiveDelta.combine(initialChanges);
+
+        // // Now we handle all the interesting dependencies, using the massive delta
+        // for (PointsToGraphNode n : massiveDelta.domain()) {
         // for (StmtAndContext depsac : getInterestingDependencies(n)) {
-        // queue.addLast(new OrderedPair<>(depsac, changes));
+        // queue.addLast(new OrderedPair<>(depsac, massiveDelta));
         // }
         // }
-        //
-        // }
+
     }
 
     /**
@@ -415,33 +370,4 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         return s.add(sac);
     }
-
-    /**
-     * Add the attached copy dependencies. This means that if the points to set of source is modified, then targets may
-     * need to be updated. For any node t in targets, the points to set of t is a (possibly filtered) superset of the
-     * points to set of source.
-     * 
-     */
-
-    private boolean addCopyDependency(PointsToGraphNode source,
-                                    Set<OrderedPair<PointsToGraphNode, TypeFilter>> targets,
-                                    StmtAndContext sac) {
-        boolean changed = false;
-        Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = copyDepedencies.get(source);
-        if (m == null) {
-            m = new LinkedHashMap<>();
-            copyDepedencies.put(source, m);
-        }
-        for (OrderedPair<PointsToGraphNode, TypeFilter> trg : targets) {
-            Set<OrderedPair<TypeFilter, StmtAndContext>> s = m.get(trg.fst());
-            if (s == null) {
-                s = new LinkedHashSet<>();
-                m.put(trg.fst(), s);
-            }
-            changed |= s.add(new OrderedPair<>(trg.snd(), sac));
-        }
-
-        return changed;
-    }
-
 }

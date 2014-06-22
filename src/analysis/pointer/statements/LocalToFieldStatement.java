@@ -1,6 +1,6 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
+import java.util.Iterator;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -63,44 +63,28 @@ public class LocalToFieldStatement extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
 
-        GraphDelta changed = new GraphDelta();
+        GraphDelta changed = new GraphDelta(g);
 
         if (delta == null) {
             // no delta, let's do some simple processing
-            Set<InstanceKey> recHCs = g.getPointsToSet(rec);
-            assert checkForNonEmpty(recHCs, rec, "FIELD RECEIVER");
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKey recHeapContext = iter.next();
 
-            for (InstanceKey recHeapContext : recHCs) {
                 ObjectField f = new ObjectField(recHeapContext, field);
                 // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyFilteredEdges(local, filter, f);
+                GraphDelta d1 = g.copyEdges(local, f);
 
                 changed = changed.combine(d1);
             }
         }
         else {
-            // We have a delta, so let's be smart about the processing.
-            // First, for statement o.f = v, if v has changed what it points to, we need to add that to all the points
-            // to sets on the left hand side.
-            if (!delta.getPointsToSet(local).isEmpty()) {
-                Set<InstanceKey> recHCs = g.getPointsToSet(rec); // note that we don't use delta here, we want to propagate
-                // the change to everything o points to.
-                for (InstanceKey recHeapContext : recHCs) {
-                    ObjectField f = new ObjectField(recHeapContext, field);
-                    GraphDelta d1 = g.copyFilteredEdgesWithDelta(local, filter, f, delta);
-                    changed = changed.combine(d1);
-
-                }
-            }
-
-            // Second, we check if o has changed what it points to. If it has, we need to make the new object fields
+            // We check if o has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            Set<InstanceKey> recHCs = delta.getPointsToSet(rec);
-            for (InstanceKey recHeapContext : recHCs) {
+            for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKey recHeapContext = iter.next();
                 ObjectField contents = new ObjectField(recHeapContext, field);
-                GraphDelta d1 = g.copyEdges(local, contents); // no use of delta!
+                GraphDelta d1 = g.copyEdges(local, contents);
                 changed = changed.combine(d1);
-
             }
         }
 
