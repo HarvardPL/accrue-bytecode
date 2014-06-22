@@ -17,9 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -39,17 +41,35 @@ import com.ibm.wala.util.CancelException;
 public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
-    private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
+    /**
+     * Underlying data structure for the points-to graph. It is threadsafe.
+     */
+    private final ConcurrentHashMap<PointsToGraphNode, Set<InstanceKey>> graph = AnalysisUtil.createConcurrentHashMap();;
 
+    /**
+     * The contexts that a method may appear in.
+     */
+    private final ConcurrentHashMap<IMethod, Set<Context>> contexts = AnalysisUtil.createConcurrentHashMap();;
+
+    /**
+     * The classes that will be loaded (i.e., we need to analyze their static initializers).
+     */
+    private final Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
+
+    /**
+     * Heap abstraction factory.
+     */
+    private final HeapAbstractionFactory haf;
+
+    private final HafCallGraph callGraph;
+
+
+    // private final DependencyRecorder depRecorder;
     private Set<PointsToGraphNode> readNodes;
     private Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> copies;
 
     private Map<IMethod, Set<Context>> newContexts;
-    private final Map<IMethod, Set<Context>> contexts;
-    private final Set<IMethod> classInitializers;
 
-    private final HeapAbstractionFactory haf;
-    private final HafCallGraph callGraph;
     private int outputLevel = 0;
 
     public static boolean DEBUG = false;
@@ -58,14 +78,15 @@ public class PointsToGraph {
         readNodes = new LinkedHashSet<>();
         copies = new LinkedHashMap<>();
         newContexts = new LinkedHashMap<>();
-        classInitializers = new LinkedHashSet<>();
+
         this.haf = haf;
-        contexts = getInitialContexts(haf, registrar.getInitialContextMethods());
-        callGraph = new HafCallGraph(haf);
+        this.callGraph = new HafCallGraph(haf);
+
+        populateInitialContexts(registrar.getInitialContextMethods());
     }
 
     /**
-     * Get a map from method to the singleton set containing the initial context for all the given methods
+     * Populate the contexts map by adding the initial context for all the given methods
      * 
      * @param haf
      *            abstraction factory defining the initial context
@@ -73,16 +94,19 @@ public class PointsToGraph {
      *            methods to be paired with the initial context
      * @return mapping from each method in the given set to the singleton set containing the initial context
      */
-    private Map<IMethod, Set<Context>> getInitialContexts(HeapAbstractionFactory haf, Set<IMethod> initialMethods) {
-        Map<IMethod, Set<Context>> init = new LinkedHashMap<>();
+    private void populateInitialContexts(Set<IMethod> initialMethods) {
         for (IMethod m : initialMethods) {
-            Set<Context> cs = new LinkedHashSet<>();
-            cs.add(haf.initialContext());
-            init.put(m, cs);
+            this.getOrCreateContextSet(m).add(haf.initialContext());
         }
-        return init;
     }
 
+    /**
+     * Add an edge from node to heapContext in the graph.
+     * 
+     * @param node
+     * @param heapContext
+     * @return
+     */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
         Set<InstanceKey> pointsToSet = getOrCreatePointsToSet(node);
@@ -92,15 +116,6 @@ public class PointsToGraph {
             delta.add(node, heapContext);
         }
         return delta;
-    }
-
-    private Set<InstanceKey> getOrCreatePointsToSet(PointsToGraphNode node) {
-        Set<InstanceKey> pointsToSet = graph.get(node);
-        if (pointsToSet == null) {
-            pointsToSet = new PointsToSet();
-            graph.put(node, pointsToSet);
-        }
-        return pointsToSet;
     }
 
     /**
@@ -260,8 +275,15 @@ public class PointsToGraph {
         return new FilteredSet(s, filter);
     }
 
+    /**
+     * XXXX DOCO TODO.
+     * 
+     * This method is synchronized because it uses callGraph, which is not thread safe. We thus use the the lock on this
+     * object to protect access to callGraph.
+     */
     @SuppressWarnings("deprecation")
-    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext, IMethod callee,
+    public synchronized boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext,
+                                    IMethod callee,
                                     Context calleeContext) {
 
         CGNode src;
@@ -316,6 +338,44 @@ public class PointsToGraph {
             }
             n.add(calleeContext);
         }
+    }
+
+    private Set<InstanceKey> getOrCreatePointsToSet(PointsToGraphNode node) {
+        // Double-Checked Lock pattern, works with ConcurrentHashMap in Java 5.0 and later
+        Set<InstanceKey> set = this.graph.get(node);
+        if (set == null) {
+            // Set does not yet exist
+            Set<InstanceKey> newSet = new PointsToSet();
+
+            // It's possible that another thread created the Set for the key, so add it carefully
+            set = this.graph.putIfAbsent(node, newSet);
+            if (set == null) {
+                // put succeeded, use new value
+                set = newSet;
+            }
+        }
+        return set;
+    }
+
+    private Set<Context> getOrCreateContextSet(IMethod callee) {
+        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contexts);
+    }
+
+    private static <K, T> Set<T> getOrCreateSet(K key, ConcurrentHashMap<K, Set<T>> map) {
+        // Double-Checked Lock pattern, works with ConcurrentHashMap in Java 5.0 and later
+        Set<T> set = map.get(key);
+        if (set == null) {
+            // Set does not yet exist
+            Set<T> newSet = AnalysisUtil.createConcurrentSet();
+
+            // It's possible that another thread created the Set for the key, so add it carefully
+            set = map.putIfAbsent(key, newSet);
+            if (set == null) {
+                // put succeeded, use new value
+                set = newSet;
+            }
+        }
+        return set;
     }
 
     /**
@@ -643,13 +703,20 @@ public class PointsToGraph {
         }
     }
 
+    /**
+     * Specialized implementation of set for this points to graph. This implementation is thread safe.
+     */
     private static class PointsToSet implements Set<InstanceKey> {
         /**
          * Map from concrete classes to non-empty sets of that class.
          */
-        private final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
+        private final ConcurrentHashMap<IClass, Set<InstanceKey>> map = AnalysisUtil.createConcurrentHashMap();
 
 
+        /**
+         * This is best guess, as it relies on several underlying ConcurrentHashMaps, which may be changing
+         * concurrently.
+         */
         @Override
         public int size() {
             int sum = 0;
@@ -684,13 +751,7 @@ public class PointsToGraph {
 
         @Override
         public boolean add(InstanceKey e) {
-            IClass t = e.getConcreteType();
-            Set<InstanceKey> s = this.map.get(t);
-            if (s == null) {
-                s = new LinkedHashSet<>();
-                this.map.put(t, s);
-            }
-            return s.add(e);
+            return PointsToGraph.getOrCreateSet(e.getConcreteType(), this.map).add(e);
         }
 
         @Override

@@ -3,8 +3,11 @@ package analysis;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarFile;
 
 import org.scandroid.util.EntryPoints;
@@ -362,4 +365,13 @@ public class AnalysisUtil {
     public static IClass getStringValueClass() {
         return stringValueClass;
     }
+
+    public static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
+        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+    }
+
+    public static <T> Set<T> createConcurrentSet() {
+        return Collections.newSetFromMap(AnalysisUtil.<T, Boolean> createConcurrentHashMap());
+    }
+
 }
