@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -42,14 +41,14 @@ public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
     /**
-     * Underlying data structure for the points-to graph. It is threadsafe.
+     * Underlying data structure for the points-to graph. Not threadsafe.
      */
-    private final ConcurrentHashMap<PointsToGraphNode, Set<InstanceKey>> graph = AnalysisUtil.createConcurrentHashMap();;
+    private final Map<PointsToGraphNode, Set<InstanceKey>> graph = new LinkedHashMap<>();
 
     /**
      * The contexts that a method may appear in.
      */
-    private final ConcurrentHashMap<IMethod, Set<Context>> contexts = AnalysisUtil.createConcurrentHashMap();;
+    private final Map<IMethod, Set<Context>> contexts = new LinkedHashMap();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static initializers).
@@ -296,11 +295,9 @@ public class PointsToGraph {
     /**
      * XXXX DOCO TODO.
      * 
-     * This method is synchronized because it uses callGraph, which is not thread safe. We thus use the the lock on this
-     * object to protect access to callGraph.
      */
     @SuppressWarnings("deprecation")
-    public synchronized boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext,
+    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext,
                                     IMethod callee,
                                     Context calleeContext) {
 
@@ -359,18 +356,11 @@ public class PointsToGraph {
     }
 
     private Set<InstanceKey> getOrCreatePointsToSet(PointsToGraphNode node) {
-        // Double-Checked Lock pattern, works with ConcurrentHashMap in Java 5.0 and later
         Set<InstanceKey> set = this.graph.get(node);
         if (set == null) {
             // Set does not yet exist
-            Set<InstanceKey> newSet = new PointsToSet();
-
-            // It's possible that another thread created the Set for the key, so add it carefully
-            set = this.graph.putIfAbsent(node, newSet);
-            if (set == null) {
-                // put succeeded, use new value
-                set = newSet;
-            }
+            set = new PointsToSet();
+            this.graph.put(node, set);
         }
         return set;
     }
@@ -379,23 +369,14 @@ public class PointsToGraph {
         return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contexts);
     }
 
-    private static <K, T> Set<T> getOrCreateSet(K key, ConcurrentHashMap<K, Set<T>> map) {
-        // Double-Checked Lock pattern, works with ConcurrentHashMap in Java 5.0 and later
+    private static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
         Set<T> set = map.get(key);
         if (set == null) {
-            // Set does not yet exist
-            Set<T> newSet = AnalysisUtil.createConcurrentSet();
-
-            // It's possible that another thread created the Set for the key, so add it carefully
-            set = map.putIfAbsent(key, newSet);
-            if (set == null) {
-                // put succeeded, use new value
-                set = newSet;
-            }
+            set = new LinkedHashSet<>();
+            map.put(key, set);
         }
         return set;
     }
-
     /**
      * Set of contexts for the given method
      * 
@@ -722,19 +703,15 @@ public class PointsToGraph {
     }
 
     /**
-     * Specialized implementation of set for this points to graph. This implementation is thread safe.
+     * Specialized implementation of set for this points to graph. This implementation is not thread safe.
      */
     private static class PointsToSet implements Set<InstanceKey> {
         /**
          * Map from concrete classes to non-empty sets of that class.
          */
-        private final ConcurrentHashMap<IClass, Set<InstanceKey>> map = AnalysisUtil.createConcurrentHashMap();
+        private final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
 
 
-        /**
-         * This is best guess, as it relies on several underlying ConcurrentHashMaps, which may be changing
-         * concurrently.
-         */
         @Override
         public int size() {
             int sum = 0;
