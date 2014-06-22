@@ -339,7 +339,7 @@ public final class StatementRegistrar {
         ReferenceVariable v2 = rvFactory.getOrCreateLocal(i.getResult(), i.getDeclaredResultTypes()[0], ir.getMethod(),
                                         pp);
         ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), valType, ir.getMethod(), pp);
-        addStatement(StatementFactory.localToLocal(v2, v1, ir.getMethod()));
+        addStatement(StatementFactory.localToLocalFiltered(v2, v1, ir.getMethod()));
     }
 
     /**

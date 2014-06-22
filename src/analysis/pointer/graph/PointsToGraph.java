@@ -103,8 +103,8 @@ public class PointsToGraph {
         return this.base;
     }
 
-    // Return the supersets of n. That is, any node m such that n is a subset of m
-    public Set<OrderedPair<PointsToGraphNode, TypeFilter>> superSetsOf(PointsToGraphNode n) {
+    // Return the immediate supersets of n. That is, any node m such that n is an immediate subset of m
+    public Set<OrderedPair<PointsToGraphNode, TypeFilter>> immediateSuperSetsOf(PointsToGraphNode n) {
         Set<OrderedPair<PointsToGraphNode, TypeFilter>> supersets = isSubsetOf.get(n);
         return supersets == null ? Collections.<OrderedPair<PointsToGraphNode, TypeFilter>> emptySet() : supersets;
     }
@@ -184,6 +184,7 @@ public class PointsToGraph {
      * @return
      */
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        recordRead(n);
         return new PointsToIterator(this, n);
     }
 
@@ -526,7 +527,6 @@ public class PointsToGraph {
      * We visit using the superset relation in preorder.
      */
     public static class PointsToIterator implements Iterator<InstanceKey> {
-        private final PointsToGraphNode n;
         private final PointsToGraph g;
         private final Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited;
         private final Stack<Iterator<OrderedPair<PointsToGraphNode, TypeFilter>>> visitingStack;
@@ -541,10 +541,11 @@ public class PointsToGraph {
                                         Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited) {
 
             this.g = g;
-            this.n = n;
-            this.visited = new HashSet<>();
             if (alreadyVisited != null) {
-                visited.addAll(alreadyVisited);
+                this.visited = alreadyVisited;
+            }
+            else {
+                this.visited = new HashSet<>();
             }
             this.visitingStack = new Stack<>();
             this.typeFilters = new Stack<>();
@@ -554,7 +555,7 @@ public class PointsToGraph {
         }
 
         /**
-         * Attempt to start visiting t.\
+         * Attempt to start visiting t. The iterator should return everything that t can point to, filtered by filter.
          * 
          * Precondition: currentBaseIter == null
          * 
@@ -568,9 +569,9 @@ public class PointsToGraph {
             // filter for t to obtain the new filter.
             TypeFilter newFilter = TypeFilter.compose(this.typeFilters.peek(), filter);
 
-            OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter = new OrderedPair<>(t, filter);
+            OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter = new OrderedPair<>(t, newFilter);
 
-            if (visited.contains(tAndNewFilter) || visited.contains(new OrderedPair<>(t, null))) {
+            if (visited.contains(tAndNewFilter) || (newFilter != null && visited.contains(new OrderedPair<>(t, null)))) {
                 // we have already visited t with this particular filter (or with no filter at all).
                 return;
             }
@@ -582,7 +583,7 @@ public class PointsToGraph {
 
             // set up the current base iterator
             Set<InstanceKey> s = g.base.get(t);
-            this.currentBaseIter = s == null ? Collections.<InstanceKey> emptyIterator() : (filter == null ? s
+            this.currentBaseIter = s == null ? Collections.<InstanceKey> emptyIterator() : (newFilter == null ? s
                                             .iterator() : new FilteredSet(s, typeFilters.peek()).iterator());
 
             Set<OrderedPair<PointsToGraphNode, TypeFilter>> set = g.isSupersetOf.get(t);

@@ -61,7 +61,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKey> iter = g.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
+                GraphDelta d1 = g.copyEdges(contents, v);
+                // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }
         }
@@ -72,7 +73,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
+                GraphDelta d1 = g.copyEdges(contents, v);
+                // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }
 

@@ -26,6 +26,7 @@ public class LocalToLocalStatement extends PointsToStatement {
      */
     private final ReferenceVariable right;
 
+    private final boolean filter;
     /**
      * Statement for a local assignment, left = right
      * 
@@ -37,11 +38,17 @@ public class LocalToLocalStatement extends PointsToStatement {
      *            method the assignment is from
      */
     protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+        this(left, right, m, false);
+    }
+
+    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m,
+                                    boolean filterBasedOnType) {
         super(m);
         assert !left.isSingleton() : left + " is static";
         assert !right.isSingleton() : right + " is static";
         this.left = left;
         this.right = right;
+        this.filter = filterBasedOnType;
     }
 
     @Override
@@ -49,9 +56,12 @@ public class LocalToLocalStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
-        TypeFilter filter = new TypeFilter(left.getExpectedType());
         // don't need to use delta, as this just adds a subset edge
-        return g.copyFilteredEdges(r, filter, l);
+        if (this.filter) {
+            TypeFilter typeFilter = new TypeFilter(left.getExpectedType());
+            return g.copyFilteredEdges(r, typeFilter, l);
+        }
+        return g.copyEdges(r, l);
     }
 
     @Override

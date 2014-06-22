@@ -72,6 +72,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
                 ObjectField f = new ObjectField(recHeapContext, field);
                 // o.f can point to anything that local can.
+                // GraphDelta d1 = g.copyFilteredEdges(local, filter, f);
                 GraphDelta d1 = g.copyEdges(local, f);
 
                 changed = changed.combine(d1);
@@ -83,6 +84,7 @@ public class LocalToFieldStatement extends PointsToStatement {
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
                 ObjectField contents = new ObjectField(recHeapContext, field);
+                // GraphDelta d1 = g.copyFilteredEdges(local, filter, contents);
                 GraphDelta d1 = g.copyEdges(local, contents);
                 changed = changed.combine(d1);
             }

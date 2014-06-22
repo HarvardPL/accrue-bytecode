@@ -126,6 +126,11 @@ public class TypeFilter {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "TypeFilter [isType=" + (isType == null ? isTypes : isType) + ", notTypes=" + notTypes + "]";
+    }
+
     public static TypeFilter compose(TypeFilter f1, TypeFilter f2) {
         if (f1 == null) {
             return f2;
@@ -136,12 +141,14 @@ public class TypeFilter {
         // two non null filters
         Set<IClass> notTypes = null;
         if (f1.notTypes != null || f2.notTypes != null) {
-            notTypes = new LinkedHashSet<>();
-            if (f1.notTypes != null) {
+            if (f1.notTypes != null && f2.notTypes != null) {
+                notTypes = new LinkedHashSet<>();
+
                 notTypes.addAll(f1.notTypes);
-            }
-            if (f2.notTypes != null) {
                 notTypes.addAll(f2.notTypes);
+            }
+            else {
+                notTypes = f1.notTypes != null ? f1.notTypes : f2.notTypes;
             }
         }
 
@@ -161,7 +168,9 @@ public class TypeFilter {
             else {
                 isTypes.add(f2.isType);
             }
-            return new TypeFilter(isTypes, notTypes);
+            TypeFilter tf = new TypeFilter(isTypes, notTypes);
+            System.err.println("Got " + tf);
+            return tf;
         }
         if (TypeRepository.isAssignableFrom(f1.isType, f2.isType)) {
             return new TypeFilter(f2.isType, notTypes);

@@ -75,7 +75,8 @@ public class FieldToLocalStatment extends PointsToStatement {
                 InstanceKey recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, declaredField);
 
-                GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
+                //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
+                GraphDelta d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
             }
         }

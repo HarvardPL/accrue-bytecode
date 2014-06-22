@@ -203,7 +203,7 @@ public class StatementFactory {
     }
 
     /**
-     * Statement for a local assignment, left = right
+     * Statement for a local assignment, left = right. No filtering will be performed based on type.
      * 
      * @param left
      *            assignee
@@ -219,6 +219,27 @@ public class StatementFactory {
         assert m != null;
 
         LocalToLocalStatement s = new LocalToLocalStatement(left, right, m);
+        assert map.put(new StatementKey(left), s) == null;
+        return s;
+    }
+
+    /**
+     * Statement for a local assignment, left = right. Filtering will be performed based on type.
+     * 
+     * @param left
+     *            assignee
+     * @param right
+     *            the assigned value
+     * @param m
+     *            method the points-to statement came from
+     * @return statement to be processed during pointer analysis
+     */
+    public static LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+        assert left != null;
+        assert right != null;
+        assert m != null;
+
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
