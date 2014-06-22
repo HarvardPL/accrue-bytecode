@@ -2,17 +2,16 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -27,7 +26,7 @@ public class LocalToFieldStatement extends PointsToStatement {
      */
     private final FieldReference field;
 
-    private final IClass fieldType;
+    private final TypeFilter filter;
 
     /**
      * receiver for field access
@@ -53,7 +52,7 @@ public class LocalToFieldStatement extends PointsToStatement {
     public LocalToFieldStatement(ReferenceVariable o, FieldReference f, ReferenceVariable v, IMethod m) {
         super(m);
         this.field = f;
-        this.fieldType = AnalysisUtil.getClassHierarchy().lookupClass(f.getFieldType());
+        this.filter = new TypeFilter(f.getFieldType());
         this.receiver = o;
         this.assigned = v;
     }
@@ -74,7 +73,7 @@ public class LocalToFieldStatement extends PointsToStatement {
             for (InstanceKey recHeapContext : recHCs) {
                 ObjectField f = new ObjectField(recHeapContext, field);
                 // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyFilteredEdges(local, fieldType, f);
+                GraphDelta d1 = g.copyFilteredEdges(local, filter, f);
 
                 changed = changed.combine(d1);
             }
@@ -88,7 +87,7 @@ public class LocalToFieldStatement extends PointsToStatement {
                 // the change to everything o points to.
                 for (InstanceKey recHeapContext : recHCs) {
                     ObjectField f = new ObjectField(recHeapContext, field);
-                    GraphDelta d1 = g.copyFilteredEdgesWithDelta(local, fieldType, f, delta);
+                    GraphDelta d1 = g.copyFilteredEdgesWithDelta(local, filter, f, delta);
                     changed = changed.combine(d1);
 
                 }

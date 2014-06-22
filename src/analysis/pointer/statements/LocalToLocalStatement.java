@@ -1,15 +1,14 @@
 package analysis.pointer.statements;
 
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -50,8 +49,8 @@ public class LocalToLocalStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
-        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(left.getExpectedType());
-        return g.copyFilteredEdgesWithDelta(r, type, l, delta);
+        TypeFilter filter = new TypeFilter(left.getExpectedType());
+        return g.copyFilteredEdgesWithDelta(r, filter, l, delta);
     }
 
     @Override

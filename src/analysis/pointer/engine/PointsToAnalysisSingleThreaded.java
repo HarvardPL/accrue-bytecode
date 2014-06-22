@@ -264,7 +264,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                 newChanges = g.copyEdgesWithDelta(src, trg, changes);
                             }
                             else {
-                                newChanges = g.copyFilteredEdgesWithDelta(src, filter.isType, filter.notTypes, trg,
+                                newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg,
                                                                 changes);
                             }
                             if (!newChanges.isEmpty()) {

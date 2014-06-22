@@ -1,16 +1,15 @@
 package analysis.pointer.statements;
 
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -48,7 +47,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
                                     StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
-        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(v.getExpectedType());
+        TypeFilter filter = new TypeFilter(v.getExpectedType());
 
         GraphDelta changed = new GraphDelta();
         // TODO filter only arrays with assignable base types
@@ -59,7 +58,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // no delta, so let's do some simple processing.
             for (InstanceKey arrHeapContext : g.getPointsToSet(a)) {
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.copyFilteredEdges(contents, type, v);
+                GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }
         }
@@ -69,7 +68,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // object k, add everything that k[i] points to to v's set.
             for (InstanceKey arrHeapContext : delta.getPointsToSet(a)) {
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
-                GraphDelta d1 = g.copyFilteredEdges(contents, type, v);// don't use
+                GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);// don't use
                                                                                                        // delta here: we
                                                                                                        // want the
                                                                                                        // entire set!

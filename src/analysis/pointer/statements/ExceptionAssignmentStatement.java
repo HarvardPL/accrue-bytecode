@@ -3,12 +3,12 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -20,7 +20,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     private final ReferenceVariable thrown;
     private final ReferenceVariable caught;
-    private final Set<IClass> notType;
+    private final TypeFilter filter;
 
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
@@ -41,7 +41,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         super(m);
         this.thrown = thrown;
         this.caught = caught;
-        this.notType = notType;
+        this.filter = new TypeFilter(caught.getExpectedType(), notType);
+
     }
 
     @Override
@@ -57,15 +58,14 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(caught.getExpectedType());
-
-        return g.copyFilteredEdgesWithDelta(r, type, notType, l, delta);
+        return g.copyFilteredEdgesWithDelta(r, filter, l, delta);
 
     }
 
     @Override
     public String toString() {
-        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
+        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT "
+                                        + filter.notTypes
                                         + ")";
     }
 }

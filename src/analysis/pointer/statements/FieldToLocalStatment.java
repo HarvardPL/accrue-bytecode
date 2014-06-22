@@ -3,17 +3,16 @@ package analysis.pointer.statements;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
-import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -68,7 +67,7 @@ public class FieldToLocalStatment extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
         GraphDelta changed = new GraphDelta();
-        IClass type = AnalysisUtil.getClassHierarchy().lookupClass(left.getExpectedType());
+        TypeFilter filter = new TypeFilter(left.getExpectedType());
 
 
         if (delta == null) {
@@ -80,11 +79,11 @@ public class FieldToLocalStatment extends PointsToStatement {
             for (InstanceKey recHeapContext : s) {
                 ObjectField f = new ObjectField(recHeapContext, declaredField);
 
-                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, type);
+                Set<InstanceKey> fieldHCs = g.getPointsToSetFiltered(f, filter);
                 assert checkForNonEmpty(fieldHCs, f,
                                                 "FIELD filtered: " + PrettyPrinter.typeString(left.getExpectedType()));
 
-                GraphDelta d1 = g.copyFilteredEdges(f, type, left);
+                GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
                 changed = changed.combine(d1);
             }
         }
@@ -96,7 +95,7 @@ public class FieldToLocalStatment extends PointsToStatement {
                 ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
                                                 declaredField.getFieldType());
 
-                GraphDelta d1 = g.copyFilteredEdges(f, type, left); // no use of delta, as we want the
+                GraphDelta d1 = g.copyFilteredEdges(f, filter, left); // no use of delta, as we want the
                                                                                       // entire set!
                 changed = changed.combine(d1);
             }
