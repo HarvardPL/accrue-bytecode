@@ -128,16 +128,23 @@ public class PointsToGraph {
      */
     public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
         recordCopy(source, target);
-        
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-        Set<InstanceKey> srcPointsToSet = getOrCreatePointsToSet(source);
+        Iterator<InstanceKey> srcPointsToSetIter = getOrCreatePointsToSet(source).iterator();
 
         GraphDelta changed = new GraphDelta();
-        for (InstanceKey hc : srcPointsToSet) {
+
+        if (!srcPointsToSetIter.hasNext()) {
+            // empty source.
+            return changed;
+        }
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+
+        do {
+            InstanceKey hc = srcPointsToSetIter.next();
             if (trgPointsToSet.add(hc)) {
                 changed.add(target, hc);
             }
-        }
+        } while (srcPointsToSetIter.hasNext());
+
         return changed;
     }
 
@@ -151,35 +158,23 @@ public class PointsToGraph {
      */
     public GraphDelta copyFilteredEdges(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
         recordCopy(source, filter, target);
-
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-        Set<InstanceKey> srcPointsToSet = getOrCreatePointsToSet(source);
+        Iterator<InstanceKey> srcPointsToSetIter = new FilteredSet(getOrCreatePointsToSet(source), filter).iterator();
 
         GraphDelta changed = new GraphDelta();
-        for (InstanceKey hc : new FilteredSet(srcPointsToSet, filter)) {
+
+        if (!srcPointsToSetIter.hasNext()) {
+            // empty source.
+            return changed;
+        }
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+
+        do {
+            InstanceKey hc = srcPointsToSetIter.next();
             if (trgPointsToSet.add(hc)) {
                 changed.add(target, hc);
             }
-        }
-        return changed;
-    }
+        } while (srcPointsToSetIter.hasNext());
 
-
-    public GraphDelta copyFilteredEdgesWithDelta(PointsToGraphNode source, TypeFilter filter,
-                                    PointsToGraphNode target, GraphDelta delta) {
-        if (delta == null) {
-            return copyFilteredEdges(source, filter, target);
-        }
-
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-        Set<InstanceKey> srcPointsToSet = delta.getPointsToSet(source);
-
-        GraphDelta changed = new GraphDelta();
-        for (InstanceKey hc : new FilteredSet(srcPointsToSet, filter)) {
-            if (trgPointsToSet.add(hc)) {
-                changed.add(target, hc);
-            }
-        }
         return changed;
     }
 
@@ -189,15 +184,48 @@ public class PointsToGraph {
             return copyEdges(source, target);
         }
 
-        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
-        Set<InstanceKey> srcPointsToSet = delta.getPointsToSet(source);
+        Iterator<InstanceKey> srcPointsToSetIter = delta.getPointsToSet(source).iterator();
 
         GraphDelta changed = new GraphDelta();
-        for (InstanceKey hc : srcPointsToSet) {
+
+        if (!srcPointsToSetIter.hasNext()) {
+            // empty source.
+            return changed;
+        }
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+
+        do {
+            InstanceKey hc = srcPointsToSetIter.next();
             if (trgPointsToSet.add(hc)) {
                 changed.add(target, hc);
             }
+        } while (srcPointsToSetIter.hasNext());
+
+        return changed;
+    }
+
+    public GraphDelta copyFilteredEdgesWithDelta(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target,
+                                    GraphDelta delta) {
+        if (delta == null) {
+            return copyFilteredEdges(source, filter, target);
         }
+        Iterator<InstanceKey> srcPointsToSetIter = new FilteredSet(delta.getPointsToSet(source), filter).iterator();
+
+        GraphDelta changed = new GraphDelta();
+
+        if (!srcPointsToSetIter.hasNext()) {
+            // empty source.
+            return changed;
+        }
+        Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
+
+        do {
+            InstanceKey hc = srcPointsToSetIter.next();
+            if (trgPointsToSet.add(hc)) {
+                changed.add(target, hc);
+            }
+        } while (srcPointsToSetIter.hasNext());
+
         return changed;
     }
 
@@ -254,12 +282,7 @@ public class PointsToGraph {
      */
     public Set<InstanceKey> getPointsToSetFiltered(PointsToGraphNode node, TypeFilter filter) {
         recordRead(node);
-        Set<InstanceKey> s = this.getPointsToSet(node);
-        if (s.isEmpty()) {
-            return s;
-        }
-
-        return new FilteredSet(s, filter);
+        return new FilteredSet(this.getPointsToSet(node), filter);
     }
 
     public Set<InstanceKey> getPointsToSetFilteredWithDelta(PointsToGraphNode node, TypeFilter filter, GraphDelta delta) {
@@ -267,12 +290,7 @@ public class PointsToGraph {
             return this.getPointsToSetFiltered(node, filter);
         }
 
-        Set<InstanceKey> s = delta.getPointsToSet(node);
-
-        if (s.isEmpty()) {
-            return s;
-        }
-        return new FilteredSet(s, filter);
+        return new FilteredSet(delta.getPointsToSet(node), filter);
     }
 
     /**
