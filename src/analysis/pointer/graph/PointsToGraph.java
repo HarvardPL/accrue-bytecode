@@ -155,7 +155,6 @@ public class PointsToGraph {
         if (delta == null) {
             return copyFilteredEdges(source, filter, target);
         }
-        recordCopy(source, filter, target);
 
         Set<InstanceKey> trgPointsToSet = getOrCreatePointsToSet(target);
         Set<InstanceKey> srcPointsToSet = delta.getPointsToSet(source);
@@ -225,7 +224,6 @@ public class PointsToGraph {
             return this.getPointsToSet(node);
         }
 
-        recordRead(node);
         return delta.getPointsToSet(node);
     }
 
@@ -253,8 +251,6 @@ public class PointsToGraph {
         if (delta == null) {
             return this.getPointsToSetFiltered(node, filter);
         }
-
-        recordRead(node);
 
         Set<InstanceKey> s = delta.getPointsToSet(node);
 
@@ -482,12 +478,7 @@ public class PointsToGraph {
     }
 
     private void recordCopy(PointsToGraphNode source, PointsToGraphNode target) {
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s = this.copies.get(source);
-        if (s == null) {
-            s = new LinkedHashSet<>();
-            this.copies.put(source, s);
-        }
-        s.add(new OrderedPair<PointsToGraphNode, TypeFilter>(target, null));
+        recordCopy(source, null, target);
     }
 
     private void recordCopy(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
