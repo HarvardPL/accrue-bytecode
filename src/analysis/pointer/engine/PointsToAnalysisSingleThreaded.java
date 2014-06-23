@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 import util.OrderedPair;
@@ -118,6 +119,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
 
+        Random rnd = new Random(1636);
         LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue = new LinkedList<>();
 
         // Add initial contexts
@@ -127,12 +129,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        GraphDelta accumulatedChanges = new GraphDelta();
+        int front = 0;
+        int back = 0;
         int numProcessed = 0;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
-            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeFirst();
+            OrderedPair<StmtAndContext, GraphDelta> next;
+            if (queue.size() < 10000 && rnd.nextInt(10000) == 0) {
+                next = queue.removeFirst();
+                front++;
+            }
+            else {
+                next = queue.removeLast();
+                back++;
+            }
             StmtAndContext sac = next.fst();
             GraphDelta delta = next.snd();
             incrementCounter(sac);
@@ -150,9 +161,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 System.err.println("PROCESSED: " + numProcessed
                                                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
                                                 + (System.currentTimeMillis() - startTime) / 1000 + "s;  graph is "
-                                                + g.getNodes().size() + " nodes");
+                                                + g.getNodes().size() + " nodes; queue is " + queue.size()
+                                                + "; front / back = " + front + " / " + back + " = "
+                                                + ((float) front / back));
+                front = back = 0;
             }
-
         }
 
         long endTime = System.currentTimeMillis();
@@ -245,7 +258,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return changed;
     }
 
-    private void handleChanges(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta initialChanges, PointsToGraph g) {
+    private void handleChanges(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta initialChanges,
+                                    PointsToGraph g) {
+        // handleChangesMassiveDelta(queue, initialChanges, g);
+        handleChangesSmallDeltas(queue, initialChanges, g);
+    }
+    private void handleChangesMassiveDelta(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+                                    GraphDelta initialChanges, PointsToGraph g) {
         // First, we will handle the copy dependencies, and build up one massive delta to use for all of the interesting
         // dependencies.
         GraphDelta massiveDelta = new GraphDelta();
@@ -289,45 +308,48 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 queue.addLast(new OrderedPair<>(depsac, massiveDelta));
             }
         }
+    }
 
-        // // First, we will make our own workqueue for changes.
-        // WorkQueue<GraphDelta> changesQ = new WorkQueue<>();
-        // changesQ.add(initialChanges);
-        //
-        // while (!changesQ.isEmpty()) {
-        // GraphDelta changes = changesQ.poll();
-        //
-        // // First, let's handle the copy dependencies.
-        // for (PointsToGraphNode src : changes.domain()) {
-        // Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
-        // if (m != null) {
-        // for (PointsToGraphNode trg : m.keySet()) {
-        // for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
-        // TypeFilter filter = p.fst();
-        // GraphDelta newChanges;
-        // if (filter == null) {
-        // newChanges = g.copyEdgesWithDelta(src, trg, changes);
-        // }
-        // else {
-        // newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg,
-        // changes);
-        // }
-        // if (!newChanges.isEmpty()) {
-        // changesQ.add(newChanges);
-        // }
-        // }
-        // }
-        // }
-        // }
-        //
-        // // Now, let's handle the interesting dependencies.
-        // for (PointsToGraphNode n : changes.domain()) {
-        // for (StmtAndContext depsac : getInterestingDependencies(n)) {
-        // queue.addLast(new OrderedPair<>(depsac, changes));
-        // }
-        // }
-        //
-        // }
+    private void handleChangesSmallDeltas(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+                                    GraphDelta initialChanges, PointsToGraph g) {
+        // In this approach, we will create many small deltas, one for each copy.
+
+        // Do a work queue to handle all the copy dependencies.
+        ArrayList<GraphDelta> changesQ = new ArrayList<>();
+        changesQ.add(initialChanges);
+
+        while (!changesQ.isEmpty()) {
+            GraphDelta changes = changesQ.remove(changesQ.size() - 1);
+
+            // Find the interesting dependencies for changes.
+            for (PointsToGraphNode n : changes.domain()) {
+                for (StmtAndContext depsac : getInterestingDependencies(n)) {
+                    queue.addLast(new OrderedPair<>(depsac, changes));
+                }
+            }
+
+            // Now copy the changes, using copy dependencies...
+            for (PointsToGraphNode src : changes.domain()) {
+                Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
+                if (m != null) {
+                    for (PointsToGraphNode trg : m.keySet()) {
+                        for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
+                            TypeFilter filter = p.fst();
+                            GraphDelta newChanges;
+                            if (filter == null) {
+                                newChanges = g.copyEdgesWithDelta(src, trg, changes);
+                            }
+                            else {
+                                newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg, changes);
+                            }
+                            if (!newChanges.isEmpty()) {
+                                changesQ.add(newChanges);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
