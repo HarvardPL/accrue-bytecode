@@ -107,7 +107,7 @@ public class GraphDelta {
             visited.add(new OrderedPair<>(b, (TypeFilter) null));
         }
         for (PointsToGraphNode b : baseCases) {
-            addBaseForChildrenOf(b, visited);
+            addBaseForChildrenOf(b, this.newBase.get(b), visited);
         }
 
         // handle the copy edges
@@ -133,9 +133,9 @@ public class GraphDelta {
     }
 
     /*
-     * Add the "children" of b to the base set.
+     * Make the immediate supersets of b point to s (filtering appropriately)
      */
-    private void addBaseForChildrenOf(PointsToGraphNode b, 
+    private void addBaseForChildrenOf(PointsToGraphNode b, Set<InstanceKey> s,
                                     Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited) {
         for (OrderedPair<PointsToGraphNode, TypeFilter> child : this.g.immediateSuperSetsOf(b)) {
             if (visited.contains(child)
@@ -147,23 +147,16 @@ public class GraphDelta {
 
             visited.add(child);
 
+            PointsToGraphNode childNode = child.fst();
             TypeFilter filter = child.snd();
             // use filter to filter the elements.
-            Set<InstanceKey> newSet = new LinkedHashSet<>();
-            Set<InstanceKey> existingSet = this.newBase.get(child.fst());
-            if (existingSet != null) {
-                newSet.addAll(existingSet);
-            }
-            if (filter == null) {
-                newSet.addAll(this.newBase.get(b));                
-            }
-            else {
-                newSet.addAll(new PointsToGraph.FilteredSet(this.newBase.get(b), filter));                                
-            }
-            this.newBase.put(child.fst(), newSet);
+            Set<InstanceKey> childS = filter == null ? s : new PointsToGraph.FilteredSet(s, filter);
 
-            // now handle the recursive case
-            addBaseForChildrenOf(child.fst(), visited);
+            Set<InstanceKey> baseForChild = getOrCreateBaseSet(childNode);
+            if (baseForChild.addAll(childS)) {
+                // we actually added something, so recurse.
+                addBaseForChildrenOf(child.fst(), childS, visited);
+            }
         }
     }
 
