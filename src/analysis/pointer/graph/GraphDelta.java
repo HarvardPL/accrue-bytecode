@@ -33,11 +33,10 @@ public class GraphDelta {
         this.getOrCreateSet(src).add(trg);
     }
 
-    @SuppressWarnings("unchecked")
     public Set<InstanceKey> getPointsToSet(PointsToGraphNode node) {
         Set<InstanceKey> s = this.map.get(node);
         if (s == null) {
-            return Collections.EMPTY_SET;
+            return Collections.emptySet();
         }
         return s;
     }

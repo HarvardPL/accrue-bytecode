@@ -48,7 +48,7 @@ public class PointsToGraph {
     /**
      * The contexts that a method may appear in.
      */
-    private final Map<IMethod, Set<Context>> contexts = new LinkedHashMap();
+    private final Map<IMethod, Set<Context>> contexts = new LinkedHashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static initializers).
@@ -369,7 +369,7 @@ public class PointsToGraph {
         return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contexts);
     }
 
-    private static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
+    static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
         Set<T> set = map.get(key);
         if (set == null) {
             set = new LinkedHashSet<>();
@@ -546,7 +546,7 @@ public class PointsToGraph {
             s = new LinkedHashSet<>();
             this.copies.put(source, s);
         }
-        s.add(new OrderedPair<PointsToGraphNode, TypeFilter>(target, filter));
+        s.add(new OrderedPair<>(target, filter));
     }
 
     public void setOutputLevel(int outputLevel) {
@@ -709,8 +709,12 @@ public class PointsToGraph {
         /**
          * Map from concrete classes to non-empty sets of that class.
          */
-        private final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
+        final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
 
+
+        public PointsToSet() {
+            // TODO Auto-generated constructor stub
+        }
 
         @Override
         public int size() {
@@ -797,13 +801,14 @@ public class PointsToGraph {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public boolean equals(Object o) {
             if (o == this)
                 return true;
 
             if (!(o instanceof Set))
                 return false;
-            Collection c = (Collection) o;
+            Collection<?> c = (Collection<?>) o;
             if (c.size() != size())
                 return false;
             try {
@@ -817,6 +822,7 @@ public class PointsToGraph {
             }
         }
 
+        @Override
         public int hashCode() {
             int h = 0;
             Iterator<InstanceKey> i = iterator();
@@ -828,6 +834,7 @@ public class PointsToGraph {
             return h;
         }
 
+        @Override
         public String toString() {
             Iterator<InstanceKey> it = iterator();
             if (!it.hasNext())

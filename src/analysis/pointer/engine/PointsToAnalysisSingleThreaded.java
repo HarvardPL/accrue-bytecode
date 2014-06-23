@@ -36,7 +36,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies = new HashMap<PointsToGraphNode, Set<StmtAndContext>>();
+    private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies = new HashMap<>();
 
     /**
      * A copy dependency from node n to node m exists when a modification to the pointstoset of n (i.e., if n changes to
@@ -263,6 +263,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // handleChangesMassiveDelta(queue, initialChanges, g);
         handleChangesSmallDeltas(queue, initialChanges, g);
     }
+
+    @SuppressWarnings("unused")
     private void handleChangesMassiveDelta(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
                                     GraphDelta initialChanges, PointsToGraph g) {
         // First, we will handle the copy dependencies, and build up one massive delta to use for all of the interesting
@@ -386,7 +388,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             for (Context c : g.getContexts(s.getMethod())) {
                 GraphDelta d = s.process(c, haf, g, null, registrar);
                 if (d == null) {
-                    System.err.println("s returned null " + s.getClass() + " : " + s);
+                    throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
                 }
                 changed |= !d.isEmpty();
                 if (!d.isEmpty()) {
