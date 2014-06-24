@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -22,11 +24,11 @@ public class LocalToArrayStatement extends PointsToStatement {
     /**
      * Array assigned into
      */
-    private final ReferenceVariable array;
+    private ReferenceVariable array;
     /**
      * Value inserted into array
      */
-    private final ReferenceVariable value;
+    private ReferenceVariable value;
     /**
      * Type of array elements
      */
@@ -75,5 +77,28 @@ public class LocalToArrayStatement extends PointsToStatement {
     @Override
     public String toString() {
         return array + "." + PointsToGraph.ARRAY_CONTENTS + " = " + value;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return null;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        List<ReferenceVariable> uses = new ArrayList<>(2);
+        uses.add(array);
+        uses.add(value);
+        return uses;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0 || useNumber == 1;
+        if (useNumber == 0) {
+            array = newVariable;
+            return;
+        }
+        value = newVariable;
     }
 }

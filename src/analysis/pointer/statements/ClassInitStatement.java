@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -68,5 +70,20 @@ public class ClassInitStatement extends PointsToStatement {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        throw new UnsupportedOperationException("ClassInitStatement has no uses");
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return null;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.emptyList();
     }
 }

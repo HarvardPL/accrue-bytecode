@@ -1,5 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
+
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -21,16 +24,16 @@ import com.ibm.wala.types.TypeReference;
 public class ArrayToLocalStatement extends PointsToStatement {
 
     private final ReferenceVariable value;
-    private final ReferenceVariable array;
+    private ReferenceVariable array;
     private final TypeReference baseType;
 
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i]
      * 
      * @param v
-     *            Points-to graph node for the assignee
+     *            variable being assigned into
      * @param a
-     *            Points-to graph node for the array being accessed
+     *            variable for the array being accessed
      * @param baseType
      *            base type of the array
      * @param m
@@ -69,5 +72,21 @@ public class ArrayToLocalStatement extends PointsToStatement {
     @Override
     public String toString() {
         return value + " = " + array + "." + PointsToGraph.ARRAY_CONTENTS;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        array = newVariable;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return value;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(array);
     }
 }

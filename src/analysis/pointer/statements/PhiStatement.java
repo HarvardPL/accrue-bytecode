@@ -73,4 +73,20 @@ public class PhiStatement extends PointsToStatement {
         s.append(uses.get(uses.size() - 1) + ")");
         return s.toString();
     }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber < uses.size() && useNumber >= 0;
+        uses.set(useNumber, newVariable);
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return uses;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return assignee;
+    }
 }

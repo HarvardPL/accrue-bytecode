@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -28,7 +29,7 @@ public class SpecialCallStatement extends CallStatement {
     /**
      * Receiver of the call
      */
-    private final ReferenceVariable receiver;
+    private ReferenceVariable receiver;
     /**
      * summary nodes for formals and exits of the callee
      */
@@ -87,5 +88,33 @@ public class SpecialCallStatement extends CallStatement {
         s.append("invokespecial " + PrettyPrinter.methodString(callee));
 
         return s.toString();
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber <= getActuals().size() && useNumber >= 0;
+        if (useNumber == 0) {
+            receiver = newVariable;
+            return;
+        }
+        replaceActual(useNumber - 1, newVariable);
+    }
+
+    /**
+     * Variable for receiver followed by variables for arguments in order
+     * 
+     * {@inheritDoc}
+     */
+    @Override
+    public List<ReferenceVariable> getUses() {
+        List<ReferenceVariable> uses = new ArrayList<>(getActuals().size() + 1);
+        uses.add(receiver);
+        uses.addAll(getActuals());
+        return uses;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return getResult();
     }
 }

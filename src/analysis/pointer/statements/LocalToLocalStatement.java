@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -25,7 +27,7 @@ public class LocalToLocalStatement extends PointsToStatement {
     /**
      * assigned
      */
-    private final ReferenceVariable right;
+    private ReferenceVariable right;
 
     /**
      * Statement for a local assignment, left = right
@@ -58,5 +60,21 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public String toString() {
         return left + " = " + right;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        right = newVariable;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(right);
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return left;
     }
 }

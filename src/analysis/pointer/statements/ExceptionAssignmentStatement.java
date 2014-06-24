@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
@@ -17,7 +19,7 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
-    private final ReferenceVariable thrown;
+    private ReferenceVariable thrown;
     private final ReferenceVariable caught;
     private final Set<IClass> notType;
 
@@ -65,5 +67,27 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public String toString() {
         return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
                                         + ")";
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        thrown = newVariable;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        // Not really a local variable definition as it violates SSA invariant if there is more than one exception that
+        // reaches this catch block
+        return null;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(thrown);
+    }
+
+    public Set<IClass> getNotType() {
+        return notType;
     }
 }

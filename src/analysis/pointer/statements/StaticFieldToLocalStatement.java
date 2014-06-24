@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -60,5 +62,20 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     @Override
     public String toString() {
         return local + " = " + staticField;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        throw new UnsupportedOperationException("StaticFieldToLocal has no replacable uses");
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return local;
     }
 }

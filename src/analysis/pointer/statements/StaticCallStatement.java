@@ -70,4 +70,19 @@ public class StaticCallStatement extends CallStatement {
 
         return s.toString();
     }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        replaceActual(useNumber, newVariable);
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return getActuals();
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return getResult();
+    }
 }

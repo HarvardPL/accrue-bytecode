@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
@@ -28,7 +30,7 @@ public class FieldToLocalStatment extends PointsToStatement {
     /**
      * receiver of field access
      */
-    private final ReferenceVariable receiver;
+    private ReferenceVariable receiver;
     /**
      * local assigned into
      */
@@ -78,5 +80,21 @@ public class FieldToLocalStatment extends PointsToStatement {
         }
 
         return changed;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return assignee;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(receiver);
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        receiver = newVariable;
     }
 }
