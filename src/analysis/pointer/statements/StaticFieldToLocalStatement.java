@@ -64,6 +64,15 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         return local + " = " + staticField;
     }
 
+    /**
+     * Reference variable for the static field being accessed
+     * 
+     * @return variable for the static field
+     */
+    public ReferenceVariable getStaticField() {
+        return staticField;
+    }
+
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
         throw new UnsupportedOperationException("StaticFieldToLocal has no replacable uses");
