@@ -104,9 +104,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         WorkQueue<StmtAndContext> q = new WorkQueue<>();
 
         // Add initial contexts
-        for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getMethod())) {
-                q.add(new StmtAndContext(s, c));
+        for (IMethod m : registrar.getInitialContextMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    q.add(new StmtAndContext(s, c));
+                }
             }
         }
 
@@ -252,9 +254,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
-        for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getMethod())) {
-                changed |= s.process(c, haf, g, registrar);
+        for (IMethod m : registrar.getRegisteredMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    changed |= s.process(c, haf, g, registrar);
+                }
             }
         }
         return changed;

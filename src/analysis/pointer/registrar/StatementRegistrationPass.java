@@ -112,7 +112,7 @@ public class StatementRegistrationPass {
             registrar.handle(info);
         }
         if (PointsToAnalysis.outputLevel >= 1) {
-            System.err.println("Registered " + registrar.getAllStatements().size() + " statements.");
+            System.err.println("Registered " + registrar.size() + " statements.");
             System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
         }
         if (PROFILE) {

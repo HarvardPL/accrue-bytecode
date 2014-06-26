@@ -119,6 +119,10 @@ public class RemoveDuplicateStatements {
     public static Set<PointsToStatement> removeDuplicates(Set<PointsToStatement> statements) {
         long startTime = System.currentTimeMillis();
         int startSize = statements.size();
+        System.err.println("BEFORE:");
+        for (PointsToStatement s : statements) {
+            System.err.println(s);
+        }
         RemoveDuplicateStatements analysis = new RemoveDuplicateStatements(statements);
         analysis.initializeIndices();
 
@@ -130,6 +134,10 @@ public class RemoveDuplicateStatements {
             changed |= analysis.handleArrayToLocal();
             changed |= analysis.handleStaticFieldToLocal();
             changed |= analysis.handleCall();
+        }
+        System.err.println("AFTER:");
+        for (PointsToStatement s : statements) {
+            System.err.println(s);
         }
         System.err.println("Finished removing " + (startSize - analysis.allStatements.size()) + " duplicates: "
                                         + (System.currentTimeMillis() - startTime) + "ms");
@@ -188,6 +196,8 @@ public class RemoveDuplicateStatements {
                 }
 
                 if (s1.getStaticField().equals(s2.getStaticField()) && s1.getUses().equals(s2.getUses())) {
+                    System.err.println("REMOVING " + s2);
+                    System.err.println("\tREPLACING WITH " + s1);
                     changed = true;
                     this.staticFieldToLocals.set(j, null);
                     this.allStatements.remove(s2);
@@ -218,6 +228,8 @@ public class RemoveDuplicateStatements {
                 }
 
                 if (s1.getUses().equals(s2.getUses())) {
+                    System.err.println("REMOVING " + s2);
+                    System.err.println("\tREPLACING WITH " + s1);
                     changed = true;
                     this.arrayToLocals.set(j, null);
                     this.allStatements.remove(s2);
@@ -250,6 +262,8 @@ public class RemoveDuplicateStatements {
                 Set<ReferenceVariable> uses1 = new HashSet<>(s1.getUses());
                 Set<ReferenceVariable> uses2 = new HashSet<>(s2.getUses());
                 if (uses1.containsAll(uses2) && uses2.containsAll(uses1)) {
+                    System.err.println("REMOVING " + s2);
+                    System.err.println("\tREPLACING WITH " + s1);
                     changed = true;
                     this.phiStatements.set(j, null);
                     this.allStatements.remove(s2);
@@ -280,6 +294,8 @@ public class RemoveDuplicateStatements {
                 }
 
                 if (s1.getUses().equals(s2.getUses())) {
+                    System.err.println("REMOVING " + s2);
+                    System.err.println("\tREPLACING WITH " + s1);
                     changed = true;
                     this.fieldToLocals.set(j, null);
                     this.allStatements.remove(s2);

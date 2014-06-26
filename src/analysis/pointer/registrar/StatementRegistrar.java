@@ -59,10 +59,6 @@ import com.ibm.wala.types.TypeReference;
 public final class StatementRegistrar {
 
     /**
-     * Set of all points-to statements
-     */
-    private final Set<PointsToStatement> statements;
-    /**
      * Map from method signature to nodes representing formals and returns
      */
     private final Map<IMethod, MethodSummaryNodes> methods;
@@ -102,7 +98,6 @@ public final class StatementRegistrar {
      * points-to graph.
      */
     public StatementRegistrar() {
-        this.statements = new LinkedHashSet<>();
         this.methods = new LinkedHashMap<>();
         this.statementsForMethod = new HashMap<>();
         this.singletonExceptions = new HashMap<>();
@@ -656,15 +651,6 @@ public final class StatementRegistrar {
     }
 
     /**
-     * Get all points-to statements
-     * 
-     * @return set of all statements
-     */
-    public Set<PointsToStatement> getAllStatements() {
-        return statements;
-    }
-
-    /**
      * Get all methods that should be analyzed in the initial empty context
      * 
      * @return set of methods
@@ -674,6 +660,7 @@ public final class StatementRegistrar {
         ret.add(entryPoint);
         return ret;
     }
+
 
     /**
      * If this is a static or special call then we know statically what the target of the call is and can therefore
@@ -719,19 +706,19 @@ public final class StatementRegistrar {
      *            statement to add
      */
     private void addStatement(PointsToStatement s) {
-        assert !statements.contains(s) : "STATEMENT: " + s + " was already added";
 
-        statements.add(s);
         IMethod m = s.getMethod();
         Set<PointsToStatement> ss = statementsForMethod.get(m);
         if (ss == null) {
             ss = new LinkedHashSet<>();
             statementsForMethod.put(m, ss);
         }
+        assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         ss.add(s);
 
-        if (statements.size() % 10000 == 0) {
-            System.err.println("REGISTERED: " + statements.size());
+        int num = size();
+        if (num % 10000 == 0) {
+            System.err.println("REGISTERED: " + num);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
@@ -741,6 +728,19 @@ public final class StatementRegistrar {
             // }
             // }
         }
+    }
+
+    /**
+     * Get the number of statements in the registrar
+     * 
+     * @return number of registered statements
+     */
+    public int size() {
+        int total = 0;
+        for (IMethod m : statementsForMethod.keySet()) {
+            total += statementsForMethod.get(m).size();
+        }
+        return total;
     }
 
     /**
@@ -757,6 +757,15 @@ public final class StatementRegistrar {
 
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Set of all methods that have been registered
+     * 
+     * @return set of methods
+     */
+    public Set<IMethod> getRegisteredMethods() {
+        return statementsForMethod.keySet();
     }
 
     /**
