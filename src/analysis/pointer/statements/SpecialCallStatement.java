@@ -87,6 +87,21 @@ public class SpecialCallStatement extends CallStatement {
         }
         s.append("invokespecial " + PrettyPrinter.methodString(callee));
 
+        s.append(" -- ");
+        s.append(receiver);
+        s.append(".");
+        s.append(callee.getName());
+        s.append("(");
+        List<ReferenceVariable> actuals = getActuals();
+        if (getActuals().size() > 1) {
+            s.append(actuals.get(1));
+        }
+        for (int j = 2; j < actuals.size(); j++) {
+            s.append(", ");
+            s.append(actuals.get(j));
+        }
+        s.append(")");
+
         return s.toString();
     }
 

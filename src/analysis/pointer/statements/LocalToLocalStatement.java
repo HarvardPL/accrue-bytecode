@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -59,7 +60,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return left + " = " + right;
+        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType()) + ") " + right;
     }
 
     @Override
