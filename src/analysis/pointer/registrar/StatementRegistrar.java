@@ -172,7 +172,8 @@ public final class StatementRegistrar {
             try (Writer writer = new StringWriter()) {
                 PrettyPrinter.writeIR(ir, writer, "\t", "\n");
                 System.err.print(writer.toString());
-            } catch (IOException e) {
+            }
+            catch (IOException e) {
                 throw new RuntimeException();
             }
         }
@@ -343,7 +344,7 @@ public final class StatementRegistrar {
     private void registerGetField(SSAGetInstruction i, IR ir, ReferenceVariableFactory rvFactory, TypeRepository types,
                                     PrettyPrinter pp) {
         TypeReference resultType = i.getDeclaredFieldType();
-        // TODO If the class can't be found then WALA set the type to object (why can't it be found?)
+        // TODO If the class can't be found then WALA sets the type to object (why can't it be found?)
         assert resultType.getName().equals(types.getType(i.getDef()).getName())
                                         || types.getType(i.getDef()).equals(TypeReference.JavaLangObject);
         if (resultType.isPrimitiveType()) {
@@ -438,7 +439,8 @@ public final class StatementRegistrar {
             TypeReference actualType = types.getType(i.getUse(j));
             if (actualType.isPrimitiveType()) {
                 actuals.add(null);
-            } else {
+            }
+            else {
                 actuals.add(rvFactory.getOrCreateLocal(i.getUse(j), actualType, ir.getMethod(), pp));
             }
         }
@@ -484,14 +486,16 @@ public final class StatementRegistrar {
             MethodSummaryNodes calleeSummary = findOrCreateMethodSummary(resolvedCallee, rvFactory);
             addStatement(StatementFactory.staticCall(i.getCallSite(), ir.getMethod(), resolvedCallee, result, actuals,
                                             exception, calleeSummary));
-        } else if (i.isSpecial()) {
+        }
+        else if (i.isSpecial()) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = findOrCreateMethodSummary(resolvedCallee, rvFactory);
             addStatement(StatementFactory.specialCall(i.getCallSite(), ir.getMethod(), resolvedCallee, result,
                                             receiver, actuals, exception, calleeSummary));
-        } else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
+        }
+        else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             if (ir.getSymbolTable().isNullConstant(i.getReceiver())) {
                 // Similar to the check above sometimes the receiver is a null constant
@@ -499,7 +503,8 @@ public final class StatementRegistrar {
             }
             addStatement(StatementFactory.virtualCall(i.getCallSite(), ir.getMethod(), i.getDeclaredTarget(), result,
                                             receiver, actuals, exception, rvFactory));
-        } else {
+        }
+        else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
                                             + PrettyPrinter.methodString(i.getDeclaredTarget()));
         }
@@ -661,7 +666,6 @@ public final class StatementRegistrar {
         return ret;
     }
 
-
     /**
      * If this is a static or special call then we know statically what the target of the call is and can therefore
      * resolve the method statically. If it is virtual then we need to add statements for all possible run time method
@@ -679,15 +683,18 @@ public final class StatementRegistrar {
             if (resolvedMethod != null) {
                 targets = Collections.singleton(resolvedMethod);
             }
-        } else if (inv.isSpecial()) {
+        }
+        else if (inv.isSpecial()) {
             IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
             if (resolvedMethod != null) {
                 targets = Collections.singleton(resolvedMethod);
             }
-        } else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
+        }
+        else if (inv.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                                         || inv.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             targets = AnalysisUtil.getClassHierarchy().getPossibleTargets(inv.getDeclaredTarget());
-        } else {
+        }
+        else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + inv.getInvocationCode() + " for "
                                             + PrettyPrinter.methodString(inv.getDeclaredTarget()));
         }
@@ -757,6 +764,18 @@ public final class StatementRegistrar {
 
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Imperatively update the registrar, replacing the existing set of points-to statements with the given set.
+     * 
+     * @param m
+     *            method to replace the statements for
+     * @param ss
+     *            new set of points-to statements
+     */
+    public void replaceStatementsForMethod(IMethod m, Set<PointsToStatement> ss) {
+        statementsForMethod.put(m, ss);
     }
 
     /**
@@ -853,7 +872,8 @@ public final class StatementRegistrar {
                     addStatement(StatementFactory.newForGeneratedException(ex, exClass, ir.getMethod()));
                     singletonExceptions.put(type, ex);
                 }
-            } else {
+            }
+            else {
                 ex = rvFactory.createImplicitExceptionNode(ImplicitEx.fromType(exType), bb.getNumber(), ir.getMethod());
 
                 IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
@@ -882,9 +902,9 @@ public final class StatementRegistrar {
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ReferenceVariable thrown,
                                     ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pp) {
-        
+
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
-        
+
         Set<IClass> notType = new LinkedHashSet<>();
         for (ISSABasicBlock succ : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
             ReferenceVariable caught;
@@ -923,7 +943,8 @@ public final class StatementRegistrar {
 
                 // Add this exception to the set of types that have already been caught
                 notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtType));
-            } else {
+            }
+            else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
                 notType.add(AnalysisUtil.getErrorClass());
@@ -985,7 +1006,8 @@ public final class StatementRegistrar {
                 registerAllocationForNative(m, exType, ex);
                 containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
             }
-        } catch (UnsupportedOperationException | InvalidClassFileException e) {
+        }
+        catch (UnsupportedOperationException | InvalidClassFileException e) {
             throw new RuntimeException(e);
         }
         // All methods can throw a RuntimeException
