@@ -27,8 +27,8 @@ public class GraphDelta {
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
-        this.newBase = new LinkedHashMap<>();
-        this.newIsSupersetOfRelations = new LinkedHashMap<>();
+        newBase = new LinkedHashMap<>();
+        newIsSupersetOfRelations = new LinkedHashMap<>();
     }
 
     private Set<InstanceKey> getOrCreateBaseSet(PointsToGraphNode src) {
@@ -40,8 +40,10 @@ public class GraphDelta {
         return s;
     }
 
-    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSupersetSet(PointsToGraphNode src) {
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s = newIsSupersetOfRelations.get(src);
+    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSupersetSet(
+            PointsToGraphNode src) {
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> s =
+                newIsSupersetOfRelations.get(src);
         if (s == null) {
             s = new LinkedHashSet<>();
             newIsSupersetOfRelations.put(src, s);
@@ -53,94 +55,70 @@ public class GraphDelta {
         if (performedDomainClosure) {
             throw new IllegalStateException("Already closed domains");
         }
-        this.getOrCreateBaseSet(src).add(trg);
+        getOrCreateBaseSet(src).add(trg);
     }
 
-    public void addCopyEdges(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
+    public void addCopyEdges(PointsToGraphNode source, TypeFilter filter,
+            PointsToGraphNode target) {
         if (performedDomainClosure) {
             throw new IllegalStateException("Already closed domains");
         }
-        this.getOrCreateSupersetSet(target).add(new OrderedPair<>(source, filter));
+        getOrCreateSupersetSet(target).add(new OrderedPair<>(source, filter));
     }
 
-    public Set<PointsToGraphNode> domain() {
+    public Iterator<PointsToGraphNode> domainIterator() {
         if (!performedDomainClosure) {
             performDomainClosure();
         }
 
-        Set<PointsToGraphNode> domain = new LinkedHashSet<>();
-
-        domain.addAll(newBase.keySet());
-        domain.addAll(newIsSupersetOfRelations.keySet());
-        // // this is a tricky set to compute. It includes the domain of
-        // // newBase and newSupersetRelations, and also anything that is
-        // // a superset of those. (And we could be smarter, but lets try this).
-        // Set<PointsToGraphNode> reachable = new LinkedHashSet<>();
-        // Set<PointsToGraphNode> toVisitChildrenOf = new LinkedHashSet<>();
-        //
-        // reachable.addAll(newSupersetRelations.keySet());
-        // toVisitChildrenOf.addAll(newSupersetRelations.keySet());
-        // reachable.addAll(newBase.keySet());
-        // toVisitChildrenOf.addAll(newBase.keySet());
-        // while (!toVisitChildrenOf.isEmpty()) {
-        // Iterator<PointsToGraphNode> iter = toVisitChildrenOf.iterator();
-        // PointsToGraphNode n = iter.next();
-        // iter.remove();
-        // for (OrderedPair<PointsToGraphNode, TypeFilter> m : this.g.superSetsOf(n)) {
-        // if (reachable.add(m.fst())) {
-        // // we hadn't seen m before.
-        // toVisitChildrenOf.add(m.fst());
-        // }
-        // }
-        // }
-
-        return domain;
+        return new PointsToGraph.ComposedIterators<PointsToGraphNode>(newBase.keySet()
+                                                                             .iterator(),
+                                                                      newIsSupersetOfRelations.keySet()
+                                                                                              .iterator());
     }
 
     private void performDomainClosure() {
         performedDomainClosure = true;
 
         // handle the base elements
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited = new HashSet<>();
-        Set<PointsToGraphNode> baseCases = new LinkedHashSet<>(this.newBase.keySet());
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited =
+                new HashSet<>();
+        Set<PointsToGraphNode> baseCases =
+                new LinkedHashSet<>(newBase.keySet());
         for (PointsToGraphNode b : baseCases) {
             visited.add(new OrderedPair<>(b, (TypeFilter) null));
         }
         for (PointsToGraphNode b : baseCases) {
-            addBaseForChildrenOf(b, this.newBase.get(b), visited);
+            addBaseForChildrenOf(b, newBase.get(b), visited);
         }
 
         // handle the copy edges
         visited = new HashSet<>();
-        Set<PointsToGraphNode> supersetCases = new LinkedHashSet<>(this.newIsSupersetOfRelations.keySet());
+        Set<PointsToGraphNode> supersetCases =
+                new LinkedHashSet<>(newIsSupersetOfRelations.keySet());
         for (PointsToGraphNode b : supersetCases) {
             visited.add(new OrderedPair<>(b, (TypeFilter) null));
         }
         for (PointsToGraphNode b : supersetCases) {
-            addSuperSetForChildrenOf(b, visited);
+            addSuperSetForChildrenOf(b,
+                                     newIsSupersetOfRelations.get(b),
+                                     visited);
         }
-
-        // System.err.println("After closure: " + this);
-        //
-        // if (beforeBaseSize != this.newBase.keySet().size() || beforeSupSize !=
-        // this.newIsSupersetOfRelations.keySet().size()) {
-        // System.err.println((beforeBaseSize != this.newBase.keySet().size()) ? "CASE A" : "CASE B");
-        // System.err.println(" ****** " + beforeBaseSize + " =?= " + this.newBase.keySet().size() + " and "
-        // + beforeSupSize + " =?= " + this.newIsSupersetOfRelations.keySet().size());
-        // }
-
-
     }
 
     /*
      * Make the immediate supersets of b point to s (filtering appropriately)
      */
     private void addBaseForChildrenOf(PointsToGraphNode b, Set<InstanceKey> s,
-                                    Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited) {
-        for (OrderedPair<PointsToGraphNode, TypeFilter> child : this.g.immediateSuperSetsOf(b)) {
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited) {
+        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
+                g.immediateSuperSetsOf(b);
+        while (iter.hasNext()) {
+            OrderedPair<PointsToGraphNode, TypeFilter> child = iter.next();
             if (visited.contains(child)
-                                            || (child.snd() != null && visited.contains(new OrderedPair<>(child.fst(),
-                                                                            (TypeFilter) null)))) {
+                    || child.snd() != null
+                    && visited.contains(new OrderedPair<>(child.fst(),
+                                                          (TypeFilter) null))) {
                 // already handled child!
                 continue;
             }
@@ -150,7 +128,9 @@ public class GraphDelta {
             PointsToGraphNode childNode = child.fst();
             TypeFilter filter = child.snd();
             // use filter to filter the elements.
-            Set<InstanceKey> childS = filter == null ? s : new PointsToGraph.FilteredSet(s, filter);
+            Set<InstanceKey> childS =
+                    filter == null ? s : new PointsToGraph.FilteredSet(s,
+                                                                       filter);
 
             Set<InstanceKey> baseForChild = getOrCreateBaseSet(childNode);
             if (baseForChild.addAll(childS)) {
@@ -164,12 +144,17 @@ public class GraphDelta {
      * Add the "children" of b to the supersetof relation, using filter to filter the sets.
      */
     private void addSuperSetForChildrenOf(PointsToGraphNode b,
-                                    Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited) {
-        for (OrderedPair<PointsToGraphNode, TypeFilter> child : this.g.immediateSuperSetsOf(b)) {
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> set,
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited) {
+
+        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
+                g.immediateSuperSetsOf(b);
+        while (iter.hasNext()) {
+            OrderedPair<PointsToGraphNode, TypeFilter> child = iter.next();
             if (visited.contains(child)
-                                            || (child.snd() != null && visited.contains(new OrderedPair<>(
-                                                                            child.fst(),
-                                                                            (TypeFilter) null)))) {
+                    || child.snd() != null
+                    && visited.contains(new OrderedPair<>(child.fst(),
+                                                          (TypeFilter) null))) {
                 // already handled child!
                 continue;
             }
@@ -177,27 +162,31 @@ public class GraphDelta {
             visited.add(child);
             TypeFilter filter = child.snd();
 
-            Set<OrderedPair<PointsToGraphNode, TypeFilter>> newSet = new LinkedHashSet<>();
-            Set<OrderedPair<PointsToGraphNode, TypeFilter>> existingSet = this.newIsSupersetOfRelations
-                                            .get(child.fst());
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> newSet =
+                    new LinkedHashSet<>();
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> existingSet =
+                    newIsSupersetOfRelations.get(child.fst());
             if (existingSet != null) {
                 newSet.addAll(existingSet);
             }
 
-            for (OrderedPair<PointsToGraphNode, TypeFilter> p : this.newIsSupersetOfRelations.get(b)) {
+            for (OrderedPair<PointsToGraphNode, TypeFilter> p : set) {
                 // we need to add an appropriate version of p to newSet.
                 if (filter == null || filter.equals(p.snd())) {
                     newSet.add(p);
                 }
                 else {
-                    newSet.add(new OrderedPair<>(p.fst(), TypeFilter.compose(p.snd(), filter)));
+                    newSet.add(new OrderedPair<>(p.fst(),
+                                                 TypeFilter.compose(p.snd(),
+                                                                    filter)));
                 }
             }
 
-            this.newIsSupersetOfRelations.put(child.fst(), newSet);
+            newIsSupersetOfRelations.put(child.fst(), newSet);
 
             // now handle the recursive case
-            addSuperSetForChildrenOf(child.fst(), visited);
+            // XXX Possible improvements: check that the set is non-empty before recursing.        
+            addSuperSetForChildrenOf(child.fst(), newSet, visited);
         }
     }
 
@@ -210,10 +199,10 @@ public class GraphDelta {
     public GraphDelta combine(GraphDelta d) {
         if (d != null) {
             for (PointsToGraphNode src : d.newBase.keySet()) {
-                this.getOrCreateBaseSet(src).addAll(d.newBase.get(src));
+                getOrCreateBaseSet(src).addAll(d.newBase.get(src));
             }
             for (PointsToGraphNode src : d.newIsSupersetOfRelations.keySet()) {
-                this.getOrCreateSupersetSet(src).addAll(d.newIsSupersetOfRelations.get(src));
+                getOrCreateSupersetSet(src).addAll(d.newIsSupersetOfRelations.get(src));
             }
         }
         return this;
@@ -225,7 +214,8 @@ public class GraphDelta {
 
     @Override
     public String toString() {
-        return "GraphDelta [newBase=" + newBase + ", newIsSupersetOfRelations=" + newIsSupersetOfRelations + "]";
+        return "GraphDelta [newBase=" + newBase + ", newIsSupersetOfRelations="
+                + newIsSupersetOfRelations + "]";
     }
 
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
@@ -238,21 +228,22 @@ public class GraphDelta {
     public class DeltaPointsToIterator implements Iterator<InstanceKey> {
         private Iterator<InstanceKey> currentIterator;
         private Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> newSubsets;
-        private Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited = new HashSet<>();
+        private Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited =
+                new HashSet<>();
 
         public DeltaPointsToIterator(PointsToGraphNode n) {
-            this.alreadyVisited.add(new OrderedPair<>(n, (TypeFilter) null));
-            if (GraphDelta.this.newBase.containsKey(n)) {
-                this.currentIterator = GraphDelta.this.newBase.get(n).iterator();
+            alreadyVisited.add(new OrderedPair<>(n, (TypeFilter) null));
+            if (newBase.containsKey(n)) {
+                currentIterator = newBase.get(n).iterator();
             }
             else {
-                this.currentIterator = Collections.emptyIterator();
+                currentIterator = Collections.emptyIterator();
             }
-            if (GraphDelta.this.newIsSupersetOfRelations.containsKey(n)) {
-                this.newSubsets = GraphDelta.this.newIsSupersetOfRelations.get(n).iterator();
+            if (newIsSupersetOfRelations.containsKey(n)) {
+                newSubsets = newIsSupersetOfRelations.get(n).iterator();
             }
             else {
-                this.newSubsets = Collections.emptyIterator();
+                newSubsets = Collections.emptyIterator();
             }
         }
 
@@ -266,15 +257,20 @@ public class GraphDelta {
                     // no more subsets of n to examine.
                     return false;
                 }
-                OrderedPair<PointsToGraphNode, TypeFilter> s = newSubsets.next();
-                currentIterator = new PointsToGraph.PointsToIterator(g, s.fst(), s.snd(), alreadyVisited);
+                OrderedPair<PointsToGraphNode, TypeFilter> s =
+                        newSubsets.next();
+                currentIterator =
+                        new PointsToGraph.PointsToIterator(g,
+                                                           s.fst(),
+                                                           s.snd(),
+                                                           alreadyVisited);
                 alreadyVisited.add(s);
             }
         }
 
         @Override
         public InstanceKey next() {
-            if (this.hasNext()) {
+            if (hasNext()) {
                 return currentIterator.next();
             }
             throw new NoSuchElementException();

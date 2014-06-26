@@ -36,25 +36,26 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      * @param m
      *            method the exception is thrown in
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
-                                    IMethod m) {
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown,
+            ReferenceVariable caught, Set<IClass> notType, IMethod m) {
         super(m);
         this.thrown = thrown;
         this.caught = caught;
-        this.filter = new TypeFilter(caught.getExpectedType(), notType);
+        filter = TypeFilter.create(caught.getExpectedType(), notType);
 
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
         PointsToGraphNode r;
         if (thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
             r = new ReferenceVariableReplica(haf.initialContext(), thrown);
-        } else {
+        }
+        else {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
@@ -65,8 +66,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT "
-                                        + filter.notTypes
-                                        + ")";
+        return caught + " = " + thrown + " ("
+                + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT "
+                + filter.notTypes + ")";
     }
 }

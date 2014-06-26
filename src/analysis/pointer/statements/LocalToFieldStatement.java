@@ -49,19 +49,21 @@ public class LocalToFieldStatement extends PointsToStatement {
      * @param m
      *            method the points-to statement came from
      */
-    public LocalToFieldStatement(ReferenceVariable o, FieldReference f, ReferenceVariable v, IMethod m) {
+    public LocalToFieldStatement(ReferenceVariable o, FieldReference f,
+            ReferenceVariable v, IMethod m) {
         super(m);
-        this.field = f;
-        this.filter = new TypeFilter(f.getFieldType());
-        this.receiver = o;
-        this.assigned = v;
+        field = f;
+        filter = TypeFilter.create(f.getFieldType());
+        receiver = o;
+        assigned = v;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
-        PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
+        PointsToGraphNode local =
+                new ReferenceVariableReplica(context, assigned);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -95,6 +97,10 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return receiver + "." + (field != null ? field.getName() : PointsToGraph.ARRAY_CONTENTS) + " = " + assigned;
+        return receiver
+                + "."
+                + (field != null
+                        ? field.getName() : PointsToGraph.ARRAY_CONTENTS)
+                + " = " + assigned;
     }
 }

@@ -3,6 +3,7 @@ package analysis.pointer.engine;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
@@ -32,7 +33,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies = new HashMap<PointsToGraphNode, Set<StmtAndContext>>();
+    private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies =
+            new HashMap<PointsToGraphNode, Set<StmtAndContext>>();
 
     /**
      * Counters to detect infinite loops
@@ -100,26 +102,32 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            already be populated
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(StatementRegistrar registrar, boolean registerOnline) {
+    public PointsToGraph solveSmarter(StatementRegistrar registrar,
+            boolean registerOnline) {
         PointsToGraph g = new PointsToGraph(registrar, haf);
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
 
-        LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue = new LinkedList<>();
+        LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue =
+                new LinkedList<>();
 
         // Add initial contexts
         for (PointsToStatement s : registrar.getAllStatements()) {
             for (Context c : g.getContexts(s.getMethod())) {
-                queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s, c), null));
+                queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
+                                                                                             c),
+                                                                          null));
             }
         }
 
         GraphDelta accumulatedChanges = new GraphDelta(g);
         int numProcessed = 0;
+        long nextMilestone = startTime + 30 * 1000;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
-            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeFirst();
+//            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeFirst();
+            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeLast();
             StmtAndContext sac = next.fst();
             GraphDelta delta = next.snd();
             incrementCounter(sac);
@@ -128,24 +136,30 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 visited.add(sac);
             }
 
-
-            GraphDelta changed = processSaC(sac, delta, g, registrar, queue, registerOnline);
+            GraphDelta changed =
+                    processSaC(sac, delta, g, registrar, queue, registerOnline);
 
             handleChanges(queue, changed, g);
 
-            if (numProcessed % 100000 == 0) {
-                System.err.println("PROCESSED: " + numProcessed
-                                                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
-                                                + (System.currentTimeMillis() - startTime) / 1000 + "s;  graph is "
-                                                + g.getBaseNodes().size() + " base nodes");
+            long currTime = System.currentTimeMillis();
+            if (currTime > nextMilestone) {
+                nextMilestone = currTime + 1000 * 60; // 1 minute 
+                System.err.println("PROCESSED: "
+                        + numProcessed
+                        + (outputLevel >= 1 ? " (" + visited.size()
+                                + " unique)" : "") + " in "
+                        + (currTime - startTime) / 1000 + "s;  graph is "
+                        + g.getBaseNodes().size() + " base nodes"
+                        + "; queue is " + queue.size());
             }
 
         }
 
         long endTime = System.currentTimeMillis();
-        System.err.println("Processed " + numProcessed + " (statement, context) pairs"
-                                        + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + ". It took "
-                                        + (endTime - startTime) + "ms.");
+        System.err.println("Processed " + numProcessed
+                + " (statement, context) pairs"
+                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "")
+                + ". It took " + (endTime - startTime) + "ms.");
 
         processAllStatements(g, registrar);
         if (outputLevel >= 5) {
@@ -157,8 +171,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return g;
     }
 
-    private GraphDelta processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
-                                    LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, boolean registerOnline) {
+    private GraphDelta processSaC(StmtAndContext sac, GraphDelta delta,
+            PointsToGraph g, StatementRegistrar registrar,
+            LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+            boolean registerOnline) {
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
 
@@ -167,7 +183,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         GraphDelta changed = s.process(c, haf, g, delta, registrar);
 
-
         // Get the changes from the graph
         Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
         Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
@@ -175,7 +190,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // Add new contexts
         for (IMethod m : newContexts.keySet()) {
             if (outputLevel >= 4) {
-                System.err.println("\tNEW CONTEXTS for " + PrettyPrinter.methodString(m));
+                System.err.println("\tNEW CONTEXTS for "
+                        + PrettyPrinter.methodString(m));
                 for (Context context : newContexts.get(m)) {
                     System.err.println("\t" + context);
                 }
@@ -193,7 +209,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
                 for (Context context : newContexts.get(m)) {
                     // these are new contexts, so use null for the delta
-                    queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt, context), null));
+                    queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt,
+                                                                                                 context),
+                                                                              null));
                 }
             }
         }
@@ -227,10 +245,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return changed;
     }
 
-    private void handleChanges(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta changes,
-                                    PointsToGraph g) {
+    private void handleChanges(
+            LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+            GraphDelta changes, PointsToGraph g) {
         // Handle all the interesting dependencies
-        for (PointsToGraphNode n : changes.domain()) {
+        Iterator<PointsToGraphNode> iter = changes.domainIterator();
+        while (iter.hasNext()) {
+            PointsToGraphNode n = iter.next();
             for (StmtAndContext depsac : getInterestingDependencies(n)) {
                 queue.addLast(new OrderedPair<>(depsac, changes));
             }
@@ -311,20 +332,24 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            points-to statement registrar
      * @return true if the points-to graph changed
      */
-    private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
+    private boolean processAllStatements(PointsToGraph g,
+            StatementRegistrar registrar) {
         boolean changed = false;
-        System.err.println("Processing all statements for good luck: " + registrar.getAllStatements().size());
+        System.err.println("Processing all statements for good luck: "
+                + registrar.getAllStatements().size());
         int failcount = 0;
         for (PointsToStatement s : registrar.getAllStatements()) {
             for (Context c : g.getContexts(s.getMethod())) {
                 GraphDelta d = s.process(c, haf, g, null, registrar);
                 if (d == null) {
-                    System.err.println("s returned null " + s.getClass() + " : " + s);
+                    System.err.println("s returned null " + s.getClass()
+                            + " : " + s);
                 }
                 changed |= !d.isEmpty();
                 if (!d.isEmpty()) {
 
-                    System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
+                    System.err.println("uhoh Failed on " + s
+                            + "\n    Delta is " + d);
                     failcount++;
                     if (failcount > 10) {
                         System.err.println("\nThere may be more failures, but exiting now...");
@@ -362,7 +387,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    private boolean addInterestingDependency(PointsToGraphNode n, StmtAndContext sac) {
+    private boolean addInterestingDependency(PointsToGraphNode n,
+            StmtAndContext sac) {
         Set<StmtAndContext> s = interestingDepedencies.get(n);
         if (s == null) {
             s = new LinkedHashSet<>();

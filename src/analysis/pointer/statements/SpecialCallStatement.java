@@ -55,10 +55,10 @@ public class SpecialCallStatement extends CallStatement {
      * @param calleeSummary
      *            summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee,
-                                    ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                    MethodSummaryNodes calleeSummary) {
+    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller,
+            IMethod callee, ReferenceVariable result,
+            ReferenceVariable receiver, List<ReferenceVariable> actuals,
+            ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
@@ -66,16 +66,25 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
-        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, receiver);
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+        ReferenceVariableReplica receiverRep =
+                new ReferenceVariableReplica(context, receiver);
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep) : delta
-                                        .pointsToIterator(receiverRep);
+        Iterator<InstanceKey> iter =
+                delta == null
+                        ? g.pointsToIterator(receiverRep)
+                        : delta.pointsToIterator(receiverRep);
         while (iter.hasNext()) {
             InstanceKey recHeapCtxt = iter.next();
-            changed = changed.combine(processCall(context, recHeapCtxt, callee, g, haf, calleeSummary));
+            changed =
+                    changed.combine(processCall(context,
+                                                recHeapCtxt,
+                                                callee,
+                                                g,
+                                                haf,
+                                                calleeSummary));
         }
         return changed;
 

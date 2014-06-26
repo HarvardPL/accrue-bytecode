@@ -8,7 +8,6 @@ import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -37,30 +36,32 @@ public class ArrayToLocalStatement extends PointsToStatement {
      *            base type of the array
      * @param m
      */
-    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, IMethod m) {
+    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a,
+            TypeReference baseType, IMethod m) {
         super(m);
-        this.value = v;
-        this.array = a;
+        value = v;
+        array = a;
         this.baseType = baseType;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
-        TypeFilter filter = new TypeFilter(v.getExpectedType());
 
         GraphDelta changed = new GraphDelta(g);
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
 
-        
         if (delta == null) {
             // let's do the normal processing
             for (Iterator<InstanceKey> iter = g.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                ObjectField contents =
+                        new ObjectField(arrHeapContext,
+                                        PointsToGraph.ARRAY_CONTENTS,
+                                        baseType);
                 GraphDelta d1 = g.copyEdges(contents, v);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -72,7 +73,10 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // object k, add everything that k[i] points to to v's set.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                ObjectField contents =
+                        new ObjectField(arrHeapContext,
+                                        PointsToGraph.ARRAY_CONTENTS,
+                                        baseType);
                 GraphDelta d1 = g.copyEdges(contents, v);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);

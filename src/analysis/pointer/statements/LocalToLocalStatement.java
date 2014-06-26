@@ -27,6 +27,7 @@ public class LocalToLocalStatement extends PointsToStatement {
     private final ReferenceVariable right;
 
     private final boolean filter;
+
     /**
      * Statement for a local assignment, left = right
      * 
@@ -37,28 +38,29 @@ public class LocalToLocalStatement extends PointsToStatement {
      * @param m
      *            method the assignment is from
      */
-    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+    protected LocalToLocalStatement(ReferenceVariable left,
+            ReferenceVariable right, IMethod m) {
         this(left, right, m, false);
     }
 
-    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m,
-                                    boolean filterBasedOnType) {
+    protected LocalToLocalStatement(ReferenceVariable left,
+            ReferenceVariable right, IMethod m, boolean filterBasedOnType) {
         super(m);
         assert !left.isSingleton() : left + " is static";
         assert !right.isSingleton() : right + " is static";
         this.left = left;
         this.right = right;
-        this.filter = filterBasedOnType;
+        filter = filterBasedOnType;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
         // don't need to use delta, as this just adds a subset edge
-        if (this.filter) {
-            TypeFilter typeFilter = new TypeFilter(left.getExpectedType());
+        if (filter) {
+            TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());
             return g.copyFilteredEdges(r, typeFilter, l);
         }
         return g.copyEdges(r, l);

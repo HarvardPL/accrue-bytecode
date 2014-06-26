@@ -8,7 +8,6 @@ import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -47,11 +46,12 @@ public class FieldToLocalStatment extends PointsToStatement {
      * @param m
      *            method the statement was created for
      */
-    protected FieldToLocalStatment(ReferenceVariable l, ReferenceVariable o, FieldReference f, IMethod m) {
+    protected FieldToLocalStatment(ReferenceVariable l, ReferenceVariable o,
+            FieldReference f, IMethod m) {
         super(m);
-        this.declaredField = f;
-        this.receiver = o;
-        this.assignee = l;
+        declaredField = f;
+        receiver = o;
+        assignee = l;
     }
 
     @Override
@@ -60,14 +60,13 @@ public class FieldToLocalStatment extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
-        PointsToGraphNode left = new ReferenceVariableReplica(context, assignee);
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+        PointsToGraphNode left =
+                new ReferenceVariableReplica(context, assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
 
         GraphDelta changed = new GraphDelta(g);
-        TypeFilter filter = new TypeFilter(left.getExpectedType());
-
 
         if (delta == null) {
             // let's do the normal processing
@@ -86,9 +85,11 @@ public class FieldToLocalStatment extends PointsToStatement {
             // object k, add everything that k.f points to to v's set.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
-                ObjectField f = new ObjectField(recHeapContext, declaredField.getName().toString(),
-                                                declaredField.getFieldType());
-                GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
+                ObjectField f =
+                        new ObjectField(recHeapContext,
+                                        declaredField.getName().toString(),
+                                        declaredField.getFieldType());
+                GraphDelta d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
             }
 

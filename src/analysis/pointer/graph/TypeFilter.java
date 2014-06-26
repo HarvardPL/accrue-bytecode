@@ -1,6 +1,9 @@
 package analysis.pointer.graph;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
@@ -17,34 +20,21 @@ public class TypeFilter {
     public final Set<IClass> isTypes;
     public final Set<IClass> notTypes;
 
-
-    public TypeFilter(IClass isType, Set<IClass> notTypes) {
+    private TypeFilter(IClass isType, Set<IClass> notTypes) {
         this.isType = isType;
-        this.isTypes = null;
+        isTypes = null;
         this.notTypes = notTypes;
     }
 
-    public TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes) {
-        this.isType = null;
+    private TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes) {
+        isType = null;
         this.isTypes = isTypes;
         this.notTypes = notTypes;
     }
 
-    public TypeFilter(IClass isType) {
-        this(isType, null);
-    }
-
-    public TypeFilter(TypeReference isType, Set<IClass> notTypes) {
-        this(AnalysisUtil.getClassHierarchy().lookupClass(isType), notTypes);
-    }
-
-    public TypeFilter(TypeReference isType) {
-        this(AnalysisUtil.getClassHierarchy().lookupClass(isType));
-    }
-
     public boolean satisfies(IClass concreteType) {
-        if ((isType != null && isAssignableFrom(isType, concreteType))
-                                        || (isTypes != null && allAssignableFrom(isTypes, concreteType))) {
+        if (isType != null && isAssignableFrom(isType, concreteType)
+                || isTypes != null && allAssignableFrom(isTypes, concreteType)) {
             if (notTypes != null) {
                 for (IClass nt : notTypes) {
                     if (isAssignableFrom(nt, concreteType)) {
@@ -76,60 +66,24 @@ public class TypeFilter {
         return true;
     }
 
-
     @Override
-    public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((isType == null) ? 0 : isType.hashCode());
-        result = prime * result + ((isTypes == null) ? 0 : isTypes.hashCode());
-        result = prime * result + ((notTypes == null) ? 0 : notTypes.hashCode());
-        return result;
+    public final int hashCode() {
+        return super.hashCode();
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (!(obj instanceof TypeFilter)) {
-            return false;
-        }
-        TypeFilter other = (TypeFilter) obj;
-        if (isType == null) {
-            if (other.isType != null) {
-                return false;
-            }
-        }
-        else if (!isType.equals(other.isType)) {
-            return false;
-        }
-        if (isTypes == null) {
-            if (other.isTypes != null) {
-                return false;
-            }
-        }
-        else if (!isTypes.equals(other.isTypes)) {
-            return false;
-        }
-        if (notTypes == null) {
-            if (other.notTypes != null) {
-                return false;
-            }
-        }
-        else if (!notTypes.equals(other.notTypes)) {
-            return false;
-        }
-        return true;
+    public final boolean equals(Object obj) {
+        return this == obj;
     }
 
     @Override
     public String toString() {
-        return "TypeFilter [isType=" + (isType == null ? isTypes : isType) + ", notTypes=" + notTypes + "]";
+        return "TypeFilter [isType=" + (isType == null ? isTypes : isType)
+                + ", notTypes=" + notTypes + "]";
     }
+
+    private static Map<Set<TypeFilter>, TypeFilter> cachedCompose =
+            new HashMap<>();
 
     public static TypeFilter compose(TypeFilter f1, TypeFilter f2) {
         if (f1 == null) {
@@ -139,6 +93,19 @@ public class TypeFilter {
             return f1;
         }
         // two non null filters
+        // cache the results
+        Set<TypeFilter> key = new HashSet<>();
+        key.add(f1);
+        key.add(f2);
+        TypeFilter c = cachedCompose.get(key);
+        if (c == null) {
+            c = composeImpl(f1, f2);
+            cachedCompose.put(key, c);
+        }
+        return c;
+    }
+
+    private static TypeFilter composeImpl(TypeFilter f1, TypeFilter f2) {
         Set<IClass> notTypes = null;
         if (f1.notTypes != null || f2.notTypes != null) {
             if (f1.notTypes != null && f2.notTypes != null) {
@@ -168,20 +135,123 @@ public class TypeFilter {
             else {
                 isTypes.add(f2.isType);
             }
-            TypeFilter tf = new TypeFilter(isTypes, notTypes);
-            System.err.println("Got " + tf);
+            TypeFilter tf = TypeFilter.create(isTypes, notTypes);
             return tf;
         }
         if (TypeRepository.isAssignableFrom(f1.isType, f2.isType)) {
-            return new TypeFilter(f2.isType, notTypes);
+            return TypeFilter.create(f2.isType, notTypes);
         }
         if (TypeRepository.isAssignableFrom(f2.isType, f1.isType)) {
-            return new TypeFilter(f1.isType, notTypes);
+            return TypeFilter.create(f1.isType, notTypes);
         }
         Set<IClass> isTypes = new LinkedHashSet<>();
         isTypes.add(f1.isType);
         isTypes.add(f2.isType);
-        return new TypeFilter(isTypes, notTypes);
+        return TypeFilter.create(isTypes, notTypes);
+
+    }
+
+    public static TypeFilter create(IClass isType, Set<IClass> notTypes) {
+        return memoize(new TypeFilter(isType, notTypes));
+    }
+
+    public static TypeFilter create(Set<IClass> isTypes, Set<IClass> notTypes) {
+        return memoize(new TypeFilter(isTypes, notTypes));
+    }
+
+    public static TypeFilter create(IClass isType) {
+        return create(isType, null);
+    }
+
+    public static TypeFilter create(TypeReference isType, Set<IClass> notTypes) {
+        return create(AnalysisUtil.getClassHierarchy().lookupClass(isType),
+                      notTypes);
+    }
+
+    public static TypeFilter create(TypeReference isType) {
+        return create(AnalysisUtil.getClassHierarchy().lookupClass(isType));
+    }
+
+    private static final Map<TypeFilterWrapper, TypeFilter> memoized =
+            new HashMap<>();
+
+    private static TypeFilter memoize(TypeFilter filter) {
+        TypeFilterWrapper w = new TypeFilterWrapper(filter);
+        TypeFilter tf = memoized.get(w);
+        if (tf == null) {
+            tf = filter;
+            memoized.put(w, tf);
+        }
+        return tf;
+    }
+
+    private static class TypeFilterWrapper {
+        private final TypeFilter filter;
+
+        TypeFilterWrapper(TypeFilter filter) {
+            this.filter = filter;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result =
+                    prime
+                            * result
+                            + (filter.isType == null
+                                    ? 0 : filter.isType.hashCode());
+            result =
+                    prime
+                            * result
+                            + (filter.isTypes == null
+                                    ? 0 : filter.isTypes.hashCode());
+            result =
+                    prime
+                            * result
+                            + (filter.notTypes == null
+                                    ? 0 : filter.notTypes.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof TypeFilterWrapper)) {
+                return false;
+            }
+            TypeFilter other = ((TypeFilterWrapper) obj).filter;
+            if (filter.isType == null) {
+                if (other.isType != null) {
+                    return false;
+                }
+            }
+            else if (!filter.isType.equals(other.isType)) {
+                return false;
+            }
+            if (filter.isTypes == null) {
+                if (other.isTypes != null) {
+                    return false;
+                }
+            }
+            else if (!filter.isTypes.equals(other.isTypes)) {
+                return false;
+            }
+            if (filter.notTypes == null) {
+                if (other.notTypes != null) {
+                    return false;
+                }
+            }
+            else if (!filter.notTypes.equals(other.notTypes)) {
+                return false;
+            }
+            return true;
+        }
 
     }
 }

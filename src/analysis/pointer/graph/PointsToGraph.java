@@ -16,6 +16,7 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.PointsToGraph.FilteredSet.FilteredIterator;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -31,8 +32,6 @@ import com.ibm.wala.util.CancelException;
  * more actual heap locations)
  */
 public class PointsToGraph {
-
-
     public static final String ARRAY_CONTENTS = "[contents]";
 
     /*
@@ -40,10 +39,17 @@ public class PointsToGraph {
      * of n. If isSubsetOf.get(n).contains(<m, f>), then the filtered pointsto set of n is a subset of the points to set
      * of m. The superset relation is just the reverse of subset.
      */
-    private final Map<PointsToGraphNode, Set<InstanceKey>> base = new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<InstanceKey>> base =
+            new LinkedHashMap<>();
 
-    private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSubsetOf = new LinkedHashMap<>();
-    private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSupersetOf = new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<PointsToGraphNode>> isUnfilteredSubsetOf =
+            new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSubsetOf =
+            new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSupersetOf =
+            new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, Set<PointsToGraphNode>> isUnfilteredSupersetOf =
+            new LinkedHashMap<>();
 
     /**
      * The contexts that a method may appear in.
@@ -53,7 +59,8 @@ public class PointsToGraph {
     /**
      * The classes that will be loaded (i.e., we need to analyze their static initializers).
      */
-    private final Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
+    private final Set<IMethod> classInitializers =
+            AnalysisUtil.createConcurrentSet();
 
     /**
      * Heap abstraction factory.
@@ -61,7 +68,6 @@ public class PointsToGraph {
     private final HeapAbstractionFactory haf;
 
     private final HafCallGraph callGraph;
-
 
     // private final DependencyRecorder depRecorder;
     private Set<PointsToGraphNode> readNodes;
@@ -73,13 +79,14 @@ public class PointsToGraph {
 
     public static boolean DEBUG = false;
 
-    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf) {
+    public PointsToGraph(StatementRegistrar registrar,
+            HeapAbstractionFactory haf) {
         readNodes = new LinkedHashSet<>();
         newSubsetRelations = new LinkedHashMap<>();
         newContexts = new LinkedHashMap<>();
 
         this.haf = haf;
-        this.callGraph = new HafCallGraph(haf);
+        callGraph = new HafCallGraph(haf);
 
         populateInitialContexts(registrar.getInitialContextMethods());
     }
@@ -95,18 +102,22 @@ public class PointsToGraph {
      */
     private void populateInitialContexts(Set<IMethod> initialMethods) {
         for (IMethod m : initialMethods) {
-            this.getOrCreateContextSet(m).add(haf.initialContext());
+            getOrCreateContextSet(m).add(haf.initialContext());
         }
     }
 
     public Map<PointsToGraphNode, Set<InstanceKey>> getBaseNodes() {
-        return this.base;
+        return base;
     }
 
     // Return the immediate supersets of n. That is, any node m such that n is an immediate subset of m
-    public Set<OrderedPair<PointsToGraphNode, TypeFilter>> immediateSuperSetsOf(PointsToGraphNode n) {
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> supersets = isSubsetOf.get(n);
-        return supersets == null ? Collections.<OrderedPair<PointsToGraphNode, TypeFilter>> emptySet() : supersets;
+    public Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> immediateSuperSetsOf(
+            PointsToGraphNode n) {
+        Set<PointsToGraphNode> unfilteredsupersets =
+                isUnfilteredSubsetOf.get(n);
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> supersets =
+                isSubsetOf.get(n);
+        return composeIterators(unfilteredsupersets, supersets);
     }
 
     /**
@@ -135,18 +146,20 @@ public class PointsToGraph {
      * @param target
      * @return
      */
-    public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
+    public GraphDelta copyEdges(PointsToGraphNode source,
+            PointsToGraphNode target) {
         // source is a subset of target, target is a superset of source.
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> sourceSubset = getOrCreateSubsetSet(source);
-        OrderedPair<PointsToGraphNode, TypeFilter> trgFilter = new OrderedPair<>(target, null);
+        Set<PointsToGraphNode> sourceSubset =
+                getOrCreateUnfilteredSubsetSet(source);
 
         GraphDelta changed = new GraphDelta(this);
-        if (sourceSubset.add(trgFilter)) {
+        if (sourceSubset.add(target)) {
             changed.addCopyEdges(source, null, target);
 
             // make sure the superset relation stays consistent
-            Set<OrderedPair<PointsToGraphNode, TypeFilter>> targetSuperset = getOrCreateSupersetSet(target);
-            targetSuperset.add(new OrderedPair<>(source, (TypeFilter)null));
+            Set<PointsToGraphNode> targetSuperset =
+                    getOrCreateUnfilteredSupersetSet(target);
+            targetSuperset.add(source);
 
         }
         return changed;
@@ -160,17 +173,21 @@ public class PointsToGraph {
      * @param target
      * @return
      */
-    public GraphDelta copyFilteredEdges(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
+    public GraphDelta copyFilteredEdges(PointsToGraphNode source,
+            TypeFilter filter, PointsToGraphNode target) {
         // source is a subset of target, target is a subset of source.
-        Set<OrderedPair<PointsToGraphNode, TypeFilter>> sourceSubset = getOrCreateSubsetSet(source);
-        OrderedPair<PointsToGraphNode, TypeFilter> trgFilter = new OrderedPair<>(target, filter);
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> sourceSubset =
+                getOrCreateSubsetSet(source);
+        OrderedPair<PointsToGraphNode, TypeFilter> trgFilter =
+                new OrderedPair<>(target, filter);
 
         GraphDelta changed = new GraphDelta(this);
         if (sourceSubset.add(trgFilter)) {
             changed.addCopyEdges(source, filter, target);
 
             // make sure the superset relation stays consistent
-            Set<OrderedPair<PointsToGraphNode, TypeFilter>> targetSuperset = getOrCreateSupersetSet(target);
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> targetSuperset =
+                    getOrCreateSupersetSet(target);
             targetSuperset.add(new OrderedPair<>(source, filter));
         }
         return changed;
@@ -193,9 +210,8 @@ public class PointsToGraph {
      * 
      */
     @SuppressWarnings("deprecation")
-    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext,
-                                    IMethod callee,
-                                    Context calleeContext) {
+    public boolean addCall(CallSiteReference callSite, IMethod caller,
+            Context callerContext, IMethod callee, Context calleeContext) {
 
         CGNode src;
         CGNode dst;
@@ -203,9 +219,11 @@ public class PointsToGraph {
         try {
             src = callGraph.findOrCreateNode(caller, callerContext);
             dst = callGraph.findOrCreateNode(callee, calleeContext);
-        } catch (CancelException e) {
-            throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.methodString(caller)
-                                            + " to " + PrettyPrinter.methodString(callee));
+        }
+        catch (CancelException e) {
+            throw new RuntimeException(e + " cannot add call graph edge from "
+                    + PrettyPrinter.methodString(caller) + " to "
+                    + PrettyPrinter.methodString(callee));
         }
 
         // We are building a call graph so it is safe to call this "deprecated" method
@@ -214,8 +232,10 @@ public class PointsToGraph {
             return false;
         }
         if (outputLevel >= 2) {
-            System.err.println("ADDED\n\t" + PrettyPrinter.methodString(caller) + " in " + callerContext + " to\n\t"
-                                            + PrettyPrinter.methodString(callee) + " in " + calleeContext);
+            System.err.println("ADDED\n\t" + PrettyPrinter.methodString(caller)
+                    + " in " + callerContext + " to\n\t"
+                    + PrettyPrinter.methodString(callee) + " in "
+                    + calleeContext);
         }
 
         recordContext(callee, calleeContext);
@@ -232,7 +252,8 @@ public class PointsToGraph {
      */
     private void recordContext(IMethod callee, Context calleeContext) {
         if (outputLevel >= 1) {
-            System.err.println("RECORDING: " + callee + " in " + calleeContext + " hc " + calleeContext);
+            System.err.println("RECORDING: " + callee + " in " + calleeContext
+                    + " hc " + calleeContext);
         }
         Set<Context> s = contexts.get(callee);
         if (s == null) {
@@ -252,21 +273,36 @@ public class PointsToGraph {
     }
 
     private Set<InstanceKey> getOrCreateBaseSet(PointsToGraphNode node) {
-        return PointsToGraph.<PointsToGraphNode, InstanceKey> getOrCreateSet(node, this.base);
+        return PointsToGraph.<PointsToGraphNode, InstanceKey> getOrCreateSet(node,
+                                                                             base);
     }
 
-    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSubsetSet(PointsToGraphNode node) {
+    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSubsetSet(
+            PointsToGraphNode node) {
         return PointsToGraph.<PointsToGraphNode, OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSet(node,
-                                        this.isSubsetOf);
+                                                                                                            isSubsetOf);
     }
 
-    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSupersetSet(PointsToGraphNode node) {
+    private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSupersetSet(
+            PointsToGraphNode node) {
         return PointsToGraph.<PointsToGraphNode, OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSet(node,
-                                        this.isSupersetOf);
+                                                                                                            isSupersetOf);
+    }
+
+    private Set<PointsToGraphNode> getOrCreateUnfilteredSubsetSet(
+            PointsToGraphNode node) {
+        return PointsToGraph.<PointsToGraphNode, PointsToGraphNode> getOrCreateSet(node,
+                                                                                   isUnfilteredSubsetOf);
+    }
+
+    private Set<PointsToGraphNode> getOrCreateUnfilteredSupersetSet(
+            PointsToGraphNode node) {
+        return PointsToGraph.<PointsToGraphNode, PointsToGraphNode> getOrCreateSet(node,
+                                                                                   isUnfilteredSupersetOf);
     }
 
     private Set<Context> getOrCreateContextSet(IMethod callee) {
-        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contexts);
+        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, contexts);
     }
 
     private static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
@@ -279,6 +315,7 @@ public class PointsToGraph {
         }
         return set;
     }
+
     /**
      * Set of contexts for the given method
      * 
@@ -403,7 +440,6 @@ public class PointsToGraph {
         return newC;
     }
 
-
     /**
      * Get the set of nodes that have been read since this was last called and clear the set.
      * 
@@ -416,7 +452,7 @@ public class PointsToGraph {
     }
 
     private void recordRead(PointsToGraphNode node) {
-        this.readNodes.add(node);
+        readNodes.add(node);
     }
 
     public void setOutputLevel(int outputLevel) {
@@ -443,13 +479,15 @@ public class PointsToGraph {
                 CGNode initNode;
                 try {
                     initNode = callGraph.findOrCreateNode(clinit, c);
-                } catch (CancelException e) {
+                }
+                catch (CancelException e) {
                     throw new RuntimeException(e);
                 }
                 recordContext(clinit, c);
                 callGraph.registerEntrypoint(initNode);
                 clinitCount++;
-            } else {
+            }
+            else {
                 // Already added an initializer and thus must have added initializers for super classes. These are all
                 // that are left to process since we are adding from sub class to super class order
 
@@ -458,7 +496,8 @@ public class PointsToGraph {
             }
         }
         // Should always be true
-        assert cgChanged : "Reached the end of the loop without adding any clinits " + classInits;
+        assert cgChanged : "Reached the end of the loop without adding any clinits "
+                + classInits;
         return cgChanged;
     }
 
@@ -473,13 +512,13 @@ public class PointsToGraph {
 
         @Override
         public Iterator<InstanceKey> iterator() {
-            return new FilteredIterator();
+            return new FilteredIterator(s.iterator(), filter);
         }
-
 
         @Override
         public boolean contains(Object o) {
-            return s.contains(o) && filter.satisfies(((InstanceKey) o).getConcreteType());
+            return s.contains(o)
+                    && filter.satisfies(((InstanceKey) o).getConcreteType());
         }
 
         @Override
@@ -487,11 +526,14 @@ public class PointsToGraph {
             throw new UnsupportedOperationException();
         }
 
-        class FilteredIterator implements Iterator<InstanceKey> {
+        static class FilteredIterator implements Iterator<InstanceKey> {
             private final Iterator<InstanceKey> iter;
+            private final TypeFilter filter;
             private InstanceKey next = null;
-            FilteredIterator() {
-                this.iter = FilteredSet.this.s.iterator();
+
+            FilteredIterator(Iterator<InstanceKey> iter, TypeFilter filter) {
+                this.iter = iter;
+                this.filter = filter;
             }
 
             @Override
@@ -523,8 +565,44 @@ public class PointsToGraph {
         }
     }
 
+    static Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> composeIterators(
+            Set<PointsToGraphNode> unfilteredSet,
+            Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSet) {
+        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> unfilteredIterator =
+                unfilteredSet == null
+                        ? null
+                        : new LiftUnfilteredIterator(unfilteredSet.iterator());
+        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> filteredIterator =
+                filteredSet == null ? null : filteredSet.iterator();
+
+        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter;
+        if (unfilteredIterator == null) {
+            if (filteredIterator == null) {
+                iter =
+                        Collections.<OrderedPair<PointsToGraphNode, TypeFilter>> emptyIterator();
+            }
+            else {
+                iter = filteredIterator;
+            }
+        }
+        else {
+            if (filteredIterator == null) {
+                iter = unfilteredIterator;
+            }
+            else {
+                iter =
+                        new ComposedIterators<>(unfilteredIterator,
+                                                filteredIterator);
+            }
+        }
+        return iter;
+    }
+
     /**
-     * We visit using the superset relation in preorder.
+     * For the given graph node, iterate through all the InstanceKeys that the
+     * node points to, filtered appropriately based on the specified TypeFilter,
+     * and skipping over any InstanceKeys that are reachable via the alreadyVisited
+     * set, i.e., the set of nodes that we have already (or are in the process) of visiting.
      */
     public static class PointsToIterator implements Iterator<InstanceKey> {
         private final PointsToGraph g;
@@ -537,20 +615,21 @@ public class PointsToGraph {
             this(g, n, null, null);
         }
 
-        public PointsToIterator(PointsToGraph g, PointsToGraphNode n, TypeFilter filter,
-                                        Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited) {
+        public PointsToIterator(PointsToGraph g, PointsToGraphNode n,
+                TypeFilter filter,
+                Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited) {
 
             this.g = g;
             if (alreadyVisited != null) {
-                this.visited = alreadyVisited;
+                visited = alreadyVisited;
             }
             else {
-                this.visited = new HashSet<>();
+                visited = new HashSet<>();
             }
-            this.visitingStack = new Stack<>();
-            this.typeFilters = new Stack<>();
-            this.typeFilters.push(null);
-            // set up the initial condition, i.e., we are starting to visit n.
+            visitingStack = new Stack<>();
+            typeFilters = new Stack<>();
+            typeFilters.push(null);
+            // set up the initial condition, i.e., we are starting to visit n, with type filter filter.
             startVisit(n, filter);
         }
 
@@ -567,29 +646,38 @@ public class PointsToGraph {
         private void startVisit(PointsToGraphNode t, TypeFilter filter) {
             // Compose the current filter (this.typeFilters.peek()), with the
             // filter for t to obtain the new filter.
-            TypeFilter newFilter = TypeFilter.compose(this.typeFilters.peek(), filter);
+            TypeFilter newFilter =
+                    TypeFilter.compose(typeFilters.peek(), filter);
 
-            OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter = new OrderedPair<>(t, newFilter);
+            OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter =
+                    new OrderedPair<>(t, newFilter);
 
-            if (visited.contains(tAndNewFilter) || (newFilter != null && visited.contains(new OrderedPair<>(t, null)))) {
+            if (visited.contains(tAndNewFilter) || newFilter != null
+                    && visited.contains(new OrderedPair<>(t, null))) {
                 // we have already visited t with this particular filter (or with no filter at all).
                 return;
             }
             // mark that we have visited node t with filter
-            this.visited.add(tAndNewFilter);
+            visited.add(tAndNewFilter);
 
             // push the new filter on the stack.
-            this.typeFilters.push(newFilter);
+            typeFilters.push(newFilter);
 
             // set up the current base iterator
             Set<InstanceKey> s = g.base.get(t);
-            this.currentBaseIter = s == null ? Collections.<InstanceKey> emptyIterator() : (newFilter == null ? s
-                                            .iterator() : new FilteredSet(s, typeFilters.peek()).iterator());
+            currentBaseIter =
+                    s == null
+                            ? Collections.<InstanceKey> emptyIterator()
+                            : newFilter == null
+                                    ? s.iterator()
+                                    : new FilteredIterator(s.iterator(),
+                                                           typeFilters.peek());
 
-            Set<OrderedPair<PointsToGraphNode, TypeFilter>> set = g.isSupersetOf.get(t);
-            this.visitingStack.push(set == null ? Collections
-                                            .<OrderedPair<PointsToGraphNode, TypeFilter>> emptyIterator() : set
-                                            .iterator());
+            Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
+                    composeIterators(g.isUnfilteredSupersetOf.get(t),
+                                     g.isSupersetOf.get(t));
+
+            visitingStack.push(iter);
         }
 
         @Override
@@ -606,9 +694,11 @@ public class PointsToGraph {
                     // nothing more to visit.
                     return false;
                 }
-                Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter = visitingStack.peek();
+                Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
+                        visitingStack.peek();
                 if (iter.hasNext()) {
-                    OrderedPair<PointsToGraphNode, TypeFilter> pair = iter.next();
+                    OrderedPair<PointsToGraphNode, TypeFilter> pair =
+                            iter.next();
                     startVisit(pair.fst(), pair.snd());
                     continue;
                 }
@@ -621,7 +711,7 @@ public class PointsToGraph {
 
         @Override
         public InstanceKey next() {
-            if (!this.hasNext()) {
+            if (!hasNext()) {
                 throw new NoSuchElementException();
             }
             return currentBaseIter.next();
@@ -632,6 +722,61 @@ public class PointsToGraph {
             throw new UnsupportedOperationException();
         }
 
+    }
+
+    public static class ComposedIterators<T> implements Iterator<T> {
+        Iterator<T> iter1;
+        Iterator<T> iter2;
+
+        public ComposedIterators(Iterator<T> iter1, Iterator<T> iter2) {
+            this.iter1 = iter1;
+            this.iter2 = iter2;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iter1 != null && iter1.hasNext() || iter2.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if (iter1 != null) {
+                if (iter1.hasNext()) {
+                    return iter1.next();
+                }
+                this.iter1 = null;
+            }
+            return iter2.next();
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class LiftUnfilteredIterator implements
+            Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> {
+        private final Iterator<PointsToGraphNode> iter;
+
+        public LiftUnfilteredIterator(Iterator<PointsToGraphNode> iter) {
+            this.iter = iter;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iter.hasNext();
+        }
+
+        @Override
+        public OrderedPair<PointsToGraphNode, TypeFilter> next() {
+            return new OrderedPair<>(iter.next(), (TypeFilter) null);
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
     }
 
 }
