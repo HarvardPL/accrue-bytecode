@@ -12,6 +12,7 @@ import util.OrderedPair;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
+import analysis.pointer.statements.ExceptionAssignmentStatement;
 import analysis.pointer.statements.FieldToLocalStatement;
 import analysis.pointer.statements.PhiStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -21,6 +22,11 @@ import analysis.pointer.statements.StaticFieldToLocalStatement;
  * Analysis to find and remove duplicate points-to statements
  */
 public class RemoveDuplicateStatements {
+
+    /**
+     * Print out the sets before and after removing duplicates
+     */
+    private static boolean DEBUG = false;
 
     /**
      * Map from variable to the points-to statements that use the variable and the index into the use list
@@ -46,6 +52,11 @@ public class RemoveDuplicateStatements {
      * procedure calls. This will be modified as duplicate statements are removed.
      */
     private final List<CallStatement> callStatements = new ArrayList<>();
+    /**
+     * assignments into exit blocks or catch blocks. This will be modified as duplicate statements are removed.
+     */
+    private final List<ExceptionAssignmentStatement> exceptions = new ArrayList<>();
+
     // TODO remove duplicate check cast statements, need to separate from formal assignments first
     /**
      * Set of points-to statements. This will be modified as duplicate statements are removed.
@@ -106,6 +117,11 @@ public class RemoveDuplicateStatements {
                 this.callStatements.add((CallStatement) s);
                 continue;
             }
+
+            if (s instanceof ExceptionAssignmentStatement) {
+                this.exceptions.add((ExceptionAssignmentStatement) s);
+                continue;
+            }
         }
     }
 
@@ -119,12 +135,17 @@ public class RemoveDuplicateStatements {
     public static Set<PointsToStatement> removeDuplicates(Set<PointsToStatement> statements) {
         long startTime = System.currentTimeMillis();
         int startSize = statements.size();
-        System.err.println("BEFORE:");
-        for (PointsToStatement s : statements) {
-            System.err.println(s);
+
+        if (DEBUG) {
+            System.err.println("BEFORE:");
+            for (PointsToStatement s : statements) {
+                System.err.println("\t" + s);
+            }
         }
+
         RemoveDuplicateStatements analysis = new RemoveDuplicateStatements(statements);
         analysis.initializeIndices();
+        analysis.handleExceptions();
 
         boolean changed = true;
         while (changed) {
@@ -135,13 +156,51 @@ public class RemoveDuplicateStatements {
             changed |= analysis.handleStaticFieldToLocal();
             changed |= analysis.handleCall();
         }
-        System.err.println("AFTER:");
-        for (PointsToStatement s : statements) {
-            System.err.println(s);
+        
+        if (DEBUG && startSize != analysis.allStatements.size()) {
+            System.err.println("AFTER:");
+            for (PointsToStatement s : analysis.allStatements) {
+                System.err.println("\t" + s);
+            }
+            System.err.println("Finished removing " + (startSize - analysis.allStatements.size()) + " duplicates: "
+                                            + (System.currentTimeMillis() - startTime) + "ms");
         }
-        System.err.println("Finished removing " + (startSize - analysis.allStatements.size()) + " duplicates: "
-                                        + (System.currentTimeMillis() - startTime) + "ms");
         return analysis.allStatements;
+    }
+
+    private boolean handleExceptions() {
+        // Here we will only remove identical statements since the assignee will usually have multiple assignments
+        // (breaking the SSA invariant)
+        for (int i = 0; i < this.exceptions.size(); i++) {
+            ExceptionAssignmentStatement s1 = this.exceptions.get(i);
+
+            if (s1 == null) {
+                // We've already replaced this statement
+                continue;
+            }
+
+            for (int j = i + 1; j < this.exceptions.size(); j++) {
+                ExceptionAssignmentStatement s2 = this.exceptions.get(j);
+
+                if (s2 == null) {
+                    // We've already replaced this statement
+                    continue;
+                }
+
+                if (s1.getCaughtException().equals(s2.getCaughtException()) && s1.getUses().equals(s2.getUses())
+                                                && s1.getNotTypes().equals(s2.getNotTypes())) {
+                    if (DEBUG) {
+                        System.err.println("REMOVING " + s2);
+                    }
+                    this.exceptions.set(j, null);
+                    this.allStatements.remove(s2);
+                }
+            }
+
+        }
+        // Only exact copies are removed so no need to iterate as it doesn't affect the results of detecting other
+        // duplicates
+        return false;
     }
 
     @SuppressWarnings("static-method")
@@ -196,8 +255,10 @@ public class RemoveDuplicateStatements {
                 }
 
                 if (s1.getStaticField().equals(s2.getStaticField()) && s1.getUses().equals(s2.getUses())) {
-                    System.err.println("REMOVING " + s2);
-                    System.err.println("\tREPLACING WITH " + s1);
+                    if (DEBUG) {
+                        System.err.println("REMOVING " + s2);
+                        System.err.println("\tREPLACING WITH " + s1);
+                    }
                     changed = true;
                     this.staticFieldToLocals.set(j, null);
                     this.allStatements.remove(s2);
@@ -228,8 +289,10 @@ public class RemoveDuplicateStatements {
                 }
 
                 if (s1.getUses().equals(s2.getUses())) {
-                    System.err.println("REMOVING " + s2);
-                    System.err.println("\tREPLACING WITH " + s1);
+                    if (DEBUG) {
+                        System.err.println("REMOVING " + s2);
+                        System.err.println("\tREPLACING WITH " + s1);
+                    }
                     changed = true;
                     this.arrayToLocals.set(j, null);
                     this.allStatements.remove(s2);
@@ -262,8 +325,10 @@ public class RemoveDuplicateStatements {
                 Set<ReferenceVariable> uses1 = new HashSet<>(s1.getUses());
                 Set<ReferenceVariable> uses2 = new HashSet<>(s2.getUses());
                 if (uses1.containsAll(uses2) && uses2.containsAll(uses1)) {
-                    System.err.println("REMOVING " + s2);
-                    System.err.println("\tREPLACING WITH " + s1);
+                    if (DEBUG) {
+                        System.err.println("REMOVING " + s2);
+                        System.err.println("\tREPLACING WITH " + s1);
+                    }
                     changed = true;
                     this.phiStatements.set(j, null);
                     this.allStatements.remove(s2);
@@ -294,8 +359,10 @@ public class RemoveDuplicateStatements {
                 }
 
                 if (s1.getUses().equals(s2.getUses())) {
-                    System.err.println("REMOVING " + s2);
-                    System.err.println("\tREPLACING WITH " + s1);
+                    if (DEBUG) {
+                        System.err.println("REMOVING " + s2);
+                        System.err.println("\tREPLACING WITH " + s1);
+                    }
                     changed = true;
                     this.fieldToLocals.set(j, null);
                     this.allStatements.remove(s2);

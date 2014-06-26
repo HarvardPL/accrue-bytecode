@@ -10,6 +10,7 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -105,6 +106,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
+            if (registerOnline) {
+                removeDuplicates(registrar, m);
+            }
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
                     q.add(new StmtAndContext(s, c));
@@ -147,6 +151,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 if (registerOnline) {
                     // Add statements for the given method to the registrar
                     registrar.registerMethod(m);
+                    removeDuplicates(registrar, m);
                 }
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
@@ -192,8 +197,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             if (numProcessed % 100000 == 0) {
                 System.err.println("PROCESSED: " + numProcessed
                                                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + " in "
-                                                + (System.currentTimeMillis() - startTime)
-                                                / 1000 + "s");
+                                                + (System.currentTimeMillis() - startTime) / 1000 + "s");
                 System.err.println("  current graph size: " + g.getNodes().size() + " nodes ");
             }
         }
@@ -210,6 +214,20 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             processAllStatements(g, registrar);
         }
         return g;
+    }
+
+    /**
+     * Remove any duplicate statements from the statements in the registrar for the given method
+     * 
+     * @param registrar
+     *            registrar to get the statements from and set the new set of statements back into
+     * @param m
+     *            method to remove duplicate statements for
+     */
+    private static void removeDuplicates(StatementRegistrar registrar, IMethod m) {
+        Set<PointsToStatement> oldStatements = registrar.getStatementsForMethod(m);
+        Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+        registrar.replaceStatementsForMethod(m, newStatements);
     }
 
     /**

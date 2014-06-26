@@ -40,6 +40,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
                                     IMethod m) {
         super(m);
+        assert notType != null;
         this.thrown = thrown;
         this.caught = caught;
         this.notType = notType;
@@ -65,8 +66,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT " + notType
-                                        + ")";
+        return caught + " = (" + PrettyPrinter.typeString(caught.getExpectedType()) + ") " + thrown + " NOT " + notType;
     }
 
     @Override
@@ -87,7 +87,16 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         return Collections.singletonList(thrown);
     }
 
-    public Set<IClass> getNotType() {
+    public Set<IClass> getNotTypes() {
         return notType;
+    }
+
+    /**
+     * Get the exception being assigned to (either the catch formal or the procedure exit exception summary)
+     * 
+     * @return variable for exception being assigned to
+     */
+    public ReferenceVariable getCaughtException() {
+        return caught;
     }
 }
