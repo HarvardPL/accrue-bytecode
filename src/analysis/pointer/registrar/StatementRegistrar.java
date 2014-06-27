@@ -22,6 +22,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -112,10 +113,20 @@ public final class StatementRegistrar {
      *            method to register points-to statements for
      */
     public void registerMethod(IMethod m) {
-        for (InstructionInfo info : getFromMethod(m)) {
+        Set<InstructionInfo> instructions = getFromMethod(m);
+        for (InstructionInfo info : instructions) {
             handle(info);
         }
+        if (!instructions.isEmpty()) {
+            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
+            int startSize = oldStatements.size();
+            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            removed += startSize - newStatements.size();
+            this.replaceStatementsForMethod(m, newStatements);
+        }
     }
+
+    private static int removed = 0;
 
     /**
      * Get points-to statements for the given method if this method has not already been processed. (Does not
@@ -725,7 +736,7 @@ public final class StatementRegistrar {
 
         int num = size();
         if (num % 10000 == 0) {
-            System.err.println("REGISTERED: " + num);
+            System.err.println("REGISTERED: " + num + ", removed:" + removed);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
@@ -947,7 +958,7 @@ public final class StatementRegistrar {
             else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
-                notType.add(AnalysisUtil.getErrorClass());
+                // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
                 addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
             }

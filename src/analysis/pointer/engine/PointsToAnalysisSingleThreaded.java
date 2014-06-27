@@ -10,7 +10,6 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -106,9 +105,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
-            if (registerOnline) {
-                removeDuplicates(registrar, m);
-            }
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
                     q.add(new StmtAndContext(s, c));
@@ -151,7 +147,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 if (registerOnline) {
                     // Add statements for the given method to the registrar
                     registrar.registerMethod(m);
-                    removeDuplicates(registrar, m);
                 }
 
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
@@ -217,20 +212,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Remove any duplicate statements from the statements in the registrar for the given method
-     * 
-     * @param registrar
-     *            registrar to get the statements from and set the new set of statements back into
-     * @param m
-     *            method to remove duplicate statements for
-     */
-    private static void removeDuplicates(StatementRegistrar registrar, IMethod m) {
-        Set<PointsToStatement> oldStatements = registrar.getStatementsForMethod(m);
-        Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-        registrar.replaceStatementsForMethod(m, newStatements);
-    }
-
-    /**
      * Increment the counter giving the number of times the given node has been analyzed
      * 
      * @param n
@@ -254,7 +235,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 if (iter < 10) {
                     iterString = "0" + iterString;
                 }
-                System.err.println(iterString + ", " + sac);
+                if (iter > 50) {
+                    System.err.println(iterString + ", " + sac);
+                }
             }
             throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
         }

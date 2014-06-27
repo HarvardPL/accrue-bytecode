@@ -97,4 +97,13 @@ public class FieldToLocalStatement extends PointsToStatement {
         assert useNumber == 0;
         receiver = newVariable;
     }
+
+    /**
+     * Get the field being accessed
+     * 
+     * @return accessed field
+     */
+    public FieldReference getField() {
+        return declaredField;
+    }
 }

@@ -26,7 +26,7 @@ public class RemoveDuplicateStatements {
     /**
      * Print out the sets before and after removing duplicates
      */
-    private static boolean DEBUG = false;
+    public static boolean DEBUG = false;
 
     /**
      * Map from variable to the points-to statements that use the variable and the index into the use list
@@ -358,7 +358,7 @@ public class RemoveDuplicateStatements {
                     continue;
                 }
 
-                if (s1.getUses().equals(s2.getUses())) {
+                if (s1.getField().equals(s2.getField()) && s1.getUses().equals(s2.getUses())) {
                     if (DEBUG) {
                         System.err.println("REMOVING " + s2);
                         System.err.println("\tREPLACING WITH " + s1);
@@ -384,6 +384,11 @@ public class RemoveDuplicateStatements {
      */
     private void replaceVariable(ReferenceVariable replaced, ReferenceVariable replacement) {
         Set<OrderedPair<PointsToStatement, Integer>> pairs = this.useIndex.get(replaced);
+        if (pairs == null) {
+            // There are no uses of that variable
+            return;
+        }
+
         for (OrderedPair<PointsToStatement, Integer> pair : pairs) {
             PointsToStatement s = pair.fst();
             if (!allStatements.contains(s)) {
