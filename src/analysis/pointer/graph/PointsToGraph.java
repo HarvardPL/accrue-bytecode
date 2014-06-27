@@ -131,8 +131,9 @@ public class PointsToGraph {
         Set<InstanceKey> pointsToSet = getOrCreateBaseSet(node);
 
         GraphDelta delta = new GraphDelta(this);
-        if (pointsToSet.add(heapContext)) {
+        if (!pointsToSet.contains(heapContext)) {
             delta.add(node, heapContext);
+            pointsToSet.add(heapContext);
         }
         return delta;
     }

@@ -13,6 +13,10 @@ import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.types.TypeReference;
 
 public class TypeFilter {
+
+    public static final TypeFilter IMPOSSIBLE = new TypeFilter((IClass) null,
+                                                               null); XXX
+
     /*
      * Only one of isType and isTypes should be non-null.
      */
@@ -92,6 +96,10 @@ public class TypeFilter {
         if (f2 == null) {
             return f1;
         }
+
+        if (f1.equals(f2)) {
+            return f1;
+        }
         // two non null filters
         // cache the results
         Set<TypeFilter> key = new HashSet<>();
@@ -100,6 +108,7 @@ public class TypeFilter {
         TypeFilter c = cachedCompose.get(key);
         if (c == null) {
             c = composeImpl(f1, f2);
+            System.err.println("\nGot " + c + "\n    " + f1 + "\n    " + f2);
             cachedCompose.put(key, c);
         }
         return c;

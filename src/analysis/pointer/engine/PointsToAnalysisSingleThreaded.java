@@ -126,8 +126,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
-//            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeFirst();
-            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeLast();
+            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeFirst();
+//            OrderedPair<StmtAndContext, GraphDelta> next = queue.removeLast();
             StmtAndContext sac = next.fst();
             GraphDelta delta = next.snd();
             incrementCounter(sac);
