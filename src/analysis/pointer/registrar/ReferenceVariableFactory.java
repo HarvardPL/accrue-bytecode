@@ -28,37 +28,45 @@ public class ReferenceVariableFactory {
      * Points-to graph nodes for local variables representing the contents of the inner dimensions of multi-dimensional
      * arrays
      */
-    private final Map<ArrayContentsKey, ReferenceVariable> arrayContentsTemps = new LinkedHashMap<>();
+    private final Map<ArrayContentsKey, ReferenceVariable> arrayContentsTemps =
+            new LinkedHashMap<>();
     /**
      * Points-to graph nodes for implicit exceptions and errors
      */
-    private final Map<ImplicitThrowKey, ReferenceVariable> implicitThrows = new LinkedHashMap<>();
+    private final Map<ImplicitThrowKey, ReferenceVariable> implicitThrows =
+            new LinkedHashMap<>();
     /**
      * Points-to graph nodes for static fields
      */
-    private final Map<IField, ReferenceVariable> staticFields = new LinkedHashMap<>();
+    private final Map<IField, ReferenceVariable> staticFields =
+            new LinkedHashMap<>();
     /**
      * Points-to graph nodes for synthesized fields for String.value (literals)
      */
-    private final Map<StringValueKey, ReferenceVariable> stringValueFields = new LinkedHashMap<>();
+    private final Map<StringValueKey, ReferenceVariable> stringValueFields =
+            new LinkedHashMap<>();
     /**
      * Nodes for local variables
      */
-    private final Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals = new LinkedHashMap<>();
+    private final Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals =
+            new LinkedHashMap<>();
     /**
      * Nodes for method exit
      */
-    private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries = new LinkedHashMap<>();
+    private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries =
+            new LinkedHashMap<>();
     /**
      * Nodes for exception within native method
      */
-    private final Map<OrderedPair<IMethod, TypeReference>, ReferenceVariable> nativeExceptions = new LinkedHashMap<>();
+    private final Map<OrderedPair<IMethod, TypeReference>, ReferenceVariable> nativeExceptions =
+            new LinkedHashMap<>();
     /**
      * Nodes for singleton generated exceptions if they are created, there can be only one per type. The points-to
      * analysis will be less precise, but the points-to graph will be smaller and the points-to analysis faster. The
      * creation is governed by a flag in {@link StatementRegistrar}
      */
-    private final Map<ImplicitEx, ReferenceVariable> singletons = new LinkedHashMap<>();
+    private final Map<ImplicitEx, ReferenceVariable> singletons =
+            new LinkedHashMap<>();
 
     /**
      * Get the reference variable for the given local in the given method. The local should not have a primitive type or
@@ -74,17 +82,20 @@ public class ReferenceVariableFactory {
      * @return reference variable for the local
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable getOrCreateLocal(int local, TypeReference type, IMethod method, PrettyPrinter pp) {
-        assert !type.isPrimitiveType() : "No reference variables for primitives: " + PrettyPrinter.typeString(type);
+    protected ReferenceVariable getOrCreateLocal(int local, TypeReference type,
+            IMethod method, PrettyPrinter pp) {
+        assert !type.isPrimitiveType() : "No reference variables for primitives: "
+                + PrettyPrinter.typeString(type);
         assert !(type == TypeReference.Null) : "Null literal don't have reference variables";
         OrderedPair<Integer, IMethod> key = new OrderedPair<>(local, method);
         ReferenceVariable rv = locals.get(key);
         if (rv == null) {
             String name;
             if (pp != null) {
-                name = pp.valString(local);
-            } else {
-                name = PrettyPrinter.getCanonical("v" + local);
+                name = pp.valString(local) + "-" + method;
+            }
+            else {
+                name = PrettyPrinter.getCanonical("v" + local + "-" + method);
             }
             rv = new ReferenceVariable(name, type, false);
             locals.put(key, rv);
@@ -106,10 +117,15 @@ public class ReferenceVariableFactory {
      *            Method containing the instruction
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createInnerArray(int dim, int pc, TypeReference type, IMethod method) {
-        ReferenceVariable local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim, type, false);
+    protected ReferenceVariable createInnerArray(int dim, int pc,
+            TypeReference type, IMethod method) {
+        ReferenceVariable local =
+                new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim,
+                                      type,
+                                      false);
         // These should only be created once assert that this is true
-        assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method), local) == null;
+        assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method),
+                                      local) == null;
         return local;
     }
 
@@ -126,10 +142,14 @@ public class ReferenceVariableFactory {
      * @return reference variable for an implicit throwable
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createImplicitExceptionNode(ImplicitEx type, int basicBlockID, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(type.toString(), type.toType(), false);
+    protected ReferenceVariable createImplicitExceptionNode(ImplicitEx type,
+            int basicBlockID, IMethod method) {
+        ReferenceVariable rv =
+                new ReferenceVariable(type.toString(), type.toType(), false);
         // These should only be created once assert that this is true
-        assert implicitThrows.put(new ImplicitThrowKey(type, basicBlockID, method), rv) == null;
+        assert implicitThrows.put(new ImplicitThrowKey(type,
+                                                       basicBlockID,
+                                                       method), rv) == null;
         return rv;
     }
 
@@ -144,7 +164,8 @@ public class ReferenceVariableFactory {
      */
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createSingletonException(ImplicitEx type) {
-        ReferenceVariable rv = new ReferenceVariable(type + "(SINGLETON)", type.toType(), true);
+        ReferenceVariable rv =
+                new ReferenceVariable(type + "(SINGLETON)", type.toType(), true);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
         return rv;
@@ -163,10 +184,14 @@ public class ReferenceVariableFactory {
      * @return reference variable for a return value or an exception thrown by a method
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createMethodExit(TypeReference type, IMethod method, ExitType exitType) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType, type, false);
+    protected ReferenceVariable createMethodExit(TypeReference type,
+            IMethod method, ExitType exitType) {
+        ReferenceVariable rv =
+                new ReferenceVariable(PrettyPrinter.methodString(method) + "-"
+                        + exitType, type, false);
         // These should only be created once assert that this is true
-        assert methodExitSummaries.put(new MethodSummaryKey(method, exitType), rv) == null;
+        assert methodExitSummaries.put(new MethodSummaryKey(method, exitType),
+                                       rv) == null;
         return rv;
     }
 
@@ -179,9 +204,12 @@ public class ReferenceVariableFactory {
      *            native method
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createNativeException(TypeReference exType, IMethod m) {
+    protected ReferenceVariable createNativeException(TypeReference exType,
+            IMethod m) {
         assert m.isNative();
-        ReferenceVariable rv = new ReferenceVariable("NATIVE-" + PrettyPrinter.typeString(exType), exType, false);
+        ReferenceVariable rv =
+                new ReferenceVariable("NATIVE-"
+                        + PrettyPrinter.typeString(exType), exType, false);
         // These should only be created once assert that this is true
         assert nativeExceptions.put(new OrderedPair<>(m, exType), rv) == null;
         return rv;
@@ -201,11 +229,14 @@ public class ReferenceVariableFactory {
      * @return reference variable for a formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-formal(" + paramNum + ")",
-                                        type, false);
+    protected ReferenceVariable createFormal(int paramNum, TypeReference type,
+            IMethod method) {
+        ReferenceVariable rv =
+                new ReferenceVariable(PrettyPrinter.methodString(method)
+                        + "-formal(" + paramNum + ")", type, false);
         // These should only be created once assert that this is true
-        assert methodExitSummaries.put(new MethodSummaryKey(method, paramNum), rv) == null;
+        assert methodExitSummaries.put(new MethodSummaryKey(method, paramNum),
+                                       rv) == null;
         return rv;
     }
 
@@ -222,13 +253,15 @@ public class ReferenceVariableFactory {
         ReferenceVariable node = staticFields.get(f);
         if (node == null) {
             if (f.getFieldTypeReference().isPrimitiveType()) {
-                throw new RuntimeException(
-                                                "Trying to create reference variable for a static field with a primitive type.");
+                throw new RuntimeException("Trying to create reference variable for a static field with a primitive type.");
             }
 
-            node = new ReferenceVariable(
-                                            PrettyPrinter.typeString(f.getDeclaringClass()) + "."
-                                            + f.getName().toString(), f.getFieldTypeReference(), true);
+            node =
+                    new ReferenceVariable(PrettyPrinter.typeString(f.getDeclaringClass())
+                                                  + "."
+                                                  + f.getName().toString(),
+                                          f.getFieldTypeReference(),
+                                          true);
             staticFields.put(f, node);
         }
         return node;
@@ -245,8 +278,10 @@ public class ReferenceVariableFactory {
      */
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createStringLitField(int local, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
-                                        AnalysisUtil.STRING_VALUE_TYPE, false);
+        ReferenceVariable rv =
+                new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
+                                      AnalysisUtil.STRING_VALUE_TYPE,
+                                      false);
         assert stringValueFields.put(new StringValueKey(local, method), rv) == null;
         return rv;
     }
@@ -290,7 +325,7 @@ public class ReferenceVariableFactory {
             assert method != null;
             this.method = method;
             this.local = local;
-            this.memoizedHashCode = computeHashCode();
+            memoizedHashCode = computeHashCode();
         }
 
         private int computeHashCode() {
@@ -308,17 +343,12 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             StringValueKey other = (StringValueKey) obj;
-            if (local != other.local)
-                return false;
-            if (!method.equals(other.method))
-                return false;
+            if (local != other.local) return false;
+            if (!method.equals(other.method)) return false;
             return true;
         }
     }
@@ -354,22 +384,23 @@ public class ReferenceVariableFactory {
          * @param method
          *            Method in which the exception is thrown
          */
-        public ImplicitThrowKey(ImplicitEx type, int basicBlockID, IMethod method) {
+        public ImplicitThrowKey(ImplicitEx type, int basicBlockID,
+                IMethod method) {
             assert type != null;
             assert basicBlockID >= 0;
             assert method != null;
             this.type = type;
             this.basicBlockID = basicBlockID;
             this.method = method;
-            this.memoizedHashCode = computeHashCode();
+            memoizedHashCode = computeHashCode();
         }
 
         private int computeHashCode() {
             final int prime = 31;
             int result = 1;
             result = prime * result + basicBlockID;
-            result = prime * result + ((method == null) ? 0 : method.hashCode());
-            result = prime * result + ((type == null) ? 0 : type.hashCode());
+            result = prime * result + (method == null ? 0 : method.hashCode());
+            result = prime * result + (type == null ? 0 : type.hashCode());
             return result;
         }
 
@@ -380,19 +411,13 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             ImplicitThrowKey other = (ImplicitThrowKey) obj;
-            if (basicBlockID != other.basicBlockID)
-                return false;
-            if (!method.equals(other.method))
-                return false;
-            if (type != other.type)
-                return false;
+            if (basicBlockID != other.basicBlockID) return false;
+            if (!method.equals(other.method)) return false;
+            if (type != other.type) return false;
             return true;
         }
     }
@@ -431,8 +456,8 @@ public class ReferenceVariableFactory {
             assert exitType != null;
             this.method = method;
             this.exitType = exitType;
-            this.paramNum = -1;
-            this.memoizedHashCode = computeHashCode();
+            paramNum = -1;
+            memoizedHashCode = computeHashCode();
         }
 
         /**
@@ -446,16 +471,18 @@ public class ReferenceVariableFactory {
         public MethodSummaryKey(IMethod method, int paramNum) {
             assert paramNum >= 0;
             assert method != null;
-            this.exitType = null;
+            exitType = null;
             this.paramNum = paramNum;
             this.method = method;
-            this.memoizedHashCode = computeHashCode();
+            memoizedHashCode = computeHashCode();
         }
 
         public int computeHashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + ((exitType == null) ? 0 : exitType.hashCode());
+            result =
+                    prime * result
+                            + (exitType == null ? 0 : exitType.hashCode());
             result = prime * result + method.hashCode();
             result = prime * result + paramNum;
             return result;
@@ -468,22 +495,16 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             MethodSummaryKey other = (MethodSummaryKey) obj;
             if (exitType == null) {
-                if (other.exitType != null)
-                    return false;
-            } else if (!exitType.equals(other.exitType))
-                return false;
-            if (!method.equals(other.method))
-                return false;
-            if (paramNum != other.paramNum)
-                return false;
+                if (other.exitType != null) return false;
+            }
+            else if (!exitType.equals(other.exitType)) return false;
+            if (!method.equals(other.method)) return false;
+            if (paramNum != other.paramNum) return false;
             return true;
         }
     }
@@ -528,16 +549,16 @@ public class ReferenceVariableFactory {
             assert pc >= 0;
             assert method != null;
             this.dim = dim;
-            this.programCounter = pc;
+            programCounter = pc;
             this.method = method;
-            this.memoizedHashCode = computeHashCode();
+            memoizedHashCode = computeHashCode();
         }
 
         public int computeHashCode() {
             final int prime = 31;
             int result = 1;
             result = prime * result + dim;
-            result = prime * result + ((method == null) ? 0 : method.hashCode());
+            result = prime * result + (method == null ? 0 : method.hashCode());
             result = prime * result + programCounter;
             return result;
         }
@@ -549,22 +570,16 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             ArrayContentsKey other = (ArrayContentsKey) obj;
-            if (dim != other.dim)
-                return false;
+            if (dim != other.dim) return false;
             if (method == null) {
-                if (other.method != null)
-                    return false;
-            } else if (!method.equals(other.method))
-                return false;
-            if (programCounter != other.programCounter)
-                return false;
+                if (other.method != null) return false;
+            }
+            else if (!method.equals(other.method)) return false;
+            if (programCounter != other.programCounter) return false;
             return true;
         }
     }
@@ -599,11 +614,12 @@ public class ReferenceVariableFactory {
          *            Whether this reference variable represents a static field, or other global singleton (for which
          *            only one reference variable replica will be created usually in the initial context)
          */
-        private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton) {
+        private ReferenceVariable(String debugString,
+                TypeReference expectedType, boolean isSingleton) {
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
-            assert (!expectedType.isPrimitiveType());
+            assert !expectedType.isPrimitiveType();
 
             this.debugString = debugString;
             this.expectedType = expectedType;
@@ -643,7 +659,7 @@ public class ReferenceVariableFactory {
          * @return true if this is a static variable
          */
         public boolean isSingleton() {
-            return this.isSingleton;
+            return isSingleton;
         }
     }
 }
