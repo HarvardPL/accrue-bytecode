@@ -510,8 +510,14 @@ public class PointsToGraph {
         final TypeFilter filter;
 
         FilteredSet(Set<InstanceKey> s, TypeFilter filter) {
-            this.s = s;
             this.filter = filter;
+            if (TypeFilter.IMPOSSIBLE.equals(filter)) {
+                // nothing will satisfy this filter.
+                this.s = Collections.emptySet();
+            }
+            else {
+                this.s = s;
+            }
         }
 
         @Override
@@ -537,8 +543,15 @@ public class PointsToGraph {
         private InstanceKey next = null;
 
         FilteredIterator(Iterator<InstanceKey> iter, TypeFilter filter) {
-            this.iter = iter;
             this.filter = filter;
+            if (TypeFilter.IMPOSSIBLE.equals(filter)) {
+                // nothing will satisfy this filter.
+                this.iter = Collections.emptyIterator();
+            }
+            else {
+                this.iter = iter;
+            }
+
         }
 
         @Override
@@ -652,6 +665,11 @@ public class PointsToGraph {
             // filter for t to obtain the new filter.
             TypeFilter newFilter =
                     TypeFilter.compose(typeFilters.peek(), filter);
+
+            if (TypeFilter.IMPOSSIBLE.equals(newFilter)) {
+                // it's impossible! no need to keep visiting.
+                return;
+            }
 
             OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter =
                     new OrderedPair<>(t, newFilter);

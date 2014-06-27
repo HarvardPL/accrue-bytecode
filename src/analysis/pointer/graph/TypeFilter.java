@@ -1,5 +1,6 @@
 package analysis.pointer.graph;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -14,8 +15,14 @@ import com.ibm.wala.types.TypeReference;
 
 public class TypeFilter {
 
-    public static final TypeFilter IMPOSSIBLE = new TypeFilter((IClass) null,
-                                                               null); XXX
+    public static final TypeFilter IMPOSSIBLE =
+            new TypeFilter(AnalysisUtil.getErrorClass(),
+                           Collections.singleton(AnalysisUtil.getErrorClass())) {
+                @Override
+                public boolean satisfies(IClass concreteType) {
+                    return false;
+                }
+            };
 
     /*
      * Only one of isType and isTypes should be non-null.
@@ -27,13 +34,47 @@ public class TypeFilter {
     private TypeFilter(IClass isType, Set<IClass> notTypes) {
         this.isType = isType;
         isTypes = null;
-        this.notTypes = notTypes;
+        this.notTypes = simplifyNotTypes(notTypes);
     }
 
     private TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes) {
         isType = null;
         this.isTypes = isTypes;
-        this.notTypes = notTypes;
+        this.notTypes = simplifyNotTypes(notTypes);
+    }
+
+    private static Set<IClass> simplifyNotTypes(Set<IClass> notTypes) {
+        if (notTypes == null || notTypes.isEmpty()) {
+            return notTypes;
+        }
+        Set<IClass> toRemove = new HashSet<>();
+        for (IClass t1 : notTypes) {
+            for (IClass t2 : notTypes) {
+                if (t1 == t2) continue;
+                if (TypeRepository.isAssignableFrom(t1, t2)) {
+                    // t1 is a supertype of t2, so we can drop t2
+                    toRemove.add(t2);
+                }
+                else if (TypeRepository.isAssignableFrom(t2, t1)) {
+                    // t2 is a supertype of t1, so we can drop t1
+                    toRemove.add(t1);
+                }
+            }
+        }
+        if (toRemove.isEmpty()) {
+            return notTypes;
+        }
+        Set<IClass> newNotTypes = new LinkedHashSet<>(notTypes);
+        newNotTypes.removeAll(toRemove);
+        return newNotTypes;
+    }
+
+    private Set<IClass> isTypesAsSet() {
+        if (isTypes != null) {
+            return isTypes;
+        }
+        return Collections.singleton(isType);
+
     }
 
     public boolean satisfies(IClass concreteType) {
@@ -100,6 +141,10 @@ public class TypeFilter {
         if (f1.equals(f2)) {
             return f1;
         }
+        if (f1.equals(IMPOSSIBLE) || f2.equals(IMPOSSIBLE)) {
+            return IMPOSSIBLE;
+        }
+
         // two non null filters
         // cache the results
         Set<TypeFilter> key = new HashSet<>();
@@ -108,7 +153,10 @@ public class TypeFilter {
         TypeFilter c = cachedCompose.get(key);
         if (c == null) {
             c = composeImpl(f1, f2);
-            System.err.println("\nGot " + c + "\n    " + f1 + "\n    " + f2);
+//            if (c != IMPOSSIBLE) {
+//                System.err.println("\nGot " + c + "\n        " + f1
+//                        + "\n        " + f2);
+//            }
             cachedCompose.put(key, c);
         }
         return c;
@@ -184,14 +232,71 @@ public class TypeFilter {
     private static final Map<TypeFilterWrapper, TypeFilter> memoized =
             new HashMap<>();
 
+    static {
+        // make sure we memoize IMPOSSIBLE
+        memoize(IMPOSSIBLE);
+    }
+
     private static TypeFilter memoize(TypeFilter filter) {
         TypeFilterWrapper w = new TypeFilterWrapper(filter);
         TypeFilter tf = memoized.get(w);
         if (tf == null) {
             tf = filter;
+            if (isImpossible(filter)) {
+                // the filter won't admit any instanceKeys...
+                tf = IMPOSSIBLE;
+            }
             memoized.put(w, tf);
         }
         return tf;
+    }
+
+    public static boolean isImpossible(TypeFilter filter) {
+        // see if the isTypes contain incompatible classes (not interfaces)
+        if (filter.isTypes != null) {
+            for (IClass t1 : filter.isTypesAsSet()) {
+                for (IClass t2 : filter.isTypesAsSet()) {
+                    if (t1 == t2) continue;
+
+                    if (!t1.isInterface()
+                            && !t2.isInterface()
+                            && !(TypeRepository.isAssignableFrom(t1, t2) || TypeRepository.isAssignableFrom(t2,
+                                                                                                            t1))) {
+                        // t1 and t2 are both non-interfaces (classes or arrays), and t1 is not a superclass of t2, nor vice versa.
+                        return true;
+                    }
+
+                    if (t1.isInterface()
+                            && t2.isArrayClass()
+                            && !(t1.equals(AnalysisUtil.getCloneableInterface()) || t1.equals(AnalysisUtil.getSerializableInterface()))) {
+                        // t2 is an array, and t1 is an interface that an array can't implement
+                        return true;
+                    }
+                    if (t2.isInterface()
+                            && t1.isArrayClass()
+                            && !(t2.equals(AnalysisUtil.getCloneableInterface()) || t2.equals(AnalysisUtil.getSerializableInterface()))) {
+                        // t1 is an array, and t2 is an interface that an array can't implement
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // see if the notTypes contains one of the isTypes (or a superclass thereof)
+        if (filter.notTypes != null) {
+            for (IClass notT : filter.notTypes) {
+                for (IClass isT : filter.isTypesAsSet()) {
+                    if (TypeRepository.isAssignableFrom(notT, isT)) {
+                        // notT is a supertype of isT, meaning that no type can be both
+                        // a subtype of isT and not a subtype of notT.
+                        // The filter is impossible!
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static class TypeFilterWrapper {
