@@ -431,7 +431,7 @@ public class PointsToGraph {
 
         FilteredSet(PointsToSet s, TypeReference isType, Set<IClass> notTypes) {
             this.pts = s;
-            this.isType = AnalysisUtil.getClassHierarchy().lookupClass(isType);
+            this.isType = isType == null ? null : AnalysisUtil.getClassHierarchy().lookupClass(isType);
             this.notTypes = notTypes;
         }
 
@@ -464,7 +464,20 @@ public class PointsToGraph {
             return pts.contains(o) && satisfiesFilters(((InstanceKey) o).getConcreteType());
         }
 
+        /**
+         * Is c1 := c2 a valid assignment?
+         * 
+         * @param c1
+         *            type being assigned to
+         * @param c2
+         *            type being assigned from
+         * @return true if c1 == null or if c1 := c2 is a valid assignment
+         */
         private boolean isAssignableFrom(IClass c1, IClass c2) {
+            if (c1 == null) {
+                return true;
+            }
+
             if (notTypes == null) {
                 return AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
             }

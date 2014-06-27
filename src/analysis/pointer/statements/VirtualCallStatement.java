@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -119,6 +120,16 @@ public class VirtualCallStatement extends CallStatement {
                 // TODO Handle abstract methods in a smarter way
                 System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
                 continue;
+            }
+
+            if (resolvedCallee == null) {
+                System.err.println("null callee for " + PrettyPrinter.methodString(getCallee()) + "\n\trecType "
+                                                + PrettyPrinter.typeString(recHeapContext.getConcreteType())
+                                                + "\n\trepType "
+                                                + PrettyPrinter.typeString(receiverRep.getExpectedType())
+                                                + "\n\tcaller " + PrettyPrinter.methodString(getMethod()));
+
+                CFGWriter.writeToFile(getMethod());
             }
 
             // If we wanted to be very robust, check to make sure that

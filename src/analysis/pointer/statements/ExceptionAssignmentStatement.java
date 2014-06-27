@@ -16,6 +16,7 @@ import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.types.TypeReference;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
@@ -58,7 +59,20 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        Set<InstanceKey> s = g.getPointsToSetFiltered(r, caught.getExpectedType(), notType);
+        Set<InstanceKey> s;
+        if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
+            if (notType.isEmpty()) {
+                // Nothing to filter out
+                s = g.getPointsToSet(r);
+            }
+            else {
+                // All exceptions are "Throwable" so don't apply that filter
+                s = g.getPointsToSetFiltered(r, null, notType);
+            }
+        }
+        else {
+            s = g.getPointsToSetFiltered(r, caught.getExpectedType(), notType);
+        }
         assert checkForNonEmpty(s, r, "EX ASSIGN filtered on " + caught.getExpectedType() + " not " + notType);
 
         return g.addEdges(l, s);
