@@ -54,3 +54,5 @@ TODO reachability based on non-null when there is a branch on a comparison with 
 TODO only create PC merge nodes when the PC will not be restored from a post-dominated node
 
 WALA-BUG: Call sites are not unique even within a single IR/CGNode due to duplication of finally blocks :(
+
+TODO Separate check cast from formal assignment. The latter does not need to be filtered.

@@ -25,7 +25,6 @@ public class FindDuplicates {
     public Map<Integer, Set<Integer>> findDuplicates(IR ir) {
 
         Iterator<SSAInstruction> ins1 = ir.iterateNormalInstructions();
-        Iterator<SSAInstruction> ins2 = ir.iterateNormalInstructions();
 
         // Set of instructions that have been tested against all others or already have a duplicate
         Set<SSAInstruction> handled = new HashSet<>();
@@ -36,6 +35,7 @@ public class FindDuplicates {
                 continue;
             }
             handled.add(i1);
+            Iterator<SSAInstruction> ins2 = ir.iterateNormalInstructions();
             while (ins2.hasNext()) {
                 SSAInstruction i2 = ins2.next();
                 if (!handled.contains(i2) && differentButEquivalent(i1, i2)) {

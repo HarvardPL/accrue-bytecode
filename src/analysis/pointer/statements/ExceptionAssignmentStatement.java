@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
@@ -15,10 +17,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.types.TypeReference;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
-    private final ReferenceVariable thrown;
+    private ReferenceVariable thrown;
     private final ReferenceVariable caught;
     private final TypeFilter filter;
 
@@ -39,9 +42,15 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
                                     IMethod m) {
         super(m);
+        assert notType != null;
         this.thrown = thrown;
         this.caught = caught;
-        this.filter = new TypeFilter(caught.getExpectedType(), notType);
+        if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
+            this.filter = new TypeFilter((IClass) null, notType);
+        }
+        else {
+            this.filter = new TypeFilter(caught.getExpectedType(), notType);
+        }
 
     }
 
@@ -58,14 +67,47 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
+        if (filter.isType == null && filter.notTypes.isEmpty()) {
+            // If the type to filter on is null and the set of notTypes is empty then there is no need to filter
+            return g.copyEdgesWithDelta(r, l, delta);
+        }
         return g.copyFilteredEdgesWithDelta(r, filter, l, delta);
-
     }
 
     @Override
     public String toString() {
-        return caught + " = " + thrown + " (" + PrettyPrinter.typeString(caught.getExpectedType()) + " NOT "
-                                        + filter.notTypes
-                                        + ")";
+        return caught + " = (" + PrettyPrinter.typeString(caught.getExpectedType()) + ") " + thrown + " NOT "
+                                        + filter.notTypes;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        thrown = newVariable;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        // Not really a local variable definition as it violates SSA invariant if there is more than one exception that
+        // reaches this catch block
+        return null;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(thrown);
+    }
+
+    public Set<IClass> getNotTypes() {
+        return filter.notTypes;
+    }
+
+    /**
+     * Get the exception being assigned to (either the catch formal or the procedure exit exception summary)
+     * 
+     * @return variable for exception being assigned to
+     */
+    public ReferenceVariable getCaughtException() {
+        return caught;
     }
 }

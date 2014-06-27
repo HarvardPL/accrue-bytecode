@@ -279,10 +279,12 @@ public class AccrueAnalysisMain {
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g = analysis.solve(registrar);
 
-        System.err.println("Registered statements: " + pass.getRegistrar().getAllStatements().size());
+        System.err.println("Registered statements: " + pass.getRegistrar().size());
         if (outputLevel >= 2) {
-            for (PointsToStatement s : pass.getRegistrar().getAllStatements()) {
-                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+            for (IMethod m : pass.getRegistrar().getRegisteredMethods()) {
+                for (PointsToStatement s : pass.getRegistrar().getStatementsForMethod(m)) {
+                    System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+                }
             }
         }
         System.err.println(g.getNodes().size() + " PTG nodes.");
@@ -314,10 +316,12 @@ public class AccrueAnalysisMain {
         StatementRegistrar online = new StatementRegistrar();
         PointsToGraph g = analysis.solveAndRegister(online);
 
-        System.err.println("Registered statements: " + online.getAllStatements().size());
+        System.err.println("Registered statements: " + online.size());
         if (outputLevel >= 2) {
-            for (PointsToStatement s : online.getAllStatements()) {
-                System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+            for (IMethod m : online.getRegisteredMethods()) {
+                for (PointsToStatement s : online.getStatementsForMethod(m)) {
+                    System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
+                }
             }
         }
         System.err.println(g.getNodes().size() + " PTG nodes.");

@@ -1,5 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
+
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -19,7 +22,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     /**
      * assignee
      */
-    private final ReferenceVariable local;
+    private ReferenceVariable local;
     /**
      * assigned
      */
@@ -55,5 +58,23 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     @Override
     public String toString() {
         return staticField + " = " + local;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        local = newVariable;
+
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(local);
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        // The static field is not a local
+        return null;
     }
 }

@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
@@ -21,7 +23,7 @@ import com.ibm.wala.types.FieldReference;
 /**
  * Points-to statement for an Access a field and assign the result to a local. l = o.f
  */
-public class FieldToLocalStatment extends PointsToStatement {
+public class FieldToLocalStatement extends PointsToStatement {
 
     /**
      * Field being accessed
@@ -30,7 +32,7 @@ public class FieldToLocalStatment extends PointsToStatement {
     /**
      * receiver of field access
      */
-    private final ReferenceVariable receiver;
+    private ReferenceVariable receiver;
     /**
      * local assigned into
      */
@@ -48,7 +50,7 @@ public class FieldToLocalStatment extends PointsToStatement {
      * @param m
      *            method the statement was created for
      */
-    protected FieldToLocalStatment(ReferenceVariable l, ReferenceVariable o, FieldReference f, IMethod m) {
+    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o, FieldReference f, IMethod m) {
         super(m);
         this.declaredField = f;
         this.receiver = o;
@@ -104,5 +106,30 @@ public class FieldToLocalStatment extends PointsToStatement {
             // taken care of automatically by copy depedencies.
         }
         return changed;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return assignee;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(receiver);
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        receiver = newVariable;
+    }
+
+    /**
+     * Get the field being accessed
+     * 
+     * @return accessed field
+     */
+    public FieldReference getField() {
+        return declaredField;
     }
 }

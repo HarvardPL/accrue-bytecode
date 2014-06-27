@@ -13,6 +13,7 @@ import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.types.MethodReference;
 
 /**
  * Points-to statement for a call to a method
@@ -190,5 +191,37 @@ public abstract class CallStatement extends PointsToStatement {
      */
     protected final List<ReferenceVariable> getActuals() {
         return actuals;
+    }
+
+    /**
+     * Reference variable for any exceptions thrown by this call (including a NullPointerException due to the receiver
+     * being null)
+     * 
+     * @return exception reference variable
+     */
+    public ReferenceVariable getException() {
+        return exception;
+    }
+
+    /**
+     * (Unresolved) Method being called. The actual method depends on the run-time type of the receiver, which is
+     * approximated by the pointer analysis.
+     * 
+     * @return callee
+     */
+    public MethodReference getCallee() {
+        return callSite.getCallee();
+    }
+
+    /**
+     * Replace the variable for an actual argument with the given variable
+     * 
+     * @param argNum
+     *            index of the argument to replace
+     * @param newVariable
+     *            new reference variable
+     */
+    protected void replaceActual(int argNum, ReferenceVariable newVariable) {
+        actuals.set(argNum, newVariable);
     }
 }

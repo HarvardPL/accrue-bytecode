@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -35,7 +36,7 @@ public class VirtualCallStatement extends CallStatement {
     /**
      * Reference variable for the receiver of the call
      */
-    private final ReferenceVariable receiver;
+    private ReferenceVariable receiver;
     /**
      * Factory used to create callee summary nodes
      */
@@ -178,6 +179,49 @@ public class VirtualCallStatement extends CallStatement {
         }
         s.append("invokevirtual " + PrettyPrinter.methodString(callee));
 
+        s.append(" -- ");
+        s.append(receiver);
+        s.append(".");
+        s.append(callee.getName());
+        s.append("(");
+        List<ReferenceVariable> actuals = getActuals();
+        if (getActuals().size() > 1) {
+            s.append(actuals.get(1));
+        }
+        for (int j = 2; j < actuals.size(); j++) {
+            s.append(", ");
+            s.append(actuals.get(j));
+        }
+        s.append(")");
+
         return s.toString();
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber <= getActuals().size() && useNumber >= 0;
+        if (useNumber == 0) {
+            receiver = newVariable;
+            return;
+        }
+        replaceActual(useNumber - 1, newVariable);
+    }
+
+    /**
+     * Variable for receiver followed by variables for arguments in order
+     * 
+     * {@inheritDoc}
+     */
+    @Override
+    public List<ReferenceVariable> getUses() {
+        List<ReferenceVariable> uses = new ArrayList<>(getActuals().size() + 1);
+        uses.add(receiver);
+        uses.addAll(getActuals());
+        return uses;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return getResult();
     }
 }

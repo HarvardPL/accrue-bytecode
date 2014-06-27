@@ -123,9 +123,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue = new LinkedList<>();
 
         // Add initial contexts
-        for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getMethod())) {
-                queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s, c), null));
+        for (IMethod m : registrar.getInitialContextMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s, c), null));
+                }
             }
         }
 
@@ -368,6 +370,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
+        if (i >= 10000) {
+            for (StmtAndContext sac : iterations.keySet()) {
+                int iter = iterations.get(sac);
+                String iterString = String.valueOf(iter);
+                if (iter < 100) {
+                    iterString = "0" + iterString;
+                }
+                if (iter < 10) {
+                    iterString = "0" + iterString;
+                }
+                if (iter > 50) {
+                    System.err.println(iterString + ", " + sac);
+                }
+            }
+            throw new RuntimeException("Analyzed the same statement and context " + i + " times: " + s);
+        }
         return i;
     }
 
@@ -382,22 +400,24 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
-        System.err.println("Processing all statements for good luck: " + registrar.getAllStatements().size());
+        System.err.println("Processing all statements for good luck: " + registrar.size());
         int failcount = 0;
-        for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getMethod())) {
-                GraphDelta d = s.process(c, haf, g, null, registrar);
-                if (d == null) {
-                    throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
-                }
-                changed |= !d.isEmpty();
-                if (!d.isEmpty()) {
+        for (IMethod m : registrar.getRegisteredMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    GraphDelta d = s.process(c, haf, g, null, registrar);
+                    if (d == null) {
+                        throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
+                    }
+                    changed |= !d.isEmpty();
+                    if (!d.isEmpty()) {
 
-                    System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
-                    failcount++;
-                    if (failcount > 10) {
-                        System.err.println("\nThere may be more failures, but exiting now...");
-                        System.exit(1);
+                        System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
+                        failcount++;
+                        if (failcount > 10) {
+                            System.err.println("\nThere may be more failures, but exiting now...");
+                            System.exit(1);
+                        }
                     }
                 }
             }
