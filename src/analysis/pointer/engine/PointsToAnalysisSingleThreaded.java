@@ -143,7 +143,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             long currTime = System.currentTimeMillis();
             if (currTime > nextMilestone) {
-                nextMilestone = currTime + 1000 * 60; // 1 minute 
+                nextMilestone = nextMilestone + 1000 * 30; // 30 seconds 
                 System.err.println("PROCESSED: "
                         + numProcessed
                         + (outputLevel >= 1 ? " (" + visited.size()

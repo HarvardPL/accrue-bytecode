@@ -16,7 +16,6 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.graph.PointsToGraph.FilteredSet.FilteredIterator;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -133,7 +132,7 @@ public class PointsToGraph {
 
         GraphDelta delta = new GraphDelta(this);
         if (pointsToSet.add(heapContext)) {
-            delta.addBase(node, heapContext);
+            delta.add(node, heapContext);
         }
         return delta;
     }
@@ -153,9 +152,11 @@ public class PointsToGraph {
                 getOrCreateUnfilteredSubsetSet(source);
 
         GraphDelta changed = new GraphDelta(this);
-        if (sourceSubset.add(target)) {
+        if (!sourceSubset.contains(target)) {
+            // For the current design, it's important that we tell delta about the copyEdges before actually updating it.
             changed.addCopyEdges(source, null, target);
 
+            sourceSubset.add(target);
             // make sure the superset relation stays consistent
             Set<PointsToGraphNode> targetSuperset =
                     getOrCreateUnfilteredSupersetSet(target);
@@ -182,9 +183,11 @@ public class PointsToGraph {
                 new OrderedPair<>(target, filter);
 
         GraphDelta changed = new GraphDelta(this);
-        if (sourceSubset.add(trgFilter)) {
+        if (!sourceSubset.contains(trgFilter)) {
+            // For the current design, it's important that we tell delta about the copyEdges before actually updating it.
             changed.addCopyEdges(source, filter, target);
 
+            sourceSubset.add(trgFilter);
             // make sure the superset relation stays consistent
             Set<OrderedPair<PointsToGraphNode, TypeFilter>> targetSuperset =
                     getOrCreateSupersetSet(target);
@@ -525,43 +528,43 @@ public class PointsToGraph {
         public int size() {
             throw new UnsupportedOperationException();
         }
+    }
 
-        static class FilteredIterator implements Iterator<InstanceKey> {
-            private final Iterator<InstanceKey> iter;
-            private final TypeFilter filter;
-            private InstanceKey next = null;
+    static class FilteredIterator implements Iterator<InstanceKey> {
+        private final Iterator<InstanceKey> iter;
+        private final TypeFilter filter;
+        private InstanceKey next = null;
 
-            FilteredIterator(Iterator<InstanceKey> iter, TypeFilter filter) {
-                this.iter = iter;
-                this.filter = filter;
-            }
+        FilteredIterator(Iterator<InstanceKey> iter, TypeFilter filter) {
+            this.iter = iter;
+            this.filter = filter;
+        }
 
-            @Override
-            public boolean hasNext() {
-                while (next == null && iter.hasNext()) {
-                    InstanceKey ik = iter.next();
-                    if (filter.satisfies(ik.getConcreteType())) {
-                        next = ik;
-                    }
+        @Override
+        public boolean hasNext() {
+            while (next == null && iter.hasNext()) {
+                InstanceKey ik = iter.next();
+                if (filter.satisfies(ik.getConcreteType())) {
+                    next = ik;
                 }
-
-                return next != null;
             }
 
-            @Override
-            public InstanceKey next() {
-                if (hasNext()) {
-                    InstanceKey x = next;
-                    next = null;
-                    return x;
-                }
-                throw new NoSuchElementException();
-            }
+            return next != null;
+        }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
+        @Override
+        public InstanceKey next() {
+            if (hasNext()) {
+                InstanceKey x = next;
+                next = null;
+                return x;
             }
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -779,4 +782,61 @@ public class PointsToGraph {
         }
     }
 
+    /**
+     * Return the set of InstanceKeys that are in source (and satisfy filter) but are not in target.
+     * @param source
+     * @param filter
+     * @param target
+     * @return
+     */
+    Set<InstanceKey> getDifference(PointsToGraphNode source, TypeFilter filter,
+            PointsToGraphNode target) {
+        Iterator<InstanceKey> srcIter;
+        if (filter == null) {
+            srcIter = new PointsToIterator(this, source);
+        }
+        else {
+            srcIter =
+                    new FilteredIterator(new PointsToIterator(this, source),
+                                         filter);
+        }
+        return getDifference(srcIter, target);
+
+    }
+
+    private Set<InstanceKey> getDifference(Iterator<InstanceKey> srcIter,
+            PointsToGraphNode target) {
+        Set<InstanceKey> s = new LinkedHashSet<>();
+        // Do something simple initially. We can do better...
+
+        if (!srcIter.hasNext()) {
+            return Collections.emptySet();
+        }
+
+        // Make a set for trg.
+        Set<InstanceKey> trg = new HashSet<>();
+        for (PointsToIterator trgIter = new PointsToIterator(this, target); trgIter.hasNext();) {
+            trg.add(trgIter.next());
+        }
+
+        while (srcIter.hasNext()) {
+            InstanceKey i = srcIter.next();
+            if (!trg.contains(i)) {
+                s.add(i);
+            }
+        }
+        return s;
+
+    }
+
+    /**
+     * Return whatever is in set which is not in the points to set of target.
+     * @param set
+     * @param target
+     * @return
+     */
+    public Set<InstanceKey> getDifference(Set<InstanceKey> set,
+            PointsToGraphNode target) {
+        return getDifference(set.iterator(), target);
+    }
 }
