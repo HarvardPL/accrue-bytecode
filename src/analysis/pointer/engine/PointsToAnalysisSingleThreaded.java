@@ -35,7 +35,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies =
-            new HashMap<PointsToGraphNode, Set<StmtAndContext>>();
+            new HashMap<>();
 
     /**
      * Counters to detect infinite loops
@@ -114,11 +114,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 new LinkedList<>();
 
         // Add initial contexts
-        for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getMethod())) {
-                queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
-                                                                                             c),
-                                                                          null));
+        for (IMethod m : registrar.getInitialContextMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
+                                                                                                 c),
+                                                                              null));
+                }
             }
         }
 
@@ -273,46 +275,38 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /*
-        private void handleChangesMassiveDelta(
-                LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
-                GraphDelta initialChanges, PointsToGraph g) {
-            // First, we will handle the copy dependencies, and build up one massive delta to use for all of the interesting
-            // dependencies.
-            GraphDelta massiveDelta = new GraphDelta(g);
 
-            // Do a work queue to handle all the copy dependencies.
-            ArrayList<GraphDelta> changesQ = new ArrayList<>();
-            changesQ.add(initialChanges);
+    @SuppressWarnings("unused")
+    private void handleChangesMassiveDelta(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+                                    GraphDelta initialChanges, PointsToGraph g) {
+        // First, we will handle the copy dependencies, and build up one massive delta to use for all of the interesting
+        // dependencies.
+        GraphDelta massiveDelta = new GraphDelta();
 
-            while (!changesQ.isEmpty()) {
-                GraphDelta changes = changesQ.remove(changesQ.size() - 1);
+        // Do a work queue to handle all the copy dependencies.
+        ArrayList<GraphDelta> changesQ = new ArrayList<>();
+        changesQ.add(initialChanges);
 
-                // Copy dependencies...
-                Iterator<PointsToGraphNode> iter = changes.domainIterator();
-                while (iter.hasNext()) {
-                    PointsToGraphNode src = iter.next();
-                    Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m =
-                            copyDepedencies.get(src);
-                    if (m != null) {
-                        for (PointsToGraphNode trg : m.keySet()) {
-                            for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
-                                TypeFilter filter = p.fst();
-                                GraphDelta newChanges;
-                                if (filter == null) {
-                                    newChanges =
-                                            g.copyEdgesWithDelta(src, trg, changes);
-                                }
-                                else {
-                                    newChanges =
-                                            g.copyFilteredEdgesWithDelta(src,
-                                                                         filter,
-                                                                         trg,
-                                                                         changes);
-                                }
-                                if (!newChanges.isEmpty()) {
-                                    massiveDelta = massiveDelta.combine(newChanges);
-                                    changesQ.add(newChanges);
-                                }
+        while (!changesQ.isEmpty()) {
+            GraphDelta changes = changesQ.remove(changesQ.size() - 1);
+
+            // Copy dependencies...
+            for (PointsToGraphNode src : changes.domain()) {
+                Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
+                if (m != null) {
+                    for (PointsToGraphNode trg : m.keySet()) {
+                        for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
+                            TypeFilter filter = p.fst();
+                            GraphDelta newChanges;
+                            if (filter == null) {
+                                newChanges = g.copyEdgesWithDelta(src, trg, changes);
+                            }
+                            else {
+                                newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg, changes);
+                            }
+                            if (!newChanges.isEmpty()) {
+                                massiveDelta = massiveDelta.combine(newChanges);
+                                changesQ.add(newChanges);
                             }
                         }
                     }
@@ -392,6 +386,23 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         i++;
         iterations.put(s, i);
+        if (i >= 10000) {
+            for (StmtAndContext sac : iterations.keySet()) {
+                int iter = iterations.get(sac);
+                String iterString = String.valueOf(iter);
+                if (iter < 100) {
+                    iterString = "0" + iterString;
+                }
+                if (iter < 10) {
+                    iterString = "0" + iterString;
+                }
+                if (iter > 50) {
+                    System.err.println(iterString + ", " + sac);
+                }
+            }
+            throw new RuntimeException("Analyzed the same statement and context "
+                    + i + " times: " + s);
+        }
         return i;
     }
 
@@ -408,24 +419,26 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             StatementRegistrar registrar) {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: "
-                + registrar.getAllStatements().size());
+                + registrar.size());
         int failcount = 0;
-        for (PointsToStatement s : registrar.getAllStatements()) {
-            for (Context c : g.getContexts(s.getMethod())) {
-                GraphDelta d = s.process(c, haf, g, null, registrar);
-                if (d == null) {
-                    System.err.println("s returned null " + s.getClass()
-                            + " : " + s);
-                }
-                changed |= !d.isEmpty();
-                if (!d.isEmpty()) {
+        for (IMethod m : registrar.getRegisteredMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    GraphDelta d = s.process(c, haf, g, null, registrar);
+                    if (d == null) {
+                        throw new RuntimeException("s returned null "
+                                + s.getClass() + " : " + s);
+                    }
+                    changed |= !d.isEmpty();
+                    if (!d.isEmpty()) {
 
-                    System.err.println("uhoh Failed on " + s
-                            + "\n    Delta is " + d);
-                    failcount++;
-                    if (failcount > 10) {
-                        System.err.println("\nThere may be more failures, but exiting now...");
-                        System.exit(1);
+                        System.err.println("uhoh Failed on " + s
+                                + "\n    Delta is " + d);
+                        failcount++;
+                        if (failcount > 10) {
+                            System.err.println("\nThere may be more failures, but exiting now...");
+                            System.exit(1);
+                        }
                     }
                 }
             }

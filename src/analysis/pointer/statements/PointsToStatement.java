@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
@@ -12,6 +13,7 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
@@ -147,4 +149,30 @@ public abstract class PointsToStatement {
         }
         return true;
     }
+
+    /**
+     * Replace a variable use with a different variable. What the number corresponds to is defined by the implementation
+     * of {@link PointsToStatement#getUses()}.
+     * 
+     * @param useNumber
+     *            use number of the variable to be replaced
+     * @param newVariable
+     *            reference variable to replace the use
+     */
+    public abstract void replaceUse(int useNumber, ReferenceVariable newVariable);
+    
+    /**
+     * Get all variables used by this points-to statement. The order is arbitrary but the index is guaranteed to be the
+     * same as the use number in {@link PointsToStatement#replaceUse(int, ReferenceVariable)}.
+     * 
+     * @return list of variable uses
+     */
+    public abstract List<ReferenceVariable> getUses();
+
+    /**
+     * Get local variable defined by this statement, if any
+     * 
+     * @return local variable assigned into, null if there no such variable
+     */
+    public abstract ReferenceVariable getDef();
 }

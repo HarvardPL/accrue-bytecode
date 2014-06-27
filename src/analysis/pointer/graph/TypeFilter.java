@@ -31,7 +31,16 @@ public class TypeFilter {
     public final Set<IClass> isTypes;
     public final Set<IClass> notTypes;
 
-    private TypeFilter(IClass isType, Set<IClass> notTypes) {
+    /**
+     * Create a filter which matches one type and does not match a set of types
+     * 
+     * @param isType
+     *            the filte matches only subtypes of this class, if this is null then no filtering will be done and
+     *            everything matches
+     * @param notTypes
+     *            types to filter out
+     */
+    public TypeFilter(IClass isType, Set<IClass> notTypes) {
         this.isType = isType;
         isTypes = null;
         this.notTypes = simplifyNotTypes(notTypes);
@@ -94,6 +103,11 @@ public class TypeFilter {
     }
 
     private boolean isAssignableFrom(IClass c1, IClass c2) {
+        if (c1 == null) {
+            // Null indicates no filter
+            return true;
+        }
+
         if (notTypes == null) {
             return AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
         }

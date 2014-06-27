@@ -1,6 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -23,11 +25,11 @@ public class LocalToArrayStatement extends PointsToStatement {
     /**
      * Array assigned into
      */
-    private final ReferenceVariable array;
+    private ReferenceVariable array;
     /**
      * Value inserted into array
      */
-    private final ReferenceVariable value;
+    private ReferenceVariable value;
     /**
      * Type of array elements
      */
@@ -46,16 +48,17 @@ public class LocalToArrayStatement extends PointsToStatement {
      * @param m
      *            method the points-to statement came from
      */
-    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IMethod m) {
+    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v,
+            TypeReference baseType, IMethod m) {
         super(m);
-        this.array = a;
-        this.value = v;
+        array = a;
+        value = v;
         this.baseType = baseType;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
@@ -65,7 +68,10 @@ public class LocalToArrayStatement extends PointsToStatement {
             // no changes, let's do the processing in a straightforward way.
             for (Iterator<InstanceKey> iter = g.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                ObjectField contents =
+                        new ObjectField(arrHeapContext,
+                                        PointsToGraph.ARRAY_CONTENTS,
+                                        baseType);
                 GraphDelta d1 = g.copyEdges(v, contents);
                 changed = changed.combine(d1);
             }
@@ -76,7 +82,10 @@ public class LocalToArrayStatement extends PointsToStatement {
             // point to everything that the RHS can.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
+                ObjectField contents =
+                        new ObjectField(arrHeapContext,
+                                        PointsToGraph.ARRAY_CONTENTS,
+                                        baseType);
                 GraphDelta d1 = g.copyEdges(v, contents);
                 changed = changed.combine(d1);
             }
@@ -88,5 +97,28 @@ public class LocalToArrayStatement extends PointsToStatement {
     @Override
     public String toString() {
         return array + "." + PointsToGraph.ARRAY_CONTENTS + " = " + value;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return null;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        List<ReferenceVariable> uses = new ArrayList<>(2);
+        uses.add(array);
+        uses.add(value);
+        return uses;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0 || useNumber == 1;
+        if (useNumber == 0) {
+            array = newVariable;
+            return;
+        }
+        value = newVariable;
     }
 }

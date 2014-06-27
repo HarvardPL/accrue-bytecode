@@ -53,7 +53,7 @@ public class PointsToGraph {
     /**
      * The contexts that a method may appear in.
      */
-    private final Map<IMethod, Set<Context>> contexts = new LinkedHashMap();
+    private final Map<IMethod, Set<Context>> contexts = new LinkedHashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static initializers).
@@ -309,7 +309,7 @@ public class PointsToGraph {
         return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, contexts);
     }
 
-    private static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
+    static <K, T> Set<T> getOrCreateSet(K key, Map<K, Set<T>> map) {
         Set<T> set = map.get(key);
         if (set == null) {
             // make these concurrent to avoid ConcurrentModificationExceptions

@@ -15,6 +15,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 
+import signatures.SingletonExceptions;
+
 /**
  * Model of java.lang.System methods.
  */
@@ -35,10 +37,6 @@ public class System {
     @SuppressWarnings("unused")
     private static volatile SecurityManager security = null;
 
-    private static final IndexOutOfBoundsException IOOB_EXCEPTION = new IndexOutOfBoundsException();
-    private static final NullPointerException NPE = new NullPointerException();
-    private static final ArrayStoreException ARRAY_STORE = new ArrayStoreException();
-
     /**
      * Java implementation of {@link System#arraycopy(Object, int, Object, int, int)} used as an analysis signature
      * 
@@ -55,7 +53,7 @@ public class System {
      */
     static void arraycopy(Object src, int srcPos, Object dest, int destPos, int length) {
         if (src == null || dest == null) {
-            throw NPE;
+            throw SingletonExceptions.NULL_POINTER;
         }
 
         if (src == dest) {
@@ -120,7 +118,7 @@ public class System {
 
         if (src instanceof Object[] && dest instanceof Object[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             Object[] s = (Object[]) src;
             Object[] d = (Object[]) dest;
@@ -128,7 +126,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof byte[] && dest instanceof byte[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             byte[] s = (byte[]) src;
             byte[] d = (byte[]) dest;
@@ -136,7 +134,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof short[] && dest instanceof short[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             short[] s = (short[]) src;
             short[] d = (short[]) dest;
@@ -144,7 +142,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof int[] && dest instanceof int[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             int[] s = (int[]) src;
             int[] d = (int[]) dest;
@@ -152,7 +150,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof long[] && dest instanceof long[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             long[] s = (long[]) src;
             long[] d = (long[]) dest;
@@ -160,7 +158,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof float[] && dest instanceof float[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             float[] s = (float[]) src;
             float[] d = (float[]) dest;
@@ -168,7 +166,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof double[] && dest instanceof double[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             double[] s = (double[]) src;
             double[] d = (double[]) dest;
@@ -176,7 +174,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof boolean[] && dest instanceof boolean[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             boolean[] s = (boolean[]) src;
             boolean[] d = (boolean[]) dest;
@@ -184,7 +182,7 @@ public class System {
                 d[i + destPos] = s[i + srcPos];
         } else if (src instanceof char[] && dest instanceof char[]) {
             if (length < 0) {
-                throw IOOB_EXCEPTION;
+                throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             char[] s = (char[]) src;
             char[] d = (char[]) dest;
@@ -194,7 +192,7 @@ public class System {
             // src is not an array,
             // dest is not an array, or
             // src and dest are arrays of different types
-            throw ARRAY_STORE;
+            throw SingletonExceptions.ARRAY_STORE;
         }
     }
 

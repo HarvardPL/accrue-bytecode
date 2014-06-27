@@ -1,5 +1,9 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
+
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -24,7 +28,7 @@ public class LocalToLocalStatement extends PointsToStatement {
     /**
      * assigned
      */
-    private final ReferenceVariable right;
+    private ReferenceVariable right;
 
     private final boolean filter;
 
@@ -68,6 +72,22 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return left + " = " + right;
+        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType()) + ") " + right;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        right = newVariable;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(right);
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return left;
     }
 }

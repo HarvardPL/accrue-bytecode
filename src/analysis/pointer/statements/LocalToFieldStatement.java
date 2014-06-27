@@ -1,6 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -31,11 +33,11 @@ public class LocalToFieldStatement extends PointsToStatement {
     /**
      * receiver for field access
      */
-    private final ReferenceVariable receiver;
+    private ReferenceVariable receiver;
     /**
      * Value assigned into field
      */
-    private final ReferenceVariable assigned;
+    private ReferenceVariable assigned;
 
     /**
      * Statement for an assignment into a field, o.f = v
@@ -102,5 +104,28 @@ public class LocalToFieldStatement extends PointsToStatement {
                 + (field != null
                         ? field.getName() : PointsToGraph.ARRAY_CONTENTS)
                 + " = " + assigned;
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0 || useNumber == 1;
+        if (useNumber == 0) {
+            receiver = newVariable;
+            return;
+        }
+        assigned = newVariable;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        List<ReferenceVariable> uses = new ArrayList<>(2);
+        uses.add(receiver);
+        uses.add(assigned);
+        return uses;
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return null;
     }
 }

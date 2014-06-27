@@ -135,14 +135,14 @@ public class StatementFactory {
      *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
-    public static FieldToLocalStatment fieldToLocal(ReferenceVariable l, ReferenceVariable o, FieldReference f,
+    public static FieldToLocalStatement fieldToLocal(ReferenceVariable l, ReferenceVariable o, FieldReference f,
                                     IMethod m) {
         assert l != null;
         assert o != null;
         assert f != null;
         assert m != null;
 
-        FieldToLocalStatment s = new FieldToLocalStatment(l, o, f, m);
+        FieldToLocalStatement s = new FieldToLocalStatement(l, o, f, m);
         assert map.put(new StatementKey(l), s) == null;
         return s;
     }

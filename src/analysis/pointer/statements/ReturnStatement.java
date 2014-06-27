@@ -1,5 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.List;
+
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -18,7 +21,7 @@ public class ReturnStatement extends PointsToStatement {
     /**
      * Node for return result
      */
-    private final ReferenceVariable result;
+    private ReferenceVariable result;
     /**
      * Node summarizing all return values for the method
      */
@@ -54,5 +57,21 @@ public class ReturnStatement extends PointsToStatement {
     @Override
     public String toString() {
         return ("return " + result);
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        assert useNumber == 0;
+        result = newVariable;
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return Collections.singletonList(result);
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return null;
     }
 }

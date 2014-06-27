@@ -23,8 +23,7 @@ public class AccessController {
         try {
             return action.run();
         } catch (Exception e) {
-            return null;
-//            throw new PrivilegedActionException(e);
+            throw new PrivilegedActionException(e);
         }
     }
 
@@ -34,8 +33,7 @@ public class AccessController {
         try {
             return action.run();
         } catch (Exception e) {
-            return null;
-            // throw new PrivilegedActionException(e);
+            throw new PrivilegedActionException(e);
         }
     }
 }

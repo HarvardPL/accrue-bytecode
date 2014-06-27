@@ -8,5 +8,5 @@ do
 	class="test.pointer."$class
 	echo $class
 	cd /Users/mu/wala
-	bin/runAnalysis.sh -e $class -n pointsto -ea -V
+	bin/runAnalysis.sh -e $class -n pointsto -ea
 done	

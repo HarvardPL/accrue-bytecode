@@ -164,8 +164,7 @@ public class ReferenceVariableFactory {
      */
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createMethodExit(TypeReference type, IMethod method, ExitType exitType) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType + " ("
-                                        + PrettyPrinter.typeString(type) + ")", type, false);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType, type, false);
         // These should only be created once assert that this is true
         assert methodExitSummaries.put(new MethodSummaryKey(method, exitType), rv) == null;
         return rv;

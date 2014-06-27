@@ -70,6 +70,36 @@ public class StaticCallStatement extends CallStatement {
         }
         s.append("invokestatic " + PrettyPrinter.methodString(callee));
 
+        s.append(" -- ");
+        s.append(PrettyPrinter.typeString(callee.getDeclaringClass()));
+        s.append(".");
+        s.append(callee.getName());
+        s.append("(");
+        List<ReferenceVariable> actuals = getActuals();
+        if (getActuals().size() > 0) {
+            s.append(actuals.get(0));
+        }
+        for (int j = 1; j < actuals.size(); j++) {
+            s.append(", ");
+            s.append(actuals.get(j));
+        }
+        s.append(")");
+
         return s.toString();
+    }
+
+    @Override
+    public void replaceUse(int useNumber, ReferenceVariable newVariable) {
+        replaceActual(useNumber, newVariable);
+    }
+
+    @Override
+    public List<ReferenceVariable> getUses() {
+        return getActuals();
+    }
+
+    @Override
+    public ReferenceVariable getDef() {
+        return getResult();
     }
 }
