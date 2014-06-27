@@ -736,7 +736,7 @@ public final class StatementRegistrar {
 
         int num = size();
         if (num % 10000 == 0) {
-            System.err.println("REGISTERED: " + num + ", removed:" + removed);
+            System.err.println("REGISTERED: " + num + ", removed: " + removed);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
