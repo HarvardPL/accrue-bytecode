@@ -113,7 +113,6 @@ public abstract class CallStatement extends PointsToStatement {
                   callerContext,
                   callee,
                   calleeContext);
-        // XXX!@! should make g.addCall return something?
 
         // ////////////////// Return //////////////////
 
