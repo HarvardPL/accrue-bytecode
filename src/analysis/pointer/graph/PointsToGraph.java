@@ -127,6 +127,13 @@ public class PointsToGraph {
     }
 
     /**
+     * Clear the cache of realized points to sets. Should only be used for testing.
+     */
+    public void clearCache() {
+        cache.cache.clear();
+    }
+
+    /**
      * Add an edge from node to heapContext in the graph.
      * 
      * @param node
@@ -906,6 +913,18 @@ public class PointsToGraph {
         }
 
         public Set<InstanceKey> getPointsToSet(PointsToGraphNode n) {
+            return realizePointsToSet(n,
+                                      new HashSet<PointsToGraphNode>(),
+                                      new Stack<PointsToGraphNode>(),
+                                      new Stack<TypeFilter>(),
+                                      new Stack<Boolean>());
+
+        }
+
+        private Set<InstanceKey> realizePointsToSet(PointsToGraphNode n,
+                Set<PointsToGraphNode> currentlyRealizing,
+                Stack<PointsToGraphNode> currentlyRealizingStack,
+                Stack<TypeFilter> filters, Stack<Boolean> safeToCache) {
             try {
                 SoftReference<Set<InstanceKey>> sr = cache.get(n);
                 if (sr != null) {
@@ -918,29 +937,17 @@ public class PointsToGraph {
                     evictions++;
                 }
                 misses++;
-                // it is not in the cache, so we need to construct it.
-                return realizePointsToSet(n,
-                                          new HashSet<PointsToGraphNode>(),
-                                          new Stack<PointsToGraphNode>(),
-                                          new Stack<TypeFilter>(),
-                                          new Stack<Boolean>());
 
             }
             finally {
-                if ((hits + misses) % 10000 == 0) {
+                if ((hits + misses) % 1000000 == 0) {
                     System.err.println("Cache gives us: " + 100 * hits
-                            / (hits + misses) + "% hits; " + evictions
-                            + " evictions");
+                            / (hits + misses) + "% hits; " + evictions + " of "
+                            + misses + " misses due to evictions");
                     hits = misses = evictions = 0;
                 }
-
             }
-        }
 
-        private Set<InstanceKey> realizePointsToSet(PointsToGraphNode n,
-                Set<PointsToGraphNode> currentlyRealizing,
-                Stack<PointsToGraphNode> currentlyRealizingStack,
-                Stack<TypeFilter> filters, Stack<Boolean> safeToCache) {
             if (currentlyRealizing.contains(n)) {
                 // we are called recursively. Need to handle this specially.
                 // find the index that n first appears at, and compute the effective filter on the cycle.
@@ -991,10 +998,10 @@ public class PointsToGraph {
                 return base.get(n);
             }
 
-            Set<InstanceKey> s =
-                    baseContains
-                            ? new LinkedHashSet(base.get(n))
-                            : new LinkedHashSet();
+            Set<InstanceKey> s = AnalysisUtil.createConcurrentSet();
+            if (baseContains) {
+                s.addAll(base.get(n));
+            }
             safeToCache.push(true);
             addSubSets(n,
                        s,

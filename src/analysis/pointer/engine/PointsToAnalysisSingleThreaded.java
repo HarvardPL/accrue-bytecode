@@ -133,7 +133,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
             OrderedPair<StmtAndContext, GraphDelta> next;
-            if (queue.size() < 10000 && rnd.nextInt(10000) == 0) {
+            if (true || queue.size() < 10000 && rnd.nextInt(10000) == 0) {
                 next = queue.removeFirst();
                 front++;
             }
@@ -426,6 +426,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: "
                 + registrar.size());
+        // clear the cache to try and check that we didn't have an error in our caching...
+        g.clearCache();
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {

@@ -65,7 +65,8 @@ public class TypeFilter {
 
         }
         this.notTypes = simplifyNotTypes(notTypes);
-        if (this.isTypes.isEmpty() && this.notTypes.isEmpty()) {
+        if (isType == null && (this.isTypes == null || this.isTypes.isEmpty())
+                && (this.notTypes == null || this.notTypes.isEmpty())) {
             throw new IllegalArgumentException();
         }
 
