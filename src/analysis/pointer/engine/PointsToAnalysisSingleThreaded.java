@@ -1,13 +1,15 @@
 package analysis.pointer.engine;
 
+import java.util.AbstractQueue;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Random;
+import java.util.Queue;
 import java.util.Set;
 
 import util.OrderedPair;
@@ -92,6 +94,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return g;
     }
 
+    int numProcessed = 0;
+
     /**
      * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
      * entry point
@@ -109,42 +113,72 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("Starting points to engine using " + haf);
         long startTime = System.currentTimeMillis();
 
-        Random rnd = new Random(1636);
-        LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue =
+        // !@!XXX
+        // Cycle detection
+        // Better cache management
+
+        /*
+         * We use a least recently fired (LRF) comparator. 
+         * See Some directed graph algorithms and their application to pointer analysis. 
+         * David J. Pearce. Ph.D. Thesis, Imperial College of Science, Technology and Medicine, University of London, February 2005.
+         */
+        /*        Comparator<OrderedPair<StmtAndContext, GraphDelta>> lrfComparator =
+                        new Comparator<OrderedPair<StmtAndContext, GraphDelta>>() {
+
+                            @Override
+                            public int compare(
+                                    OrderedPair<StmtAndContext, GraphDelta> o1,
+                                    OrderedPair<StmtAndContext, GraphDelta> o2) {
+                                // return a negative number if o1 is "less than" or more important than o2
+                                Integer n1 = lastFired.get(o1.fst());
+                                Integer n2 = lastFired.get(o2.fst());
+                                if (n1 == null && n2 == null) {
+                                    // neither has been fired.
+                                    return 0;
+                                }
+                                if (n1 == null) {
+                                    // n1 hasn't been fired, but n2 has
+                                    return -1;
+                                }
+                                if (n2 == null) {
+                                    // n2 hasn't been fired, but n1 has
+                                    return 1;
+                                }
+                                // both n1 and n2 have been fired.
+                                return n1 < n2 ? -1 : n1 == n2 ? 0 : 1;
+                            }
+
+                        };*/
+
+        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
                 new LinkedList<>();
+//        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
+//                new PriorityQueue<>(10000, lrfComparator);
+//        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
+//                new CustomQueue();
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
-                                                                                                 c),
-                                                                              null));
+                    queue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
+                                                                                             c),
+                                                                          null));
                 }
             }
         }
 
-        int front = 0;
-        int back = 0;
-        int numProcessed = 0;
         long nextMilestone = startTime;
         long lastTime = startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
-            OrderedPair<StmtAndContext, GraphDelta> next;
-            if (true || queue.size() < 10000 && rnd.nextInt(10000) == 0) {
-                next = queue.removeFirst();
-                front++;
-            }
-            else {
-                next = queue.removeLast();
-                back++;
-            }
+            OrderedPair<StmtAndContext, GraphDelta> next = queue.poll();
 
             StmtAndContext sac = next.fst();
             GraphDelta delta = next.snd();
             incrementCounter(sac);
+
             numProcessed++;
             if (outputLevel >= 1) {
                 visited.add(sac);
@@ -166,11 +200,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         + (outputLevel >= 1 ? " (" + visited.size()
                                 + " unique)" : "") + " in "
                         + (currTime - startTime) / 1000 + "s;  graph is "
-                        + g.getBaseNodes().size() + " base nodes"
-                        + "; queue is " + queue.size() + "; front / back = "
-                        + front + " / " + back + " (" + (currTime - lastTime)
-                        / 1000 + " s since last)");
-                front = back = 0;
+                        + g.getBaseNodes().size()
+                        + " base nodes; cycle detection removed "
+                        + g.cycleRemovalCount() + " nodes ; queue is "
+                        + queue.size() + " (" + (currTime - lastTime) / 1000
+                        + "s since last)");
                 lastTime = currTime;
             }
         }
@@ -193,7 +227,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     private GraphDelta processSaC(StmtAndContext sac, GraphDelta delta,
             PointsToGraph g, StatementRegistrar registrar,
-            LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+            Queue<OrderedPair<StmtAndContext, GraphDelta>> queue,
             boolean registerOnline) {
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
@@ -206,6 +240,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // Get the changes from the graph
         Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
         Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
+        Set<PointsToGraphNode> newlyCombinedNodes =
+                g.getAndClearNewlyCombinedNodes();
 
         // Add new contexts
         for (IMethod m : newContexts.keySet()) {
@@ -229,9 +265,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
                 for (Context context : newContexts.get(m)) {
                     // these are new contexts, so use null for the delta
-                    queue.addLast(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt,
-                                                                                                 context),
-                                                                              null));
+                    queue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt,
+                                                                                             context),
+                                                                          null));
                 }
             }
         }
@@ -250,6 +286,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             addInterestingDependency(n, sac);
         }
 
+        // now update the interesting dependecies.
+        for (PointsToGraphNode n : newlyCombinedNodes) {
+            Set<StmtAndContext> deps = interestingDepedencies.remove(n);
+            if (deps != null) {
+                for (StmtAndContext depSac : deps) {
+                    addInterestingDependency(g.getRepresentative(n), depSac);
+                }
+            }
+        }
+
         if (outputLevel >= 4 && !changed.isEmpty()) {
             // for (PointsToGraphNode n : changed.domain()) {
             // System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSet(n) + ")");
@@ -266,7 +312,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     private void handleChanges(
-            LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
+            Queue<OrderedPair<StmtAndContext, GraphDelta>> queue,
             GraphDelta changes, PointsToGraph g) {
         // handleChangesMassiveDelta(queue, initialChanges, g);
         //handleChangesSmallDeltas(queue, initialChanges, g);
@@ -274,7 +320,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         while (iter.hasNext()) {
             PointsToGraphNode n = iter.next();
             for (StmtAndContext depsac : getInterestingDependencies(n)) {
-                queue.addLast(new OrderedPair<>(depsac, changes));
+                queue.add(new OrderedPair<>(depsac, changes));
             }
         }
 
@@ -426,7 +472,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: "
                 + registrar.size());
-        // clear the cache to try and check that we didn't have an error in our caching...
+        // clear the cache to check that we didn't have an error in our caching...
         g.clearCache();
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
@@ -488,5 +534,110 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             interestingDepedencies.put(n, s);
         }
         return s.add(sac);
+    }
+
+    private class CustomQueue extends
+            AbstractQueue<OrderedPair<StmtAndContext, GraphDelta>> {
+        final Queue<StmtAndContext> q;
+        final Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
+        final Set<StmtAndContext> deltaFree = new HashSet<>();
+
+        CustomQueue() {
+
+            Comparator<StmtAndContext> cmpr = new Comparator<StmtAndContext>() {
+
+                @Override
+                public int compare(StmtAndContext o1, StmtAndContext o2) {
+                    // first, run no deltas, then small delta, then the large delta.
+
+                    // return a negative number if o1 is "less than" or more important than o2
+                    boolean o1DeltaFree = deltaFree.contains(o1);
+                    boolean o2DeltaFree = deltaFree.contains(o2);
+
+                    if (o1DeltaFree && !o2DeltaFree) {
+                        return -1; // o1 first
+                    }
+                    if (o2DeltaFree && !o1DeltaFree) {
+                        return 1; // o2 first
+                    }
+                    if (o1DeltaFree && o2DeltaFree) {
+                        return 0; // Hmmm, maybe some other way to break the tie... 
+                    }
+
+                    // both should have deltas
+                    GraphDelta o1Delta = deltas.get(o1);
+                    GraphDelta o2Delta = deltas.get(o2);
+                    int o1Size = o1Delta == null ? -1 : o1Delta.extendedSize();
+                    int o2Size = o2Delta == null ? -1 : o2Delta.extendedSize();
+
+                    return o1Size > o2Size ? 1 : o1Size == o2Size ? 0 : -1;
+                }
+
+            };
+//            q = new PriorityQueue<>(10000, cmpr);
+            q = new LinkedList<>();
+        }
+
+        @Override
+        public int size() {
+            return q.size();
+        }
+
+        @Override
+        public boolean offer(OrderedPair<StmtAndContext, GraphDelta> e) {
+            StmtAndContext sac = e.fst();
+            GraphDelta delta = e.snd();
+            if (delta == null) {
+                // we are going to run the sac without any delta.
+                deltas.remove(sac);
+                deltaFree.add(sac);
+                q.offer(sac);
+                return true;
+            }
+            if (deltaFree.contains(sac)) {
+                // we are already going to run the sac without a delta.
+                // ignore the delta, don't re-add the sac.
+                return true;
+            }
+            GraphDelta existing = deltas.get(sac);
+            if (existing != null) {
+                // there is already a delta.
+                // combine them.
+                deltas.put(sac, existing.combine(delta));
+            }
+            else {
+                deltas.put(sac, delta);
+            }
+            q.offer(sac);
+            return true;
+        }
+
+        @Override
+        public OrderedPair<StmtAndContext, GraphDelta> poll() {
+            StmtAndContext sac = q.poll();
+            if (sac == null) {
+                return null;
+            }
+            GraphDelta delta = null;
+            if (deltaFree.contains(sac)) {
+                // nothing to do, delta is null
+                deltaFree.remove(sac);
+            }
+            else {
+                delta = deltas.remove(sac);
+            }
+            return new OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>(sac,
+                                                                                delta);
+        }
+
+        @Override
+        public OrderedPair<StmtAndContext, GraphDelta> peek() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterator<OrderedPair<StmtAndContext, GraphDelta>> iterator() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

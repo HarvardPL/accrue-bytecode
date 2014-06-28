@@ -1,11 +1,13 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 
 import util.OrderedPair;
 
@@ -35,8 +37,15 @@ public class GraphDelta {
     }
 
     public void add(PointsToGraphNode n, InstanceKey ik) {
-        addToSupersetsOf(n, Collections.singleton(ik));
-
+        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine =
+                new LinkedHashMap<>();
+        addToSupersetsOf(n,
+                         Collections.singleton(ik),
+                         new HashSet<PointsToGraphNode>(),
+                         new Stack<PointsToGraphNode>(),
+                         new Stack<TypeFilter>(),
+                         toCombine);
+        combineNodes(toCombine);
     }
 
     public void addCopyEdges(PointsToGraphNode source, TypeFilter filter,
@@ -45,35 +54,101 @@ public class GraphDelta {
         Set<InstanceKey> diff = g.getDifference(source, filter, target);
 
         // Now take care of all the supersets of target...
-        addToSupersetsOf(target, diff);
+        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine =
+                new LinkedHashMap<>();
+        addToSupersetsOf(target,
+                         diff,
+                         new HashSet<PointsToGraphNode>(),
+                         new Stack<PointsToGraphNode>(),
+                         new Stack<TypeFilter>(),
+                         toCombine);
+        combineNodes(toCombine);
     }
 
-    private void addToSupersetsOf(PointsToGraphNode target, Set<InstanceKey> set) {
+    private void combineNodes(
+            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine) {
+        for (PointsToGraphNode rep : toCombine.keySet()) {
+            for (PointsToGraphNode n : toCombine.get(rep)) {
+                g.combineNodes(n, rep);
+                delta.remove(n);
+            }
+        }
+    }
+
+    private void addToSupersetsOf(PointsToGraphNode target,
+            Set<InstanceKey> set, Set<PointsToGraphNode> currentlyAdding,
+            Stack<PointsToGraphNode> currentlyAddingStack,
+            Stack<TypeFilter> filters,
+            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine) {
+
+        if (currentlyAdding.contains(target)) {
+            // we detected a cycle!
+            int foundAt = -1;
+            TypeFilter filter = null;
+            for (int i = 0; filter == null && i < currentlyAdding.size(); i++) {
+                if (foundAt < 0 && currentlyAddingStack.get(i).equals(target)) {
+                    foundAt = i;
+                    filter = filters.get(i);
+                }
+                else if (foundAt >= 0) {
+                    filter = TypeFilter.compose(filter, filters.get(i));
+                }
+            }
+            if (filter == null) {
+                // we can collapse some nodes together!
+                Set<PointsToGraphNode> toCombineSet = toCombine.get(target);
+                if (toCombineSet == null) {
+                    toCombineSet = new LinkedHashSet<>();
+                    toCombine.put(target, toCombineSet);
+                }
+                for (int i = foundAt + 1; i < currentlyAddingStack.size(); i++) {
+                    toCombineSet.add(currentlyAddingStack.get(i));
+                }
+            }
+            if (getOrCreateSet(target).addAll(set)) {
+                throw new RuntimeException("Something strange happened: this should be empty by now...");
+            }
+        }
 
         if (!getOrCreateSet(target).addAll(set)) {
             // we didn't add anything, so don't bother recursing...
+            if (getOrCreateSet(target).isEmpty()) {
+                // let's clean up our mess...
+                delta.remove(target);
+            }
             return;
         }
 
+        currentlyAdding.add(target);
+        currentlyAddingStack.push(target);
         Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
                 g.immediateSuperSetsOf(target);
         while (iter.hasNext()) {
             OrderedPair<PointsToGraphNode, TypeFilter> superSet = iter.next();
 
-            Set<InstanceKey> filteredSet;
-            if (superSet.snd() == null) {
-                filteredSet = set;
-            }
-            else {
-                filteredSet =
-                        new PointsToGraph.FilteredSet(set, superSet.snd());
-            }
+            TypeFilter filter = superSet.snd();
+            Set<InstanceKey> filteredSet =
+                    filter == null
+                            ? set
+                            : new PointsToGraph.FilteredSet(set, superSet.snd());
 
-            // Actually check which of the filtered set is really added to the target.
+            // Figure out which elements of filteredSet are actually added to the superset...
             Set<InstanceKey> diff =
                     g.getDifference(filteredSet, superSet.fst());
-            addToSupersetsOf(superSet.fst(), diff);
+
+            filters.push(filter);
+            addToSupersetsOf(superSet.fst(),
+                             diff,
+                             currentlyAdding,
+                             currentlyAddingStack,
+                             filters,
+                             toCombine);
+            filters.pop();
         }
+
+        currentlyAdding.remove(target);
+        currentlyAddingStack.pop();
+
     }
 
     /**
@@ -100,7 +175,17 @@ public class GraphDelta {
         return "GraphDelta [" + delta + "]";
     }
 
+    public Set<InstanceKey> pointsToSet(PointsToGraphNode n) {
+        n = g.getRepresentative(n);
+        Set<InstanceKey> s = delta.get(n);
+        if (s == null) {
+            return Collections.emptySet();
+        }
+        return s;
+    }
+
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        n = g.getRepresentative(n);
         Set<InstanceKey> s = delta.get(n);
         if (s == null) {
             return Collections.emptyIterator();
@@ -112,4 +197,15 @@ public class GraphDelta {
         return delta.keySet().iterator();
     }
 
+    public int size() {
+        return delta.size();
+    }
+
+    public int extendedSize() {
+        int size = 0;
+        for (PointsToGraphNode n : delta.keySet()) {
+            size += delta.get(n).size();
+        }
+        return size;
+    }
 }

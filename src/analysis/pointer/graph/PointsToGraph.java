@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Stack;
@@ -52,6 +53,8 @@ public class PointsToGraph {
     private final Map<PointsToGraphNode, Set<PointsToGraphNode>> isUnfilteredSupersetOf =
             new LinkedHashMap<>();
 
+    private final Map<PointsToGraphNode, PointsToGraphNode> representative =
+            new HashMap<>();
     /**
      * The contexts that a method may appear in.
      */
@@ -72,7 +75,7 @@ public class PointsToGraph {
 
     // private final DependencyRecorder depRecorder;
     private Set<PointsToGraphNode> readNodes;
-    private Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> newSubsetRelations;
+    private Set<PointsToGraphNode> newlyCombinedNodes;
 
     private Map<IMethod, Set<Context>> newContexts;
 
@@ -88,7 +91,7 @@ public class PointsToGraph {
     public PointsToGraph(StatementRegistrar registrar,
             HeapAbstractionFactory haf) {
         readNodes = new LinkedHashSet<>();
-        newSubsetRelations = new LinkedHashMap<>();
+        newlyCombinedNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
 
         this.haf = haf;
@@ -120,9 +123,9 @@ public class PointsToGraph {
     public Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> immediateSuperSetsOf(
             PointsToGraphNode n) {
         Set<PointsToGraphNode> unfilteredsupersets =
-                isUnfilteredSubsetOf.get(n);
+                isUnfilteredSubsetOf.get(getRepresentative(n));
         Set<OrderedPair<PointsToGraphNode, TypeFilter>> supersets =
-                isSubsetOf.get(n);
+                isSubsetOf.get(getRepresentative(n));
         return composeIterators(unfilteredsupersets, supersets);
     }
 
@@ -131,6 +134,22 @@ public class PointsToGraph {
      */
     public void clearCache() {
         cache.cache.clear();
+    }
+
+    public PointsToGraphNode getRepresentative(PointsToGraphNode n) {
+        PointsToGraphNode orig = n;
+        PointsToGraphNode rep;
+        int i = 0;
+        do {
+            i++;
+            rep = n;
+            n = representative.get(n);
+        } while (n != null);
+        if (i > 1) {
+            // short cut it.
+            representative.put(orig, rep);
+        }
+        return rep;
     }
 
     /**
@@ -142,6 +161,8 @@ public class PointsToGraph {
      */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
+        node = getRepresentative(node);
+
         Set<InstanceKey> pointsToSet = getOrCreateBaseSet(node);
 
         GraphDelta delta = new GraphDelta(this);
@@ -165,6 +186,13 @@ public class PointsToGraph {
      */
     public GraphDelta copyEdges(PointsToGraphNode source,
             PointsToGraphNode target) {
+        source = getRepresentative(source);
+        target = getRepresentative(target);
+
+        if (source.equals(target)) {
+            // don't bother adding
+            return new GraphDelta(this);
+        }
         // source is a subset of target, target is a superset of source.
         Set<PointsToGraphNode> sourceSubset =
                 getOrCreateUnfilteredSubsetSet(source);
@@ -203,6 +231,14 @@ public class PointsToGraph {
             return new GraphDelta(this);
         }
 
+        source = getRepresentative(source);
+        target = getRepresentative(target);
+
+        if (source.equals(target)) {
+            // don't bother adding
+            return new GraphDelta(this);
+        }
+
         Set<OrderedPair<PointsToGraphNode, TypeFilter>> sourceSubset =
                 getOrCreateSubsetSet(source);
         OrderedPair<PointsToGraphNode, TypeFilter> trgFilter =
@@ -233,6 +269,7 @@ public class PointsToGraph {
      * @return
      */
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        n = getRepresentative(n);
         recordRead(n);
         return cache.getPointsToSet(n).iterator();
     }
@@ -311,24 +348,28 @@ public class PointsToGraph {
 
     private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSubsetSet(
             PointsToGraphNode node) {
+        assert !representative.containsKey(node);
         return PointsToGraph.<PointsToGraphNode, OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSet(node,
                                                                                                             isSubsetOf);
     }
 
     private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSupersetSet(
             PointsToGraphNode node) {
+        assert !representative.containsKey(node);
         return PointsToGraph.<PointsToGraphNode, OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSet(node,
                                                                                                             isSupersetOf);
     }
 
     private Set<PointsToGraphNode> getOrCreateUnfilteredSubsetSet(
             PointsToGraphNode node) {
+        assert !representative.containsKey(node);
         return PointsToGraph.<PointsToGraphNode, PointsToGraphNode> getOrCreateSet(node,
                                                                                    isUnfilteredSubsetOf);
     }
 
     private Set<PointsToGraphNode> getOrCreateUnfilteredSupersetSet(
             PointsToGraphNode node) {
+        assert !representative.containsKey(node);
         return PointsToGraph.<PointsToGraphNode, PointsToGraphNode> getOrCreateSet(node,
                                                                                    isUnfilteredSupersetOf);
     }
@@ -485,6 +526,122 @@ public class PointsToGraph {
 
     private void recordRead(PointsToGraphNode node) {
         readNodes.add(node);
+    }
+
+    public Set<PointsToGraphNode> getAndClearNewlyCombinedNodes() {
+        Set<PointsToGraphNode> c = newlyCombinedNodes;
+        newlyCombinedNodes = new LinkedHashSet<>();
+        return c;
+    }
+
+    /**
+     * When we have detected that the points to sets of two nodes are identical, we can
+     * collapse them.
+     * @param n
+     * @param rep
+     */
+    void combineNodes(PointsToGraphNode n, PointsToGraphNode rep) {
+        assert !n.equals(rep) : "Can't combine a node with itself";
+
+        // it is possible that since n and rep were registered, one or both of them were already merged.
+        n = getRepresentative(n);
+        rep = getRepresentative(rep);
+        if (n.equals(rep)) {
+            // they have already been merged.
+            return;
+        }
+        newlyCombinedNodes.add(n);
+
+        // update the cache.
+        cache.removed(n);
+
+        // update the read nodes
+        if (readNodes.contains(n)) {
+            readNodes.remove(n);
+            readNodes.add(rep);
+        }
+
+        // update the subset and superset graphs.
+        Set<PointsToGraphNode> unfilteredSubsetOf =
+                isUnfilteredSubsetOf.remove(n);
+        Set<PointsToGraphNode> unfilteredSupersetOf =
+                isUnfilteredSupersetOf.remove(n);
+
+        Set<PointsToGraphNode> repUnfilteredSubsetOf =
+                getOrCreateUnfilteredSubsetSet(rep);
+        Set<PointsToGraphNode> repUnfilteredSupersetOf =
+                getOrCreateUnfilteredSupersetSet(rep);
+
+        if (unfilteredSubsetOf != null) {
+            for (PointsToGraphNode x : unfilteredSubsetOf) {
+                // n is an unfiltered subset of x, so n is in the isUnfilteredSupersets of x 
+                Set<PointsToGraphNode> s = isUnfilteredSupersetOf.get(x);
+                s.remove(n);
+                if (!x.equals(rep)) {
+                    s.add(rep);
+                    // add x to the representative's...
+                    repUnfilteredSubsetOf.add(x);
+                }
+            }
+        }
+
+        if (unfilteredSupersetOf != null) {
+            for (PointsToGraphNode x : unfilteredSupersetOf) {
+                // n is an unfiltered superset of x, so n is in the isUnfilteredSubsets of x 
+                Set<PointsToGraphNode> s = isUnfilteredSubsetOf.get(x);
+                s.remove(n);
+                if (!x.equals(rep)) {
+                    s.add(rep);
+                    // add x to the representative's...
+                    repUnfilteredSupersetOf.add(x);
+                }
+            }
+        }
+
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSubsetOf =
+                isSubsetOf.remove(n);
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSupersetOf =
+                isSupersetOf.remove(n);
+
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> repFilteredSubsetOf =
+                getOrCreateSubsetSet(rep);
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> repFilteredSupersetOf =
+                getOrCreateSupersetSet(rep);
+
+        if (filteredSubsetOf != null) {
+            for (OrderedPair<PointsToGraphNode, TypeFilter> x : filteredSubsetOf) {
+                // n is a filtered subset of x, so n is in the isSupersets of x 
+                Set<OrderedPair<PointsToGraphNode, TypeFilter>> s =
+                        isSupersetOf.get(x.fst());
+                s.remove(new OrderedPair<>(n, x.snd()));
+                if (!x.fst().equals(rep)) {
+                    s.add(new OrderedPair<>(rep, x.snd()));
+                    // add x to the representative's...
+                    repFilteredSubsetOf.add(x);
+
+                }
+            }
+        }
+
+        if (filteredSupersetOf != null) {
+            for (OrderedPair<PointsToGraphNode, TypeFilter> x : filteredSupersetOf) {
+                // n is a filtered superset of x, so n is in the isSubsets of x 
+                Set<OrderedPair<PointsToGraphNode, TypeFilter>> s =
+                        isSubsetOf.get(x.fst());
+                s.remove(new OrderedPair<>(n, x.snd()));
+                if (!x.fst().equals(rep)) {
+                    s.add(new OrderedPair<>(rep, x.snd()));
+                    // add x to the representative's...
+                    repFilteredSupersetOf.add(x);
+
+                }
+            }
+        }
+
+        // update the base nodes.
+        assert !base.containsKey(n) : "Base nodes shouldn't be combined";
+
+        representative.put(n, rep);
     }
 
     public void setOutputLevel(int outputLevel) {
@@ -838,6 +995,8 @@ public class PointsToGraph {
      */
     Set<InstanceKey> getDifference(PointsToGraphNode source, TypeFilter filter,
             PointsToGraphNode target) {
+        source = getRepresentative(source);
+
         Set<InstanceKey> s = cache.getPointsToSet(source);
         Iterator<InstanceKey> srcIter;
         if (filter == null) {
@@ -852,8 +1011,7 @@ public class PointsToGraph {
 
     private Set<InstanceKey> getDifference(Iterator<InstanceKey> srcIter,
             PointsToGraphNode target) {
-        Set<InstanceKey> s = new LinkedHashSet<>();
-        // Do something simple initially. We can do better...
+        target = getRepresentative(target);
 
         if (!srcIter.hasNext()) {
             return Collections.emptySet();
@@ -861,6 +1019,7 @@ public class PointsToGraph {
 
         Set<InstanceKey> trg = cache.getPointsToSet(target);
 
+        Set<InstanceKey> s = new LinkedHashSet<>();
         while (srcIter.hasNext()) {
             InstanceKey i = srcIter.next();
             if (!trg.contains(i)) {
@@ -892,6 +1051,17 @@ public class PointsToGraph {
         private int misses = 0;
         private int evictions = 0;
 
+        private Map<PointsToGraphNode, Set<InstanceKey>> recentlyUsedMap =
+                new LinkedHashMap<PointsToGraphNode, Set<InstanceKey>>(20000) {
+
+                    @Override
+                    protected boolean removeEldestEntry(
+                            Entry<PointsToGraphNode, Set<InstanceKey>> eldest) {
+                        return size() > 20000; // only keep the most recently accessed nodes.
+                    }
+
+                };
+
         /**
          * Update or invalidate caches based on the changes represented by 
          * the graph delta
@@ -900,16 +1070,22 @@ public class PointsToGraph {
             Iterator<PointsToGraphNode> iter = delta.domainIterator();
             while (iter.hasNext()) {
                 PointsToGraphNode n = iter.next();
+                Set<InstanceKey> deltaSet = delta.pointsToSet(n);
                 SoftReference<Set<InstanceKey>> sr = cache.get(n);
                 if (sr != null) {
                     Set<InstanceKey> s = sr.get();
                     // the set is in the cache!
-                    Iterator<InstanceKey> dIter = delta.pointsToIterator(n);
-                    while (dIter.hasNext()) {
-                        s.add(dIter.next());
-                    }
+                    s.addAll(deltaSet);
+                    recentlyUsedMap.put(n, s);
                 }
             }
+        }
+
+        /**
+         * Node n has been removed (e.g., combined with another node
+         */
+        public void removed(PointsToGraphNode n) {
+            cache.remove(n);
         }
 
         public Set<InstanceKey> getPointsToSet(PointsToGraphNode n) {
@@ -925,6 +1101,8 @@ public class PointsToGraph {
                 Set<PointsToGraphNode> currentlyRealizing,
                 Stack<PointsToGraphNode> currentlyRealizingStack,
                 Stack<TypeFilter> filters, Stack<Boolean> safeToCache) {
+            assert !representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
+
             try {
                 SoftReference<Set<InstanceKey>> sr = cache.get(n);
                 if (sr != null) {
@@ -932,88 +1110,84 @@ public class PointsToGraph {
                     if (s != null) {
                         // we have it in the cache!
                         hits++;
+                        // put it in the recently used...
+                        recentlyUsedMap.put(n, s);
                         return s;
                     }
                     evictions++;
                 }
+
+                if (currentlyRealizing.contains(n)) {
+                    // we are called recursively. Need to handle this specially.
+                    // find the index that n first appears at, and compute the effective filter on the cycle.
+                    int foundAt = -1;
+                    TypeFilter filter = null;
+                    for (int i = 0; i < currentlyRealizing.size(); i++) {
+                        if (foundAt < 0
+                                && currentlyRealizingStack.get(i).equals(n)) {
+                            foundAt = i;
+                            filter = filters.get(i);
+                        }
+                        else if (foundAt >= 0) {
+                            // it is not safe to cache the result of i. (but will be ok to cache foundAt).
+                            safeToCache.setElementAt(false, i);
+                            filter = TypeFilter.compose(filter, filters.get(i));
+                        }
+                    }
+                    // return an empty set, which will let us compute the realization of the
+                    // point to set.
+                    return Collections.emptySet();
+                }
+                boolean baseContains = base.containsKey(n);
+                boolean hasUnfilteredSupersetRelns =
+                        isUnfilteredSupersetOf.containsKey(n);
+                boolean hasFilteredSupersetRelns = isSupersetOf.containsKey(n);
+
+                // A case that shouldn't be true...
+                if (!baseContains && !hasUnfilteredSupersetRelns
+                        && !hasFilteredSupersetRelns) {
+                    // doesn't point to anything.
+                    return Collections.emptySet();
+                }
+
+                if (baseContains
+                        && !(hasUnfilteredSupersetRelns || hasFilteredSupersetRelns)) {
+                    // n is a base node, and no superset relations
+                    return base.get(n);
+                }
+
+                // We now know we definitely missed in the cache (i.e., not a base node).
                 misses++;
+
+                Set<InstanceKey> s = AnalysisUtil.createConcurrentSet();
+                if (baseContains) {
+                    s.addAll(base.get(n));
+                }
+                safeToCache.push(true);
+                addSubSets(n,
+                           s,
+                           currentlyRealizing,
+                           currentlyRealizingStack,
+                           filters,
+                           safeToCache);
+                if (safeToCache.pop()) {
+                    // it is safe for us to cache the result of this realization.
+                    cache.put(n, new SoftReference<>(s));
+                    recentlyUsedMap.put(n, s);
+                }
+                return s;
 
             }
             finally {
-                if ((hits + misses) % 1000000 == 0) {
+                if ((hits + misses) % 1000000 == 0 && hits + misses > 0) {
                     System.err.println("Cache gives us: " + 100 * hits
                             / (hits + misses) + "% hits; " + evictions + " of "
-                            + misses + " misses due to evictions");
+                            + misses + " misses due to evictions; cache size: "
+                            + cache.size());
                     hits = misses = evictions = 0;
                 }
             }
 
-            if (currentlyRealizing.contains(n)) {
-                // we are called recursively. Need to handle this specially.
-                // find the index that n first appears at, and compute the effective filter on the cycle.
-                int foundAt = -1;
-                TypeFilter filter = null;
-                for (int i = 0; i < currentlyRealizing.size(); i++) {
-                    if (currentlyRealizingStack.get(i).equals(n)) {
-                        foundAt = i;
-                        filter = filters.get(i);
-                    }
-                    else if (foundAt >= 0) {
-                        // it is not safe to cache the result of i. (but will be ok to cache foundAt).
-                        safeToCache.setElementAt(false, i);
-                        filter = TypeFilter.compose(filter, filters.get(i));
-                    }
-                }
-                if (filter == null) {
-                    // we can collapse some nodes together!
-//                    System.err.println("\nRecursive call to realizePointsToSet: slowing down "
-//                            + currentlyRealizing.size());
-//                    for (int i = foundAt; i < currentlyRealizing.size(); i++) {
-//                        System.err.println("     " + (i - foundAt + 1) + ". "
-//                                + currentlyRealizing.get(i) + "    "
-//                                + currentlyRealizing.get(i).hashCode() + " :  "
-//                                + filters.get(i));
-//                    }
-//                    System.err.println("   and finally " + n);
-                }
-                // return an empty set, which will let us compute the realization of the
-                // point to set.
-                return Collections.emptySet();
-            }
-            boolean baseContains = base.containsKey(n);
-            boolean hasUnfilteredSupersetRelns =
-                    isUnfilteredSupersetOf.containsKey(n);
-            boolean hasFilteredSupersetRelns = isSupersetOf.containsKey(n);
-
-            // A case that shouldn't be true...
-            if (!baseContains && !hasUnfilteredSupersetRelns
-                    && !hasFilteredSupersetRelns) {
-                // doesn't point to anything.
-                return Collections.emptySet();
-            }
-
-            if (baseContains
-                    && !(hasUnfilteredSupersetRelns || hasFilteredSupersetRelns)) {
-                // n is a base node, and no superset relations
-                return base.get(n);
-            }
-
-            Set<InstanceKey> s = AnalysisUtil.createConcurrentSet();
-            if (baseContains) {
-                s.addAll(base.get(n));
-            }
-            safeToCache.push(true);
-            addSubSets(n,
-                       s,
-                       currentlyRealizing,
-                       currentlyRealizingStack,
-                       filters,
-                       safeToCache);
-            if (safeToCache.pop()) {
-                // it is safe for us to cache the result of this realization.
-                cache.put(n, new SoftReference<Set<InstanceKey>>(s));
-            }
-            return s;
         }
 
         private void addSubSets(PointsToGraphNode n, Set<InstanceKey> s,
@@ -1054,5 +1228,9 @@ public class PointsToGraph {
             currentlyRealizing.remove(n);
             currentlyRealizingStack.pop();
         }
+    }
+
+    public int cycleRemovalCount() {
+        return representative.size();
     }
 }
