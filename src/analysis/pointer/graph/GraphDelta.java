@@ -81,6 +81,7 @@ public class GraphDelta {
             Stack<TypeFilter> filters,
             Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine) {
 
+        // Handle detection of cycles.
         if (currentlyAdding.contains(target)) {
             // we detected a cycle!
             int foundAt = -1;
@@ -89,8 +90,12 @@ public class GraphDelta {
                 if (foundAt < 0 && currentlyAddingStack.get(i).equals(target)) {
                     foundAt = i;
                     filter = filters.get(i);
+                    // Mark the node as being in a cycle, so that it will stay in the cache.
+                    g.inCycle(currentlyAddingStack.get(i));
                 }
                 else if (foundAt >= 0) {
+                    // Mark the node as being in a cycle, so that it will stay in the cache.
+                    g.inCycle(currentlyAddingStack.get(i));
                     filter = TypeFilter.compose(filter, filters.get(i));
                 }
             }
@@ -105,11 +110,10 @@ public class GraphDelta {
                     toCombineSet.add(currentlyAddingStack.get(i));
                 }
             }
-            if (getOrCreateSet(target).addAll(set)) {
-                throw new RuntimeException("Something strange happened: this should be empty by now...");
-            }
+            assert !getOrCreateSet(target).addAll(set) : "Shouldn't be anything left to add by this point";
         }
 
+        // Now we actually add the set to the target.
         if (!getOrCreateSet(target).addAll(set)) {
             // we didn't add anything, so don't bother recursing...
             if (getOrCreateSet(target).isEmpty()) {
@@ -119,6 +123,7 @@ public class GraphDelta {
             return;
         }
 
+        // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
         Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =

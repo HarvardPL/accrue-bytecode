@@ -800,137 +800,6 @@ public class PointsToGraph {
         return iter;
     }
 
-    /**
-     * For the given graph node, iterate through all the InstanceKeys that the
-     * node points to, filtered appropriately based on the specified TypeFilter,
-     * and skipping over any InstanceKeys that are reachable via the alreadyVisited
-     * set, i.e., the set of nodes that we have already (or are in the process) of visiting.
-     */
-    public static class PointsToIterator implements Iterator<InstanceKey> {
-        private final PointsToGraph g;
-        private final Set<OrderedPair<PointsToGraphNode, TypeFilter>> visited;
-        private final Stack<Iterator<OrderedPair<PointsToGraphNode, TypeFilter>>> visitingStack;
-        private Iterator<InstanceKey> currentBaseIter;
-        private Stack<TypeFilter> typeFilters;
-
-        public PointsToIterator(PointsToGraph g, PointsToGraphNode n) {
-            this(g, n, null, null);
-        }
-
-        public PointsToIterator(PointsToGraph g, PointsToGraphNode n,
-                TypeFilter filter,
-                Set<OrderedPair<PointsToGraphNode, TypeFilter>> alreadyVisited) {
-
-            this.g = g;
-            if (alreadyVisited != null) {
-                visited = alreadyVisited;
-            }
-            else {
-                visited = new HashSet<>();
-            }
-            visitingStack = new Stack<>();
-            typeFilters = new Stack<>();
-            typeFilters.push(null);
-            // set up the initial condition, i.e., we are starting to visit n, with type filter filter.
-            startVisit(n, filter);
-        }
-
-        /**
-         * Attempt to start visiting t. The iterator should return everything that t can point to, filtered by filter.
-         * 
-         * Precondition: currentBaseIter == null
-         * 
-         * Postcondition: currentBaseIter != null if and only if we actually start visiting t.
-         * 
-         * @param t
-         * @param filter
-         */
-        private void startVisit(PointsToGraphNode t, TypeFilter filter) {
-            // Compose the current filter (this.typeFilters.peek()), with the
-            // filter for t to obtain the new filter.
-            TypeFilter newFilter =
-                    TypeFilter.compose(typeFilters.peek(), filter);
-
-            if (TypeFilter.IMPOSSIBLE.equals(newFilter)) {
-                // it's impossible! no need to keep visiting.
-                return;
-            }
-
-            OrderedPair<PointsToGraphNode, TypeFilter> tAndNewFilter =
-                    new OrderedPair<>(t, newFilter);
-
-            if (visited.contains(tAndNewFilter) || newFilter != null
-                    && visited.contains(new OrderedPair<>(t, null))) {
-                // we have already visited t with this particular filter (or with no filter at all).
-                return;
-            }
-            // mark that we have visited node t with filter
-            visited.add(tAndNewFilter);
-
-            // push the new filter on the stack.
-            typeFilters.push(newFilter);
-
-            // set up the current base iterator
-            Set<InstanceKey> s = g.base.get(t);
-            currentBaseIter =
-                    s == null
-                            ? Collections.<InstanceKey> emptyIterator()
-                            : newFilter == null
-                                    ? s.iterator()
-                                    : new FilteredIterator(s.iterator(),
-                                                           typeFilters.peek());
-
-            Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
-                    composeIterators(g.isUnfilteredSupersetOf.get(t),
-                                     g.isSupersetOf.get(t));
-
-            visitingStack.push(iter);
-        }
-
-        @Override
-        public boolean hasNext() {
-            while (true) {
-                // first do the current base instances.
-                if (currentBaseIter != null && currentBaseIter.hasNext()) {
-                    return true;
-                }
-                currentBaseIter = null;
-
-                // find another node to start visiting...
-                if (visitingStack.isEmpty()) {
-                    // nothing more to visit.
-                    return false;
-                }
-                Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
-                        visitingStack.peek();
-                if (iter.hasNext()) {
-                    OrderedPair<PointsToGraphNode, TypeFilter> pair =
-                            iter.next();
-                    startVisit(pair.fst(), pair.snd());
-                    continue;
-                }
-                // The top most iterator on the stack has no more things for us to visit.
-                // remove the top most element of the stack and try again.
-                visitingStack.pop();
-                typeFilters.pop();
-            }
-        }
-
-        @Override
-        public InstanceKey next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
-            return currentBaseIter.next();
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
-        }
-
-    }
-
     public static class ComposedIterators<T> implements Iterator<T> {
         Iterator<T> iter1;
         Iterator<T> iter2;
@@ -1045,19 +914,27 @@ public class PointsToGraph {
      * This class implements a cache for realized points-to sets, using SoftReferences
      */
     private class RealizedSetCache {
+        private static final int RECENTLY_USED_LIMIT = 50000;
         private final Map<PointsToGraphNode, SoftReference<Set<InstanceKey>>> cache =
                 new HashMap<>();
         private int hits = 0;
         private int misses = 0;
         private int evictions = 0;
+        private int uncachable = 0;
 
+        /*
+         * The following maps are used to have hard reference to sets, to stop them being garbage collected,
+         * i.e., to keep them in the cache.
+         */
+        private Map<PointsToGraphNode, Set<InstanceKey>> inCycle =
+                new HashMap<>();
         private Map<PointsToGraphNode, Set<InstanceKey>> recentlyUsedMap =
-                new LinkedHashMap<PointsToGraphNode, Set<InstanceKey>>(20000) {
+                new LinkedHashMap<PointsToGraphNode, Set<InstanceKey>>(RECENTLY_USED_LIMIT) {
 
                     @Override
                     protected boolean removeEldestEntry(
                             Entry<PointsToGraphNode, Set<InstanceKey>> eldest) {
-                        return size() > 20000; // only keep the most recently accessed nodes.
+                        return size() > RECENTLY_USED_LIMIT; // only keep the most recently accessed nodes.
                     }
 
                 };
@@ -1077,6 +954,7 @@ public class PointsToGraph {
                     // the set is in the cache!
                     s.addAll(deltaSet);
                     recentlyUsedMap.put(n, s);
+                    // no need to update inCycle, since it is the same set s.
                 }
             }
         }
@@ -1086,6 +964,8 @@ public class PointsToGraph {
          */
         public void removed(PointsToGraphNode n) {
             cache.remove(n);
+            recentlyUsedMap.remove(n);
+            inCycle.remove(n);
         }
 
         public Set<InstanceKey> getPointsToSet(PointsToGraphNode n) {
@@ -1114,7 +994,6 @@ public class PointsToGraph {
                         recentlyUsedMap.put(n, s);
                         return s;
                     }
-                    evictions++;
                 }
 
                 if (currentlyRealizing.contains(n)) {
@@ -1158,6 +1037,9 @@ public class PointsToGraph {
 
                 // We now know we definitely missed in the cache (i.e., not a base node).
                 misses++;
+                if (cache.get(n) != null) {
+                    evictions++;
+                }
 
                 Set<InstanceKey> s = AnalysisUtil.createConcurrentSet();
                 if (baseContains) {
@@ -1174,17 +1056,25 @@ public class PointsToGraph {
                     // it is safe for us to cache the result of this realization.
                     cache.put(n, new SoftReference<>(s));
                     recentlyUsedMap.put(n, s);
+                    if (inCycle.containsKey(n)) {
+                        inCycle.put(n, s);
+                    }
+                }
+                else {
+                    uncachable++;
                 }
                 return s;
 
             }
             finally {
-                if ((hits + misses) % 1000000 == 0 && hits + misses > 0) {
-                    System.err.println("Cache gives us: " + 100 * hits
-                            / (hits + misses) + "% hits; " + evictions + " of "
-                            + misses + " misses due to evictions; cache size: "
+                if ((hits + misses) % 5000000 == 0 && hits + misses > 0) {
+                    System.err.println("  Cache: " + (hits + misses)
+                            + " accesses: " + 100 * hits / (hits + misses)
+                            + "% hits; " + evictions + " of " + misses
+                            + " misses due to evictions; " + uncachable
+                            + " of the misses were uncachable; cache size: "
                             + cache.size());
-                    hits = misses = evictions = 0;
+                    hits = misses = evictions = uncachable = 0;
                 }
             }
 
@@ -1228,9 +1118,22 @@ public class PointsToGraph {
             currentlyRealizing.remove(n);
             currentlyRealizingStack.pop();
         }
+
+        public void inCycle(PointsToGraphNode n) {
+            inCycle.put(n, getPointsToSet(n));
+        }
     }
 
     public int cycleRemovalCount() {
         return representative.size();
+    }
+
+    /**
+     * Notify the cache that a node is in a cycle.
+     * @param n
+     */
+    public void inCycle(PointsToGraphNode n) {
+        cache.inCycle(n);
+
     }
 }
