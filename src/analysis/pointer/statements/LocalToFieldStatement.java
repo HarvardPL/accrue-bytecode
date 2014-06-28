@@ -10,7 +10,6 @@ import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -27,8 +26,6 @@ public class LocalToFieldStatement extends PointsToStatement {
      * Field assigned into
      */
     private final FieldReference field;
-
-    private final TypeFilter filter;
 
     /**
      * receiver for field access
@@ -55,7 +52,6 @@ public class LocalToFieldStatement extends PointsToStatement {
             ReferenceVariable v, IMethod m) {
         super(m);
         field = f;
-        filter = TypeFilter.create(f.getFieldType());
         receiver = o;
         assigned = v;
     }
@@ -88,7 +84,6 @@ public class LocalToFieldStatement extends PointsToStatement {
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
                 ObjectField contents = new ObjectField(recHeapContext, field);
-                // GraphDelta d1 = g.copyFilteredEdges(local, filter, contents);
                 GraphDelta d1 = g.copyEdges(local, contents);
                 changed = changed.combine(d1);
             }
