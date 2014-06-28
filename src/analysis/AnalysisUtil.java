@@ -65,6 +65,10 @@ public class AnalysisUtil {
      */
     private static IClass stringClass;
     /**
+     * Class for java.lang.Object
+     */
+    private static IClass objectClass;
+    /**
      * Class for java.lang.Throwable
      */
     private static IClass throwableClass;
@@ -252,6 +256,7 @@ public class AnalysisUtil {
 
         stringClass = cha.lookupClass(TypeReference.JavaLangString);
         stringValueClass = cha.lookupClass(STRING_VALUE_TYPE);
+        objectClass = cha.lookupClass(TypeReference.JavaLangObject);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
         TypeName privTN =
@@ -374,6 +379,15 @@ public class AnalysisUtil {
      */
     public static IClass getStringClass() {
         return stringClass;
+    }
+
+    /**
+     * Get the canonical class for java.lang.Objecy
+     * 
+     * @return class
+     */
+    public static IClass getObjectClass() {
+        return objectClass;
     }
 
     /**
