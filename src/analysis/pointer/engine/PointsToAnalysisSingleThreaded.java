@@ -127,7 +127,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         int front = 0;
         int back = 0;
         int numProcessed = 0;
-        long nextMilestone = startTime + 30 * 1000;
+        long nextMilestone = startTime;
+        long lastTime = startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
@@ -156,7 +157,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             long currTime = System.currentTimeMillis();
             if (currTime > nextMilestone) {
-                nextMilestone = nextMilestone + 1000 * 30; // 30 seconds 
+                do {
+                    nextMilestone = nextMilestone + 1000 * 30; // 30 seconds 
+                } while (currTime > nextMilestone);
+
                 System.err.println("PROCESSED: "
                         + numProcessed
                         + (outputLevel >= 1 ? " (" + visited.size()
@@ -164,8 +168,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         + (currTime - startTime) / 1000 + "s;  graph is "
                         + g.getBaseNodes().size() + " base nodes"
                         + "; queue is " + queue.size() + "; front / back = "
-                        + front + " / " + back);
+                        + front + " / " + back + " (" + (currTime - lastTime)
+                        / 1000 + " s since last)");
                 front = back = 0;
+                lastTime = currTime;
             }
         }
 

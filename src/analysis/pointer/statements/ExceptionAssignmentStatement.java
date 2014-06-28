@@ -46,7 +46,12 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         this.thrown = thrown;
         this.caught = caught;
         if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
-            filter = TypeFilter.create((IClass) null, notType);
+            if (notType.isEmpty()) {
+                filter = null;
+            }
+            else {
+                filter = TypeFilter.create((IClass) null, notType);
+            }
         }
         else {
             filter = TypeFilter.create(caught.getExpectedType(), notType);
@@ -69,7 +74,12 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         }
 
         // don't need to use delta, as this just adds a subset edge
-        return g.copyFilteredEdges(r, filter, l);
+        if (filter == null) {
+            return g.copyEdges(r, l);
+        }
+        else {
+            return g.copyFilteredEdges(r, filter, l);
+        }
 
     }
 
@@ -99,6 +109,9 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     public Set<IClass> getNotTypes() {
+        if (filter == null || filter.notTypes == null) {
+            return Collections.emptySet();
+        }
         return filter.notTypes;
     }
 

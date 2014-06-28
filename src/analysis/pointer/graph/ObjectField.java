@@ -7,7 +7,7 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Point-to graph node representing a non-static field of an object
  */
-public class ObjectField implements PointsToGraphNode {
+public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Heap context for the receiver of the field
@@ -37,14 +37,15 @@ public class ObjectField implements PointsToGraphNode {
      * @param expectedType
      *            type of the field
      */
-    public ObjectField(InstanceKey receiver, String fieldName, TypeReference expectedType) {
+    public ObjectField(InstanceKey receiver, String fieldName,
+            TypeReference expectedType) {
         assert receiver != null;
         assert fieldName != null;
         assert expectedType != null;
         this.receiver = receiver;
         this.fieldName = fieldName;
         this.expectedType = expectedType;
-        this.memoizedHashCode = computeHashCode();
+        memoizedHashCode = computeHashCode();
     }
 
     /**
@@ -56,7 +57,9 @@ public class ObjectField implements PointsToGraphNode {
      *            the field
      */
     public ObjectField(InstanceKey receiver, FieldReference fieldReference) {
-        this(receiver, fieldReference.getName().toString(), fieldReference.getFieldType());
+        this(receiver,
+             fieldReference.getName().toString(),
+             fieldReference.getFieldType());
     }
 
     @Override
@@ -67,16 +70,19 @@ public class ObjectField implements PointsToGraphNode {
     public int computeHashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((expectedType == null) ? 0 : expectedType.hashCode());
-        result = prime * result + ((fieldName == null) ? 0 : fieldName.hashCode());
+        result =
+                prime * result
+                        + (expectedType == null ? 0 : expectedType.hashCode());
+        result =
+                prime * result + (fieldName == null ? 0 : fieldName.hashCode());
         result = prime * result + memoizedHashCode;
-        result = prime * result + ((receiver == null) ? 0 : receiver.hashCode());
+        result = prime * result + (receiver == null ? 0 : receiver.hashCode());
         return result;
     }
 
     @Override
     public int hashCode() {
-        return this.memoizedHashCode;
+        return memoizedHashCode;
     }
 
     @Override
@@ -119,15 +125,14 @@ public class ObjectField implements PointsToGraphNode {
     }
 
     public InstanceKey receiver() {
-        return this.receiver;
+        return receiver;
     }
 
-
     public String fieldName() {
-        return this.fieldName;
+        return fieldName;
     }
 
     public TypeReference expectedType() {
-        return this.expectedType;
+        return expectedType;
     }
 }

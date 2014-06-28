@@ -35,7 +35,7 @@ public class TypeFilter {
      * Create a filter which matches one type and does not match a set of types
      * 
      * @param isType
-     *            the filte matches only subtypes of this class, if this is null then no filtering will be done and
+     *            the filter matches only subtypes of this class, if this is null then no filtering will be done and
      *            everything matches
      * @param notTypes
      *            types to filter out
@@ -44,17 +44,36 @@ public class TypeFilter {
         this.isType = isType;
         isTypes = null;
         this.notTypes = simplifyNotTypes(notTypes);
+        if (this.isType == null
+                && (this.notTypes == null || this.notTypes.isEmpty())) {
+            throw new IllegalArgumentException();
+        }
     }
 
     private TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes) {
-        isType = null;
-        this.isTypes = isTypes;
+        if (isTypes.size() == 0) {
+            isType = null;
+            this.isTypes = null;
+        }
+        else if (isTypes.size() == 1) {
+            isType = isTypes.iterator().next();
+            this.isTypes = null;
+        }
+        else {
+            isType = null;
+            this.isTypes = isTypes;
+
+        }
         this.notTypes = simplifyNotTypes(notTypes);
+        if (this.isTypes.isEmpty() && this.notTypes.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+
     }
 
     private static Set<IClass> simplifyNotTypes(Set<IClass> notTypes) {
         if (notTypes == null || notTypes.isEmpty()) {
-            return notTypes;
+            return null;
         }
         Set<IClass> toRemove = new HashSet<>();
         for (IClass t1 : notTypes) {
@@ -82,13 +101,17 @@ public class TypeFilter {
         if (isTypes != null) {
             return isTypes;
         }
+        if (isType == null) {
+            return Collections.emptySet();
+        }
         return Collections.singleton(isType);
 
     }
 
     public boolean satisfies(IClass concreteType) {
-        if (isType != null && isAssignableFrom(isType, concreteType)
-                || isTypes != null && allAssignableFrom(isTypes, concreteType)) {
+        if (isType == null && isTypes == null || isType != null
+                && isAssignableFrom(isType, concreteType) || isTypes != null
+                && allAssignableFrom(isTypes, concreteType)) {
             if (notTypes != null) {
                 for (IClass nt : notTypes) {
                     if (isAssignableFrom(nt, concreteType)) {
@@ -184,6 +207,7 @@ public class TypeFilter {
 
                 notTypes.addAll(f1.notTypes);
                 notTypes.addAll(f2.notTypes);
+                notTypes = simplifyNotTypes(notTypes);
             }
             else {
                 notTypes = f1.notTypes != null ? f1.notTypes : f2.notTypes;
@@ -194,18 +218,8 @@ public class TypeFilter {
             // at least one of them is a set...
             Set<IClass> isTypes = new LinkedHashSet<>();
             // XXX We should do a better job and make it a minimal set based on subtyping relations...
-            if (f1.isType == null) {
-                isTypes.addAll(f1.isTypes);
-            }
-            else {
-                isTypes.add(f1.isType);
-            }
-            if (f2.isType == null) {
-                isTypes.addAll(f2.isTypes);
-            }
-            else {
-                isTypes.add(f2.isType);
-            }
+            isTypes.addAll(f1.isTypesAsSet());
+            isTypes.addAll(f2.isTypesAsSet());
             TypeFilter tf = TypeFilter.create(isTypes, notTypes);
             return tf;
         }
@@ -298,8 +312,8 @@ public class TypeFilter {
 
         // see if the notTypes contains one of the isTypes (or a superclass thereof)
         if (filter.notTypes != null) {
-            for (IClass notT : filter.notTypes) {
-                for (IClass isT : filter.isTypesAsSet()) {
+            for (IClass isT : filter.isTypesAsSet()) {
+                for (IClass notT : filter.notTypes) {
                     if (TypeRepository.isAssignableFrom(notT, isT)) {
                         // notT is a supertype of isT, meaning that no type can be both
                         // a subtype of isT and not a subtype of notT.
