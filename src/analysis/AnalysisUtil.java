@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,9 +73,18 @@ public class AnalysisUtil {
      */
     private static IClass errorClass;
     /**
+     * Class for java.lang.Cloneable
+     */
+    private static IClass cloneableInterface;
+    /**
+     * Class for java.io.Serializable
+     */
+    private static IClass serializableInterface;
+    /**
      * type of the field in java.lang.String
      */
-    public static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
+    public static final TypeReference STRING_VALUE_TYPE =
+            TypeReference.JavaLangObject;
     /**
      * Class for value field of java.lang.String
      */
@@ -109,14 +117,19 @@ public class AnalysisUtil {
         // Intentionally blank
     }
 
-    public static void initDex(String androidLibLocation, String pathToApp) throws IOException, ClassHierarchyException {
+    public static void initDex(String androidLibLocation, String pathToApp)
+            throws IOException, ClassHierarchyException {
         cache = new AnalysisCache(new DexIRFactory());
 
         long start = System.currentTimeMillis();
-        AnalysisScope scope = DexAnalysisScopeReader.makeAndroidBinaryAnalysisScope(pathToApp, EXCLUSIONS_FILE);
-        scope.setLoaderImpl(ClassLoaderReference.Application, "com.ibm.wala.classLoader.WDexClassLoaderImpl");
+        AnalysisScope scope =
+                DexAnalysisScopeReader.makeAndroidBinaryAnalysisScope(pathToApp,
+                                                                      EXCLUSIONS_FILE);
+        scope.setLoaderImpl(ClassLoaderReference.Application,
+                            "com.ibm.wala.classLoader.WDexClassLoaderImpl");
 
-        scope.setLoaderImpl(ClassLoaderReference.Primordial, "com.ibm.wala.classLoader.WDexClassLoaderImpl");
+        scope.setLoaderImpl(ClassLoaderReference.Primordial,
+                            "com.ibm.wala.classLoader.WDexClassLoaderImpl");
 
         ClassHierarchy concreteCHA;
 
@@ -125,23 +138,28 @@ public class AnalysisUtil {
         if (androidLib.getPath().endsWith(".dex")) {
             Module dexMod = new DexFileModule(new File(androidLib));
             scope.addToScope(ClassLoaderReference.Primordial, dexMod);
-            try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
+            try (JarFile appModelJar =
+                    new JarFile(new File("data/AppModel_dummy.jar"))) {
                 scope.addToScope(ClassLoaderReference.Application, appModelJar);
                 concreteCHA = ClassHierarchy.make(scope);
             }
-        } else {
+        }
+        else {
             try (JarFile androidJar = new JarFile(new File(androidLib))) {
                 scope.addToScope(ClassLoaderReference.Primordial, androidJar);
-                try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
-                    scope.addToScope(ClassLoaderReference.Application, appModelJar);
+                try (JarFile appModelJar =
+                        new JarFile(new File("data/AppModel_dummy.jar"))) {
+                    scope.addToScope(ClassLoaderReference.Application,
+                                     appModelJar);
                     concreteCHA = ClassHierarchy.make(scope);
                 }
             }
         }
 
         cha = concreteCHA;
-        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
-                                        + (System.currentTimeMillis() - start) + "ms");
+        System.out.println(cha.getNumberOfClasses()
+                + " classes loaded. It took "
+                + (System.currentTimeMillis() - start) + "ms");
 
         // TODO not sure what this is for
         // AnalysisScope scope_appmodel =
@@ -156,7 +174,8 @@ public class AnalysisUtil {
         // AndroidSpecs.addPossibleListeners(ClassHierarchy.make(scope_appmodel));
 
         // List<Entrypoint> entrypoints = EntryPoints.appModelEntry(concreteCHA);
-        List<Entrypoint> entrypoints = EntryPoints.defaultEntryPoints(concreteCHA);
+        List<Entrypoint> entrypoints =
+                EntryPoints.defaultEntryPoints(concreteCHA);
         options = new AnalysisOptions(scope, entrypoints);
         fakeRoot = new DexFakeRootMethod(cha, options, cache);
 
@@ -177,7 +196,8 @@ public class AnalysisUtil {
      *             Thrown by WALA during class hierarchy construction, if there are issues with the class path and for
      *             other reasons see {@link ClassHierarchy}
      */
-    public static void init(String classPath, String entryPoint) throws IOException, ClassHierarchyException {
+    public static void init(String classPath, String entryPoint)
+            throws IOException, ClassHierarchyException {
 
         cache = new AnalysisCache();
 
@@ -185,19 +205,28 @@ public class AnalysisUtil {
             classPath = DEFAULT_CLASSPATH;
         }
 
-        AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME, EXCLUSIONS_FILE,
-                                        AnalysisUtil.class.getClassLoader());
-        AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
+        AnalysisScope scope =
+                AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
+                                                  EXCLUSIONS_FILE,
+                                                  AnalysisUtil.class.getClassLoader());
+        AnalysisScopeReader.addClassPathToScope(classPath,
+                                                scope,
+                                                ClassLoaderReference.Application);
 
         long start = System.currentTimeMillis();
 
         cha = ClassHierarchy.make(scope);
-        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
-                                        + (System.currentTimeMillis() - start) + "ms");
+        System.out.println(cha.getNumberOfClasses()
+                + " classes loaded. It took "
+                + (System.currentTimeMillis() - start) + "ms");
 
         // Add L to the name to indicate that this is a class name
-        Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
-                                        + entryPoint.replace(".", "/"));
+        Iterable<Entrypoint> entrypoints =
+                com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope,
+                                                                         cha,
+                                                                         "L"
+                                                                                 + entryPoint.replace(".",
+                                                                                                      "/"));
         options = new AnalysisOptions(scope, entrypoints);
 
         setUpRootMethodAndClasses();
@@ -206,8 +235,7 @@ public class AnalysisUtil {
     private static void setUpRootMethodAndClasses() {
         // Set up the entry points
         fakeRoot = new FakeRootMethod(cha, options, cache);
-        for (Iterator<? extends Entrypoint> it = options.getEntrypoints().iterator(); it.hasNext();) {
-            Entrypoint e = it.next();
+        for (Entrypoint e : options.getEntrypoints()) {
             // Add in the fake root method that sets up the call to main
             SSAAbstractInvokeInstruction call = e.addCall(fakeRoot);
 
@@ -226,13 +254,24 @@ public class AnalysisUtil {
         stringValueClass = cha.lookupClass(STRING_VALUE_TYPE);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
-        TypeName privTN = TypeName.string2TypeName("Ljava/security/PrivilegedAction");
-        TypeReference privTR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privTN);
+        TypeName privTN =
+                TypeName.string2TypeName("Ljava/security/PrivilegedAction");
+        TypeReference privTR =
+                TypeReference.findOrCreate(ClassLoaderReference.Primordial,
+                                           privTN);
         privilegedActionClass = cha.lookupClass(privTR);
 
-        TypeName privETN = TypeName.string2TypeName("Ljava/security/PrivilegedExceptionAction");
-        TypeReference privETR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privETN);
+        TypeName privETN =
+                TypeName.string2TypeName("Ljava/security/PrivilegedExceptionAction");
+        TypeReference privETR =
+                TypeReference.findOrCreate(ClassLoaderReference.Primordial,
+                                           privETN);
         privilegedExceptionActionClass = cha.lookupClass(privETR);
+
+        cloneableInterface = cha.lookupClass(TypeReference.JavaLangCloneable);
+        serializableInterface =
+                cha.lookupClass(TypeReference.JavaIoSerializable);
+
     }
 
     /**
@@ -289,7 +328,9 @@ public class AnalysisUtil {
             return null;
         }
 
-        return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+        return cache.getSSACache().findOrCreateIR(resolvedMethod,
+                                                  Everywhere.EVERYWHERE,
+                                                  options.getSSAOptions());
     }
 
     /**
@@ -310,7 +351,9 @@ public class AnalysisUtil {
             return null;
         }
 
-        return cache.getSSACache().findOrCreateDU(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
+        return cache.getSSACache().findOrCreateDU(resolvedMethod,
+                                                  Everywhere.EVERYWHERE,
+                                                  options.getSSAOptions());
     }
 
     /**
@@ -351,6 +394,14 @@ public class AnalysisUtil {
         return errorClass;
     }
 
+    public static IClass getCloneableInterface() {
+        return cloneableInterface;
+    }
+
+    public static IClass getSerializableInterface() {
+        return serializableInterface;
+    }
+
     /**
      * Check whether the given method has a signature
      * 
@@ -367,7 +418,8 @@ public class AnalysisUtil {
     }
 
     public static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
-        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime()
+                                                         .availableProcessors());
     }
 
     public static <T> Set<T> createConcurrentSet() {
