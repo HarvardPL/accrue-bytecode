@@ -1,6 +1,7 @@
 package analysis.pointer.engine;
 
 import java.util.AbstractQueue;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -151,7 +152,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         };*/
 
         Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
-                new LinkedList<>();
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue =
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
 //        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
 //                new PriorityQueue<>(10000, lrfComparator);
 //        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
@@ -169,7 +172,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         long nextMilestone = startTime;
+        long lastNumProcessed = 0;
         long lastTime = startTime;
+        long noDeltaProcessed = 0;
+        long processedWithNoChange = 0;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty()) {
             // get the next sac, and the delta for it.
@@ -180,14 +186,25 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             incrementCounter(sac);
 
             numProcessed++;
+            if (delta == null) {
+                noDeltaProcessed++;
+            }
             if (outputLevel >= 1) {
                 visited.add(sac);
             }
 
             GraphDelta changed =
-                    processSaC(sac, delta, g, registrar, queue, registerOnline);
+                    processSaC(sac,
+                               delta,
+                               g,
+                               registrar,
+                               nextQueue,
+                               registerOnline);
 
-            handleChanges(queue, changed, g);
+            if (changed.isEmpty()) {
+                processedWithNoChange++;
+            }
+            handleChanges(nextQueue, changed, g);
 
             long currTime = System.currentTimeMillis();
             if (currTime > nextMilestone) {
@@ -198,14 +215,25 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 System.err.println("PROCESSED: "
                         + numProcessed
                         + (outputLevel >= 1 ? " (" + visited.size()
-                                + " unique)" : "") + " in "
-                        + (currTime - startTime) / 1000 + "s;  graph is "
+                                + " unique)" : "") + " "
+                        + (currTime - startTime) / 1000 + "s;  graph="
                         + g.getBaseNodes().size()
-                        + " base nodes; cycle detection removed "
-                        + g.cycleRemovalCount() + " nodes ; queue is "
-                        + queue.size() + " (" + (currTime - lastTime) / 1000
-                        + "s since last)");
+                        + " base nodes; cycles removed "
+                        + g.cycleRemovalCount() + " nodes ; queue="
+                        + queue.size() + " nextQueue=" + nextQueue.size()
+                        + " Processed: nochange, nodelta: "
+                        + processedWithNoChange + ",  " + noDeltaProcessed
+                        + " (" + (numProcessed - lastNumProcessed) + " in "
+                        + (currTime - lastTime) / 1000 + "s)");
                 lastTime = currTime;
+                lastNumProcessed = numProcessed;
+                noDeltaProcessed = 0;
+                processedWithNoChange = 0;
+            }
+            if (queue.isEmpty()) {
+                Queue<OrderedPair<StmtAndContext, GraphDelta>> t = queue;
+                queue = nextQueue;
+                nextQueue = t;
             }
         }
 
@@ -472,8 +500,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: "
                 + registrar.size());
-        // clear the cache to check that we didn't have an error in our caching...
-        g.clearCache();
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
