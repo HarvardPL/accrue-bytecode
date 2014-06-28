@@ -48,6 +48,10 @@ public class TypeFilter {
                 && (this.notTypes == null || this.notTypes.isEmpty())) {
             throw new IllegalArgumentException();
         }
+        if (AnalysisUtil.getObjectClass().equals(this.isType)) {
+            throw new IllegalArgumentException();
+        }
+
     }
 
     private TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes) {
@@ -67,6 +71,9 @@ public class TypeFilter {
         this.notTypes = simplifyNotTypes(notTypes);
         if (isType == null && (this.isTypes == null || this.isTypes.isEmpty())
                 && (this.notTypes == null || this.notTypes.isEmpty())) {
+            throw new IllegalArgumentException();
+        }
+        if (AnalysisUtil.getObjectClass().equals(isType)) {
             throw new IllegalArgumentException();
         }
 
