@@ -122,11 +122,24 @@ public class PointsToGraph {
     // Return the immediate supersets of n. That is, any node m such that n is an immediate subset of m
     public Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> immediateSuperSetsOf(
             PointsToGraphNode n) {
+        n = getRepresentative(n);
+
         Set<PointsToGraphNode> unfilteredsupersets =
-                isUnfilteredSubsetOf.get(getRepresentative(n));
+                isUnfilteredSubsetOf.get(n);
         Set<OrderedPair<PointsToGraphNode, TypeFilter>> supersets =
-                isSubsetOf.get(getRepresentative(n));
+                isSubsetOf.get(n);
         return composeIterators(unfilteredsupersets, supersets);
+    }
+
+    // Return the immediate supersets of n. That is, any node m such that n is an immediate superset of m
+    public Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> immediateSubSetsOf(
+            PointsToGraphNode n) {
+        n = getRepresentative(n);
+        Set<PointsToGraphNode> unfilteredsubsets =
+                isUnfilteredSupersetOf.get(n);
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> subsets =
+                isSupersetOf.get(n);
+        return composeIterators(unfilteredsubsets, subsets);
     }
 
     /**
@@ -274,6 +287,39 @@ public class PointsToGraph {
         return cache.getPointsToSet(n).iterator();
     }
 
+    /**
+     * Does n point to ik?
+     */
+    /*
+    public boolean pointsTo(PointsToGraphNode n, InstanceKey ik) {
+       if (true) {
+           return cache.getPointsToSet(n).contains(ik);
+       }
+       Set<InstanceKey> s = cache.getPointsToSetIfNotEvicted(n);
+       if (s != null) {
+           return s.contains(ik);
+       }
+
+       // we don't have a cached version of the points to set. Let's try to be cunning.
+       if (base.containsKey(n)) {
+           return base.get(n).contains(ik);
+       }
+
+       // let's try the immediate subsets of n
+       Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
+               immediateSubSetsOf(n);
+       while (iter.hasNext()) {
+           OrderedPair<PointsToGraphNode, TypeFilter> p = iter.next();
+           TypeFilter filter = p.snd();
+           if (filter == null || filter.satisfies(ik.getConcreteType())) {
+               if (pointsTo(p.fst(), ik)) {
+                   return true;
+               }
+           }
+       }
+       return false;
+    }
+    */
     /**
      * XXXX DOCO TODO.
      * 
@@ -883,6 +929,7 @@ public class PointsToGraph {
         target = getRepresentative(target);
 
         if (!srcIter.hasNext()) {
+            // nothing in there, return an empty set.
             return Collections.emptySet();
         }
 
@@ -967,6 +1014,21 @@ public class PointsToGraph {
             recentlyUsedMap.remove(n);
             inCycle.remove(n);
         }
+
+        /*
+                Set<InstanceKey> getPointsToSetIfNotEvicted(PointsToGraphNode n) {
+                    SoftReference<Set<InstanceKey>> sr = cache.get(n);
+                    if (sr != null) {
+                        Set<InstanceKey> s = sr.get();
+                        if (s != null) {
+                            // put it in the recently used...
+                            recentlyUsedMap.put(n, s);
+                        }
+                        return s;
+                    }
+                    // the points to set hasn't been evicted, so lets get it.
+                    return getPointsToSet(n);
+                }*/
 
         public Set<InstanceKey> getPointsToSet(PointsToGraphNode n) {
             return realizePointsToSet(n,
