@@ -269,7 +269,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
         Set<PointsToGraphNode> readNodes = g.getAndClearReadNodes();
         Set<PointsToGraphNode> newlyCombinedNodes =
-                g.getAndClearNewlyCombinedNodes();
+                g.getAndClearNewlyCollapsedNodes();
 
         // Add new contexts
         for (IMethod m : newContexts.keySet()) {

@@ -37,15 +37,15 @@ public class GraphDelta {
     }
 
     public void add(PointsToGraphNode n, InstanceKey ik) {
-        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine =
+        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
                 new LinkedHashMap<>();
         addToSupersetsOf(n,
                          Collections.singleton(ik),
                          new HashSet<PointsToGraphNode>(),
                          new Stack<PointsToGraphNode>(),
                          new Stack<TypeFilter>(),
-                         toCombine);
-        combineNodes(toCombine);
+                         toCollapse);
+        collapseCycles(toCollapse);
     }
 
     public void addCopyEdges(PointsToGraphNode source, TypeFilter filter,
@@ -54,23 +54,32 @@ public class GraphDelta {
         Set<InstanceKey> diff = g.getDifference(source, filter, target);
 
         // Now take care of all the supersets of target...
-        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine =
+        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
                 new LinkedHashMap<>();
         addToSupersetsOf(target,
                          diff,
                          new HashSet<PointsToGraphNode>(),
                          new Stack<PointsToGraphNode>(),
                          new Stack<TypeFilter>(),
-                         toCombine);
-        combineNodes(toCombine);
+                         toCollapse);
+        collapseCycles(toCollapse);
     }
 
-    private void combineNodes(
-            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine) {
-        for (PointsToGraphNode rep : toCombine.keySet()) {
-            for (PointsToGraphNode n : toCombine.get(rep)) {
-                g.combineNodes(n, rep);
-                delta.remove(n);
+    private void collapseCycles(
+            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse) {
+        Set<PointsToGraphNode> collapsed = new HashSet<>();
+        for (PointsToGraphNode rep : toCollapse.keySet()) {
+            rep = g.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
+            for (PointsToGraphNode n : toCollapse.get(rep)) {
+                if (collapsed.contains(n)) {
+                    // we have already collapsed n with something. let's skip it.
+                    continue;
+                }
+                collapsed.add(n);
+                g.collapseNodes(n, rep);
+                Set<InstanceKey> old = delta.remove(n);
+                assert old == null || old.isEmpty()
+                        || delta.get(rep).containsAll(old);
             }
         }
     }
@@ -79,7 +88,7 @@ public class GraphDelta {
             Set<InstanceKey> set, Set<PointsToGraphNode> currentlyAdding,
             Stack<PointsToGraphNode> currentlyAddingStack,
             Stack<TypeFilter> filters,
-            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCombine) {
+            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse) {
 
         // Handle detection of cycles.
         if (currentlyAdding.contains(target)) {
@@ -101,13 +110,13 @@ public class GraphDelta {
             }
             if (filter == null) {
                 // we can collapse some nodes together!
-                Set<PointsToGraphNode> toCombineSet = toCombine.get(target);
-                if (toCombineSet == null) {
-                    toCombineSet = new LinkedHashSet<>();
-                    toCombine.put(target, toCombineSet);
+                Set<PointsToGraphNode> toCollapseSet = toCollapse.get(target);
+                if (toCollapseSet == null) {
+                    toCollapseSet = new LinkedHashSet<>();
+                    toCollapse.put(target, toCollapseSet);
                 }
                 for (int i = foundAt + 1; i < currentlyAddingStack.size(); i++) {
-                    toCombineSet.add(currentlyAddingStack.get(i));
+                    toCollapseSet.add(currentlyAddingStack.get(i));
                 }
             }
             assert !getOrCreateSet(target).addAll(set) : "Shouldn't be anything left to add by this point";
@@ -147,7 +156,7 @@ public class GraphDelta {
                              currentlyAdding,
                              currentlyAddingStack,
                              filters,
-                             toCombine);
+                             toCollapse);
             filters.pop();
         }
 
@@ -190,8 +199,15 @@ public class GraphDelta {
     }
 
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
-        n = g.getRepresentative(n);
-        Set<InstanceKey> s = delta.get(n);
+        Set<InstanceKey> s;
+        // we need to look in delta for all the possible representatives that n has been known by.
+        // This is because this GraphDelta may have been created sometime
+        // before n got collapsed.
+        do {
+            s = delta.get(n);
+            n = g.getImmediateRepresentative(n);
+        } while (s == null && n != null);
+
         if (s == null) {
             return Collections.emptyIterator();
         }

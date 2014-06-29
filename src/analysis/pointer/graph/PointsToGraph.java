@@ -75,7 +75,7 @@ public class PointsToGraph {
 
     // private final DependencyRecorder depRecorder;
     private Set<PointsToGraphNode> readNodes;
-    private Set<PointsToGraphNode> newlyCombinedNodes;
+    private Set<PointsToGraphNode> newlyCollapsedNodes;
 
     private Map<IMethod, Set<Context>> newContexts;
 
@@ -91,7 +91,7 @@ public class PointsToGraph {
     public PointsToGraph(StatementRegistrar registrar,
             HeapAbstractionFactory haf) {
         readNodes = new LinkedHashSet<>();
-        newlyCombinedNodes = new LinkedHashSet<>();
+        newlyCollapsedNodes = new LinkedHashSet<>();
         newContexts = new LinkedHashMap<>();
 
         this.haf = haf;
@@ -149,6 +149,10 @@ public class PointsToGraph {
         cache.cache.clear();
     }
 
+    PointsToGraphNode getImmediateRepresentative(PointsToGraphNode n) {
+        return representative.get(n);
+    }
+
     public PointsToGraphNode getRepresentative(PointsToGraphNode n) {
         PointsToGraphNode orig = n;
         PointsToGraphNode rep;
@@ -158,10 +162,12 @@ public class PointsToGraph {
             rep = n;
             n = representative.get(n);
         } while (n != null);
-        if (i > 1) {
-            // short cut it.
-            representative.put(orig, rep);
-        }
+        // Don't short circuit it, since we need to be able to see the history of the collapsing
+        // See GraphDelta.getPointsTo
+//        if (i > 1) {
+//            // short cut it.
+//            representative.put(orig, rep);
+//        }
         return rep;
     }
 
@@ -290,36 +296,36 @@ public class PointsToGraph {
     /**
      * Does n point to ik?
      */
-    /*
     public boolean pointsTo(PointsToGraphNode n, InstanceKey ik) {
-       if (true) {
-           return cache.getPointsToSet(n).contains(ik);
-       }
-       Set<InstanceKey> s = cache.getPointsToSetIfNotEvicted(n);
-       if (s != null) {
-           return s.contains(ik);
-       }
 
-       // we don't have a cached version of the points to set. Let's try to be cunning.
-       if (base.containsKey(n)) {
-           return base.get(n).contains(ik);
-       }
+        Set<InstanceKey> s = cache.getPointsToSetIfNotEvicted(n);
+        if (s != null) {
+            return s.contains(ik);
+        }
 
-       // let's try the immediate subsets of n
-       Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
-               immediateSubSetsOf(n);
-       while (iter.hasNext()) {
-           OrderedPair<PointsToGraphNode, TypeFilter> p = iter.next();
-           TypeFilter filter = p.snd();
-           if (filter == null || filter.satisfies(ik.getConcreteType())) {
-               if (pointsTo(p.fst(), ik)) {
-                   return true;
-               }
-           }
-       }
-       return false;
+        // we don't have a cached version of the points to set. Let's try to be cunning.
+        if (base.containsKey(n)) {
+            // we have a base node, 
+            if (base.get(n).contains(ik)) {
+                return true;
+            }
+        }
+
+        // let's try the immediate subsets of n
+        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
+                immediateSubSetsOf(n);
+        while (iter.hasNext()) {
+            OrderedPair<PointsToGraphNode, TypeFilter> p = iter.next();
+            TypeFilter filter = p.snd();
+            if (filter == null || filter.satisfies(ik.getConcreteType())) {
+                if (pointsTo(p.fst(), ik)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
-    */
+
     /**
      * XXXX DOCO TODO.
      * 
@@ -574,9 +580,9 @@ public class PointsToGraph {
         readNodes.add(node);
     }
 
-    public Set<PointsToGraphNode> getAndClearNewlyCombinedNodes() {
-        Set<PointsToGraphNode> c = newlyCombinedNodes;
-        newlyCombinedNodes = new LinkedHashSet<>();
+    public Set<PointsToGraphNode> getAndClearNewlyCollapsedNodes() {
+        Set<PointsToGraphNode> c = newlyCollapsedNodes;
+        newlyCollapsedNodes = new LinkedHashSet<>();
         return c;
     }
 
@@ -586,17 +592,18 @@ public class PointsToGraph {
      * @param n
      * @param rep
      */
-    void combineNodes(PointsToGraphNode n, PointsToGraphNode rep) {
-        assert !n.equals(rep) : "Can't combine a node with itself";
+    void collapseNodes(PointsToGraphNode n, PointsToGraphNode rep) {
+        assert !n.equals(rep) : "Can't collapse a node with itself";
 
         // it is possible that since n and rep were registered, one or both of them were already merged.
         n = getRepresentative(n);
         rep = getRepresentative(rep);
+
         if (n.equals(rep)) {
             // they have already been merged.
             return;
         }
-        newlyCombinedNodes.add(n);
+        newlyCollapsedNodes.add(n);
 
         // update the cache.
         cache.removed(n);
@@ -685,7 +692,7 @@ public class PointsToGraph {
         }
 
         // update the base nodes.
-        assert !base.containsKey(n) : "Base nodes shouldn't be combined";
+        assert !base.containsKey(n) : "Base nodes shouldn't be collapsed with other nodes";
 
         representative.put(n, rep);
     }
@@ -933,12 +940,10 @@ public class PointsToGraph {
             return Collections.emptySet();
         }
 
-        Set<InstanceKey> trg = cache.getPointsToSet(target);
-
         Set<InstanceKey> s = new LinkedHashSet<>();
         while (srcIter.hasNext()) {
             InstanceKey i = srcIter.next();
-            if (!trg.contains(i)) {
+            if (!pointsTo(target, i)) {
                 s.add(i);
             }
         }
@@ -998,16 +1003,18 @@ public class PointsToGraph {
                 SoftReference<Set<InstanceKey>> sr = cache.get(n);
                 if (sr != null) {
                     Set<InstanceKey> s = sr.get();
-                    // the set is in the cache!
-                    s.addAll(deltaSet);
-                    recentlyUsedMap.put(n, s);
-                    // no need to update inCycle, since it is the same set s.
+                    if (s != null) {
+                        // the set is in the cache!
+                        s.addAll(deltaSet);
+                        recentlyUsedMap.put(n, s);
+                        // no need to update inCycle, since it is the same set s.
+                    }
                 }
             }
         }
 
         /**
-         * Node n has been removed (e.g., combined with another node
+         * Node n has been removed (e.g., collapsed with another node)
          */
         public void removed(PointsToGraphNode n) {
             cache.remove(n);
@@ -1015,20 +1022,19 @@ public class PointsToGraph {
             inCycle.remove(n);
         }
 
-        /*
-                Set<InstanceKey> getPointsToSetIfNotEvicted(PointsToGraphNode n) {
-                    SoftReference<Set<InstanceKey>> sr = cache.get(n);
-                    if (sr != null) {
-                        Set<InstanceKey> s = sr.get();
-                        if (s != null) {
-                            // put it in the recently used...
-                            recentlyUsedMap.put(n, s);
-                        }
-                        return s;
-                    }
-                    // the points to set hasn't been evicted, so lets get it.
-                    return getPointsToSet(n);
-                }*/
+        Set<InstanceKey> getPointsToSetIfNotEvicted(PointsToGraphNode n) {
+            SoftReference<Set<InstanceKey>> sr = cache.get(n);
+            if (sr != null) {
+                Set<InstanceKey> s = sr.get();
+                if (s != null) {
+                    // put it in the recently used...
+                    recentlyUsedMap.put(n, s);
+                }
+                return s;
+            }
+            // the points to set hasn't been evicted, so lets get it.
+            return getPointsToSet(n);
+        }
 
         public Set<InstanceKey> getPointsToSet(PointsToGraphNode n) {
             return realizePointsToSet(n,
