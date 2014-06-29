@@ -297,6 +297,18 @@ public class PointsToGraph {
      * Does n point to ik?
      */
     public boolean pointsTo(PointsToGraphNode n, InstanceKey ik) {
+        return pointsTo(n, ik, new HashSet<PointsToGraphNode>());
+    }
+
+    /**
+     * Does n point to ik? 
+     */
+    private boolean pointsTo(PointsToGraphNode n, InstanceKey ik,
+            Set<PointsToGraphNode> visited) {
+        if (visited.contains(n)) {
+            return false;
+        }
+        visited.add(n);
 
         Set<InstanceKey> s = cache.getPointsToSetIfNotEvicted(n);
         if (s != null) {
@@ -318,7 +330,7 @@ public class PointsToGraph {
             OrderedPair<PointsToGraphNode, TypeFilter> p = iter.next();
             TypeFilter filter = p.snd();
             if (filter == null || filter.satisfies(ik.getConcreteType())) {
-                if (pointsTo(p.fst(), ik)) {
+                if (pointsTo(p.fst(), ik, visited)) {
                     return true;
                 }
             }
