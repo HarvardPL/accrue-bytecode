@@ -34,7 +34,7 @@ public class LocalToFieldStatement extends PointsToStatement {
     /**
      * Value assigned into field
      */
-    private ReferenceVariable assigned;
+    private ReferenceVariable localVar;
 
     /**
      * Statement for an assignment into a field, o.f = v
@@ -53,7 +53,7 @@ public class LocalToFieldStatement extends PointsToStatement {
         super(m);
         field = f;
         receiver = o;
-        assigned = v;
+        localVar = v;
     }
 
     @Override
@@ -61,7 +61,7 @@ public class LocalToFieldStatement extends PointsToStatement {
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
         PointsToGraphNode local =
-                new ReferenceVariableReplica(context, assigned);
+                new ReferenceVariableReplica(context, localVar);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -72,7 +72,6 @@ public class LocalToFieldStatement extends PointsToStatement {
 
                 ObjectField f = new ObjectField(recHeapContext, field);
                 // o.f can point to anything that local can.
-                // GraphDelta d1 = g.copyFilteredEdges(local, filter, f);
                 GraphDelta d1 = g.copyEdges(local, f);
 
                 changed = changed.combine(d1);
@@ -98,7 +97,7 @@ public class LocalToFieldStatement extends PointsToStatement {
                 + "."
                 + (field != null
                         ? field.getName() : PointsToGraph.ARRAY_CONTENTS)
-                + " = " + assigned;
+                + " = " + localVar;
     }
 
     @Override
@@ -108,14 +107,14 @@ public class LocalToFieldStatement extends PointsToStatement {
             receiver = newVariable;
             return;
         }
-        assigned = newVariable;
+        localVar = newVariable;
     }
 
     @Override
     public List<ReferenceVariable> getUses() {
         List<ReferenceVariable> uses = new ArrayList<>(2);
         uses.add(receiver);
-        uses.add(assigned);
+        uses.add(localVar);
         return uses;
     }
 
