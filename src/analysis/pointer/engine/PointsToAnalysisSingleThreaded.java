@@ -1,14 +1,10 @@
 package analysis.pointer.engine;
 
-import java.util.AbstractQueue;
 import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -556,114 +552,114 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             StmtAndContext sac) {
         Set<StmtAndContext> s = interestingDepedencies.get(n);
         if (s == null) {
-            s = new LinkedHashSet<>();
+            s = new HashSet<>();
             interestingDepedencies.put(n, s);
         }
         return s.add(sac);
     }
 
-    private class CustomQueue extends
-            AbstractQueue<OrderedPair<StmtAndContext, GraphDelta>> {
-        final Queue<StmtAndContext> q;
-        final Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
-        final Set<StmtAndContext> deltaFree = new HashSet<>();
-
-        CustomQueue() {
-
-            Comparator<StmtAndContext> cmpr = new Comparator<StmtAndContext>() {
-
-                @Override
-                public int compare(StmtAndContext o1, StmtAndContext o2) {
-                    // first, run no deltas, then small delta, then the large delta.
-
-                    // return a negative number if o1 is "less than" or more important than o2
-                    boolean o1DeltaFree = deltaFree.contains(o1);
-                    boolean o2DeltaFree = deltaFree.contains(o2);
-
-                    if (o1DeltaFree && !o2DeltaFree) {
-                        return -1; // o1 first
-                    }
-                    if (o2DeltaFree && !o1DeltaFree) {
-                        return 1; // o2 first
-                    }
-                    if (o1DeltaFree && o2DeltaFree) {
-                        return 0; // Hmmm, maybe some other way to break the tie... 
-                    }
-
-                    // both should have deltas
-                    GraphDelta o1Delta = deltas.get(o1);
-                    GraphDelta o2Delta = deltas.get(o2);
-                    int o1Size = o1Delta == null ? -1 : o1Delta.extendedSize();
-                    int o2Size = o2Delta == null ? -1 : o2Delta.extendedSize();
-
-                    return o1Size > o2Size ? 1 : o1Size == o2Size ? 0 : -1;
-                }
-
-            };
-//            q = new PriorityQueue<>(10000, cmpr);
-            q = new LinkedList<>();
-        }
-
-        @Override
-        public int size() {
-            return q.size();
-        }
-
-        @Override
-        public boolean offer(OrderedPair<StmtAndContext, GraphDelta> e) {
-            StmtAndContext sac = e.fst();
-            GraphDelta delta = e.snd();
-            if (delta == null) {
-                // we are going to run the sac without any delta.
-                deltas.remove(sac);
-                deltaFree.add(sac);
-                q.offer(sac);
-                return true;
-            }
-            if (deltaFree.contains(sac)) {
-                // we are already going to run the sac without a delta.
-                // ignore the delta, don't re-add the sac.
-                return true;
-            }
-            GraphDelta existing = deltas.get(sac);
-            if (existing != null) {
-                // there is already a delta.
-                // combine them.
-                deltas.put(sac, existing.combine(delta));
-            }
-            else {
-                deltas.put(sac, delta);
-            }
-            q.offer(sac);
-            return true;
-        }
-
-        @Override
-        public OrderedPair<StmtAndContext, GraphDelta> poll() {
-            StmtAndContext sac = q.poll();
-            if (sac == null) {
-                return null;
-            }
-            GraphDelta delta = null;
-            if (deltaFree.contains(sac)) {
-                // nothing to do, delta is null
-                deltaFree.remove(sac);
-            }
-            else {
-                delta = deltas.remove(sac);
-            }
-            return new OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>(sac,
-                                                                                delta);
-        }
-
-        @Override
-        public OrderedPair<StmtAndContext, GraphDelta> peek() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Iterator<OrderedPair<StmtAndContext, GraphDelta>> iterator() {
-            throw new UnsupportedOperationException();
-        }
-    }
+//    private class CustomQueue extends
+//            AbstractQueue<OrderedPair<StmtAndContext, GraphDelta>> {
+//        final Queue<StmtAndContext> q;
+//        final Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
+//        final Set<StmtAndContext> deltaFree = new HashSet<>();
+//
+//        CustomQueue() {
+//
+//            Comparator<StmtAndContext> cmpr = new Comparator<StmtAndContext>() {
+//
+//                @Override
+//                public int compare(StmtAndContext o1, StmtAndContext o2) {
+//                    // first, run no deltas, then small delta, then the large delta.
+//
+//                    // return a negative number if o1 is "less than" or more important than o2
+//                    boolean o1DeltaFree = deltaFree.contains(o1);
+//                    boolean o2DeltaFree = deltaFree.contains(o2);
+//
+//                    if (o1DeltaFree && !o2DeltaFree) {
+//                        return -1; // o1 first
+//                    }
+//                    if (o2DeltaFree && !o1DeltaFree) {
+//                        return 1; // o2 first
+//                    }
+//                    if (o1DeltaFree && o2DeltaFree) {
+//                        return 0; // Hmmm, maybe some other way to break the tie... 
+//                    }
+//
+//                    // both should have deltas
+//                    GraphDelta o1Delta = deltas.get(o1);
+//                    GraphDelta o2Delta = deltas.get(o2);
+//                    int o1Size = o1Delta == null ? -1 : o1Delta.extendedSize();
+//                    int o2Size = o2Delta == null ? -1 : o2Delta.extendedSize();
+//
+//                    return o1Size > o2Size ? 1 : o1Size == o2Size ? 0 : -1;
+//                }
+//
+//            };
+////            q = new PriorityQueue<>(10000, cmpr);
+//            q = new LinkedList<>();
+//        }
+//
+//        @Override
+//        public int size() {
+//            return q.size();
+//        }
+//
+//        @Override
+//        public boolean offer(OrderedPair<StmtAndContext, GraphDelta> e) {
+//            StmtAndContext sac = e.fst();
+//            GraphDelta delta = e.snd();
+//            if (delta == null) {
+//                // we are going to run the sac without any delta.
+//                deltas.remove(sac);
+//                deltaFree.add(sac);
+//                q.offer(sac);
+//                return true;
+//            }
+//            if (deltaFree.contains(sac)) {
+//                // we are already going to run the sac without a delta.
+//                // ignore the delta, don't re-add the sac.
+//                return true;
+//            }
+//            GraphDelta existing = deltas.get(sac);
+//            if (existing != null) {
+//                // there is already a delta.
+//                // combine them.
+//                deltas.put(sac, existing.combine(delta));
+//            }
+//            else {
+//                deltas.put(sac, delta);
+//            }
+//            q.offer(sac);
+//            return true;
+//        }
+//
+//        @Override
+//        public OrderedPair<StmtAndContext, GraphDelta> poll() {
+//            StmtAndContext sac = q.poll();
+//            if (sac == null) {
+//                return null;
+//            }
+//            GraphDelta delta = null;
+//            if (deltaFree.contains(sac)) {
+//                // nothing to do, delta is null
+//                deltaFree.remove(sac);
+//            }
+//            else {
+//                delta = deltas.remove(sac);
+//            }
+//            return new OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>(sac,
+//                                                                                delta);
+//        }
+//
+//        @Override
+//        public OrderedPair<StmtAndContext, GraphDelta> peek() {
+//            throw new UnsupportedOperationException();
+//        }
+//
+//        @Override
+//        public Iterator<OrderedPair<StmtAndContext, GraphDelta>> iterator() {
+//            throw new UnsupportedOperationException();
+//        }
+//    }
 }
