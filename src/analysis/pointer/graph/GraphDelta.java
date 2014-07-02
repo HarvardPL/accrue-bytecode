@@ -1,10 +1,8 @@
 package analysis.pointer.graph;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
@@ -12,6 +10,13 @@ import java.util.Stack;
 import util.OrderedPair;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.util.collections.EmptyIntIterator;
+import com.ibm.wala.util.intset.EmptyIntSet;
+import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.IntSet;
+import com.ibm.wala.util.intset.MutableIntSet;
+import com.ibm.wala.util.intset.SparseIntSet;
+import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
 
 /**
  * Represents a delta (i.e., a change set) for a PointsToGraph. This is used to both represent the changes that an
@@ -20,27 +25,27 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
  */
 public class GraphDelta {
     private final PointsToGraph g;
-    private final Map<PointsToGraphNode, Set<InstanceKey>> delta;
+    private final Map<PointsToGraphNode, MutableIntSet> delta;
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
-        delta = new LinkedHashMap<>();
+        delta = new HashMap<>();
     }
 
-    private Set<InstanceKey> getOrCreateSet(PointsToGraphNode src) {
-        Set<InstanceKey> s = delta.get(src);
+    private MutableIntSet getOrCreateSet(PointsToGraphNode src, int initialSize) {
+        MutableIntSet s = delta.get(src);
         if (s == null) {
-            s = new LinkedHashSet<>();
+            s = new TunedMutableSparseIntSet(initialSize, 1.5f);
             delta.put(src, s);
         }
         return s;
     }
 
-    public void add(PointsToGraphNode n, InstanceKey ik) {
+    public void add(PointsToGraphNode n, int ik) {
         Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
-                new LinkedHashMap<>();
+                new HashMap<>();
         addToSupersetsOf(n,
-                         Collections.singleton(ik),
+                         SparseIntSet.singleton(ik),
                          new HashSet<PointsToGraphNode>(),
                          new Stack<PointsToGraphNode>(),
                          new Stack<TypeFilter>(),
@@ -51,11 +56,11 @@ public class GraphDelta {
     public void addCopyEdges(PointsToGraphNode source, TypeFilter filter,
             PointsToGraphNode target) {
         // go through the points to set of source, and add anything that target doesn't already point to.
-        Set<InstanceKey> diff = g.getDifference(source, filter, target);
+        IntSet diff = g.getDifference(source, filter, target);
 
         // Now take care of all the supersets of target...
         Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
-                new LinkedHashMap<>();
+                new HashMap<>();
         addToSupersetsOf(target,
                          diff,
                          new HashSet<PointsToGraphNode>(),
@@ -77,15 +82,14 @@ public class GraphDelta {
                 }
                 collapsed.add(n);
                 g.collapseNodes(n, rep);
-                Set<InstanceKey> old = delta.remove(n);
-                assert old == null || old.isEmpty()
-                        || delta.get(rep).containsAll(old);
+                MutableIntSet old = delta.remove(n);
+                assert old == null || old.isSubset(delta.get(rep));
             }
         }
     }
 
-    private void addToSupersetsOf(PointsToGraphNode target,
-            Set<InstanceKey> set, Set<PointsToGraphNode> currentlyAdding,
+    private void addToSupersetsOf(PointsToGraphNode target, IntSet set,
+            Set<PointsToGraphNode> currentlyAdding,
             Stack<PointsToGraphNode> currentlyAddingStack,
             Stack<TypeFilter> filters,
             Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse) {
@@ -112,20 +116,20 @@ public class GraphDelta {
                 // we can collapse some nodes together!
                 Set<PointsToGraphNode> toCollapseSet = toCollapse.get(target);
                 if (toCollapseSet == null) {
-                    toCollapseSet = new LinkedHashSet<>();
+                    toCollapseSet = new HashSet<>();
                     toCollapse.put(target, toCollapseSet);
                 }
                 for (int i = foundAt + 1; i < currentlyAddingStack.size(); i++) {
                     toCollapseSet.add(currentlyAddingStack.get(i));
                 }
             }
-            assert !getOrCreateSet(target).addAll(set) : "Shouldn't be anything left to add by this point";
+            assert !getOrCreateSet(target, 1).addAll(set) : "Shouldn't be anything left to add by this point";
         }
 
         // Now we actually add the set to the target.
-        if (!getOrCreateSet(target).addAll(set)) {
+        if (set.isEmpty() || !getOrCreateSet(target, set.size()).addAll(set)) {
             // we didn't add anything, so don't bother recursing...
-            if (getOrCreateSet(target).isEmpty()) {
+            if (getOrCreateSet(target, 1).isEmpty()) {
                 // let's clean up our mess...
                 delta.remove(target);
             }
@@ -141,14 +145,12 @@ public class GraphDelta {
             OrderedPair<PointsToGraphNode, TypeFilter> superSet = iter.next();
 
             TypeFilter filter = superSet.snd();
-            Set<InstanceKey> filteredSet =
-                    filter == null
-                            ? set
-                            : new PointsToGraph.FilteredSet(set, superSet.snd());
+            IntSet filteredSet =
+                    filter == null ? set : g.new FilteredIntSet(set,
+                                                                superSet.snd());
 
             // Figure out which elements of filteredSet are actually added to the superset...
-            Set<InstanceKey> diff =
-                    g.getDifference(filteredSet, superSet.fst());
+            IntSet diff = g.getDifference(filteredSet, superSet.fst());
 
             filters.push(filter);
             addToSupersetsOf(superSet.fst(),
@@ -174,7 +176,8 @@ public class GraphDelta {
     public GraphDelta combine(GraphDelta d) {
         if (d != null) {
             for (PointsToGraphNode src : d.delta.keySet()) {
-                getOrCreateSet(src).addAll(d.delta.get(src));
+                IntSet srcSet = d.delta.get(src);
+                getOrCreateSet(src, srcSet.size()).addAll(srcSet);
             }
         }
         return this;
@@ -189,17 +192,21 @@ public class GraphDelta {
         return "GraphDelta [" + delta + "]";
     }
 
-    public Set<InstanceKey> pointsToSet(PointsToGraphNode n) {
+    public IntSet pointsToSet(PointsToGraphNode n) {
         n = g.getRepresentative(n);
-        Set<InstanceKey> s = delta.get(n);
+        MutableIntSet s = delta.get(n);
         if (s == null) {
-            return Collections.emptySet();
+            return EmptyIntSet.instance;
         }
         return s;
     }
 
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
-        Set<InstanceKey> s;
+        return g.new IntToInstanceKeyIterator(pointsToIntIterator(n));
+    }
+
+    public IntIterator pointsToIntIterator(PointsToGraphNode n) {
+        MutableIntSet s;
         // we need to look in delta for all the possible representatives that n has been known by.
         // This is because this GraphDelta may have been created sometime
         // before n got collapsed.
@@ -209,9 +216,9 @@ public class GraphDelta {
         } while (s == null && n != null);
 
         if (s == null) {
-            return Collections.emptyIterator();
+            return EmptyIntIterator.instance();
         }
-        return s.iterator();
+        return s.intIterator();
     }
 
     public Iterator<PointsToGraphNode> domainIterator() {

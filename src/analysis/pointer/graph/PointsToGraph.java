@@ -1,13 +1,12 @@
 package analysis.pointer.graph;
 
 import java.lang.ref.SoftReference;
-import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,43 +21,62 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
+import com.ibm.wala.util.collections.EmptyIntIterator;
+import com.ibm.wala.util.intset.EmptyIntSet;
+import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.IntSet;
+import com.ibm.wala.util.intset.IntSetAction;
+import com.ibm.wala.util.intset.MutableIntSet;
+import com.ibm.wala.util.intset.MutableSparseIntSet;
 
 /**
  * Graph mapping local variables (in a particular context) and fields to abstract heap locations (representing zero or
  * more actual heap locations)
  */
 public class PointsToGraph {
+
     public static final String ARRAY_CONTENTS = "[contents]";
+
+    /**
+     * Dictionary for mapping ints to InstanceKeys.
+     */
+    private final ArrayList<InstanceKey> dictionary = new ArrayList<>();
+    /**
+     * Dictionary for mapping InstanceKeys to ints
+     */
+    private final Map<InstanceKey, Integer> reverseDictionary = new HashMap<>();
+
+    final ArrayList<IClass> concreteTypeDictionary = new ArrayList<>();
 
     /*
      * The pointsto graph is represented using two relations. If base.get(n).contains(i) then i is in the pointsto set
      * of n. If isSubsetOf.get(n).contains(<m, f>), then the filtered pointsto set of n is a subset of the points to set
      * of m. The superset relation is just the reverse of subset.
      */
-    private final Map<PointsToGraphNode, Set<InstanceKey>> base =
-            new LinkedHashMap<>();
+    private final Map<PointsToGraphNode, MutableIntSet> base = new HashMap<>();
 
     private final Map<PointsToGraphNode, Set<PointsToGraphNode>> isUnfilteredSubsetOf =
-            new LinkedHashMap<>();
+            new HashMap<>();
     private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSubsetOf =
-            new LinkedHashMap<>();
+            new HashMap<>();
     private final Map<PointsToGraphNode, Set<OrderedPair<PointsToGraphNode, TypeFilter>>> isSupersetOf =
-            new LinkedHashMap<>();
+            new HashMap<>();
     private final Map<PointsToGraphNode, Set<PointsToGraphNode>> isUnfilteredSupersetOf =
-            new LinkedHashMap<>();
+            new HashMap<>();
 
     private final Map<PointsToGraphNode, PointsToGraphNode> representative =
             new HashMap<>();
     /**
      * The contexts that a method may appear in.
      */
-    private final Map<IMethod, Set<Context>> contexts = new LinkedHashMap<>();
+    private final Map<IMethod, Set<Context>> contexts = new HashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static initializers).
@@ -90,9 +108,9 @@ public class PointsToGraph {
 
     public PointsToGraph(StatementRegistrar registrar,
             HeapAbstractionFactory haf) {
-        readNodes = new LinkedHashSet<>();
-        newlyCollapsedNodes = new LinkedHashSet<>();
-        newContexts = new LinkedHashMap<>();
+        readNodes = new HashSet<>();
+        newlyCollapsedNodes = new HashSet<>();
+        newContexts = new HashMap<>();
 
         this.haf = haf;
         callGraph = new HafCallGraph(haf);
@@ -115,7 +133,7 @@ public class PointsToGraph {
         }
     }
 
-    public Map<PointsToGraphNode, Set<InstanceKey>> getBaseNodes() {
+    public Map<PointsToGraphNode, MutableIntSet> getBaseNodes() {
         return base;
     }
 
@@ -182,12 +200,26 @@ public class PointsToGraph {
         assert node != null && heapContext != null;
         node = getRepresentative(node);
 
-        Set<InstanceKey> pointsToSet = getOrCreateBaseSet(node);
+        MutableIntSet pointsToSet = getOrCreateBaseSet(node);
+
+        boolean add;
+        Integer h = reverseDictionary.get(heapContext);
+        if (h == null) {
+            // not in the dictionary yet
+            h = dictionary.size();
+            dictionary.add(heapContext);
+            concreteTypeDictionary.add(heapContext.getConcreteType());
+            reverseDictionary.put(heapContext, h);
+            add = true;
+        }
+        else {
+            add = !pointsToSet.contains(h);
+        }
 
         GraphDelta delta = new GraphDelta(this);
-        if (!pointsToSet.contains(heapContext)) {
-            delta.add(node, heapContext);
-            pointsToSet.add(heapContext);
+        if (add) {
+            delta.add(node, h);
+            pointsToSet.add(h);
 
             // update the cache for the changes
             cache.updateForDelta(delta);
@@ -288,29 +320,32 @@ public class PointsToGraph {
      * @return
      */
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        return new IntToInstanceKeyIterator(pointsToIntIterator(n));
+    }
+
+    public IntIterator pointsToIntIterator(PointsToGraphNode n) {
         n = getRepresentative(n);
         recordRead(n);
-        return cache.getPointsToSet(n).iterator();
+        return cache.getPointsToSet(n).intIterator();
     }
 
     /**
      * Does n point to ik?
      */
-    public boolean pointsTo(PointsToGraphNode n, InstanceKey ik) {
-        return pointsTo(n, ik, new HashSet<PointsToGraphNode>());
+    public boolean pointsTo(PointsToGraphNode n, int ik) {
+        return pointsTo(n, ik, null);
     }
 
     /**
      * Does n point to ik? 
      */
-    private boolean pointsTo(PointsToGraphNode n, InstanceKey ik,
+    private boolean pointsTo(PointsToGraphNode n, int ik,
             Set<PointsToGraphNode> visited) {
-        if (visited.contains(n)) {
+        if (visited != null && visited.contains(n)) {
             return false;
         }
-        visited.add(n);
 
-        Set<InstanceKey> s = cache.getPointsToSetIfNotEvicted(n);
+        IntSet s = cache.getPointsToSetIfNotEvicted(n);
         if (s != null) {
             return s.contains(ik);
         }
@@ -322,6 +357,10 @@ public class PointsToGraph {
                 return true;
             }
         }
+        if (visited == null) {
+            visited = new HashSet<>();
+        }
+        visited.add(n);
 
         // let's try the immediate subsets of n
         Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
@@ -329,7 +368,8 @@ public class PointsToGraph {
         while (iter.hasNext()) {
             OrderedPair<PointsToGraphNode, TypeFilter> p = iter.next();
             TypeFilter filter = p.snd();
-            if (filter == null || filter.satisfies(ik.getConcreteType())) {
+            if (filter == null
+                    || filter.satisfies(concreteTypeDictionary.get(ik))) {
                 if (pointsTo(p.fst(), ik, visited)) {
                     return true;
                 }
@@ -390,7 +430,7 @@ public class PointsToGraph {
         }
         Set<Context> s = contexts.get(callee);
         if (s == null) {
-            s = new LinkedHashSet<>();
+            s = new HashSet<>();
             contexts.put(callee, s);
         }
 
@@ -398,16 +438,20 @@ public class PointsToGraph {
             // The context is new
             Set<Context> n = newContexts.get(callee);
             if (n == null) {
-                n = new LinkedHashSet<>();
+                n = new HashSet<>();
                 newContexts.put(callee, n);
             }
             n.add(calleeContext);
         }
     }
 
-    private Set<InstanceKey> getOrCreateBaseSet(PointsToGraphNode node) {
-        return PointsToGraph.<PointsToGraphNode, InstanceKey> getOrCreateSet(node,
-                                                                             base);
+    private MutableIntSet getOrCreateBaseSet(PointsToGraphNode node) {
+        MutableIntSet s = base.get(node);
+        if (s == null) {
+            s = MutableSparseIntSet.makeEmpty();
+            base.put(node, s);
+        }
+        return s;
     }
 
     private Set<OrderedPair<PointsToGraphNode, TypeFilter>> getOrCreateSubsetSet(
@@ -446,7 +490,7 @@ public class PointsToGraph {
         Set<T> set = map.get(key);
         if (set == null) {
             // make these concurrent to avoid ConcurrentModificationExceptions
-            // set = new LinkedHashSet<>();
+            // set = new HashSet<>();
             set = AnalysisUtil.createConcurrentSet();
             map.put(key, set);
         }
@@ -548,10 +592,10 @@ public class PointsToGraph {
     // *
     // * @return set with all the Heap contexts
     // */
-    // public Set<InstanceKey> getAllHContexts() {
-    // Set<InstanceKey> all = new LinkedHashSet<>();
+    // public IntSet getAllHContexts() {
+    // IntSet all = new HashSet<>();
     //
-    // for (Set<InstanceKey> s : graph.values()) {
+    // for (IntSet s : graph.values()) {
     // all.addAll(s);
     // }
     // return all;
@@ -573,7 +617,7 @@ public class PointsToGraph {
      */
     public Map<IMethod, Set<Context>> getAndClearNewContexts() {
         Map<IMethod, Set<Context>> newC = newContexts;
-        newContexts = new LinkedHashMap<>();
+        newContexts = new HashMap<>();
         return newC;
     }
 
@@ -584,7 +628,7 @@ public class PointsToGraph {
      */
     public Set<PointsToGraphNode> getAndClearReadNodes() {
         Set<PointsToGraphNode> c = readNodes;
-        readNodes = new LinkedHashSet<>();
+        readNodes = new HashSet<>();
         return c;
     }
 
@@ -594,7 +638,7 @@ public class PointsToGraph {
 
     public Set<PointsToGraphNode> getAndClearNewlyCollapsedNodes() {
         Set<PointsToGraphNode> c = newlyCollapsedNodes;
-        newlyCollapsedNodes = new LinkedHashSet<>();
+        newlyCollapsedNodes = new HashSet<>();
         return c;
     }
 
@@ -755,15 +799,15 @@ public class PointsToGraph {
         return cgChanged;
     }
 
-    static class FilteredSet extends AbstractSet<InstanceKey> {
-        final Set<InstanceKey> s;
+    class FilteredIntSet implements IntSet {
+        final IntSet s;
         final TypeFilter filter;
 
-        FilteredSet(Set<InstanceKey> s, TypeFilter filter) {
+        FilteredIntSet(IntSet s, TypeFilter filter) {
             this.filter = filter;
             if (TypeFilter.IMPOSSIBLE.equals(filter)) {
                 // nothing will satisfy this filter.
-                this.s = Collections.emptySet();
+                this.s = EmptyIntSet.instance;
             }
             else {
                 this.s = s;
@@ -771,32 +815,87 @@ public class PointsToGraph {
         }
 
         @Override
-        public Iterator<InstanceKey> iterator() {
-            return new FilteredIterator(s.iterator(), filter);
+        public IntIterator intIterator() {
+            return new FilteredIterator(s.intIterator(), filter);
         }
 
         @Override
-        public boolean contains(Object o) {
+        public boolean contains(int o) {
             return s.contains(o)
-                    && filter.satisfies(((InstanceKey) o).getConcreteType());
+                    && filter.satisfies(concreteTypeDictionary.get(o));
+        }
+
+        @Override
+        public boolean containsAny(IntSet set) {
+            IntIterator iter = set.intIterator();
+            while (iter.hasNext()) {
+                if (contains(iter.next())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public IntSet intersection(IntSet that) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IntSet union(IntSet that) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public int size() {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public void foreach(IntSetAction action) {
+            IntIterator iter = intIterator();
+            while (iter.hasNext()) {
+                action.act(iter.next());
+            }
+        }
+
+        @Override
+        public void foreachExcluding(IntSet X, IntSetAction action) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int max() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean sameValue(IntSet that) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isSubset(IntSet that) {
+            throw new UnsupportedOperationException();
+        }
+
     }
 
-    static class FilteredIterator implements Iterator<InstanceKey> {
-        private final Iterator<InstanceKey> iter;
+    class FilteredIterator implements IntIterator {
+        private final IntIterator iter;
         private final TypeFilter filter;
-        private InstanceKey next = null;
+        private int next = -1;
 
-        FilteredIterator(Iterator<InstanceKey> iter, TypeFilter filter) {
+        FilteredIterator(IntIterator iter, TypeFilter filter) {
             this.filter = filter;
             if (TypeFilter.IMPOSSIBLE.equals(filter)) {
                 // nothing will satisfy this filter.
-                this.iter = Collections.emptyIterator();
+                this.iter = EmptyIntIterator.instance();
             }
             else {
                 this.iter = iter;
@@ -806,29 +905,24 @@ public class PointsToGraph {
 
         @Override
         public boolean hasNext() {
-            while (next == null && iter.hasNext()) {
-                InstanceKey ik = iter.next();
-                if (filter.satisfies(ik.getConcreteType())) {
-                    next = ik;
+            while (next < 0 && iter.hasNext()) {
+                int i = iter.next();
+                if (filter.satisfies(concreteTypeDictionary.get(i))) {
+                    next = i;
                 }
             }
 
-            return next != null;
+            return next >= 0;
         }
 
         @Override
-        public InstanceKey next() {
+        public int next() {
             if (hasNext()) {
-                InstanceKey x = next;
-                next = null;
+                int x = next;
+                next = -1;
                 return x;
             }
             throw new NoSuchElementException();
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -920,6 +1014,30 @@ public class PointsToGraph {
         }
     }
 
+    public class IntToInstanceKeyIterator implements Iterator<InstanceKey> {
+        private final IntIterator iter;
+
+        public IntToInstanceKeyIterator(IntIterator iter) {
+            this.iter = iter;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iter.hasNext();
+        }
+
+        @Override
+        public InstanceKey next() {
+            return dictionary.get(iter.next());
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+
+    }
+
     /**
      * Return the set of InstanceKeys that are in source (and satisfy filter) but are not in target.
      * @param source
@@ -927,34 +1045,33 @@ public class PointsToGraph {
      * @param target
      * @return
      */
-    Set<InstanceKey> getDifference(PointsToGraphNode source, TypeFilter filter,
+    IntSet getDifference(PointsToGraphNode source, TypeFilter filter,
             PointsToGraphNode target) {
         source = getRepresentative(source);
 
-        Set<InstanceKey> s = cache.getPointsToSet(source);
-        Iterator<InstanceKey> srcIter;
+        IntSet s = cache.getPointsToSet(source);
+        IntIterator srcIter;
         if (filter == null) {
-            srcIter = s.iterator();
+            srcIter = s.intIterator();
         }
         else {
-            srcIter = new FilteredIterator(s.iterator(), filter);
+            srcIter = new FilteredIterator(s.intIterator(), filter);
         }
         return getDifference(srcIter, target);
 
     }
 
-    private Set<InstanceKey> getDifference(Iterator<InstanceKey> srcIter,
-            PointsToGraphNode target) {
+    private IntSet getDifference(IntIterator srcIter, PointsToGraphNode target) {
         target = getRepresentative(target);
 
         if (!srcIter.hasNext()) {
             // nothing in there, return an empty set.
-            return Collections.emptySet();
+            return EmptyIntSet.instance;
         }
 
-        Set<InstanceKey> s = new LinkedHashSet<>();
+        MutableIntSet s = MutableSparseIntSet.makeEmpty();
         while (srcIter.hasNext()) {
-            InstanceKey i = srcIter.next();
+            int i = srcIter.next();
             if (!pointsTo(target, i)) {
                 s.add(i);
             }
@@ -969,9 +1086,8 @@ public class PointsToGraph {
      * @param target
      * @return
      */
-    public Set<InstanceKey> getDifference(Set<InstanceKey> set,
-            PointsToGraphNode target) {
-        return getDifference(set.iterator(), target);
+    public IntSet getDifference(IntSet set, PointsToGraphNode target) {
+        return getDifference(set.intIterator(), target);
     }
 
     /**
@@ -979,7 +1095,7 @@ public class PointsToGraph {
      */
     private class RealizedSetCache {
         private static final int RECENTLY_USED_LIMIT = 50000;
-        private final Map<PointsToGraphNode, SoftReference<Set<InstanceKey>>> cache =
+        private final Map<PointsToGraphNode, SoftReference<MutableIntSet>> cache =
                 new HashMap<>();
         private int hits = 0;
         private int misses = 0;
@@ -990,14 +1106,13 @@ public class PointsToGraph {
          * The following maps are used to have hard reference to sets, to stop them being garbage collected,
          * i.e., to keep them in the cache.
          */
-        private Map<PointsToGraphNode, Set<InstanceKey>> inCycle =
-                new HashMap<>();
-        private Map<PointsToGraphNode, Set<InstanceKey>> recentlyUsedMap =
-                new LinkedHashMap<PointsToGraphNode, Set<InstanceKey>>(RECENTLY_USED_LIMIT) {
+        private Map<PointsToGraphNode, IntSet> inCycle = new HashMap<>();
+        private Map<PointsToGraphNode, IntSet> recentlyUsedMap =
+                new LinkedHashMap<PointsToGraphNode, IntSet>(RECENTLY_USED_LIMIT) {
 
                     @Override
                     protected boolean removeEldestEntry(
-                            Entry<PointsToGraphNode, Set<InstanceKey>> eldest) {
+                            Entry<PointsToGraphNode, IntSet> eldest) {
                         return size() > RECENTLY_USED_LIMIT; // only keep the most recently accessed nodes.
                     }
 
@@ -1011,10 +1126,10 @@ public class PointsToGraph {
             Iterator<PointsToGraphNode> iter = delta.domainIterator();
             while (iter.hasNext()) {
                 PointsToGraphNode n = iter.next();
-                Set<InstanceKey> deltaSet = delta.pointsToSet(n);
-                SoftReference<Set<InstanceKey>> sr = cache.get(n);
+                IntSet deltaSet = delta.pointsToSet(n);
+                SoftReference<MutableIntSet> sr = cache.get(n);
                 if (sr != null) {
-                    Set<InstanceKey> s = sr.get();
+                    MutableIntSet s = sr.get();
                     if (s != null) {
                         // the set is in the cache!
                         s.addAll(deltaSet);
@@ -1034,10 +1149,10 @@ public class PointsToGraph {
             inCycle.remove(n);
         }
 
-        Set<InstanceKey> getPointsToSetIfNotEvicted(PointsToGraphNode n) {
-            SoftReference<Set<InstanceKey>> sr = cache.get(n);
+        IntSet getPointsToSetIfNotEvicted(PointsToGraphNode n) {
+            SoftReference<MutableIntSet> sr = cache.get(n);
             if (sr != null) {
-                Set<InstanceKey> s = sr.get();
+                IntSet s = sr.get();
                 if (s != null) {
                     // put it in the recently used...
                     recentlyUsedMap.put(n, s);
@@ -1048,7 +1163,7 @@ public class PointsToGraph {
             return getPointsToSet(n);
         }
 
-        public Set<InstanceKey> getPointsToSet(PointsToGraphNode n) {
+        public IntSet getPointsToSet(PointsToGraphNode n) {
             return realizePointsToSet(n,
                                       new HashSet<PointsToGraphNode>(),
                                       new Stack<PointsToGraphNode>(),
@@ -1057,16 +1172,16 @@ public class PointsToGraph {
 
         }
 
-        private Set<InstanceKey> realizePointsToSet(PointsToGraphNode n,
+        private IntSet realizePointsToSet(PointsToGraphNode n,
                 Set<PointsToGraphNode> currentlyRealizing,
                 Stack<PointsToGraphNode> currentlyRealizingStack,
-                Stack<TypeFilter> filters, Stack<Boolean> safeToCache) {
+                Stack<TypeFilter> filters, Stack<Boolean> shouldCache) {
             assert !representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
 
             try {
-                SoftReference<Set<InstanceKey>> sr = cache.get(n);
+                SoftReference<MutableIntSet> sr = cache.get(n);
                 if (sr != null) {
-                    Set<InstanceKey> s = sr.get();
+                    IntSet s = sr.get();
                     if (s != null) {
                         // we have it in the cache!
                         hits++;
@@ -1089,24 +1204,30 @@ public class PointsToGraph {
                         }
                         else if (foundAt >= 0) {
                             // it is not safe to cache the result of i. (but will be ok to cache foundAt).
-                            safeToCache.setElementAt(false, i);
+                            shouldCache.setElementAt(false, i);
                             filter = TypeFilter.compose(filter, filters.get(i));
                         }
                     }
                     // return an empty set, which will let us compute the realization of the
                     // point to set.
-                    return Collections.emptySet();
+                    return EmptyIntSet.instance;
                 }
                 boolean baseContains = base.containsKey(n);
-                boolean hasUnfilteredSupersetRelns =
-                        isUnfilteredSupersetOf.containsKey(n);
-                boolean hasFilteredSupersetRelns = isSupersetOf.containsKey(n);
+
+                Set<PointsToGraphNode> unfilteredSubsets =
+                        isUnfilteredSupersetOf.get(n);
+
+                Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSubsets =
+                        isSupersetOf.get(n);
+
+                boolean hasUnfilteredSupersetRelns = unfilteredSubsets != null;
+                boolean hasFilteredSupersetRelns = filteredSubsets != null;
 
                 // A case that shouldn't be true...
                 if (!baseContains && !hasUnfilteredSupersetRelns
                         && !hasFilteredSupersetRelns) {
                     // doesn't point to anything.
-                    return Collections.emptySet();
+                    return EmptyIntSet.instance;
                 }
 
                 if (baseContains
@@ -1121,18 +1242,86 @@ public class PointsToGraph {
                     evictions++;
                 }
 
-                Set<InstanceKey> s = AnalysisUtil.createConcurrentSet();
+                MutableIntSet s = MutableSparseIntSet.makeEmpty();
+                IntSet ret = s; // the set to return.
                 if (baseContains) {
                     s.addAll(base.get(n));
                 }
-                safeToCache.push(true);
-                addSubSets(n,
-                           s,
-                           currentlyRealizing,
-                           currentlyRealizingStack,
-                           filters,
-                           safeToCache);
-                if (safeToCache.pop()) {
+                shouldCache.push(true);
+                currentlyRealizing.add(n);
+                currentlyRealizingStack.push(n);
+
+                if (unfilteredSubsets != null) {
+                    filters.push(null);
+                    if (filteredSubsets == null
+                            && unfilteredSubsets.size() == 1) {
+                        // there is exactly one subset.
+                        // return that and don't bother caching.
+                        s = null;
+                        ret =
+                                realizePointsToSet(unfilteredSubsets.iterator()
+                                                                    .next(),
+                                                   currentlyRealizing,
+                                                   currentlyRealizingStack,
+                                                   filters,
+                                                   shouldCache);
+                        shouldCache.set(shouldCache.size() - 1, false);
+                        // it's not really uncachable and it's not really a miss
+                        uncachable--;
+                        misses--;
+                    }
+                    else {
+                        // more than one subset.
+                        for (PointsToGraphNode x : unfilteredSubsets) {
+                            s.addAll(realizePointsToSet(x,
+                                                        currentlyRealizing,
+                                                        currentlyRealizingStack,
+                                                        filters,
+                                                        shouldCache));
+                        }
+                    }
+                    filters.pop();
+                }
+                if (filteredSubsets != null) {
+                    if (unfilteredSubsets == null
+                            && filteredSubsets.size() == 1) {
+                        // there is exactly one subset.
+                        // return that and don't bother caching.
+                        OrderedPair<PointsToGraphNode, TypeFilter> p =
+                                filteredSubsets.iterator().next();
+                        filters.push(p.snd());
+                        s = null;
+                        ret =
+                                new FilteredIntSet(realizePointsToSet(p.fst(),
+                                                                      currentlyRealizing,
+                                                                      currentlyRealizingStack,
+                                                                      filters,
+                                                                      shouldCache),
+                                                   p.snd());
+                        filters.pop();
+                        shouldCache.set(shouldCache.size() - 1, false);
+                        // it's not really uncachable and it's not really a miss
+                        uncachable--;
+                        misses--;
+                    }
+                    else {
+
+                        for (OrderedPair<PointsToGraphNode, TypeFilter> p : filteredSubsets) {
+                            filters.push(p.snd());
+                            s.addAll(new FilteredIntSet(realizePointsToSet(p.fst(),
+                                                                           currentlyRealizing,
+                                                                           currentlyRealizingStack,
+                                                                           filters,
+                                                                           shouldCache),
+                                                        p.snd()));
+                            filters.pop();
+
+                        }
+                    }
+                }
+                currentlyRealizing.remove(n);
+                currentlyRealizingStack.pop();
+                if (shouldCache.pop()) {
                     // it is safe for us to cache the result of this realization.
                     cache.put(n, new SoftReference<>(s));
                     recentlyUsedMap.put(n, s);
@@ -1143,11 +1332,11 @@ public class PointsToGraph {
                 else {
                     uncachable++;
                 }
-                return s;
+                return ret;
 
             }
             finally {
-                if ((hits + misses) % 5000000 == 0 && hits + misses > 0) {
+                if (hits + misses >= 1000000) {
                     System.err.println("  Cache: " + (hits + misses)
                             + " accesses: " + 100 * hits / (hits + misses)
                             + "% hits; " + evictions + " of " + misses
@@ -1158,45 +1347,6 @@ public class PointsToGraph {
                 }
             }
 
-        }
-
-        private void addSubSets(PointsToGraphNode n, Set<InstanceKey> s,
-                Set<PointsToGraphNode> currentlyRealizing,
-                Stack<PointsToGraphNode> currentlyRealizingStack,
-                Stack<TypeFilter> filters, Stack<Boolean> safeToCache) {
-            currentlyRealizing.add(n);
-            currentlyRealizingStack.push(n);
-            // go through the superset relations and add them
-
-            Set<PointsToGraphNode> unfiltered = isUnfilteredSupersetOf.get(n);
-            if (unfiltered != null) {
-                filters.push(null);
-                for (PointsToGraphNode x : unfiltered) {
-                    s.addAll(realizePointsToSet(x,
-                                                currentlyRealizing,
-                                                currentlyRealizingStack,
-                                                filters,
-                                                safeToCache));
-                }
-                filters.pop();
-            }
-            Set<OrderedPair<PointsToGraphNode, TypeFilter>> filtered =
-                    isSupersetOf.get(n);
-            if (filtered != null) {
-                for (OrderedPair<PointsToGraphNode, TypeFilter> p : filtered) {
-                    filters.push(p.snd());
-                    s.addAll(new FilteredSet(realizePointsToSet(p.fst(),
-                                                                currentlyRealizing,
-                                                                currentlyRealizingStack,
-                                                                filters,
-                                                                safeToCache),
-                                             p.snd()));
-                    filters.pop();
-
-                }
-            }
-            currentlyRealizing.remove(n);
-            currentlyRealizingStack.pop();
         }
 
         public void inCycle(PointsToGraphNode n) {
