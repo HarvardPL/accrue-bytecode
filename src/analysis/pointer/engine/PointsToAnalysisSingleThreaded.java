@@ -1,10 +1,13 @@
 package analysis.pointer.engine;
 
+import java.util.AbstractQueue;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -17,7 +20,20 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ArrayToLocalStatement;
+import analysis.pointer.statements.CallStatement;
+import analysis.pointer.statements.ClassInitStatement;
+import analysis.pointer.statements.ExceptionAssignmentStatement;
+import analysis.pointer.statements.FieldToLocalStatement;
+import analysis.pointer.statements.LocalToArrayStatement;
+import analysis.pointer.statements.LocalToFieldStatement;
+import analysis.pointer.statements.LocalToLocalStatement;
+import analysis.pointer.statements.LocalToStaticFieldStatement;
+import analysis.pointer.statements.NewStatement;
+import analysis.pointer.statements.PhiStatement;
 import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.ReturnStatement;
+import analysis.pointer.statements.StaticFieldToLocalStatement;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -151,6 +167,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue =
                 Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<StmtAndContext, GraphDelta>> noDeltaQueue =
+                new PartitionedQueue();
 //        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
 //                new PriorityQueue<>(10000, lrfComparator);
 //        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
@@ -160,9 +178,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    queue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
-                                                                                             c),
-                                                                          null));
+                    noDeltaQueue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
+                                                                                                    c),
+                                                                                 null));
                 }
             }
         }
@@ -173,9 +191,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         long noDeltaProcessed = 0;
         long processedWithNoChange = 0;
         Set<StmtAndContext> visited = new HashSet<>();
-        while (!queue.isEmpty()) {
+        while (!queue.isEmpty() || !noDeltaQueue.isEmpty()) {
             // get the next sac, and the delta for it.
-            OrderedPair<StmtAndContext, GraphDelta> next = queue.poll();
+            OrderedPair<StmtAndContext, GraphDelta> next =
+                    queue.isEmpty() ? noDeltaQueue.poll() : queue.poll();
 
             StmtAndContext sac = next.fst();
             GraphDelta delta = next.snd();
@@ -194,13 +213,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                delta,
                                g,
                                registrar,
-                               nextQueue,
+                               queue,
+                               noDeltaQueue,
                                registerOnline);
 
             if (changed.isEmpty()) {
                 processedWithNoChange++;
             }
-            handleChanges(nextQueue, changed, g);
+            handleChanges(queue, changed, g);
 
             long currTime = System.currentTimeMillis();
             if (currTime > nextMilestone) {
@@ -217,6 +237,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         + " base nodes; cycles removed "
                         + g.cycleRemovalCount() + " nodes ; queue="
                         + queue.size() + " nextQueue=" + nextQueue.size()
+                        + " noDeltaQueue=" + noDeltaQueue.size()
                         + " Processed: nochange, nodelta: "
                         + processedWithNoChange + ",  " + noDeltaProcessed
                         + " (" + (numProcessed - lastNumProcessed) + " in "
@@ -226,7 +247,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 noDeltaProcessed = 0;
                 processedWithNoChange = 0;
             }
-            if (queue.isEmpty()) {
+            if (queue.isEmpty() && !nextQueue.isEmpty()) {
                 Queue<OrderedPair<StmtAndContext, GraphDelta>> t = queue;
                 queue = nextQueue;
                 nextQueue = t;
@@ -252,6 +273,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private GraphDelta processSaC(StmtAndContext sac, GraphDelta delta,
             PointsToGraph g, StatementRegistrar registrar,
             Queue<OrderedPair<StmtAndContext, GraphDelta>> queue,
+            Queue<OrderedPair<StmtAndContext, GraphDelta>> noDeltaQueue,
             boolean registerOnline) {
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
@@ -289,9 +311,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
                 for (Context context : newContexts.get(m)) {
                     // these are new contexts, so use null for the delta
-                    queue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt,
-                                                                                             context),
-                                                                          null));
+                    noDeltaQueue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt,
+                                                                                                    context),
+                                                                                 null));
                 }
             }
         }
@@ -340,6 +362,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             GraphDelta changes, PointsToGraph g) {
         // handleChangesMassiveDelta(queue, initialChanges, g);
         //handleChangesSmallDeltas(queue, initialChanges, g);
+        if (changes.isEmpty()) {
+            return;
+        }
         Iterator<PointsToGraphNode> iter = changes.domainIterator();
         while (iter.hasNext()) {
             PointsToGraphNode n = iter.next();
@@ -662,4 +687,107 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 //            throw new UnsupportedOperationException();
 //        }
 //    }
+    static class PartitionedQueue
+            extends
+            AbstractQueue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> {
+        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> base =
+                new LinkedList<>();
+        //Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> localAssigns =
+        //        new LinkedList<>();
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> fieldReads =
+        //        new LinkedList<>();
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> fieldWrites =
+        //        new LinkedList<>();
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> calls =
+        //        new LinkedList<>();
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+
+        ArrayList<Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>>> ordered =
+                new ArrayList<>();
+
+        {
+            ordered.add(localAssigns);
+            ordered.add(fieldReads);
+            ordered.add(fieldWrites);
+            ordered.add(base);
+            ordered.add(calls);
+        }
+
+        @Override
+        public boolean offer(OrderedPair<StmtAndContext, GraphDelta> e) {
+            StmtAndContext sac = e.fst();
+            PointsToStatement stmt = sac.stmt;
+            if (stmt instanceof NewStatement) {
+                return base.offer(e);
+            }
+            if (stmt instanceof CallStatement
+                    || stmt instanceof ClassInitStatement) {
+                return calls.offer(e);
+            }
+            if (stmt instanceof FieldToLocalStatement
+                    || stmt instanceof ArrayToLocalStatement) {
+                return fieldReads.offer(e);
+            }
+            if (stmt instanceof LocalToFieldStatement
+                    || stmt instanceof LocalToArrayStatement) {
+                return fieldWrites.offer(e);
+            }
+            if (stmt instanceof LocalToLocalStatement
+                    || stmt instanceof LocalToStaticFieldStatement
+                    || stmt instanceof PhiStatement
+                    || stmt instanceof ReturnStatement
+                    || stmt instanceof StaticFieldToLocalStatement
+                    || stmt instanceof ExceptionAssignmentStatement) {
+                return localAssigns.offer(e);
+            }
+            throw new IllegalArgumentException("Don't know how to handle a "
+                    + stmt.getClass());
+        }
+
+        @Override
+        public OrderedPair<StmtAndContext, GraphDelta> poll() {
+            for (Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> q : ordered) {
+                if (!q.isEmpty()) {
+                    return q.poll();
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public OrderedPair<StmtAndContext, GraphDelta> peek() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterator<OrderedPair<StmtAndContext, GraphDelta>> iterator() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            int size = 0;
+            for (Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> q : ordered) {
+                size += q.size();
+            }
+            return size;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            for (int i = ordered.size() - 1; i >= 0; i--) {
+                Queue<OrderedPair<StmtAndContext, GraphDelta>> q =
+                        ordered.get(i);
+                if (!q.isEmpty()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    }
 }
