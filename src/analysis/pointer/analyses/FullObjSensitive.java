@@ -47,26 +47,29 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public AllocationNameContext merge(CallSiteLabel callSite, InstanceKey receiver,
-                                    Context callerContext) {
+    public AllocationNameContext merge(CallSiteLabel callSite,
+            InstanceKey receiver, Context callerContext) {
         if (callSite.isStatic()) {
             // this is a static method call return the caller's context
             return (AllocationNameContext) callerContext;
         }
 
-        AllocationName<ContextStack<AllocSiteNode>> rec = (AllocationName<ContextStack<AllocSiteNode>>) receiver;
+        AllocationName<ContextStack<AllocSiteNode>> rec =
+                (AllocationName<ContextStack<AllocSiteNode>>) receiver;
         return AllocationNameContext.create(rec);
     }
 
     @Override
-    public AllocationName<ContextStack<AllocSiteNode>> record(AllocSiteNode allocationSite, Context context) {
+    public AllocationName<ContextStack<AllocSiteNode>> record(
+            AllocSiteNode allocationSite, Context context) {
         AllocationNameContext c = (AllocationNameContext) context;
         AllocationName<ContextStack<AllocSiteNode>> an = c.allocationName();
         ContextStack<AllocSiteNode> stack;
         if (an == null) {
             stack = ContextStack.emptyStack();
-        } else {
-            stack = an.getContext().push(an.getAllocationSite(), this.n);
+        }
+        else {
+            stack = an.getContext().push(an.getAllocationSite(), n);
         }
         return AllocationName.create(stack, allocationSite);
     }
@@ -80,7 +83,7 @@ public class FullObjSensitive extends HeapAbstractionFactory {
     public String toString() {
         return n + "FullObjSens+1H";
     }
-    
+
     public static class AllocationNameContext implements Context {
         private final AllocationName<ContextStack<AllocSiteNode>> an;
 
@@ -88,10 +91,13 @@ public class FullObjSensitive extends HeapAbstractionFactory {
             this.an = an;
         }
 
-        public static AllocationNameContext create(AllocationName<ContextStack<AllocSiteNode>> an) {
-            // ANDREW: maybe make this memoize
+        public static AllocationNameContext create(
+                AllocationName<ContextStack<AllocSiteNode>> an) {
+            // ANDREW: maybe make this memoize. Steve: Yes, in the meantime ensure we have equality defined.
+
             return new AllocationNameContext(an);
         }
+
         @Override
         public ContextItem get(ContextKey name) {
             return null;
@@ -99,6 +105,37 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
         public AllocationName<ContextStack<AllocSiteNode>> allocationName() {
             return an;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + (an == null ? 0 : an.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof AllocationNameContext)) {
+                return false;
+            }
+            AllocationNameContext other = (AllocationNameContext) obj;
+            if (an == null) {
+                if (other.an != null) {
+                    return false;
+                }
+            }
+            else if (!an.equals(other.an)) {
+                return false;
+            }
+            return true;
         }
 
     }
