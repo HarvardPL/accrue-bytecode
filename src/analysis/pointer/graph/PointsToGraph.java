@@ -9,7 +9,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Stack;
@@ -158,6 +157,15 @@ public class PointsToGraph {
         Set<OrderedPair<PointsToGraphNode, TypeFilter>> subsets =
                 isSupersetOf.get(n);
         return composeIterators(unfilteredsubsets, subsets);
+    }
+
+    public int numIsSupersetOf(PointsToGraphNode n) {
+        Set<PointsToGraphNode> unfSuperSetOf = isUnfilteredSupersetOf.get(n);
+        Set<OrderedPair<PointsToGraphNode, TypeFilter>> filtSuperSetOf =
+                isSupersetOf.get(n);
+
+        return (unfSuperSetOf == null ? 0 : unfSuperSetOf.size())
+                + (filtSuperSetOf == null ? 0 : filtSuperSetOf.size());
     }
 
     /**
@@ -799,7 +807,7 @@ public class PointsToGraph {
         return cgChanged;
     }
 
-    class FilteredIntSet implements IntSet {
+    class FilteredIntSet extends AbstractIntSet implements IntSet {
         final IntSet s;
         final TypeFilter filter;
 
@@ -882,6 +890,13 @@ public class PointsToGraph {
         @Override
         public boolean isSubset(IntSet that) {
             throw new UnsupportedOperationException();
+        }
+
+        public int underlyingSetSize() {
+            if (s instanceof FilteredIntSet) {
+                return ((FilteredIntSet) s).underlyingSetSize();
+            }
+            return s.size();
         }
 
     }
@@ -1107,12 +1122,13 @@ public class PointsToGraph {
          * i.e., to keep them in the cache.
          */
         private Map<PointsToGraphNode, IntSet> inCycle = new HashMap<>();
+
         private Map<PointsToGraphNode, IntSet> recentlyUsedMap =
                 new LinkedHashMap<PointsToGraphNode, IntSet>(RECENTLY_USED_LIMIT) {
 
                     @Override
                     protected boolean removeEldestEntry(
-                            Entry<PointsToGraphNode, IntSet> eldest) {
+                            Map.Entry<PointsToGraphNode, IntSet> eldest) {
                         return size() > RECENTLY_USED_LIMIT; // only keep the most recently accessed nodes.
                     }
 
@@ -1196,7 +1212,7 @@ public class PointsToGraph {
                     // find the index that n first appears at, and compute the effective filter on the cycle.
                     int foundAt = -1;
                     TypeFilter filter = null;
-                    for (int i = 0; i < currentlyRealizing.size(); i++) {
+                    for (int i = 0; i < currentlyRealizingStack.size(); i++) {
                         if (foundAt < 0
                                 && currentlyRealizingStack.get(i).equals(n)) {
                             foundAt = i;
@@ -1366,4 +1382,5 @@ public class PointsToGraph {
         cache.inCycle(n);
 
     }
+
 }

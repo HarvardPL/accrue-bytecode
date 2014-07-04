@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.Stack;
 
 import util.OrderedPair;
+import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
@@ -15,6 +16,7 @@ import com.ibm.wala.util.intset.EmptyIntSet;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
+import com.ibm.wala.util.intset.MutableSparseIntSet;
 import com.ibm.wala.util.intset.SparseIntSet;
 import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
 
@@ -32,10 +34,16 @@ public class GraphDelta {
         delta = new HashMap<>();
     }
 
-    private MutableIntSet getOrCreateSet(PointsToGraphNode src, int initialSize) {
+    private MutableIntSet getOrCreateSet(PointsToGraphNode src,
+            Integer initialSize) {
         MutableIntSet s = delta.get(src);
         if (s == null) {
-            s = new TunedMutableSparseIntSet(initialSize, 1.5f);
+            if (initialSize == null || initialSize == 0) {
+                s = MutableSparseIntSet.makeEmpty();
+            }
+            else {
+                s = new TunedMutableSparseIntSet(initialSize, 1.5f);
+            }
             delta.put(src, s);
         }
         return s;
@@ -123,13 +131,13 @@ public class GraphDelta {
                     toCollapseSet.add(currentlyAddingStack.get(i));
                 }
             }
-            assert !getOrCreateSet(target, 1).addAll(set) : "Shouldn't be anything left to add by this point";
+            assert !getOrCreateSet(target, setSizeBestGuess(set)).addAll(set) : "Shouldn't be anything left to add by this point";
         }
 
         // Now we actually add the set to the target.
-        if (set.isEmpty() || !getOrCreateSet(target, set.size()).addAll(set)) {
+        if (!getOrCreateSet(target, setSizeBestGuess(set)).addAll(set)) {
             // we didn't add anything, so don't bother recursing...
-            if (getOrCreateSet(target, 1).isEmpty()) {
+            if (getOrCreateSet(target, 2).isEmpty()) {
                 // let's clean up our mess...
                 delta.remove(target);
             }
@@ -149,8 +157,20 @@ public class GraphDelta {
                     filter == null ? set : g.new FilteredIntSet(set,
                                                                 superSet.snd());
 
-            // Figure out which elements of filteredSet are actually added to the superset...
-            IntSet diff = g.getDifference(filteredSet, superSet.fst());
+            // The set of things that 
+            IntSet diff;
+
+            if (g.numIsSupersetOf(superSet.fst()) == 1) {
+                // there is only one subset!
+                // This means that anything that was added to target
+                // will definitely be added to superSet.fst(), and
+                // so we don't need to explicitly compute the difference set
+                diff = filteredSet;
+            }
+            else {
+                // Figure out which elements of filteredSet are actually added to the superset...
+                diff = g.getDifference(filteredSet, superSet.fst());
+            }
 
             filters.push(filter);
             addToSupersetsOf(superSet.fst(),
@@ -167,6 +187,11 @@ public class GraphDelta {
 
     }
 
+    private static int setSizeBestGuess(IntSet set) {
+        return set instanceof FilteredIntSet
+                ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
+    }
+
     /**
      * Combine this GraphDelta with another graph delta. For efficiency, this method may be implemented imperatively.
      * 
@@ -177,7 +202,7 @@ public class GraphDelta {
         if (d != null) {
             for (PointsToGraphNode src : d.delta.keySet()) {
                 IntSet srcSet = d.delta.get(src);
-                getOrCreateSet(src, srcSet.size()).addAll(srcSet);
+                getOrCreateSet(src, setSizeBestGuess(srcSet)).addAll(srcSet);
             }
         }
         return this;
