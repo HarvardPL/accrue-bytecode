@@ -1383,4 +1383,87 @@ public class PointsToGraph {
 
     }
 
+    public void findCycles() {
+        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
+                new HashMap<>();
+
+        Set<PointsToGraphNode> visited = new HashSet<>();
+        for (PointsToGraphNode n : isUnfilteredSupersetOf.keySet()) {
+            findCycles(n,
+                       visited,
+                       new HashSet<PointsToGraphNode>(),
+                       new Stack<PointsToGraphNode>(),
+                       toCollapse);
+        }
+        Set<PointsToGraphNode> collapsed = new HashSet<>();
+        for (PointsToGraphNode rep : toCollapse.keySet()) {
+            rep = getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
+            for (PointsToGraphNode n : toCollapse.get(rep)) {
+                if (collapsed.contains(n)) {
+                    // we have already collapsed n with something. let's skip it.
+                    continue;
+                }
+                collapsed.add(n);
+                collapseNodes(n, rep);
+            }
+        }
+
+    }
+
+    private void findCycles(PointsToGraphNode n,
+            Set<PointsToGraphNode> visited,
+            Set<PointsToGraphNode> currentlyVisiting,
+            Stack<PointsToGraphNode> currentlyVisitingStack,
+            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse) {
+        if (currentlyVisiting.contains(n)) {
+            // we detected a cycle!
+            int foundAt = -1;
+            for (int i = 0; i < currentlyVisiting.size(); i++) {
+                if (foundAt < 0 && currentlyVisitingStack.get(i).equals(n)) {
+                    foundAt = i;
+                    // Mark the node as being in a cycle, so that it will stay in the cache.
+                    inCycle(currentlyVisitingStack.get(i));
+                }
+                else if (foundAt >= 0) {
+                    // Mark the node as being in a cycle, so that it will stay in the cache.
+                    inCycle(currentlyVisitingStack.get(i));
+                }
+            }
+            // we can collapse some nodes together!
+            Set<PointsToGraphNode> toCollapseSet = toCollapse.get(n);
+            if (toCollapseSet == null) {
+                toCollapseSet = new HashSet<>();
+                toCollapse.put(n, toCollapseSet);
+            }
+            for (int i = foundAt + 1; i < currentlyVisitingStack.size(); i++) {
+                toCollapseSet.add(currentlyVisitingStack.get(i));
+            }
+            return;
+        }
+
+        if (visited.contains(n)) {
+            // already recursed or recursing on the children of n
+            return;
+        }
+        visited.add(n);
+
+        // now recurse.
+        currentlyVisiting.add(n);
+        currentlyVisitingStack.push(n);
+        Set<PointsToGraphNode> children = isUnfilteredSupersetOf.get(n);
+        if (children == null) {
+            children = Collections.emptySet();
+        }
+        for (PointsToGraphNode child : children) {
+            findCycles(child,
+                       visited,
+                       currentlyVisiting,
+                       currentlyVisitingStack,
+                       toCollapse);
+        }
+
+        currentlyVisiting.remove(n);
+        currentlyVisitingStack.pop();
+
+    }
 }
