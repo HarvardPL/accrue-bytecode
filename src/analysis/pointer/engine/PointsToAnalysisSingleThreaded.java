@@ -3,6 +3,7 @@ package analysis.pointer.engine;
 import java.util.AbstractQueue;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,11 +52,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private Map<PointsToGraphNode, Set<StmtAndContext>> interestingDepedencies =
             new HashMap<>();
-
-    /**
-     * Counters to detect infinite loops
-     */
-    private final Map<StmtAndContext, Integer> iterations = new HashMap<>();
 
     /**
      * If true then a debug pass will be run after the analysis reaches a fixed point
@@ -107,8 +103,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return g;
     }
 
-    int numProcessed = 0;
-
     /**
      * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
      * entry point
@@ -124,91 +118,46 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             boolean registerOnline) {
         PointsToGraph g = new PointsToGraph(registrar, haf);
         System.err.println("Starting points to engine using " + haf);
-        long startTime = System.currentTimeMillis();
+        startTime = System.currentTimeMillis();
+        nextMilestone = startTime - 1;
 
-        // !@!XXX
-        // Cycle detection
-        // Better cache management
-
-        /*
-         * We use a least recently fired (LRF) comparator. 
-         * See Some directed graph algorithms and their application to pointer analysis. 
-         * David J. Pearce. Ph.D. Thesis, Imperial College of Science, Technology and Medicine, University of London, February 2005.
-         */
-        /*        Comparator<OrderedPair<StmtAndContext, GraphDelta>> lrfComparator =
-                        new Comparator<OrderedPair<StmtAndContext, GraphDelta>>() {
-
-                            @Override
-                            public int compare(
-                                    OrderedPair<StmtAndContext, GraphDelta> o1,
-                                    OrderedPair<StmtAndContext, GraphDelta> o2) {
-                                // return a negative number if o1 is "less than" or more important than o2
-                                Integer n1 = lastFired.get(o1.fst());
-                                Integer n2 = lastFired.get(o2.fst());
-                                if (n1 == null && n2 == null) {
-                                    // neither has been fired.
-                                    return 0;
-                                }
-                                if (n1 == null) {
-                                    // n1 hasn't been fired, but n2 has
-                                    return -1;
-                                }
-                                if (n2 == null) {
-                                    // n2 hasn't been fired, but n1 has
-                                    return 1;
-                                }
-                                // both n1 and n2 have been fired.
-                                return n1 < n2 ? -1 : n1 == n2 ? 0 : 1;
-                            }
-
-                        };*/
-
-        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
-                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue =
-                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<StmtAndContext, GraphDelta>> noDeltaQueue =
-                new PartitionedQueue();
-//        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
-//                new PriorityQueue<>(10000, lrfComparator);
-//        Queue<OrderedPair<StmtAndContext, GraphDelta>> queue =
-//                new CustomQueue();
+        Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue =
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>>());
+        Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    noDeltaQueue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(s,
-                                                                                                    c),
-                                                                                 null));
+                    noDeltaQueue.add(new StmtAndContext(s, c));
                 }
             }
         }
 
-        long nextMilestone = startTime;
-        long lastNumProcessed = 0;
-        long lastTime = startTime;
-        long noDeltaProcessed = 0;
-        long processedWithNoChange = 0;
+        lastTime = startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!queue.isEmpty() || !noDeltaQueue.isEmpty()) {
             // get the next sac, and the delta for it.
-            OrderedPair<StmtAndContext, GraphDelta> next =
-                    queue.isEmpty() ? noDeltaQueue.poll() : queue.poll();
 
-            StmtAndContext sac = next.fst();
-            GraphDelta delta = next.snd();
-            incrementCounter(sac);
+            if (queue.isEmpty()) {
+                // get the next from the noDelta queue
+                StmtAndContext sac = noDeltaQueue.poll();
+                processSaC(sac,
+                           null,
+                           g,
+                           registrar,
+                           queue,
+                           noDeltaQueue,
+                           registerOnline);
 
-            numProcessed++;
-            if (delta == null) {
-                noDeltaProcessed++;
             }
-            if (outputLevel >= 1) {
-                visited.add(sac);
-            }
+            else {
+                OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>> next =
+                        queue.poll();
+                GraphDelta delta = next.fst();
+                Collection<StmtAndContext> sacs = next.snd();
 
-            GraphDelta changed =
+                for (StmtAndContext sac : sacs) {
                     processSaC(sac,
                                delta,
                                g,
@@ -216,41 +165,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                queue,
                                noDeltaQueue,
                                registerOnline);
-
-            if (changed.isEmpty()) {
-                processedWithNoChange++;
-            }
-            handleChanges(queue, changed, g);
-
-            long currTime = System.currentTimeMillis();
-            if (currTime > nextMilestone) {
-                do {
-                    nextMilestone = nextMilestone + 1000 * 30; // 30 seconds 
-                } while (currTime > nextMilestone);
-
-                System.err.println("PROCESSED: "
-                        + numProcessed
-                        + (outputLevel >= 1 ? " (" + visited.size()
-                                + " unique)" : "") + " "
-                        + (currTime - startTime) / 1000 + "s;  graph="
-                        + g.getBaseNodes().size()
-                        + " base nodes; cycles removed "
-                        + g.cycleRemovalCount() + " nodes ; queue="
-                        + queue.size() + " nextQueue=" + nextQueue.size()
-                        + " noDeltaQueue=" + noDeltaQueue.size()
-                        + " Processed: nochange, nodelta: "
-                        + processedWithNoChange + ",  " + noDeltaProcessed
-                        + " (" + (numProcessed - lastNumProcessed) + " in "
-                        + (currTime - lastTime) / 1000 + "s)");
-                lastTime = currTime;
-                lastNumProcessed = numProcessed;
-                noDeltaProcessed = 0;
-                processedWithNoChange = 0;
-            }
-            if (queue.isEmpty() && !nextQueue.isEmpty()) {
-                Queue<OrderedPair<StmtAndContext, GraphDelta>> t = queue;
-                queue = nextQueue;
-                nextQueue = t;
+                }
             }
         }
 
@@ -259,7 +174,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 + " (statement, context) pairs"
                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "")
                 + ". It took " + (endTime - startTime) + "ms.");
-
+        System.err.println("   Num no delta processed " + numNoDeltaProcessed);
+        System.err.println("   Num with delta processed "
+                + (numProcessed - numNoDeltaProcessed));
+        System.err.println("   Cycles removed " + g.cycleRemovalCount()
+                + " nodes");
+        System.err.println("   Finding more cycles...");
+        g.findCycles();
+        System.err.println("   Cycles now removed " + g.cycleRemovalCount()
+                + " nodes");
         processAllStatements(g, registrar);
         if (outputLevel >= 5) {
             System.err.println("****************************** CHECKING ******************************");
@@ -270,11 +193,27 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return g;
     }
 
-    private GraphDelta processSaC(StmtAndContext sac, GraphDelta delta,
-            PointsToGraph g, StatementRegistrar registrar,
-            Queue<OrderedPair<StmtAndContext, GraphDelta>> queue,
-            Queue<OrderedPair<StmtAndContext, GraphDelta>> noDeltaQueue,
-            boolean registerOnline) {
+    int numProcessed = 0;
+    int lastNumProcessed = 0;
+    int numNoDeltaProcessed = 0;
+    int lastNumNoDeltaProcessed = 0;
+    int processedWithNoChange = 0;
+    long nextMilestone;
+    long lastTime;
+    long startTime;
+
+    private void processSaC(
+            StmtAndContext sac,
+            GraphDelta delta,
+            PointsToGraph g,
+            StatementRegistrar registrar,
+            Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue,
+            Queue<StmtAndContext> noDeltaQueue, boolean registerOnline) {
+        numProcessed++;
+        if (delta == null) {
+            numNoDeltaProcessed++;
+        }
+
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
 
@@ -310,10 +249,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
 
                 for (Context context : newContexts.get(m)) {
-                    // these are new contexts, so use null for the delta
-                    noDeltaQueue.add(new OrderedPair<StmtAndContext, GraphDelta>(new StmtAndContext(stmt,
-                                                                                                    context),
-                                                                                 null));
+                    noDeltaQueue.add(new StmtAndContext(stmt, context));
                 }
             }
         }
@@ -332,7 +268,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             addInterestingDependency(n, sac);
         }
 
-        // now update the interesting dependecies.
+        // now update the interesting dependencies.
         for (PointsToGraphNode n : newlyCombinedNodes) {
             Set<StmtAndContext> deps = interestingDepedencies.remove(n);
             if (deps != null) {
@@ -342,169 +278,43 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        if (outputLevel >= 4 && !changed.isEmpty()) {
-            // for (PointsToGraphNode n : changed.domain()) {
-            // System.err.println("\tCHANGED: " + n + "(now " + g.getPointsToSet(n) + ")");
-            // g.getAndClearReadNodes();// clear the read nodes so the read above wasn't significant.
-            // if (!getInterestingDependencies(n).isEmpty()) {
-            // System.err.println("\tDEPS:");
-            // for (StmtAndContext dep : getInterestingDependencies(n)) {
-            // System.err.println("\t\t" + dep);
-            // }
-            // }
-            // }
+        if (changed.isEmpty()) {
+            processedWithNoChange++;
         }
-        return changed;
+        handleChanges(queue, changed, g);
+
+        long currTime = System.currentTimeMillis();
+        if (currTime > nextMilestone) {
+            do {
+                nextMilestone = nextMilestone + 1000 * 30; // 30 seconds 
+            } while (currTime > nextMilestone);
+
+            System.err.println("PROCESSED: " + numProcessed + " in "
+                    + (currTime - startTime) / 1000 + "s;  graph="
+                    + g.getBaseNodes().size() + " base nodes; cycles removed "
+                    + g.cycleRemovalCount() + " nodes ; queue=" + queue.size()
+                    + " noDeltaQueue=" + noDeltaQueue.size() + " ("
+                    + (numProcessed - lastNumProcessed) + " in "
+                    + (currTime - lastTime) / 1000 + "s)");
+            lastTime = currTime;
+            lastNumProcessed = numProcessed;
+            lastNumNoDeltaProcessed = numNoDeltaProcessed;
+            processedWithNoChange = 0;
+        }
     }
 
     private void handleChanges(
-            Queue<OrderedPair<StmtAndContext, GraphDelta>> queue,
+            Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue,
             GraphDelta changes, PointsToGraph g) {
-        // handleChangesMassiveDelta(queue, initialChanges, g);
-        //handleChangesSmallDeltas(queue, initialChanges, g);
         if (changes.isEmpty()) {
             return;
         }
         Iterator<PointsToGraphNode> iter = changes.domainIterator();
         while (iter.hasNext()) {
             PointsToGraphNode n = iter.next();
-            for (StmtAndContext depsac : getInterestingDependencies(n)) {
-                queue.add(new OrderedPair<>(depsac, changes));
-            }
+            queue.add(new OrderedPair<>(changes, getInterestingDependencies(n)));
         }
 
-    }
-
-    /*
-
-    @SuppressWarnings("unused")
-    private void handleChangesMassiveDelta(LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
-                                    GraphDelta initialChanges, PointsToGraph g) {
-        // First, we will handle the copy dependencies, and build up one massive delta to use for all of the interesting
-        // dependencies.
-        GraphDelta massiveDelta = new GraphDelta();
-
-        // Do a work queue to handle all the copy dependencies.
-        ArrayList<GraphDelta> changesQ = new ArrayList<>();
-        changesQ.add(initialChanges);
-
-        while (!changesQ.isEmpty()) {
-            GraphDelta changes = changesQ.remove(changesQ.size() - 1);
-
-            // Copy dependencies...
-            for (PointsToGraphNode src : changes.domain()) {
-                Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m = this.copyDepedencies.get(src);
-                if (m != null) {
-                    for (PointsToGraphNode trg : m.keySet()) {
-                        for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
-                            TypeFilter filter = p.fst();
-                            GraphDelta newChanges;
-                            if (filter == null) {
-                                newChanges = g.copyEdgesWithDelta(src, trg, changes);
-                            }
-                            else {
-                                newChanges = g.copyFilteredEdgesWithDelta(src, filter, trg, changes);
-                            }
-                            if (!newChanges.isEmpty()) {
-                                massiveDelta = massiveDelta.combine(newChanges);
-                                changesQ.add(newChanges);
-                            }
-                        }
-                    }
-                }
-            }
-            // combine the initial changes with the massive delta
-            massiveDelta = massiveDelta.combine(initialChanges);
-
-            // Now we handle all the interesting dependencies, using the massive delta
-            for (PointsToGraphNode n : massiveDelta.domain()) {
-                for (StmtAndContext depsac : getInterestingDependencies(n)) {
-                    queue.addLast(new OrderedPair<>(depsac, massiveDelta));
-                }
-            }
-        }
-
-        private void handleChangesSmallDeltas(
-                LinkedList<OrderedPair<StmtAndContext, GraphDelta>> queue,
-                GraphDelta initialChanges, PointsToGraph g) {
-            // In this approach, we will create many small deltas, one for each copy.
-
-            // Do a work queue to handle all the copy dependencies.
-            ArrayList<GraphDelta> changesQ = new ArrayList<>();
-            changesQ.add(initialChanges);
-
-            while (!changesQ.isEmpty()) {
-                GraphDelta changes = changesQ.remove(changesQ.size() - 1);
-
-                // Find the interesting dependencies for changes.
-                for (PointsToGraphNode n : changes.domain()) {
-                    for (StmtAndContext depsac : getInterestingDependencies(n)) {
-                        queue.addLast(new OrderedPair<>(depsac, changes));
-                    }
-                }
-
-                // Now copy the changes, using copy dependencies...
-                for (PointsToGraphNode src : changes.domain()) {
-                    Map<PointsToGraphNode, Set<OrderedPair<TypeFilter, StmtAndContext>>> m =
-                            copyDepedencies.get(src);
-                    if (m != null) {
-                        for (PointsToGraphNode trg : m.keySet()) {
-                            for (OrderedPair<TypeFilter, StmtAndContext> p : m.get(trg)) {
-                                TypeFilter filter = p.fst();
-                                GraphDelta newChanges;
-                                if (filter == null) {
-                                    newChanges =
-                                            g.copyEdgesWithDelta(src, trg, changes);
-                                }
-                                else {
-                                    newChanges =
-                                            g.copyFilteredEdgesWithDelta(src,
-                                                                         filter,
-                                                                         trg,
-                                                                         changes);
-                                }
-                                if (!newChanges.isEmpty()) {
-                                    changesQ.add(newChanges);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    */
-    /**
-     * Increment the counter giving the number of times the given node has been analyzed
-     * 
-     * @param n
-     *            node to increment for
-     * @return incremented counter
-     */
-    private int incrementCounter(StmtAndContext s) {
-        Integer i = iterations.get(s);
-        if (i == null) {
-            i = 0;
-        }
-        i++;
-        iterations.put(s, i);
-        if (i >= 10000) {
-            for (StmtAndContext sac : iterations.keySet()) {
-                int iter = iterations.get(sac);
-                String iterString = String.valueOf(iter);
-                if (iter < 100) {
-                    iterString = "0" + iterString;
-                }
-                if (iter < 10) {
-                    iterString = "0" + iterString;
-                }
-                if (iter > 50) {
-                    System.err.println(iterString + ", " + sac);
-                }
-            }
-            throw new RuntimeException("Analyzed the same statement and context "
-                    + i + " times: " + s);
-        }
-        return i;
     }
 
     /**
@@ -532,7 +342,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     }
                     changed |= !d.isEmpty();
                     if (!d.isEmpty()) {
-
                         System.err.println("uhoh Failed on " + s
                                 + "\n    Delta is " + d);
                         failcount++;
@@ -687,27 +496,24 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 //            throw new UnsupportedOperationException();
 //        }
 //    }
-    static class PartitionedQueue
-            extends
-            AbstractQueue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> {
-        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> base =
-                new LinkedList<>();
-        //Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> localAssigns =
+    static class PartitionedQueue extends
+            AbstractQueue<PointsToAnalysis.StmtAndContext> {
+        Queue<PointsToAnalysis.StmtAndContext> base = new LinkedList<>();
+        //Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> localAssigns =
         //        new LinkedList<>();
-                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> fieldReads =
+                Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> fieldReads =
         //        new LinkedList<>();
-                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> fieldWrites =
+                Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> fieldWrites =
         //        new LinkedList<>();
-                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> calls =
+                Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> calls =
         //        new LinkedList<>();
-                Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+                Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
 
-        ArrayList<Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>>> ordered =
-                new ArrayList<>();
+        ArrayList<Queue<StmtAndContext>> ordered = new ArrayList<>();
 
         {
             ordered.add(localAssigns);
@@ -718,23 +524,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public boolean offer(OrderedPair<StmtAndContext, GraphDelta> e) {
-            StmtAndContext sac = e.fst();
+        public boolean offer(StmtAndContext sac) {
             PointsToStatement stmt = sac.stmt;
             if (stmt instanceof NewStatement) {
-                return base.offer(e);
+                return base.offer(sac);
             }
             if (stmt instanceof CallStatement
                     || stmt instanceof ClassInitStatement) {
-                return calls.offer(e);
+                return calls.offer(sac);
             }
             if (stmt instanceof FieldToLocalStatement
                     || stmt instanceof ArrayToLocalStatement) {
-                return fieldReads.offer(e);
+                return fieldReads.offer(sac);
             }
             if (stmt instanceof LocalToFieldStatement
                     || stmt instanceof LocalToArrayStatement) {
-                return fieldWrites.offer(e);
+                return fieldWrites.offer(sac);
             }
             if (stmt instanceof LocalToLocalStatement
                     || stmt instanceof LocalToStaticFieldStatement
@@ -742,15 +547,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     || stmt instanceof ReturnStatement
                     || stmt instanceof StaticFieldToLocalStatement
                     || stmt instanceof ExceptionAssignmentStatement) {
-                return localAssigns.offer(e);
+                return localAssigns.offer(sac);
             }
             throw new IllegalArgumentException("Don't know how to handle a "
                     + stmt.getClass());
         }
 
         @Override
-        public OrderedPair<StmtAndContext, GraphDelta> poll() {
-            for (Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> q : ordered) {
+        public StmtAndContext poll() {
+            for (Queue<StmtAndContext> q : ordered) {
                 if (!q.isEmpty()) {
                     return q.poll();
                 }
@@ -759,19 +564,19 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public OrderedPair<StmtAndContext, GraphDelta> peek() {
+        public StmtAndContext peek() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Iterator<OrderedPair<StmtAndContext, GraphDelta>> iterator() {
+        public Iterator<StmtAndContext> iterator() {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public int size() {
             int size = 0;
-            for (Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> q : ordered) {
+            for (Queue<StmtAndContext> q : ordered) {
                 size += q.size();
             }
             return size;
@@ -780,8 +585,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         @Override
         public boolean isEmpty() {
             for (int i = ordered.size() - 1; i >= 0; i--) {
-                Queue<OrderedPair<StmtAndContext, GraphDelta>> q =
-                        ordered.get(i);
+                Queue<StmtAndContext> q = ordered.get(i);
                 if (!q.isEmpty()) {
                     return false;
                 }
