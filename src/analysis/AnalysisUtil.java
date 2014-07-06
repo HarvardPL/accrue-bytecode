@@ -125,17 +125,17 @@ public class AnalysisUtil {
         if (androidLib.getPath().endsWith(".dex")) {
             Module dexMod = new DexFileModule(new File(androidLib));
             scope.addToScope(ClassLoaderReference.Primordial, dexMod);
-            try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
-                scope.addToScope(ClassLoaderReference.Application, appModelJar);
-                concreteCHA = ClassHierarchy.make(scope);
-            }
+            // try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
+            // scope.addToScope(ClassLoaderReference.Application, appModelJar);
+            concreteCHA = ClassHierarchy.make(scope);
+            // }
         } else {
             try (JarFile androidJar = new JarFile(new File(androidLib))) {
                 scope.addToScope(ClassLoaderReference.Primordial, androidJar);
-                try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
-                    scope.addToScope(ClassLoaderReference.Application, appModelJar);
-                    concreteCHA = ClassHierarchy.make(scope);
-                }
+                // try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
+                // scope.addToScope(ClassLoaderReference.Application, appModelJar);
+                concreteCHA = ClassHierarchy.make(scope);
+                // }
             }
         }
 
