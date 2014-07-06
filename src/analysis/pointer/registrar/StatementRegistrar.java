@@ -118,6 +118,10 @@ public final class StatementRegistrar {
             handle(info);
         }
         if (!instructions.isEmpty()) {
+            if (!duplicatesRemoved.add(m)) {
+                throw new RuntimeException("Processing the same method twice " + PrettyPrinter.methodString(m));
+            }
+
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
             int startSize = oldStatements.size();
             Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
@@ -125,6 +129,8 @@ public final class StatementRegistrar {
             this.replaceStatementsForMethod(m, newStatements);
         }
     }
+
+    private static final Set<IMethod> duplicatesRemoved = new HashSet<>();
 
     private static int removed = 0;
 
@@ -1009,16 +1015,13 @@ public final class StatementRegistrar {
 
         boolean containsRTE = false;
         try {
-            TypeReference[] exceptions = m.getDeclaredExceptions();
-            if (exceptions != null) {
-                for (TypeReference exType : exceptions) {
-                    // Allocation of exception of a particular type
-                    ReferenceVariable ex = rvFactory.createNativeException(exType, m);
-                    addStatement(StatementFactory.exceptionAssignment(ex, methodSummary.getException(),
-                                                    Collections.<IClass> emptySet(), m));
-                    registerAllocationForNative(m, exType, ex);
-                    containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
-                }
+            for (TypeReference exType : m.getDeclaredExceptions()) {
+                // Allocation of exception of a particular type
+                ReferenceVariable ex = rvFactory.createNativeException(exType, m);
+                addStatement(StatementFactory.exceptionAssignment(ex, methodSummary.getException(),
+                                                Collections.<IClass> emptySet(), m));
+                registerAllocationForNative(m, exType, ex);
+                containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
             }
         }
         catch (UnsupportedOperationException | InvalidClassFileException e) {

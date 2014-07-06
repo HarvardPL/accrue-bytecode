@@ -174,6 +174,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("Processed " + numProcessed + " (statement, context) pairs"
                                         + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "") + ". It took "
                                         + (endTime - startTime) + "ms.");
+        System.err.println(g.getNodes().size() + " Nodes");
+        int num = 0;
+        for (PointsToGraphNode n : g.getNodes()) {
+            num += g.getPointsToSet(n).size();
+        }
+        System.err.println(num + " Edges");
+        System.err.println(g.getAllHContexts().size() + " HContexts");
 
         processAllStatements(g, registrar);
         if (outputLevel >= 5) {

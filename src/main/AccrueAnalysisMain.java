@@ -76,6 +76,7 @@ public class AccrueAnalysisMain {
         int fileLevel = options.getFileLevel();
         String classPath = options.getAnalysisClassPath();
         HeapAbstractionFactory haf = options.getHaf();
+        boolean isOnline = options.registerOnline();
 
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
@@ -119,7 +120,7 @@ public class AccrueAnalysisMain {
         // break;
         case "pointsto":
             AnalysisUtil.init(classPath, entryPoint);
-            results = generatePointsToGraphOnline(outputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             g.dumpPointsToGraphToFile(fileName + "_ptg", false);
             ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
@@ -151,7 +152,7 @@ public class AccrueAnalysisMain {
             break;
         case "nonnull":
             AnalysisUtil.init(classPath, entryPoint);
-            results = generatePointsToGraphOnline(otherOutputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -160,7 +161,7 @@ public class AccrueAnalysisMain {
             break;
         case "precise-ex":
             AnalysisUtil.init(classPath, entryPoint);
-            results = generatePointsToGraphOnline(otherOutputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -170,7 +171,7 @@ public class AccrueAnalysisMain {
             break;
         case "reachability":
             AnalysisUtil.init(classPath, entryPoint);
-            results = generatePointsToGraphOnline(otherOutputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -178,13 +179,13 @@ public class AccrueAnalysisMain {
             break;
         case "cfg":
             AnalysisUtil.init(classPath, entryPoint);
-            results = generatePointsToGraphOnline(otherOutputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             printAllCFG(g);
             break;
         case "pdg":
             AnalysisUtil.init(classPath, entryPoint);
-            results = generatePointsToGraphOnline(otherOutputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -213,7 +214,7 @@ public class AccrueAnalysisMain {
             break;
         case "android-cfg":
             AnalysisUtil.initDex("android/android-4.4.2_r1.jar", "android/it.dancar.music.ligabue.apk");
-            results = generatePointsToGraphOnline(otherOutputLevel, haf);
+            results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             printAllCFG(g);
             break;
@@ -298,10 +299,14 @@ public class AccrueAnalysisMain {
      * 
      * @param outputLevel
      *            print level
+     * @param haf
+     *            Definition of the abstraction for heap locations
+     * @param online
+     *            if true then points-to statements are registered during pointer analysis, rather than before
      * @return the resulting points-to graph
      */
-    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraphOnline(int outputLevel,
-                                    HeapAbstractionFactory haf) {
+    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
+                                    HeapAbstractionFactory haf, boolean isOnline) {
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
 
@@ -313,13 +318,24 @@ public class AccrueAnalysisMain {
 
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
-        StatementRegistrar online = new StatementRegistrar();
-        PointsToGraph g = analysis.solveAndRegister(online);
+        PointsToGraph g;
+        StatementRegistrar registrar;
+        if (isOnline) {
+            registrar = new StatementRegistrar();
+            g = analysis.solveAndRegister(registrar);
+        }
+        else {
+            StatementRegistrationPass pass = new StatementRegistrationPass();
+            pass.run();
+            registrar = pass.getRegistrar();
+            PointsToAnalysis.outputLevel = outputLevel;
+            g = analysis.solve(registrar);
+        }
 
-        System.err.println("Registered statements: " + online.size());
+        System.err.println("Registered statements: " + registrar.size());
         if (outputLevel >= 2) {
-            for (IMethod m : online.getRegisteredMethods()) {
-                for (PointsToStatement s : online.getStatementsForMethod(m)) {
+            for (IMethod m : registrar.getRegisteredMethods()) {
+                for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                     System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
                 }
             }
@@ -328,7 +344,7 @@ public class AccrueAnalysisMain {
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
         System.err.println(g.clinitCount + " Class initializers.");
 
-        ReferenceVariableCache rvCache = online.getAllLocals();
+        ReferenceVariableCache rvCache = registrar.getAllLocals();
         return new OrderedPair<>(g, rvCache);
     }
 
@@ -443,7 +459,7 @@ public class AccrueAnalysisMain {
      *            amount of debugging
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf) {
-        OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraphOnline(0, haf);
+        OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel, haf, true);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {
