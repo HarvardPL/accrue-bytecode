@@ -56,12 +56,16 @@ public class PointsToGraph {
     private final Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
 
     /**
+     * Entry points added during the pointer analysis
+     */
+    private final Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
+
+    /**
      * Heap abstraction factory.
      */
     private final HeapAbstractionFactory haf;
 
     private final HafCallGraph callGraph;
-
 
     // private final DependencyRecorder depRecorder;
     private Set<PointsToGraphNode> readNodes;
@@ -176,7 +180,6 @@ public class PointsToGraph {
 
         return changed;
     }
-
 
     public GraphDelta copyEdgesWithDelta(PointsToGraphNode source, PointsToGraphNode target, GraphDelta delta) {
         if (delta == null) {
@@ -297,8 +300,7 @@ public class PointsToGraph {
      * 
      */
     @SuppressWarnings("deprecation")
-    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext,
-                                    IMethod callee,
+    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext, IMethod callee,
                                     Context calleeContext) {
 
         CGNode src;
@@ -307,7 +309,8 @@ public class PointsToGraph {
         try {
             src = callGraph.findOrCreateNode(caller, callerContext);
             dst = callGraph.findOrCreateNode(callee, calleeContext);
-        } catch (CancelException e) {
+        }
+        catch (CancelException e) {
             throw new RuntimeException(e + " cannot add call graph edge from " + PrettyPrinter.methodString(caller)
                                             + " to " + PrettyPrinter.methodString(callee));
         }
@@ -377,6 +380,7 @@ public class PointsToGraph {
         }
         return set;
     }
+
     /**
      * Set of contexts for the given method
      * 
@@ -422,7 +426,8 @@ public class PointsToGraph {
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             dumpPointsToGraph(out);
             System.err.println("\nDOT written to: " + fullFilename);
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
     }
@@ -447,7 +452,8 @@ public class PointsToGraph {
             Integer count = dotToCount.get(nStr);
             if (count == null) {
                 dotToCount.put(nStr, 1);
-            } else {
+            }
+            else {
                 dotToCount.put(nStr, count + 1);
                 nStr += " (" + count + ")";
             }
@@ -458,7 +464,8 @@ public class PointsToGraph {
             Integer count = dotToCount.get(kStr);
             if (count == null) {
                 dotToCount.put(kStr, 1);
-            } else {
+            }
+            else {
                 dotToCount.put(kStr, count + 1);
                 kStr += " (" + count + ")";
             }
@@ -508,7 +515,6 @@ public class PointsToGraph {
         newContexts = new LinkedHashMap<>();
         return newC;
     }
-
 
     /**
      * Get the set of nodes that have been read since this was last called and clear the set.
@@ -573,13 +579,15 @@ public class PointsToGraph {
                 CGNode initNode;
                 try {
                     initNode = callGraph.findOrCreateNode(clinit, c);
-                } catch (CancelException e) {
+                }
+                catch (CancelException e) {
                     throw new RuntimeException(e);
                 }
                 recordContext(clinit, c);
                 callGraph.registerEntrypoint(initNode);
                 clinitCount++;
-            } else {
+            }
+            else {
                 // Already added an initializer and thus must have added initializers for super classes. These are all
                 // that are left to process since we are adding from sub class to super class order
 
@@ -590,6 +598,32 @@ public class PointsToGraph {
         // Should always be true
         assert cgChanged : "Reached the end of the loop without adding any clinits " + classInits;
         return cgChanged;
+    }
+
+    /**
+     * Add new entry point methods (i.e. methods called in the empty context)
+     * 
+     * @param newEntryPoint
+     *            list of methods to add
+     * @return true if the call graph changed as a result of this call, false otherwise
+     */
+    public boolean addEntryPoint(IMethod newEntryPoint) {
+        boolean changed = entryPoints.add(newEntryPoint);
+        if (changed) {
+            // new initializer
+            Context c = haf.initialContext();
+            CGNode initNode;
+            try {
+                initNode = callGraph.findOrCreateNode(newEntryPoint, c);
+            }
+            catch (CancelException e) {
+                throw new RuntimeException(e);
+            }
+            recordContext(newEntryPoint, c);
+            callGraph.registerEntrypoint(initNode);
+            clinitCount++;
+        }
+        return changed;
     }
 
     private static class FilteredSet extends AbstractSet<InstanceKey> {
@@ -609,7 +643,6 @@ public class PointsToGraph {
             return new FilteredIterator();
         }
 
-
         @Override
         public boolean contains(Object o) {
             return s.contains(o) && filter.satisfies(((InstanceKey) o).getConcreteType());
@@ -623,6 +656,7 @@ public class PointsToGraph {
         class FilteredIterator implements Iterator<InstanceKey> {
             private final Iterator<InstanceKey> iter;
             private InstanceKey next = null;
+
             FilteredIterator() {
                 this.iter = FilteredSet.this.s.iterator();
             }
@@ -686,7 +720,6 @@ public class PointsToGraph {
                 return current.hasNext();
             }
 
-
             @Override
             public InstanceKey next() {
                 if (hasNext()) {
@@ -710,7 +743,6 @@ public class PointsToGraph {
          * Map from concrete classes to non-empty sets of that class.
          */
         final Map<IClass, Set<InstanceKey>> map = new LinkedHashMap<>();
-
 
         public PointsToSet() {
             // TODO Auto-generated constructor stub
@@ -746,7 +778,6 @@ public class PointsToGraph {
         public Iterator<InstanceKey> iterator() {
             return new PointsToSetIterator(this);
         }
-
 
         @Override
         public boolean add(InstanceKey e) {
