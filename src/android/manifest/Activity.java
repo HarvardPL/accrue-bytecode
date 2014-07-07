@@ -1,12 +1,14 @@
 package android.manifest;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 public class Activity {
 
     private final Map<String, String> attributes;
+    private final Set<Fragment> fragments = new LinkedHashSet<>();
     private final Set<IntentFilter> filters = new HashSet<>();
 
     public Activity(Map<String, String> attributes) {
@@ -21,8 +23,12 @@ public class Activity {
         return this.filters.contains(filter);
     }
 
-    public void addIntentFilter(IntentFilter filter) {
-        this.filters.add(filter);
+    public void addFragment(Fragment fragment) {
+        fragments.add(fragment);
+    }
+
+    public Set<Fragment> getFragments() {
+        return fragments;
     }
 
     public void addAllFilters(Set<IntentFilter> filters) {
