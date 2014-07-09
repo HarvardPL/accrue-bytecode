@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
@@ -194,4 +195,36 @@ public class VirtualCallStatement extends CallStatement {
     public ReferenceVariable getDef() {
         return getResult();
     }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        List<ReferenceVariableReplica> uses =
+                new ArrayList<>(getActuals().size() + 1);
+        uses.add(new ReferenceVariableReplica(ctxt, receiver));
+        for (ReferenceVariable use : getActuals()) {
+            if (use != null) {
+                ReferenceVariableReplica n =
+                        new ReferenceVariableReplica(ctxt, use);
+                uses.add(n);
+            }
+        }
+        return uses;
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+        List<Object> defs = new ArrayList<>(3);
+
+        if (getResult() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, getResult()));
+        }
+        if (getException() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, getException()));
+        }
+        // Add the callee Selector, so we can get dependences from this
+        // to the summary nodes of the callees.
+        defs.add(callee.getSelector());
+        return defs;
+    }
+
 }

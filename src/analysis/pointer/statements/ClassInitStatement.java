@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -42,8 +43,8 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit
@@ -54,9 +55,12 @@ public class ClassInitStatement extends PointsToStatement {
         // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
         if (PointsToAnalysis.outputLevel >= 2 && added) {
             for (IMethod m : clinits) {
-                System.err.print("ADDING CLINIT: " + PrettyPrinter.methodString(m));
+                System.err.print("ADDING CLINIT: "
+                        + PrettyPrinter.methodString(m));
             }
-            System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
+            System.err.println("\n\tFROM "
+                    + PrettyPrinter.methodString(getMethod()) + " in "
+                    + context);
         }
 
         return new GraphDelta(g);
@@ -86,6 +90,18 @@ public class ClassInitStatement extends PointsToStatement {
 
     @Override
     public List<ReferenceVariable> getUses() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
         return Collections.emptyList();
     }
 }

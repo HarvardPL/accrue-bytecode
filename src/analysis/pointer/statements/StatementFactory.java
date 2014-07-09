@@ -34,16 +34,19 @@ public class StatementFactory {
      * whether two identical points-to statements are created that are not the same Object. This is only active when
      * assertions are turned on.
      */
-    private static final Map<StatementKey, PointsToStatement> map = new HashMap<>();
+    private static final Map<StatementKey, PointsToStatement> map =
+            new HashMap<>();
 
     /**
      * Description used for a string literal value field
      */
-    public static final String STRING_LIT_FIELD_DESC = "new String.value (compiler-generated)";
+    public static final String STRING_LIT_FIELD_DESC =
+            "new String.value (compiler-generated)";
     /**
      * Description used for a string literal
      */
-    private static final String STRING_LIT_DESC = "new String (compiler-generated)";
+    private static final String STRING_LIT_DESC =
+            "new String (compiler-generated)";
 
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i], note that we do not track array
@@ -57,8 +60,8 @@ public class StatementFactory {
      *            base type of the array
      * @return statement to be processed during pointer analysis
      */
-    public static ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, TypeReference baseType,
-                                    IMethod m) {
+    public static ArrayToLocalStatement arrayToLocal(ReferenceVariable v,
+            ReferenceVariable a, TypeReference baseType, IMethod m) {
         assert v != null;
         assert a != null;
         assert baseType != null;
@@ -79,7 +82,8 @@ public class StatementFactory {
      *            Instruction triggering the initialization
      * @return statement to be processed during pointer analysis
      */
-    public static ClassInitStatement classInit(List<IMethod> clinits, IMethod m, SSAInstruction i) {
+    public static ClassInitStatement classInit(List<IMethod> clinits,
+            IMethod m, SSAInstruction i) {
         assert clinits != null;
         assert !clinits.isEmpty();
         assert m != null;
@@ -108,16 +112,18 @@ public class StatementFactory {
      */
     // "unused": if SINGLETON_GENERATED_EXCEPTIONS is true then the second half of the assert is dead
     @SuppressWarnings("unused")
-    public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
-                                    Set<IClass> notType, IMethod m) {
+    public static ExceptionAssignmentStatement exceptionAssignment(
+            ReferenceVariable thrown, ReferenceVariable caught,
+            Set<IClass> notType, IMethod m) {
         assert thrown != null;
         assert caught != null;
         assert notType != null;
         assert m != null;
 
-        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown, caught, notType, m);
+        ExceptionAssignmentStatement s =
+                new ExceptionAssignmentStatement(thrown, caught, notType, m);
         assert StatementRegistrar.SINGLETON_GENERATED_EXCEPTIONS
-                                        || map.put(new StatementKey(thrown, caught), s) == null;
+                || map.put(new StatementKey(thrown, caught), s) == null;
         return s;
 
     }
@@ -135,8 +141,8 @@ public class StatementFactory {
      *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
-    public static FieldToLocalStatement fieldToLocal(ReferenceVariable l, ReferenceVariable o, FieldReference f,
-                                    IMethod m) {
+    public static FieldToLocalStatement fieldToLocal(ReferenceVariable l,
+            ReferenceVariable o, FieldReference f, IMethod m) {
         assert l != null;
         assert o != null;
         assert f != null;
@@ -161,15 +167,17 @@ public class StatementFactory {
      *            method the statement was created for
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToArrayStatement localToArrayContents(ReferenceVariable array, ReferenceVariable local,
-                                    TypeReference baseType, IMethod m, SSAArrayStoreInstruction i) {
+    public static LocalToArrayStatement localToArrayContents(
+            ReferenceVariable array, ReferenceVariable local,
+            TypeReference baseType, IMethod m, SSAArrayStoreInstruction i) {
         assert array != null;
         assert local != null;
         assert baseType != null;
         assert m != null;
         assert i != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, m);
+        LocalToArrayStatement s =
+                new LocalToArrayStatement(array, local, baseType, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(array, local, i), s) == null;
         return s;
@@ -188,8 +196,9 @@ public class StatementFactory {
      *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToFieldStatement localToField(ReferenceVariable o, FieldReference f, ReferenceVariable v,
-                                    IMethod m, SSAPutInstruction i) {
+    public static LocalToFieldStatement localToField(ReferenceVariable o,
+            FieldReference f, ReferenceVariable v, IMethod m,
+            SSAPutInstruction i) {
         assert o != null;
         assert f != null;
         assert v != null;
@@ -213,12 +222,18 @@ public class StatementFactory {
      *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+    public static LocalToLocalStatement localToLocal(ReferenceVariable left,
+            ReferenceVariable right, IMethod m, boolean rightIsMethodSummary) {
         assert left != null;
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m);
+        LocalToLocalStatement s =
+                new LocalToLocalStatement(left,
+                                          right,
+                                          m,
+                                          false,
+                                          rightIsMethodSummary);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -234,12 +249,14 @@ public class StatementFactory {
      *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+    public static LocalToLocalStatement localToLocalFiltered(
+            ReferenceVariable left, ReferenceVariable right, IMethod m) {
         assert left != null;
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true);
+        LocalToLocalStatement s =
+                new LocalToLocalStatement(left, right, m, true, false);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -257,14 +274,16 @@ public class StatementFactory {
      *            Instruction that generated this points-to statement
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToStaticFieldStatement localToStaticField(ReferenceVariable staticField,
-                                    ReferenceVariable local, IMethod m, SSAPutInstruction i) {
+    public static LocalToStaticFieldStatement localToStaticField(
+            ReferenceVariable staticField, ReferenceVariable local, IMethod m,
+            SSAPutInstruction i) {
         assert staticField != null;
         assert local != null;
         assert m != null;
         assert i != null;
 
-        LocalToStaticFieldStatement s = new LocalToStaticFieldStatement(staticField, local, m);
+        LocalToStaticFieldStatement s =
+                new LocalToStaticFieldStatement(staticField, local, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(staticField, i), s) == null;
         return s;
@@ -291,13 +310,18 @@ public class StatementFactory {
      * @param m
      *            Method the points-to statement came from
      */
-    public static LocalToArrayStatement multidimensionalArrayContents(ReferenceVariable outerArray,
-                                    ReferenceVariable innerArray, IMethod m) {
+    public static LocalToArrayStatement multidimensionalArrayContents(
+            ReferenceVariable outerArray, ReferenceVariable innerArray,
+            IMethod m) {
         assert outerArray != null;
         assert innerArray != null;
         assert m != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), m);
+        LocalToArrayStatement s =
+                new LocalToArrayStatement(outerArray,
+                                          innerArray,
+                                          innerArray.getExpectedType(),
+                                          m);
         assert map.put(new StatementKey(outerArray, innerArray), s) == null;
         return s;
     }
@@ -314,14 +338,19 @@ public class StatementFactory {
      *            method containing the instruction throwing the exception
      * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
-    public static NewStatement newForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
-                                    IMethod m) {
+    public static NewStatement newForGeneratedException(
+            ReferenceVariable exceptionAssignee, IClass exceptionClass,
+            IMethod m) {
         assert exceptionAssignee != null;
         assert exceptionClass != null;
         assert m != null;
 
-        NewStatement s = new NewStatement(ImplicitEx.fromType(exceptionClass.getReference()).toString(),
-                                        exceptionAssignee, exceptionClass, m);
+        NewStatement s =
+                new NewStatement(ImplicitEx.fromType(exceptionClass.getReference())
+                                           .toString(),
+                                 exceptionAssignee,
+                                 exceptionClass,
+                                 m);
         assert map.put(new StatementKey(exceptionAssignee), s) == null;
         return s;
     }
@@ -337,13 +366,16 @@ public class StatementFactory {
      *            native method
      * @return a statement representing the allocation for a native method with no signature
      */
-    public static NewStatement newForNative(ReferenceVariable summary, IClass allocatedClass, IMethod m) {
+    public static NewStatement newForNative(ReferenceVariable summary,
+            IClass allocatedClass, IMethod m) {
         assert summary != null;
         assert allocatedClass != null;
         assert m != null;
         assert m.isNative();
 
-        String name = PrettyPrinter.getCanonical("NATIVE-" + PrettyPrinter.typeString(allocatedClass));
+        String name =
+                PrettyPrinter.getCanonical("NATIVE-"
+                        + PrettyPrinter.typeString(allocatedClass));
         NewStatement s = new NewStatement(name, summary, allocatedClass, m);
         assert map.put(new StatementKey(summary), s) == null;
         return s;
@@ -360,12 +392,15 @@ public class StatementFactory {
      *            method containing the instruction creating the multidimensional array
      * @return a statement representing the allocation of the inner array of a multidimensional array
      */
-    public static NewStatement newForInnerArray(ReferenceVariable innerArray, IClass innerArrayClass, IMethod m) {
+    public static NewStatement newForInnerArray(ReferenceVariable innerArray,
+            IClass innerArrayClass, IMethod m) {
         assert innerArray != null;
         assert innerArrayClass != null;
         assert m != null;
 
-        String name = PrettyPrinter.getCanonical("GENERATED-" + PrettyPrinter.typeString(innerArrayClass));
+        String name =
+                PrettyPrinter.getCanonical("GENERATED-"
+                        + PrettyPrinter.typeString(innerArrayClass));
         NewStatement s = new NewStatement(name, innerArray, innerArrayClass, m);
         assert map.put(new StatementKey(innerArray), s) == null;
         return s;
@@ -384,7 +419,8 @@ public class StatementFactory {
      *            The program counter where the allocation occured
      * @return statement to be processed during pointer analysis
      */
-    public static NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IMethod m, int pc) {
+    public static NewStatement newForNormalAlloc(ReferenceVariable result,
+            IClass newClass, IMethod m, int pc) {
         assert result != null;
         assert newClass != null;
         assert m != null;
@@ -403,11 +439,16 @@ public class StatementFactory {
      *            method containing the String literal
      * @return a statement representing the allocation of a new string literal's value field
      */
-    public static NewStatement newForStringField(ReferenceVariable local, IMethod m) {
+    public static NewStatement newForStringField(ReferenceVariable local,
+            IMethod m) {
         assert local != null;
         assert m != null;
 
-        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, AnalysisUtil.getStringValueClass(), m);
+        NewStatement s =
+                new NewStatement(STRING_LIT_FIELD_DESC,
+                                 local,
+                                 AnalysisUtil.getStringValueClass(),
+                                 m);
         assert map.put(new StatementKey(local, STRING_LIT_FIELD_DESC), s) == null;
         return s;
     }
@@ -421,11 +462,16 @@ public class StatementFactory {
      *            method containing the String literal
      * @return a statement representing the allocation of a new string literal
      */
-    public static NewStatement newForStringLiteral(ReferenceVariable local, IMethod m) {
+    public static NewStatement newForStringLiteral(ReferenceVariable local,
+            IMethod m) {
         assert local != null;
         assert m != null;
 
-        NewStatement s = new NewStatement(STRING_LIT_DESC, local, AnalysisUtil.getStringClass(), m);
+        NewStatement s =
+                new NewStatement(STRING_LIT_DESC,
+                                 local,
+                                 AnalysisUtil.getStringClass(),
+                                 m);
         assert map.put(new StatementKey(local, STRING_LIT_DESC), s) == null;
         return s;
     }
@@ -441,7 +487,8 @@ public class StatementFactory {
      *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static PhiStatement phiToLocal(ReferenceVariable v, List<ReferenceVariable> xs, IMethod m) {
+    public static PhiStatement phiToLocal(ReferenceVariable v,
+            List<ReferenceVariable> xs, IMethod m) {
         assert v != null;
         assert xs != null;
         assert m != null;
@@ -464,8 +511,8 @@ public class StatementFactory {
      *            return instruction
      * @return statement to be processed during pointer analysis
      */
-    public static ReturnStatement returnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IMethod m,
-                                    SSAReturnInstruction i) {
+    public static ReturnStatement returnStatement(ReferenceVariable result,
+            ReferenceVariable returnSummary, IMethod m, SSAReturnInstruction i) {
         assert result != null;
         assert returnSummary != null;
         assert i != null;
@@ -497,10 +544,10 @@ public class StatementFactory {
      *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
-    public static SpecialCallStatement specialCall(CallSiteReference callSite, IMethod caller, IMethod callee,
-                                    ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable callerException,
-                                    MethodSummaryNodes calleeSummary) {
+    public static SpecialCallStatement specialCall(CallSiteReference callSite,
+            IMethod caller, IMethod callee, ReferenceVariable result,
+            ReferenceVariable receiver, List<ReferenceVariable> actuals,
+            ReferenceVariable callerException, MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
@@ -509,9 +556,22 @@ public class StatementFactory {
         assert callerException != null;
         assert calleeSummary != null;
 
-        SpecialCallStatement s = new SpecialCallStatement(callSite, caller, callee, result, receiver, actuals,
-                                        callerException, calleeSummary);
-        assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
+        SpecialCallStatement s =
+                new SpecialCallStatement(callSite,
+                                         caller,
+                                         callee,
+                                         result,
+                                         receiver,
+                                         actuals,
+                                         callerException,
+                                         calleeSummary);
+        assert map.put(new StatementKey(callSite,
+                                        caller,
+                                        callee,
+                                        result,
+                                        receiver,
+                                        actuals,
+                                        callerException), s) == null;
         return s;
     }
 
@@ -534,9 +594,10 @@ public class StatementFactory {
      *            summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
-    public static StaticCallStatement staticCall(CallSiteReference callSite, IMethod caller, IMethod callee,
-                                    ReferenceVariable result, List<ReferenceVariable> actuals,
-                                    ReferenceVariable callerException, MethodSummaryNodes calleeSummary) {
+    public static StaticCallStatement staticCall(CallSiteReference callSite,
+            IMethod caller, IMethod callee, ReferenceVariable result,
+            List<ReferenceVariable> actuals, ReferenceVariable callerException,
+            MethodSummaryNodes calleeSummary) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
@@ -544,9 +605,21 @@ public class StatementFactory {
         assert callerException != null;
         assert calleeSummary != null;
 
-        StaticCallStatement s = new StaticCallStatement(callSite, caller, callee, result, actuals, callerException,
+        StaticCallStatement s =
+                new StaticCallStatement(callSite,
+                                        caller,
+                                        callee,
+                                        result,
+                                        actuals,
+                                        callerException,
                                         calleeSummary);
-        assert map.put(new StatementKey(callSite, caller, callee, result, null, actuals, callerException), s) == null;
+        assert map.put(new StatementKey(callSite,
+                                        caller,
+                                        callee,
+                                        result,
+                                        null,
+                                        actuals,
+                                        callerException), s) == null;
         return s;
     }
 
@@ -561,13 +634,14 @@ public class StatementFactory {
      *            method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public static StaticFieldToLocalStatement staticFieldToLocal(ReferenceVariable local,
-                                    ReferenceVariable staticField, IMethod m) {
+    public static StaticFieldToLocalStatement staticFieldToLocal(
+            ReferenceVariable local, ReferenceVariable staticField, IMethod m) {
         assert local != null;
         assert staticField != null;
         assert m != null;
 
-        StaticFieldToLocalStatement s = new StaticFieldToLocalStatement(local, staticField, m);
+        StaticFieldToLocalStatement s =
+                new StaticFieldToLocalStatement(local, staticField, m);
         assert map.put(new StatementKey(local), s) == null;
         return s;
     }
@@ -586,15 +660,18 @@ public class StatementFactory {
      * 
      * @return statement to be processed during pointer analysis
      */
-    public static LocalToFieldStatement stringLiteralValueToField(ReferenceVariable string, FieldReference value,
-                                    ReferenceVariable rv, IMethod m) {
+    public static LocalToFieldStatement stringLiteralValueToField(
+            ReferenceVariable string, FieldReference value,
+            ReferenceVariable rv, IMethod m) {
         assert string != null;
         assert value != null;
         assert rv != null;
         assert m != null;
         assert value.getName().toString().equals("value")
-                                        && value.getDeclaringClass().equals(TypeReference.JavaLangString) : "This method should only be called for String.value for a string literal";
-        LocalToFieldStatement s = new LocalToFieldStatement(string, value, rv, m);
+                && value.getDeclaringClass()
+                        .equals(TypeReference.JavaLangString) : "This method should only be called for String.value for a string literal";
+        LocalToFieldStatement s =
+                new LocalToFieldStatement(string, value, rv, m);
         assert map.put(new StatementKey(string, value), s) == null;
         return s;
     }
@@ -620,10 +697,11 @@ public class StatementFactory {
      *            factory used to find callee summary nodes
      * @return statement to be processed during pointer analysis
      */
-    public static VirtualCallStatement virtualCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
-                                    ReferenceVariable result, ReferenceVariable receiver,
-                                    List<ReferenceVariable> actuals, ReferenceVariable callerException,
-                                    ReferenceVariableFactory rvFactory) {
+    public static VirtualCallStatement virtualCall(CallSiteReference callSite,
+            IMethod caller, MethodReference callee, ReferenceVariable result,
+            ReferenceVariable receiver, List<ReferenceVariable> actuals,
+            ReferenceVariable callerException,
+            ReferenceVariableFactory rvFactory) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
@@ -632,9 +710,22 @@ public class StatementFactory {
         assert callerException != null;
         assert rvFactory != null;
 
-        VirtualCallStatement s = new VirtualCallStatement(callSite, caller, callee, result, receiver, actuals,
-                                        callerException, rvFactory);
-        assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
+        VirtualCallStatement s =
+                new VirtualCallStatement(callSite,
+                                         caller,
+                                         callee,
+                                         result,
+                                         receiver,
+                                         actuals,
+                                         callerException,
+                                         rvFactory);
+        assert map.put(new StatementKey(callSite,
+                                        caller,
+                                        callee,
+                                        result,
+                                        receiver,
+                                        actuals,
+                                        callerException), s) == null;
         return s;
     }
 
@@ -653,35 +744,36 @@ public class StatementFactory {
 
         public StatementKey(Object key1) {
             this.key1 = key1;
-            this.key2 = null;
-            this.key3 = null;
-            this.key4 = null;
-            this.key5 = null;
-            this.key6 = null;
-            this.key7 = null;
+            key2 = null;
+            key3 = null;
+            key4 = null;
+            key5 = null;
+            key6 = null;
+            key7 = null;
         }
 
         public StatementKey(Object key1, Object key2) {
             this.key1 = key1;
             this.key2 = key2;
-            this.key3 = null;
-            this.key4 = null;
-            this.key5 = null;
-            this.key6 = null;
-            this.key7 = null;
+            key3 = null;
+            key4 = null;
+            key5 = null;
+            key6 = null;
+            key7 = null;
         }
 
         public StatementKey(Object key1, Object key2, Object key3) {
             this.key1 = key1;
             this.key2 = key2;
             this.key3 = key3;
-            this.key4 = null;
-            this.key5 = null;
-            this.key6 = null;
-            this.key7 = null;
+            key4 = null;
+            key5 = null;
+            key6 = null;
+            key7 = null;
         }
 
-        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6, Object key7) {
+        public StatementKey(Object key1, Object key2, Object key3, Object key4,
+                Object key5, Object key6, Object key7) {
             this.key1 = key1;
             this.key2 = key2;
             this.key3 = key3;
@@ -693,48 +785,38 @@ public class StatementFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             StatementKey other = (StatementKey) obj;
             if (key1 == null) {
-                if (other.key1 != null)
-                    return false;
-            } else if (!key1.equals(other.key1))
-                return false;
+                if (other.key1 != null) return false;
+            }
+            else if (!key1.equals(other.key1)) return false;
             if (key2 == null) {
-                if (other.key2 != null)
-                    return false;
-            } else if (!key2.equals(other.key2))
-                return false;
+                if (other.key2 != null) return false;
+            }
+            else if (!key2.equals(other.key2)) return false;
             if (key3 == null) {
-                if (other.key3 != null)
-                    return false;
-            } else if (!key3.equals(other.key3))
-                return false;
+                if (other.key3 != null) return false;
+            }
+            else if (!key3.equals(other.key3)) return false;
             if (key4 == null) {
-                if (other.key4 != null)
-                    return false;
-            } else if (!key4.equals(other.key4))
-                return false;
+                if (other.key4 != null) return false;
+            }
+            else if (!key4.equals(other.key4)) return false;
             if (key5 == null) {
-                if (other.key5 != null)
-                    return false;
-            } else if (!key5.equals(other.key5))
-                return false;
+                if (other.key5 != null) return false;
+            }
+            else if (!key5.equals(other.key5)) return false;
             if (key6 == null) {
-                if (other.key6 != null)
-                    return false;
-            } else if (!key6.equals(other.key6))
-                return false;
+                if (other.key6 != null) return false;
+            }
+            else if (!key6.equals(other.key6)) return false;
             if (key7 == null) {
-                if (other.key7 != null)
-                    return false;
-            } else if (!key7.equals(other.key7))
-                return false;
+                if (other.key7 != null) return false;
+            }
+            else if (!key7.equals(other.key7)) return false;
             return true;
         }
 
@@ -742,13 +824,13 @@ public class StatementFactory {
         public int hashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + ((key1 == null) ? 0 : key1.hashCode());
-            result = prime * result + ((key2 == null) ? 0 : key2.hashCode());
-            result = prime * result + ((key3 == null) ? 0 : key3.hashCode());
-            result = prime * result + ((key4 == null) ? 0 : key4.hashCode());
-            result = prime * result + ((key5 == null) ? 0 : key5.hashCode());
-            result = prime * result + ((key6 == null) ? 0 : key6.hashCode());
-            result = prime * result + ((key7 == null) ? 0 : key7.hashCode());
+            result = prime * result + (key1 == null ? 0 : key1.hashCode());
+            result = prime * result + (key2 == null ? 0 : key2.hashCode());
+            result = prime * result + (key3 == null ? 0 : key3.hashCode());
+            result = prime * result + (key4 == null ? 0 : key4.hashCode());
+            result = prime * result + (key5 == null ? 0 : key5.hashCode());
+            result = prime * result + (key6 == null ? 0 : key6.hashCode());
+            result = prime * result + (key7 == null ? 0 : key7.hashCode());
             return result;
         }
     }

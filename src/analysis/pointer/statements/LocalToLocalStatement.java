@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,6 +35,11 @@ public class LocalToLocalStatement extends PointsToStatement {
     private final boolean filter;
 
     /**
+     * Is right from a method summary?
+     */
+    private final boolean isFromMethodSummaryVariable;
+
+    /**
      * Statement for a local assignment, left = right
      * 
      * @param left
@@ -43,18 +50,15 @@ public class LocalToLocalStatement extends PointsToStatement {
      *            method the assignment is from
      */
     protected LocalToLocalStatement(ReferenceVariable left,
-            ReferenceVariable right, IMethod m) {
-        this(left, right, m, false);
-    }
-
-    protected LocalToLocalStatement(ReferenceVariable left,
-            ReferenceVariable right, IMethod m, boolean filterBasedOnType) {
+            ReferenceVariable right, IMethod m, boolean filterBasedOnType,
+            boolean isFromMethodSummaryVariable) {
         super(m);
         assert !left.isSingleton() : left + " is static";
         assert !right.isSingleton() : right + " is static";
         this.left = left;
         this.right = right;
         filter = filterBasedOnType;
+        this.isFromMethodSummaryVariable = isFromMethodSummaryVariable;
     }
 
     @Override
@@ -72,7 +76,8 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType()) + ") " + right;
+        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType())
+                + ") " + right;
     }
 
     @Override
@@ -89,5 +94,34 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return left;
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right);
+
+        if (!isFromMethodSummaryVariable) {
+            return Collections.singleton(r);
+        }
+        List<Object> uses = new ArrayList<>(3);
+        uses.add(r);
+        // the assignment is from a method summary node, e.g., for an argument.
+        // Add the IMethod so that we can get an appropriate dependency
+        // for the callers.
+        IMethod m = getMethod();
+        uses.add(m);
+
+        if (!m.isStatic() && !m.isPrivate()) {
+            // add the possible Selector that VirtualCalls may use
+            // to dispatch to us.
+            uses.add(getMethod().getSelector());
+        }
+
+        return uses;
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, left));
     }
 }

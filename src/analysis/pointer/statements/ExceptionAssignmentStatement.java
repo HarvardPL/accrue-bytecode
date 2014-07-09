@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -87,7 +88,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public String toString() {
         return caught + " = ("
                 + PrettyPrinter.typeString(caught.getExpectedType()) + ") "
-                + thrown + " NOT " + filter.notTypes;
+                + thrown + " NOT "
+                + (filter == null ? "empty" : filter.notTypes);
     }
 
     @Override
@@ -123,4 +125,26 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public ReferenceVariable getCaughtException() {
         return caught;
     }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        ReferenceVariableReplica r;
+        if (thrown.isSingleton()) {
+            // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
+            // variable is created for each generated exception type
+            r = new ReferenceVariableReplica(haf.initialContext(), thrown);
+        }
+        else {
+            r = new ReferenceVariableReplica(ctxt, thrown);
+        }
+        return Collections.singleton(r);
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, caught));
+    }
+
 }

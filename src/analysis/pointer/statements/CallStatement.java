@@ -23,7 +23,7 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Call site
      */
-    private final CallSiteLabel callSite;
+    protected final CallSiteLabel callSite;
     /**
      * Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      */
@@ -85,26 +85,7 @@ public abstract class CallStatement extends PointsToStatement {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
-        // if (callee.toString().contains("run")
-        // && (AnalysisUtil.getClassHierarchy().isAssignableFrom(
-        // AnalysisUtil.privilegedActionClass,
-        // receiver.getConcreteType()) || AnalysisUtil
-        // .getClassHierarchy()
-        // .isAssignableFrom(AnalysisUtil.privilegedExceptionActionClass,
-        // receiver.getConcreteType()))) {
-        // System.err.print("");
-        // }
         Context calleeContext = haf.merge(callSite, receiver, callerContext);
-        // if (callee.toString().contains("run")
-        // && (AnalysisUtil.getClassHierarchy().isAssignableFrom(
-        // AnalysisUtil.privilegedActionClass,
-        // receiver.getConcreteType()) || AnalysisUtil
-        // .getClassHierarchy()
-        // .isAssignableFrom(AnalysisUtil.privilegedExceptionActionClass,
-        // receiver.getConcreteType()))) {
-        // System.err.println(calleeContext + " for " + PrettyPrinter.methodString(callee));
-        // System.err.print("");
-        // }
         GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph

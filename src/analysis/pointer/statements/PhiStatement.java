@@ -1,5 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -37,16 +40,17 @@ public class PhiStatement extends PointsToStatement {
      * @param m
      *            method containing the phi instruction
      */
-    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IMethod m) {
+    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs,
+            IMethod m) {
         super(m);
         assert !xs.isEmpty();
-        this.assignee = v;
-        this.uses = xs;
+        assignee = v;
+        uses = xs;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
 
         GraphDelta changed = new GraphDelta(g);
@@ -88,4 +92,24 @@ public class PhiStatement extends PointsToStatement {
     public ReferenceVariable getDef() {
         return assignee;
     }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
+        for (ReferenceVariable use : uses) {
+            ReferenceVariableReplica n =
+                    new ReferenceVariableReplica(ctxt, use);
+            l.add(n);
+        }
+        return l;
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt,
+                                                                  assignee));
+    }
+
 }

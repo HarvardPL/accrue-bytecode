@@ -123,7 +123,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue =
                 Collections.asLifoQueue(new ArrayDeque<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>>());
-        Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
+        Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> nextQueue =
+                Collections.asLifoQueue(new ArrayDeque<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>>());
+        Queue<StmtAndContext> noDeltaQueue = new TopoSortQueue();
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
@@ -136,9 +138,17 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         lastTime = startTime;
         Set<StmtAndContext> visited = new HashSet<>();
-        while (!queue.isEmpty() || !noDeltaQueue.isEmpty()) {
-            // get the next sac, and the delta for it.
+        while (!queue.isEmpty() || !nextQueue.isEmpty()
+                || !noDeltaQueue.isEmpty()) {
+            if (queue.isEmpty()) {
+                // the queue is now empty, swap it with nextQueue
+                Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> t =
+                        queue;
+                queue = nextQueue;
+                nextQueue = t;
+            }
 
+            // get the next sac, and the delta for it.
             if (queue.isEmpty()) {
                 // get the next from the noDelta queue
                 StmtAndContext sac = noDeltaQueue.poll();
@@ -146,7 +156,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                            null,
                            g,
                            registrar,
-                           queue,
+                           nextQueue,
                            noDeltaQueue,
                            registerOnline);
 
@@ -162,7 +172,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                delta,
                                g,
                                registrar,
-                               queue,
+                               nextQueue,
                                noDeltaQueue,
                                registerOnline);
                 }
@@ -172,8 +182,17 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         long endTime = System.currentTimeMillis();
         System.err.println("Processed " + numProcessed
                 + " (statement, context) pairs"
-                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : "")
-                + ". It took " + (endTime - startTime) + "ms.");
+                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : ""));
+        long totalTime = endTime - startTime;
+        System.err.println("   Total time       : " + totalTime / 1000 + "s.");
+        System.err.println("   Registration time: " + registrationTime / 1000
+                + "s.");
+        System.err.println("   => Analysis time : "
+                + (totalTime - registrationTime) / 1000 + "s.");
+        System.err.println("   Topo sort time   : " + topoSortTime / 1000
+                + "s.");
+        System.err.println("   => Analysis time - topo sort : "
+                + (totalTime - (registrationTime + topoSortTime)) / 1000 + "s.");
         System.err.println("   Num no delta processed " + numNoDeltaProcessed);
         System.err.println("   Num with delta processed "
                 + (numProcessed - numNoDeltaProcessed));
@@ -198,6 +217,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     int numNoDeltaProcessed = 0;
     int lastNumNoDeltaProcessed = 0;
     int processedWithNoChange = 0;
+    long registrationTime = 0;
+    long topoSortTime = 0;
     long nextMilestone;
     long lastTime;
     long startTime;
@@ -240,7 +261,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             if (registerOnline) {
                 // Add statements for the given method to the registrar
+                long start = System.currentTimeMillis();
                 registrar.registerMethod(m);
+                long end = System.currentTimeMillis();
+                registrationTime += end - start;
             }
 
             for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
@@ -392,110 +416,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return s.add(sac);
     }
 
-//    private class CustomQueue extends
-//            AbstractQueue<OrderedPair<StmtAndContext, GraphDelta>> {
-//        final Queue<StmtAndContext> q;
-//        final Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
-//        final Set<StmtAndContext> deltaFree = new HashSet<>();
-//
-//        CustomQueue() {
-//
-//            Comparator<StmtAndContext> cmpr = new Comparator<StmtAndContext>() {
-//
-//                @Override
-//                public int compare(StmtAndContext o1, StmtAndContext o2) {
-//                    // first, run no deltas, then small delta, then the large delta.
-//
-//                    // return a negative number if o1 is "less than" or more important than o2
-//                    boolean o1DeltaFree = deltaFree.contains(o1);
-//                    boolean o2DeltaFree = deltaFree.contains(o2);
-//
-//                    if (o1DeltaFree && !o2DeltaFree) {
-//                        return -1; // o1 first
-//                    }
-//                    if (o2DeltaFree && !o1DeltaFree) {
-//                        return 1; // o2 first
-//                    }
-//                    if (o1DeltaFree && o2DeltaFree) {
-//                        return 0; // Hmmm, maybe some other way to break the tie... 
-//                    }
-//
-//                    // both should have deltas
-//                    GraphDelta o1Delta = deltas.get(o1);
-//                    GraphDelta o2Delta = deltas.get(o2);
-//                    int o1Size = o1Delta == null ? -1 : o1Delta.extendedSize();
-//                    int o2Size = o2Delta == null ? -1 : o2Delta.extendedSize();
-//
-//                    return o1Size > o2Size ? 1 : o1Size == o2Size ? 0 : -1;
-//                }
-//
-//            };
-////            q = new PriorityQueue<>(10000, cmpr);
-//            q = new LinkedList<>();
-//        }
-//
-//        @Override
-//        public int size() {
-//            return q.size();
-//        }
-//
-//        @Override
-//        public boolean offer(OrderedPair<StmtAndContext, GraphDelta> e) {
-//            StmtAndContext sac = e.fst();
-//            GraphDelta delta = e.snd();
-//            if (delta == null) {
-//                // we are going to run the sac without any delta.
-//                deltas.remove(sac);
-//                deltaFree.add(sac);
-//                q.offer(sac);
-//                return true;
-//            }
-//            if (deltaFree.contains(sac)) {
-//                // we are already going to run the sac without a delta.
-//                // ignore the delta, don't re-add the sac.
-//                return true;
-//            }
-//            GraphDelta existing = deltas.get(sac);
-//            if (existing != null) {
-//                // there is already a delta.
-//                // combine them.
-//                deltas.put(sac, existing.combine(delta));
-//            }
-//            else {
-//                deltas.put(sac, delta);
-//            }
-//            q.offer(sac);
-//            return true;
-//        }
-//
-//        @Override
-//        public OrderedPair<StmtAndContext, GraphDelta> poll() {
-//            StmtAndContext sac = q.poll();
-//            if (sac == null) {
-//                return null;
-//            }
-//            GraphDelta delta = null;
-//            if (deltaFree.contains(sac)) {
-//                // nothing to do, delta is null
-//                deltaFree.remove(sac);
-//            }
-//            else {
-//                delta = deltas.remove(sac);
-//            }
-//            return new OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>(sac,
-//                                                                                delta);
-//        }
-//
-//        @Override
-//        public OrderedPair<StmtAndContext, GraphDelta> peek() {
-//            throw new UnsupportedOperationException();
-//        }
-//
-//        @Override
-//        public Iterator<OrderedPair<StmtAndContext, GraphDelta>> iterator() {
-//            throw new UnsupportedOperationException();
-//        }
-//    }
     static class PartitionedQueue extends
             AbstractQueue<PointsToAnalysis.StmtAndContext> {
         Queue<PointsToAnalysis.StmtAndContext> base = new LinkedList<>();
@@ -517,8 +437,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         {
             ordered.add(localAssigns);
-            ordered.add(fieldReads);
             ordered.add(fieldWrites);
+            ordered.add(fieldReads);
             ordered.add(base);
             ordered.add(calls);
         }
@@ -593,5 +513,121 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             return true;
         }
 
+    }
+
+    class TopoSortQueue extends AbstractQueue<StmtAndContext> {
+        ArrayList<StmtAndContext> current = new ArrayList<>();
+        int sinceLastSorted = 0;
+
+        ArrayList<StmtAndContext> next = new ArrayList<>();
+
+        @Override
+        public boolean offer(StmtAndContext e) {
+            next.add(e);//XXX next.add(e)
+            sinceLastSorted++;
+            if (sinceLastSorted > 500) {
+                current.addAll(next);
+                next.clear();
+                current = topoSortArray(current);
+                sinceLastSorted = 0;
+            }
+            return true;
+        }
+
+        @Override
+        public StmtAndContext poll() {
+            if (current.isEmpty()) {
+                next = topoSortArray(next);
+                ArrayList<StmtAndContext> t = current;
+                current = next;
+                next = t;
+                sinceLastSorted = 0;
+            }
+            return current.remove(current.size() - 1);
+        }
+
+        /*
+         * Topo sort the array
+         */
+        private ArrayList<StmtAndContext> topoSortArray(
+                ArrayList<StmtAndContext> arr) {
+            long start = System.currentTimeMillis();
+
+            // First, set up a map for which RVRs are read and written
+            Map<Object, Set<StmtAndContext>> readsRVR = new HashMap<>();
+            for (StmtAndContext sac : arr) {
+                for (Object read : sac.getRVRReads(haf)) {
+                    Set<StmtAndContext> set = readsRVR.get(read);
+                    if (set == null) {
+                        set = new HashSet<>();
+                        readsRVR.put(read, set);
+                    }
+                    set.add(sac);
+                }
+            }
+
+            Set<StmtAndContext> done = new HashSet<>();
+            Set<StmtAndContext> visiting = new HashSet<>();
+            ArrayList<StmtAndContext> sorted = new ArrayList<>(arr.size());
+            for (int i = arr.size() - 1; i >= 0; i--) {
+                StmtAndContext sac = arr.get(i);
+                visit(sac, done, visiting, sorted, readsRVR);
+            }
+            long end = System.currentTimeMillis();
+            topoSortTime += end - start;
+            return sorted;
+
+        }
+
+        private void visit(StmtAndContext sac, Set<StmtAndContext> done,
+                Set<StmtAndContext> visiting, ArrayList<StmtAndContext> sorted,
+                Map<Object, Set<StmtAndContext>> readsRVR) {
+            if (visiting.contains(sac)) {
+                // this is a cycle. ignore this edge
+                return;
+            }
+            if (!done.contains(sac)) {
+                visiting.add(sac);
+                for (StmtAndContext child : children(sac, readsRVR)) {
+                    visit(child, done, visiting, sorted, readsRVR);
+                }
+                done.add(sac);
+                visiting.remove(sac);
+                sorted.add(sac);
+            }
+        }
+
+        private Collection<StmtAndContext> children(StmtAndContext sac,
+                Map<Object, Set<StmtAndContext>> readsRVR) {
+            // The children of sac are the StmtAndContexts that read a variable that sac writes.
+            HashSet<StmtAndContext> set = new HashSet<>();
+            for (Object written : sac.getRVRWrites(haf)) {
+                Set<StmtAndContext> v = readsRVR.get(written);
+                if (v != null) {
+                    set.addAll(v);
+                }
+            }
+            return set;
+        }
+
+        @Override
+        public StmtAndContext peek() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterator<StmtAndContext> iterator() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            return current.size() + next.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return current.isEmpty() && next.isEmpty();
+        }
     }
 }

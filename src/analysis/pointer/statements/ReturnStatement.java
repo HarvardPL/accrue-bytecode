@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,17 +38,20 @@ public class ReturnStatement extends PointsToStatement {
      * @param m
      *            method the points-to statement came from
      */
-    protected ReturnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IMethod m) {
+    protected ReturnStatement(ReferenceVariable result,
+            ReferenceVariable returnSummary, IMethod m) {
         super(m);
         this.result = result;
         this.returnSummary = returnSummary;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
-        ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result);
-        ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary);
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+        ReferenceVariableReplica returnRes =
+                new ReferenceVariableReplica(context, result);
+        ReferenceVariableReplica summaryRes =
+                new ReferenceVariableReplica(context, returnSummary);
 
         // don't need to use delta, as this just adds a subset edge
         return g.copyEdges(returnRes, summaryRes);
@@ -56,7 +60,7 @@ public class ReturnStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return ("return " + result);
+        return "return " + result;
     }
 
     @Override
@@ -74,4 +78,19 @@ public class ReturnStatement extends PointsToStatement {
     public ReferenceVariable getDef() {
         return null;
     }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, result);
+        return Collections.singleton(r);
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt,
+                                                                  returnSummary));
+    }
+
 }
