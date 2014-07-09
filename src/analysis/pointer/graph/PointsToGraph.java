@@ -941,6 +941,95 @@ public class PointsToGraph {
         }
     }
 
+    class SortedIntSetUnion extends AbstractIntSet implements IntSet {
+        final IntSet a;
+        final IntSet b;
+
+        SortedIntSetUnion(IntSet a, IntSet b) {
+            this.a = a;
+            this.b = b;
+            if (a == null) {
+                throw new IllegalArgumentException("a is null");
+            }
+            if (b == null) {
+                throw new IllegalArgumentException("b is null");
+            }
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return a.isEmpty() && b.isEmpty();
+        }
+
+        @Override
+        public boolean contains(int x) {
+            return a.contains(x) || b.contains(x);
+        }
+
+        @Override
+        public IntIterator intIterator() {
+            return new SortedIntSetUnionIterator(a.intIterator(),
+                                                 b.intIterator());
+        }
+
+    }
+
+    class SortedIntSetUnionIterator implements IntIterator {
+        final IntIterator a;
+        final IntIterator b;
+        int aNext = 0;
+        int bNext = 0;
+        boolean aNextValid = false;
+        boolean bNextValid = false;
+
+        SortedIntSetUnionIterator(IntIterator a, IntIterator b) {
+            this.a = a;
+            this.b = b;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (!aNextValid && a.hasNext()) {
+                aNext = a.next();
+                aNextValid = true;
+            }
+            if (!bNextValid && b.hasNext()) {
+                bNext = b.next();
+                bNextValid = true;
+            }
+            return aNextValid || bNextValid;
+        }
+
+        @Override
+        public int next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            // at least one of aNext and bNext is non-null
+            if (!aNextValid) {
+                bNextValid = false;
+                return bNext;
+            }
+            if (!bNextValid) {
+                aNextValid = false;
+                return aNext;
+            }
+            // both are non-null
+            if (aNext == bNext) {
+                // they are the same value
+                aNextValid = bNextValid = false;
+                return aNext;
+            }
+            if (aNext < bNext) {
+                aNextValid = false;
+                return aNext;
+            }
+            bNextValid = false;
+            return bNext;
+        }
+
+    }
+
     static Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> composeIterators(
             Set<PointsToGraphNode> unfilteredSet,
             Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSet) {
@@ -1142,12 +1231,12 @@ public class PointsToGraph {
             Iterator<PointsToGraphNode> iter = delta.domainIterator();
             while (iter.hasNext()) {
                 PointsToGraphNode n = iter.next();
-                IntSet deltaSet = delta.pointsToSet(n);
                 SoftReference<MutableIntSet> sr = cache.get(n);
                 if (sr != null) {
                     MutableIntSet s = sr.get();
                     if (s != null) {
                         // the set is in the cache!
+                        IntSet deltaSet = delta.pointsToSet(n);
                         s.addAll(deltaSet);
                         recentlyUsedMap.put(n, s);
                         // no need to update inCycle, since it is the same set s.
@@ -1195,6 +1284,7 @@ public class PointsToGraph {
             assert !representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
 
             try {
+                boolean wasInCache = false;
                 SoftReference<MutableIntSet> sr = cache.get(n);
                 if (sr != null) {
                     IntSet s = sr.get();
@@ -1205,6 +1295,7 @@ public class PointsToGraph {
                         recentlyUsedMap.put(n, s);
                         return s;
                     }
+                    wasInCache = true;
                 }
 
                 if (currentlyRealizing.contains(n)) {
@@ -1236,30 +1327,48 @@ public class PointsToGraph {
                 Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSubsets =
                         isSupersetOf.get(n);
 
-                boolean hasUnfilteredSupersetRelns = unfilteredSubsets != null;
-                boolean hasFilteredSupersetRelns = filteredSubsets != null;
+                boolean hasUnfilteredSubsets =
+                        unfilteredSubsets != null
+                                && !unfilteredSubsets.isEmpty();
+                boolean hasFilteredSubsets =
+                        filteredSubsets != null && !filteredSubsets.isEmpty();
 
                 // A case that shouldn't be true...
-                if (!baseContains && !hasUnfilteredSupersetRelns
-                        && !hasFilteredSupersetRelns) {
+                if (!baseContains && !hasUnfilteredSubsets
+                        && !hasFilteredSubsets) {
                     // doesn't point to anything.
                     return EmptyIntSet.instance;
                 }
 
                 if (baseContains
-                        && !(hasUnfilteredSupersetRelns || hasFilteredSupersetRelns)) {
+                        && !(hasUnfilteredSubsets || hasFilteredSubsets)) {
                     // n is a base node, and no superset relations
                     return base.get(n);
                 }
 
-                // We now know we definitely missed in the cache (i.e., not a base node).
+                int totalSubsets =
+                        (hasUnfilteredSubsets
+                                ? unfilteredSubsets.size() : 0)
+                                + (hasFilteredSubsets
+                                        ? filteredSubsets.size() : 0);
+//                if (totalSubsets <= 2 && !baseContains && !wasInCache) {
+                if (totalSubsets <= 1 && !baseContains && !wasInCache) {
+                    return realizeSetWithFewSubsets(n,
+                                                    unfilteredSubsets,
+                                                    filteredSubsets,
+                                                    currentlyRealizing,
+                                                    currentlyRealizingStack,
+                                                    filters,
+                                                    shouldCache);
+                }
+
+                // We now know we definitely missed in the cache (i.e., not a base node, and not one we choose not to cache).
                 misses++;
                 if (cache.get(n) != null) {
                     evictions++;
                 }
 
                 MutableIntSet s = MutableSparseIntSet.makeEmpty();
-                IntSet ret = s; // the set to return.
                 if (baseContains) {
                     s.addAll(base.get(n));
                 }
@@ -1267,88 +1376,39 @@ public class PointsToGraph {
                 currentlyRealizing.add(n);
                 currentlyRealizingStack.push(n);
 
-                if (unfilteredSubsets != null) {
+                if (hasUnfilteredSubsets) {
                     filters.push(null);
-                    if (filteredSubsets == null
-                            && unfilteredSubsets.size() == 1) {
-                        // there is exactly one subset.
-                        // return that and don't bother caching.
-                        s = null;
-                        ret =
-                                realizePointsToSet(unfilteredSubsets.iterator()
-                                                                    .next(),
-                                                   currentlyRealizing,
-                                                   currentlyRealizingStack,
-                                                   filters,
-                                                   shouldCache);
-                        shouldCache.set(shouldCache.size() - 1, false);
-                        // it's not really uncachable and it's not really a miss
-                        uncachable--;
-                        misses--;
-                    }
-                    else {
-                        // more than one subset.
-                        for (PointsToGraphNode x : unfilteredSubsets) {
-                            s.addAll(realizePointsToSet(x,
-                                                        currentlyRealizing,
-                                                        currentlyRealizingStack,
-                                                        filters,
-                                                        shouldCache));
-                        }
+                    for (PointsToGraphNode x : unfilteredSubsets) {
+                        s.addAll(realizePointsToSet(x,
+                                                    currentlyRealizing,
+                                                    currentlyRealizingStack,
+                                                    filters,
+                                                    shouldCache));
                     }
                     filters.pop();
                 }
-                if (filteredSubsets != null) {
-                    if (unfilteredSubsets == null
-                            && filteredSubsets.size() == 1) {
-                        // there is exactly one subset.
-                        // return that and don't bother caching.
-                        OrderedPair<PointsToGraphNode, TypeFilter> p =
-                                filteredSubsets.iterator().next();
+                if (hasFilteredSubsets) {
+                    for (OrderedPair<PointsToGraphNode, TypeFilter> p : filteredSubsets) {
                         filters.push(p.snd());
-                        s = null;
-                        ret =
-                                new FilteredIntSet(realizePointsToSet(p.fst(),
-                                                                      currentlyRealizing,
-                                                                      currentlyRealizingStack,
-                                                                      filters,
-                                                                      shouldCache),
-                                                   p.snd());
+                        s.addAll(new FilteredIntSet(realizePointsToSet(p.fst(),
+                                                                       currentlyRealizing,
+                                                                       currentlyRealizingStack,
+                                                                       filters,
+                                                                       shouldCache),
+                                                    p.snd()));
                         filters.pop();
-                        shouldCache.set(shouldCache.size() - 1, false);
-                        // it's not really uncachable and it's not really a miss
-                        uncachable--;
-                        misses--;
-                    }
-                    else {
 
-                        for (OrderedPair<PointsToGraphNode, TypeFilter> p : filteredSubsets) {
-                            filters.push(p.snd());
-                            s.addAll(new FilteredIntSet(realizePointsToSet(p.fst(),
-                                                                           currentlyRealizing,
-                                                                           currentlyRealizingStack,
-                                                                           filters,
-                                                                           shouldCache),
-                                                        p.snd()));
-                            filters.pop();
-
-                        }
                     }
                 }
                 currentlyRealizing.remove(n);
                 currentlyRealizingStack.pop();
                 if (shouldCache.pop()) {
-                    // it is safe for us to cache the result of this realization.
-                    cache.put(n, new SoftReference<>(s));
-                    recentlyUsedMap.put(n, s);
-                    if (inCycle.containsKey(n)) {
-                        inCycle.put(n, s);
-                    }
+                    storeInCache(n, s);
                 }
                 else {
                     uncachable++;
                 }
-                return ret;
+                return s;
 
             }
             finally {
@@ -1362,6 +1422,95 @@ public class PointsToGraph {
                     hits = misses = evictions = uncachable = 0;
                 }
             }
+
+        }
+
+        private void storeInCache(PointsToGraphNode n, MutableIntSet s) {
+            // it is safe for us to cache the result of this realization.
+            cache.put(n, new SoftReference<>(s));
+            recentlyUsedMap.put(n, s);
+            if (inCycle.containsKey(n)) {
+                inCycle.put(n, s);
+            }
+        }
+
+        /**
+         * n is a PointsToGraphNode with 1 or 2 subsets. Instead of caching it, we will use a union data structure,
+         * relying on the fact that all the IntSets in this structure are sorted. 
+         * 
+         * @param n
+         * @param unfilteredSubsets
+         * @param filteredSubsets
+         * @param currentlyRealizing
+         * @param currentlyRealizingStack
+         * @param filters
+         * @param shouldCache
+         * @return
+         */
+        private IntSet realizeSetWithFewSubsets(
+                PointsToGraphNode n,
+                Set<PointsToGraphNode> unfilteredSubsets,
+                Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSubsets,
+                Set<PointsToGraphNode> currentlyRealizing,
+                Stack<PointsToGraphNode> currentlyRealizingStack,
+                Stack<TypeFilter> filters, Stack<Boolean> shouldCache) {
+            currentlyRealizing.add(n);
+            currentlyRealizingStack.push(n);
+            shouldCache.push(true);
+
+            IntSet[] subsets = new IntSet[2];
+            int ind = 0;
+
+            if (unfilteredSubsets != null) {
+                filters.push(null);
+                for (PointsToGraphNode x : unfilteredSubsets) {
+                    IntSet is =
+                            realizePointsToSet(x,
+                                               currentlyRealizing,
+                                               currentlyRealizingStack,
+                                               filters,
+                                               shouldCache);
+                    subsets[ind++] = is;
+                }
+                filters.pop();
+            }
+            if (filteredSubsets != null) {
+                for (OrderedPair<PointsToGraphNode, TypeFilter> p : filteredSubsets) {
+                    filters.push(p.snd());
+                    IntSet is =
+                            new FilteredIntSet(realizePointsToSet(p.fst(),
+                                                                  currentlyRealizing,
+                                                                  currentlyRealizingStack,
+                                                                  filters,
+                                                                  shouldCache),
+                                               p.snd());
+                    subsets[ind++] = is;
+                    filters.pop();
+
+                }
+            }
+            currentlyRealizing.remove(n);
+            currentlyRealizingStack.pop();
+            boolean shouldCacheThis = shouldCache.pop();
+
+            assert ind == 1 || ind == 2;
+
+            if (ind == 1) {
+                return subsets[0];
+            }
+
+            if (shouldCacheThis && subsets[0] instanceof SortedIntSetUnion
+                    && subsets[1] instanceof SortedIntSetUnion) {
+                // it's cacheable, and both of the subsets are themselves unions.
+                // So just realize this.
+                MutableIntSet s = MutableSparseIntSet.makeEmpty();
+                s.addAll(subsets[0]);
+                s.addAll(subsets[1]);
+                storeInCache(n, s);
+                return s;
+            }
+
+            return new SortedIntSetUnion(subsets[0], subsets[1]);
 
         }
 
