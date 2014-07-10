@@ -388,6 +388,11 @@ public class RemoveDuplicateStatements {
             // There are no uses of that variable
             return;
         }
+        Set<OrderedPair<PointsToStatement, Integer>> setForNew = this.useIndex.get(replacement);
+        if (setForNew == null) {
+            setForNew = new LinkedHashSet<>();
+            useIndex.put(replacement, setForNew);
+        }
 
         for (OrderedPair<PointsToStatement, Integer> pair : pairs) {
             PointsToStatement s = pair.fst();
@@ -396,6 +401,10 @@ public class RemoveDuplicateStatements {
                 continue;
             }
             s.replaceUse(pair.snd(), replacement);
+            // The use is in the same place but is now using the replacement variable
+            setForNew.add(pair);
         }
+        // We do not need the set of uses for the replaced variable as it no longer exists
+        this.useIndex.remove(replaced);
     }
 }
