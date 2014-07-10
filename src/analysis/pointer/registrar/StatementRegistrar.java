@@ -57,7 +57,7 @@ import com.ibm.wala.types.TypeReference;
  * This class manages the registration of new points-to graph statements, which are then processed by the pointer
  * analysis
  */
-public final class StatementRegistrar {
+public class StatementRegistrar {
 
     /**
      * Map from method signature to nodes representing formals and returns
@@ -119,7 +119,11 @@ public final class StatementRegistrar {
             handle(info);
         }
         if (!instructions.isEmpty()) {
-            Set<PointsToStatement> oldStatements = getStatementsForMethod(m);
+            if (!duplicatesRemoved.add(m)) {
+                throw new RuntimeException("Processing the same method twice " + PrettyPrinter.methodString(m));
+            }
+
+            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
             int startSize = oldStatements.size();
             Set<PointsToStatement> newStatements =
                     RemoveDuplicateStatements.removeDuplicates(oldStatements);
@@ -127,6 +131,8 @@ public final class StatementRegistrar {
             replaceStatementsForMethod(m, newStatements);
         }
     }
+
+    private static final Set<IMethod> duplicatesRemoved = new HashSet<>();
 
     private static int removed = 0;
 
@@ -202,7 +208,7 @@ public final class StatementRegistrar {
      * @param info
      *            information about the instruction to handle
      */
-    void handle(InstructionInfo info) {
+    protected void handle(InstructionInfo info) {
         SSAInstruction i = info.instruction;
         IR ir = info.ir;
         ISSABasicBlock bb = info.basicBlock;
@@ -967,7 +973,7 @@ public final class StatementRegistrar {
      * @param s
      *            statement to add
      */
-    private void addStatement(PointsToStatement s) {
+    protected void addStatement(PointsToStatement s) {
 
         IMethod m = s.getMethod();
         Set<PointsToStatement> ss = statementsForMethod.get(m);
@@ -1311,6 +1317,7 @@ public final class StatementRegistrar {
 
         boolean containsRTE = false;
         try {
+<<<<<<< HEAD
             TypeReference[] exceptions = m.getDeclaredExceptions();
             if (exceptions != null) {
                 for (TypeReference exType : exceptions) {
@@ -1325,6 +1332,15 @@ public final class StatementRegistrar {
                     containsRTE |=
                             exType.equals(TypeReference.JavaLangRuntimeException);
                 }
+=======
+            for (TypeReference exType : m.getDeclaredExceptions()) {
+                // Allocation of exception of a particular type
+                ReferenceVariable ex = rvFactory.createNativeException(exType, m);
+                addStatement(StatementFactory.exceptionAssignment(ex, methodSummary.getException(),
+                                                Collections.<IClass> emptySet(), m));
+                registerAllocationForNative(m, exType, ex);
+                containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
+>>>>>>> graphdeltas
             }
         }
         catch (UnsupportedOperationException | InvalidClassFileException e) {
@@ -1385,12 +1401,12 @@ public final class StatementRegistrar {
     /**
      * Instruction together with information about the containing code
      */
-    static final class InstructionInfo {
-        final SSAInstruction instruction;
-        final IR ir;
-        final ISSABasicBlock basicBlock;
-        final TypeRepository typeRepository;
-        final PrettyPrinter prettyPrinter;
+    public static final class InstructionInfo {
+        public final SSAInstruction instruction;
+        public final IR ir;
+        public final ISSABasicBlock basicBlock;
+        public final TypeRepository typeRepository;
+        public final PrettyPrinter prettyPrinter;
 
         /**
          * Instruction together with information about the containing code

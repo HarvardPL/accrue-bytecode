@@ -48,5 +48,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/java-cup-11a.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/JFlex.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/SCanDroid"/>
+	<classpathentry kind="lib" path="lib/apktool-cli.jar" sourcepath="/Apktool"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>

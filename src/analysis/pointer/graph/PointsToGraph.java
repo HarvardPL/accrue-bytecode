@@ -84,6 +84,11 @@ public class PointsToGraph {
             AnalysisUtil.createConcurrentSet();
 
     /**
+     * Entry points added during the pointer analysis
+     */
+    private final Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
+
+    /**
      * Heap abstraction factory.
      */
     private final HeapAbstractionFactory haf;
@@ -393,7 +398,6 @@ public class PointsToGraph {
     @SuppressWarnings("deprecation")
     public boolean addCall(CallSiteReference callSite, IMethod caller,
             Context callerContext, IMethod callee, Context calleeContext) {
-
         CGNode src;
         CGNode dst;
 
@@ -805,6 +809,32 @@ public class PointsToGraph {
         assert cgChanged : "Reached the end of the loop without adding any clinits "
                 + classInits;
         return cgChanged;
+    }
+
+    /**
+     * Add new entry point methods (i.e. methods called in the empty context)
+     * 
+     * @param newEntryPoint
+     *            list of methods to add
+     * @return true if the call graph changed as a result of this call, false otherwise
+     */
+    public boolean addEntryPoint(IMethod newEntryPoint) {
+        boolean changed = entryPoints.add(newEntryPoint);
+        if (changed) {
+            // new initializer
+            Context c = haf.initialContext();
+            CGNode initNode;
+            try {
+                initNode = callGraph.findOrCreateNode(newEntryPoint, c);
+            }
+            catch (CancelException e) {
+                throw new RuntimeException(e);
+            }
+            recordContext(newEntryPoint, c);
+            callGraph.registerEntrypoint(initNode);
+            clinitCount++;
+        }
+        return changed;
     }
 
     class FilteredIntSet extends AbstractIntSet implements IntSet {
