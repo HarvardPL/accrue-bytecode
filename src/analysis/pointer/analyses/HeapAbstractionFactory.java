@@ -3,6 +3,7 @@ package analysis.pointer.analyses;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
+import analysis.AnalysisUtil;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
@@ -17,6 +18,8 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
  * Context is the calling context methods are analyzed in
  * <p>
  * InstanceKey the heap context for allocated objects
+ * <p>
+ * Subclasses of this class must be thread safe, as different threads may call methods of this class concurrently.
  */
 public abstract class HeapAbstractionFactory {
 
@@ -58,8 +61,10 @@ public abstract class HeapAbstractionFactory {
     /**********
      * Memoization
      **********/
-    private static final ConcurrentHashMap<Wrapper<InstanceKey>, InstanceKey> instanceKeymemo = createConcurrentHashMap();
-    private static final ConcurrentHashMap<Wrapper<Context>, Context> contextMemo = createConcurrentHashMap();
+    private static final ConcurrentHashMap<Wrapper<InstanceKey>, InstanceKey> instanceKeymemo = AnalysisUtil
+                                    .createConcurrentHashMap();
+    private static final ConcurrentHashMap<Wrapper<Context>, Context> contextMemo = AnalysisUtil
+                                    .createConcurrentHashMap();
 
     /**
      * Memoize the given context. If all the <code>memoKeys</code> are .equals to those passed in for an existing
@@ -111,11 +116,6 @@ public abstract class HeapAbstractionFactory {
         }
         return memoized;
     }
-
-    private static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
-        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
-    }
-
 
 
     /**

@@ -44,6 +44,14 @@ public final class AccrueAnalysisOptions {
     private String entryPoint;
 
     /**
+     * If false then register points-to statements during the points-to analysis. If true then register them before the
+     * points-to analysis. The latter will register many more statements since there is less information about the types
+     * of the receivers of virtual methods.
+     */
+    @Parameter(names = { "-offline" }, description = "Whether to register the points-to statements during points-to analysis or before points-to analysis")
+    private boolean offline = false;
+
+    /**
      * Name of the analysis to be run
      */
     @Parameter(names = { "-n", "-analyisName" }, validateWith = AccrueAnalysisOptions.AnalysisNameValidator.class, description = "Name of the analysis to run.")
@@ -132,6 +140,10 @@ public final class AccrueAnalysisOptions {
 
     public Integer getFileLevel() {
         return fileLevel;
+    }
+
+    public boolean registerOnline() {
+        return !offline;
     }
 
     public String getEntryPoint() {

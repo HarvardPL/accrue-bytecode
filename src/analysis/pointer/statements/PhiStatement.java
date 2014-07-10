@@ -1,9 +1,12 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -12,7 +15,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to graph statement for a phi, representing choice at control flow merges. v = phi(x1, x2, ...)
@@ -38,26 +40,27 @@ public class PhiStatement extends PointsToStatement {
      * @param m
      *            method containing the phi instruction
      */
-    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IMethod m) {
+    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs,
+            IMethod m) {
         super(m);
         assert !xs.isEmpty();
-        this.assignee = v;
-        this.uses = xs;
+        assignee = v;
+        uses = xs;
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
-        boolean changed = false;
 
+        GraphDelta changed = new GraphDelta(g);
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
+            // no need to use delta, as this just adds subset relations.
+            GraphDelta d1 = g.copyEdges(n, a);
 
-            Set<InstanceKey> s = g.getPointsToSet(n);
-            assert checkForNonEmpty(s, n, "PHI ARG: " + n);
-
-            changed |= g.addEdges(a, s);
+            changed = changed.combine(d1);
         }
         return changed;
     }
@@ -89,4 +92,24 @@ public class PhiStatement extends PointsToStatement {
     public ReferenceVariable getDef() {
         return assignee;
     }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
+        for (ReferenceVariable use : uses) {
+            ReferenceVariableReplica n =
+                    new ReferenceVariableReplica(ctxt, use);
+            l.add(n);
+        }
+        return l;
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt,
+                                                                  assignee));
+    }
+
 }

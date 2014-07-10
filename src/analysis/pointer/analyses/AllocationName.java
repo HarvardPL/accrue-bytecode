@@ -36,8 +36,12 @@ public class AllocationName<CC extends Context> implements InstanceKey {
      * 
      * @return allocation site name
      */
-    public static <CC extends Context> AllocationName<CC> create(CC allocationContext, AllocSiteNode asn) {
-        return HeapAbstractionFactory.memoize(new AllocationName<>(allocationContext, asn), allocationContext, asn);
+    public static <CC extends Context> AllocationName<CC> create(
+            CC allocationContext, AllocSiteNode asn) {
+        return HeapAbstractionFactory.memoize(new AllocationName<>(allocationContext,
+                                                                   asn),
+                                              allocationContext,
+                                              asn);
     }
 
     /**
@@ -54,8 +58,8 @@ public class AllocationName<CC extends Context> implements InstanceKey {
     }
 
     @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
+    public final int hashCode() {
+        return super.hashCode();
     }
 
     @Override
@@ -74,7 +78,8 @@ public class AllocationName<CC extends Context> implements InstanceKey {
     }
 
     @Override
-    public Iterator<Pair<CGNode, NewSiteReference>> getCreationSites(CallGraph CG) {
+    public Iterator<Pair<CGNode, NewSiteReference>> getCreationSites(
+            CallGraph CG) {
         throw new UnsupportedOperationException();
     }
 

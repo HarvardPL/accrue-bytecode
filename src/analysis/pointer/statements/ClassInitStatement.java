@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -41,7 +43,8 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit
@@ -52,12 +55,15 @@ public class ClassInitStatement extends PointsToStatement {
         // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
         if (PointsToAnalysis.outputLevel >= 2 && added) {
             for (IMethod m : clinits) {
-                System.err.print("ADDING CLINIT: " + PrettyPrinter.methodString(m));
+                System.err.print("ADDING CLINIT: "
+                        + PrettyPrinter.methodString(m));
             }
-            System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
+            System.err.println("\n\tFROM "
+                    + PrettyPrinter.methodString(getMethod()) + " in "
+                    + context);
         }
 
-        return false;
+        return new GraphDelta(g);
     }
 
     @Override
@@ -84,6 +90,18 @@ public class ClassInitStatement extends PointsToStatement {
 
     @Override
     public List<ReferenceVariable> getUses() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
         return Collections.emptyList();
     }
 }

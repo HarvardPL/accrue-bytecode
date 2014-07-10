@@ -8,9 +8,11 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
+import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar.InstructionInfo;
+import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
@@ -122,6 +124,11 @@ public class StatementRegistrationPass {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+        for (IMethod m : registrar.getRegisteredMethods()) {
+            Set<PointsToStatement> oldStatements = registrar.getStatementsForMethod(m);
+            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            registrar.replaceStatementsForMethod(m, newStatements);
         }
     }
 

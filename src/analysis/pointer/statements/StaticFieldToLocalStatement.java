@@ -1,10 +1,11 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -13,7 +14,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for an assignment from a static field to a local variable, v = o.x
@@ -38,7 +38,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
      *            points-to graph node for assignee
      * @param m
      */
-    protected StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IMethod m) {
+    protected StaticFieldToLocalStatement(ReferenceVariable local,
+            ReferenceVariable staticField, IMethod m) {
         super(m);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
@@ -48,15 +49,15 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
 
         PointsToGraphNode l = new ReferenceVariableReplica(context, local);
-        PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField);
+        PointsToGraphNode r =
+                new ReferenceVariableReplica(haf.initialContext(), staticField);
 
-        Set<InstanceKey> s = g.getPointsToSet(r);
-        assert checkForNonEmpty(s, r, "STATIC FIELD");
-
-        return g.addEdges(l, s);
+        // don't need to use delta, as this just adds a subset edge
+        return g.copyEdges(r, l);
     }
 
     @Override
@@ -86,5 +87,19 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return local;
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(),
+                                                                  staticField));
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local);
+        return Collections.singleton(l);
     }
 }

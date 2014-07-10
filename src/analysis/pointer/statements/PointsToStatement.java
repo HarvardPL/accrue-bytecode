@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -9,6 +10,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -60,12 +62,17 @@ public abstract class PointsToStatement {
      *            factory for creating new analysis contexts
      * @param g
      *            points-to graph (may be modified)
+     * @param delta
+     *            Changes to the graph relevant to this statement since the last time this stmt was processed. Maybe
+     *            null (e.g., if it is the first time the statement is processed, and may be used by the processing to
+     *            improve the performance of processing).
      * @param registrar
      *            Points-to statement registrar
-     * @return true if the points-to graph was modified
+     * @return Changes to the graph as a result of processing this statement. Must be non-null.
      */
-    public abstract boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                    StatementRegistrar registrar);
+    public abstract GraphDelta process(Context context,
+            HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+            StatementRegistrar registrar);
 
     @Override
     public final int hashCode() {
@@ -90,7 +97,8 @@ public abstract class PointsToStatement {
      *            assigned
      * @return true if right can safely be assigned to the left
      */
-    protected final boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
+    protected final boolean checkTypes(ReferenceVariableReplica left,
+            ReferenceVariableReplica right) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         IClass c1 = cha.lookupClass(left.getExpectedType());
         IClass c2 = cha.lookupClass(right.getExpectedType());
@@ -104,16 +112,21 @@ public abstract class PointsToStatement {
             // c2 may be the merge of two different types that both implement c1 and the assignment is safe OK
             // Unfortunately we've lost the information about which interfaces c2 implements at this point. It would be
             // nice if the type inference kept this information.
-            System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
-            System.err.println("\tassigned type: " + PrettyPrinter.typeString(left.getExpectedType())
-                                            + " is an interface and the assignee is java.lang.Object. ");
+            System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left
+                    + " = " + right + " is invalid");
+            System.err.println("\tassigned type: "
+                    + PrettyPrinter.typeString(left.getExpectedType())
+                    + " is an interface and the assignee is java.lang.Object. ");
             System.err.println("\tBut since the type inference does not track interfaces the actual value may still implement the interface.");
             return true;
         }
 
-        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
-        System.err.println("\t" + PrettyPrinter.typeString(left.getExpectedType()) + " = "
-                                        + PrettyPrinter.typeString(right.getExpectedType()) + " does not type check");
+        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left
+                + " = " + right + " is invalid");
+        System.err.println("\t"
+                + PrettyPrinter.typeString(left.getExpectedType()) + " = "
+                + PrettyPrinter.typeString(right.getExpectedType())
+                + " does not type check");
         if (PointsToAnalysis.outputLevel >= 1) {
             CFGWriter.writeToFile(getMethod());
             TypeRepository.print(getMethod());
@@ -136,10 +149,13 @@ public abstract class PointsToStatement {
      *            callee method
      * @return false if the check fails and all the conditions required to perform the check hold
      */
-    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet, PointsToGraphNode r, String description) {
-        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && pointsToSet.isEmpty()) {
-            System.err.println("EMPTY: " + r + " in " + this + " " + description + " from "
-                                            + PrettyPrinter.methodString(getMethod()));
+    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet,
+            PointsToGraphNode r, String description) {
+        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6
+                && pointsToSet.isEmpty()) {
+            System.err.println("EMPTY: " + r + " in " + this + " "
+                    + description + " from "
+                    + PrettyPrinter.methodString(getMethod()));
             return false;
         }
         return true;
@@ -155,7 +171,7 @@ public abstract class PointsToStatement {
      *            reference variable to replace the use
      */
     public abstract void replaceUse(int useNumber, ReferenceVariable newVariable);
-    
+
     /**
      * Get all variables used by this points-to statement. The order is arbitrary but the index is guaranteed to be the
      * same as the use number in {@link PointsToStatement#replaceUse(int, ReferenceVariable)}.
@@ -170,4 +186,24 @@ public abstract class PointsToStatement {
      * @return local variable assigned into, null if there no such variable
      */
     public abstract ReferenceVariable getDef();
+
+    /**
+     * Get the objects that processing this PointsToStatement in the 
+     * specified context will "read". One PointsToStatement depends on another
+     * if the first "reads" an object that the other "writes". The objects
+     * are typically ReferenceVariableReplicas, but may use other objects
+     * (e.g., FieldReferences and IMethods) to express dependencies between 
+     * statements.
+     */
+    public abstract Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf);
+
+    /**
+     * Get the objects that processing this PointsToStatement in the 
+     * specified context will "write". See documentation for 
+     * getReadDependencies
+     */
+    public abstract Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf);
+
 }

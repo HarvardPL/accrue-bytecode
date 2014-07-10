@@ -1,28 +1,30 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.TypeReference;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
 
     private ReferenceVariable thrown;
     private final ReferenceVariable caught;
-    private final Set<IClass> notType;
+    private final TypeFilter filter;
 
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
@@ -38,49 +40,56 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      * @param m
      *            method the exception is thrown in
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
-                                    IMethod m) {
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown,
+            ReferenceVariable caught, Set<IClass> notType, IMethod m) {
         super(m);
         assert notType != null;
         this.thrown = thrown;
         this.caught = caught;
-        this.notType = notType;
+        if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
+            if (notType.isEmpty()) {
+                filter = null;
+            }
+            else {
+                filter = TypeFilter.create((IClass) null, notType);
+            }
+        }
+        else {
+            filter = TypeFilter.create(caught.getExpectedType(), notType);
+        }
+
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
         PointsToGraphNode r;
         if (thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
             r = new ReferenceVariableReplica(haf.initialContext(), thrown);
-        } else {
+        }
+        else {
             r = new ReferenceVariableReplica(context, thrown);
         }
 
-        Set<InstanceKey> s;
-        if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
-            if (notType.isEmpty()) {
-                // Nothing to filter out
-                s = g.getPointsToSet(r);
-            }
-            else {
-                // All exceptions are "Throwable" so don't apply that filter
-                s = g.getPointsToSetFiltered(r, null, notType);
-            }
+        // don't need to use delta, as this just adds a subset edge
+        if (filter == null) {
+            return g.copyEdges(r, l);
         }
         else {
-            s = g.getPointsToSetFiltered(r, caught.getExpectedType(), notType);
+            return g.copyFilteredEdges(r, filter, l);
         }
-        assert checkForNonEmpty(s, r, "EX ASSIGN filtered on " + caught.getExpectedType() + " not " + notType);
 
-        return g.addEdges(l, s);
     }
 
     @Override
     public String toString() {
-        return caught + " = (" + PrettyPrinter.typeString(caught.getExpectedType()) + ") " + thrown + " NOT " + notType;
+        return caught + " = ("
+                + PrettyPrinter.typeString(caught.getExpectedType()) + ") "
+                + thrown + " NOT "
+                + (filter == null ? "empty" : filter.notTypes);
     }
 
     @Override
@@ -102,7 +111,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     public Set<IClass> getNotTypes() {
-        return notType;
+        if (filter == null || filter.notTypes == null) {
+            return Collections.emptySet();
+        }
+        return filter.notTypes;
     }
 
     /**
@@ -113,4 +125,26 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public ReferenceVariable getCaughtException() {
         return caught;
     }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        ReferenceVariableReplica r;
+        if (thrown.isSingleton()) {
+            // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
+            // variable is created for each generated exception type
+            r = new ReferenceVariableReplica(haf.initialContext(), thrown);
+        }
+        else {
+            r = new ReferenceVariableReplica(ctxt, thrown);
+        }
+        return Collections.singleton(r);
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, caught));
+    }
+
 }

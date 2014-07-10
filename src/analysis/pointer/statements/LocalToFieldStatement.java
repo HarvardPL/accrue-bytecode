@@ -1,10 +1,13 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -25,6 +28,7 @@ public class LocalToFieldStatement extends PointsToStatement {
      * Field assigned into
      */
     private final FieldReference field;
+
     /**
      * receiver for field access
      */
@@ -32,7 +36,7 @@ public class LocalToFieldStatement extends PointsToStatement {
     /**
      * Value assigned into field
      */
-    private ReferenceVariable assigned;
+    private ReferenceVariable localVar;
 
     /**
      * Statement for an assignment into a field, o.f = v
@@ -46,27 +50,44 @@ public class LocalToFieldStatement extends PointsToStatement {
      * @param m
      *            method the points-to statement came from
      */
-    public LocalToFieldStatement(ReferenceVariable o, FieldReference f, ReferenceVariable v, IMethod m) {
+    public LocalToFieldStatement(ReferenceVariable o, FieldReference f,
+            ReferenceVariable v, IMethod m) {
         super(m);
-        this.field = f;
-        this.receiver = o;
-        this.assigned = v;
+        field = f;
+        receiver = o;
+        localVar = v;
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
-        PointsToGraphNode local = new ReferenceVariableReplica(context, assigned);
-        Set<InstanceKey> localHeapContexts = g.getPointsToSetFiltered(local, field.getFieldType());
-        assert checkForNonEmpty(localHeapContexts, local, "LOCAL: filetered on " + field.getFieldType());
+        PointsToGraphNode local =
+                new ReferenceVariableReplica(context, localVar);
 
-        Set<InstanceKey> recHCs = g.getPointsToSet(rec);
-        assert checkForNonEmpty(recHCs, rec, "FIELD RECEIVER");
+        GraphDelta changed = new GraphDelta(g);
 
-        boolean changed = false;
-        for (InstanceKey recHeapContext : recHCs) {
-            ObjectField f = new ObjectField(recHeapContext, field.getName().toString(), field.getFieldType());
-            changed |= g.addEdges(f, localHeapContexts);
+        if (delta == null) {
+            // no delta, let's do some simple processing
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKey recHeapContext = iter.next();
+
+                ObjectField f = new ObjectField(recHeapContext, field);
+                // o.f can point to anything that local can.
+                GraphDelta d1 = g.copyEdges(local, f);
+
+                changed = changed.combine(d1);
+            }
+        }
+        else {
+            // We check if o has changed what it points to. If it has, we need to make the new object fields
+            // point to everything that the RHS can.
+            for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKey recHeapContext = iter.next();
+                ObjectField contents = new ObjectField(recHeapContext, field);
+                GraphDelta d1 = g.copyEdges(local, contents);
+                changed = changed.combine(d1);
+            }
         }
 
         return changed;
@@ -74,7 +95,11 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return receiver + "." + (field != null ? field.getName() : PointsToGraph.ARRAY_CONTENTS) + " = " + assigned;
+        return receiver
+                + "."
+                + (field != null
+                        ? field.getName() : PointsToGraph.ARRAY_CONTENTS)
+                + " = " + localVar;
     }
 
     @Override
@@ -84,19 +109,37 @@ public class LocalToFieldStatement extends PointsToStatement {
             receiver = newVariable;
             return;
         }
-        assigned = newVariable;
+        localVar = newVariable;
     }
 
     @Override
     public List<ReferenceVariable> getUses() {
         List<ReferenceVariable> uses = new ArrayList<>(2);
         uses.add(receiver);
-        uses.add(assigned);
+        uses.add(localVar);
         return uses;
     }
 
     @Override
     public ReferenceVariable getDef() {
         return null;
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        ReferenceVariableReplica rec =
+                new ReferenceVariableReplica(ctxt, receiver);
+        ReferenceVariableReplica var =
+                new ReferenceVariableReplica(ctxt, localVar);
+        List<ReferenceVariableReplica> uses = new ArrayList<>(2);
+        uses.add(rec);
+        uses.add(var);
+        return uses;
+
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+        return Collections.singleton(field);
     }
 }

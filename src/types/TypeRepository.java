@@ -5,7 +5,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +34,8 @@ public class TypeRepository {
     /**
      * Memoize results of isAssignable
      */
-    private static final Map<OrderedPair<IClass, IClass>, Boolean> isAssignable = new HashMap<>();
+    private static final Map<OrderedPair<IClass, IClass>, Boolean> isAssignable = AnalysisUtil
+                                    .createConcurrentHashMap();
     /**
      * Results of WALA type inference
      */

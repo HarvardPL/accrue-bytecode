@@ -1,9 +1,11 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -41,10 +43,15 @@ public class NewStatement extends PointsToStatement {
      * @param pc
      *            program counter of the allocation
      */
-    protected NewStatement(ReferenceVariable result, IClass newClass, IMethod m, int pc) {
+    protected NewStatement(ReferenceVariable result, IClass newClass,
+            IMethod m, int pc) {
         super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createNormal(newClass, m.getDeclaringClass(), result, pc);
+        alloc =
+                AllocSiteNodeFactory.createNormal(newClass,
+                                                  m.getDeclaringClass(),
+                                                  result,
+                                                  pc);
     }
 
     /**
@@ -59,18 +66,25 @@ public class NewStatement extends PointsToStatement {
      * @param m
      *            method the points-to statement came from
      */
-    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IMethod m) {
+    protected NewStatement(String name, ReferenceVariable result,
+            IClass allocatedClass, IMethod m) {
         super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createGenerated(name, allocatedClass, m.getDeclaringClass(), result);
+        alloc =
+                AllocSiteNodeFactory.createGenerated(name,
+                                                     allocatedClass,
+                                                     m.getDeclaringClass(),
+                                                     result);
     }
 
     @Override
-    public boolean process(Context context, HeapAbstractionFactory haf, PointsToGraph g, StatementRegistrar registrar) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         InstanceKey newHeapContext = haf.record(alloc, context);
         assert newHeapContext != null;
 
-        ReferenceVariableReplica r = new ReferenceVariableReplica(context, result);
+        ReferenceVariableReplica r =
+                new ReferenceVariableReplica(context, result);
         return g.addEdge(r, newHeapContext);
     }
 
@@ -92,5 +106,17 @@ public class NewStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return result;
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.emptySet();
+    }
+
+    @Override
+    public Collection<?> getWriteDependencis(Context ctxt,
+            HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, result));
     }
 }

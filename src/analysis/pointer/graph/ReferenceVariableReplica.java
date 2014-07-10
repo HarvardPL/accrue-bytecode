@@ -8,18 +8,18 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Reference Variable in a particular context
  */
-public class ReferenceVariableReplica implements PointsToGraphNode {
+public final class ReferenceVariableReplica implements PointsToGraphNode {
 
     private final Context context;
     private final ReferenceVariable l;
     private final int memoizedHashCode;
 
     public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
-        assert (rv != null);
-        assert (context != null);
-        this.l = rv;
+        assert rv != null;
+        assert context != null;
+        l = rv;
         this.context = context;
-        this.memoizedHashCode = computeHashCode();
+        memoizedHashCode = computeHashCode();
     }
 
     /**
@@ -43,17 +43,12 @@ public class ReferenceVariableReplica implements PointsToGraphNode {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (!(obj instanceof ReferenceVariableReplica)) return false;
         ReferenceVariableReplica other = (ReferenceVariableReplica) obj;
-        if (!context.equals(other.context))
-            return false;
-        if (!l.equals(other.l))
-            return false;
+        if (!context.equals(other.context)) return false;
+        if (!l.equals(other.l)) return false;
         return true;
     }
 
