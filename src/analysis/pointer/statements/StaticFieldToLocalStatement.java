@@ -97,7 +97,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt,
+    public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
         ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local);
         return Collections.singleton(l);

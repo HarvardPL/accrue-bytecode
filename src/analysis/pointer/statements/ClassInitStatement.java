@@ -100,7 +100,7 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt,
+    public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
         return Collections.emptyList();
     }

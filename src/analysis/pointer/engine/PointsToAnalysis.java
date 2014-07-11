@@ -73,12 +73,12 @@ public abstract class PointsToAnalysis {
             this.context = context;
         }
 
-        public Collection<?> getRVRReads(HeapAbstractionFactory haf) {
-            return stmt.getReadDependencies(context, haf);
+        public Collection<?> getReadDependencies(HeapAbstractionFactory haf) {
+            return this.stmt.getReadDependencies(this.context, haf);
         }
 
-        public Collection<?> getRVRWrites(HeapAbstractionFactory haf) {
-            return stmt.getWriteDependencis(context, haf);
+        public Collection<?> getWriteDependencies(HeapAbstractionFactory haf) {
+            return this.stmt.getWriteDependencies(this.context, haf);
         }
 
         @Override
@@ -86,31 +86,45 @@ public abstract class PointsToAnalysis {
             final int prime = 31;
             int result = 1;
             result =
-                    prime * result + (context == null ? 0 : context.hashCode());
-            result = prime * result + (stmt == null ? 0 : stmt.hashCode());
+                    prime * result + (this.context == null ? 0 : this.context.hashCode());
+            result = prime * result + (this.stmt == null ? 0 : this.stmt.hashCode());
             return result;
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (this.getClass() != obj.getClass()) {
+                return false;
+            }
             StmtAndContext other = (StmtAndContext) obj;
-            if (context == null) {
-                if (other.context != null) return false;
+            if (this.context == null) {
+                if (other.context != null) {
+                    return false;
+                }
             }
-            else if (!context.equals(other.context)) return false;
-            if (stmt == null) {
-                if (other.stmt != null) return false;
+            else if (!this.context.equals(other.context)) {
+                return false;
             }
-            else if (!stmt.equals(other.stmt)) return false;
+            if (this.stmt == null) {
+                if (other.stmt != null) {
+                    return false;
+                }
+            }
+            else if (!this.stmt.equals(other.stmt)) {
+                return false;
+            }
             return true;
         }
 
         @Override
         public String toString() {
-            return stmt + " in " + context;
+            return this.stmt + " in " + this.context;
         }
     }
 }

@@ -1,5 +1,6 @@
 package android.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,26 +29,26 @@ public class CallBackStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                    StatementRegistrar registrar) {
+                              StatementRegistrar registrar) {
         boolean changed = false;
-        for (IMethod m : callbackMethods) {
+        for (IMethod m : this.callbackMethods) {
             changed |= g.addEntryPoint(m);
         }
 
         if (PointsToAnalysis.outputLevel >= 2 && changed) {
-            for (IMethod m : callbackMethods) {
+            for (IMethod m : this.callbackMethods) {
                 System.err.print("ADDING CALLBACK: " + PrettyPrinter.methodString(m));
             }
-            System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
+            System.err.println("\n\tFROM " + PrettyPrinter.methodString(this.getMethod()) + " in " + context);
         }
 
-        return new GraphDelta();
+        return new GraphDelta(g);
     }
 
     @Override
     public String toString() {
         Set<String> names = new LinkedHashSet<>();
-        for (IMethod m : callbackMethods) {
+        for (IMethod m : this.callbackMethods) {
             names.add(PrettyPrinter.methodString(m));
         }
         return "callbacks: " + names;
@@ -66,6 +67,18 @@ public class CallBackStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return null;
+    }
+
+    @Override
+    public Collection<?> getReadDependencies(Context ctxt,
+                                             HeapAbstractionFactory haf) {
+        throw new UnsupportedOperationException("Chat with Steve about what should go here.");
+    }
+
+    @Override
+    public Collection<?> getWriteDependencies(Context ctxt,
+                                             HeapAbstractionFactory haf) {
+        throw new UnsupportedOperationException("Chat with Steve about what should go here.");
     }
 
 }

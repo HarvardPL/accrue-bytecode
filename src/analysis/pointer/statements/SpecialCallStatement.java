@@ -58,9 +58,9 @@ public class SpecialCallStatement extends CallStatement {
      *            summary nodes for formals and exits of the callee
      */
     protected SpecialCallStatement(CallSiteReference callSite, IMethod caller,
-            IMethod callee, ReferenceVariable result,
-            ReferenceVariable receiver, List<ReferenceVariable> actuals,
-            ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
+                                   IMethod callee, ReferenceVariable result,
+                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
+                                   ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
@@ -69,44 +69,44 @@ public class SpecialCallStatement extends CallStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep =
-                new ReferenceVariableReplica(context, receiver);
+                new ReferenceVariableReplica(context, this.receiver);
         GraphDelta changed = new GraphDelta(g);
 
         Iterator<InstanceKey> iter =
                 delta == null
-                        ? g.pointsToIterator(receiverRep)
+                ? g.pointsToIterator(receiverRep)
                         : delta.pointsToIterator(receiverRep);
-        while (iter.hasNext()) {
-            InstanceKey recHeapCtxt = iter.next();
-            changed =
-                    changed.combine(processCall(context,
-                                                recHeapCtxt,
-                                                callee,
-                                                g,
-                                                haf,
-                                                calleeSummary));
-        }
-        return changed;
+                while (iter.hasNext()) {
+                    InstanceKey recHeapCtxt = iter.next();
+                    changed =
+                            changed.combine(this.processCall(context,
+                                                             recHeapCtxt,
+                                                             this.callee,
+                                                             g,
+                                                             haf,
+                                                             this.calleeSummary));
+                }
+                return changed;
 
     }
 
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
-        if (getResult() != null) {
-            s.append(getResult().toString() + " = ");
+        if (this.getResult() != null) {
+            s.append(this.getResult().toString() + " = ");
         }
-        s.append("invokespecial " + PrettyPrinter.methodString(callee));
+        s.append("invokespecial " + PrettyPrinter.methodString(this.callee));
 
         s.append(" -- ");
-        s.append(receiver);
+        s.append(this.receiver);
         s.append(".");
-        s.append(callee.getName());
+        s.append(this.callee.getName());
         s.append("(");
-        List<ReferenceVariable> actuals = getActuals();
-        if (getActuals().size() > 1) {
+        List<ReferenceVariable> actuals = this.getActuals();
+        if (this.getActuals().size() > 1) {
             s.append(actuals.get(1));
         }
         for (int j = 2; j < actuals.size(); j++) {
@@ -120,12 +120,12 @@ public class SpecialCallStatement extends CallStatement {
 
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
-        assert useNumber <= getActuals().size() && useNumber >= 0;
+        assert useNumber <= this.getActuals().size() && useNumber >= 0;
         if (useNumber == 0) {
-            receiver = newVariable;
+            this.receiver = newVariable;
             return;
         }
-        replaceActual(useNumber - 1, newVariable);
+        this.replaceActual(useNumber - 1, newVariable);
     }
 
     /**
@@ -135,45 +135,49 @@ public class SpecialCallStatement extends CallStatement {
      */
     @Override
     public List<ReferenceVariable> getUses() {
-        List<ReferenceVariable> uses = new ArrayList<>(getActuals().size() + 1);
-        uses.add(receiver);
-        uses.addAll(getActuals());
+        List<ReferenceVariable> uses = new ArrayList<>(this.getActuals().size() + 1);
+        uses.add(this.receiver);
+        uses.addAll(this.getActuals());
         return uses;
     }
 
     @Override
     public ReferenceVariable getDef() {
-        return getResult();
+        return this.getResult();
     }
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> uses =
-                new ArrayList<>(getActuals().size() + 1);
-        uses.add(new ReferenceVariableReplica(ctxt, receiver));
-        for (ReferenceVariable use : getActuals()) {
+        List<Object> uses = new ArrayList<>(this.getActuals()
+                .size() + 3);
+        uses.add(new ReferenceVariableReplica(ctxt, this.receiver));
+        for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
                 ReferenceVariableReplica n =
                         new ReferenceVariableReplica(ctxt, use);
                 uses.add(n);
             }
         }
+
+        // Add the exception variable. Can't be more precise here unfortunately...
+        uses.add(this.calleeSummary.getException());
+
         return uses;
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         List<Object> defs = new ArrayList<>(3);
 
-        if (getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, getResult()));
+        if (this.getResult() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, this.getResult()));
         }
-        if (getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, getException()));
+        if (this.getException() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, this.getException()));
         }
         // add the IMethod of the callee so that we get run before
         // the local-to-local's of the callee's method summaries
-        defs.add(callee);
+        defs.add(this.callee);
         return defs;
     }
 }

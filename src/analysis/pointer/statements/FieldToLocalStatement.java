@@ -51,24 +51,24 @@ public class FieldToLocalStatement extends PointsToStatement {
      *            method the statement was created for
      */
     protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o,
-            FieldReference f, IMethod m) {
+                                    FieldReference f, IMethod m) {
         super(m);
-        declaredField = f;
-        receiver = o;
-        assignee = l;
+        this.declaredField = f;
+        this.receiver = o;
+        this.assignee = l;
     }
 
     @Override
     public String toString() {
-        return assignee + " = " + receiver + "." + declaredField.getName();
+        return this.assignee + " = " + this.receiver + "." + this.declaredField.getName();
     }
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         PointsToGraphNode left =
-                new ReferenceVariableReplica(context, assignee);
-        PointsToGraphNode rec = new ReferenceVariableReplica(context, receiver);
+                new ReferenceVariableReplica(context, this.assignee);
+        PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -76,7 +76,7 @@ public class FieldToLocalStatement extends PointsToStatement {
             // let's do the normal processing
             for (Iterator<InstanceKey> iter = g.pointsToIterator(rec); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
-                ObjectField f = new ObjectField(recHeapContext, declaredField);
+                ObjectField f = new ObjectField(recHeapContext, this.declaredField);
 
                 //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
                 GraphDelta d1 = g.copyEdges(f, left);
@@ -91,8 +91,8 @@ public class FieldToLocalStatement extends PointsToStatement {
                 InstanceKey recHeapContext = iter.next();
                 ObjectField f =
                         new ObjectField(recHeapContext,
-                                        declaredField.getName().toString(),
-                                        declaredField.getFieldType());
+                                        this.declaredField.getName().toString(),
+                                        this.declaredField.getFieldType());
                 GraphDelta d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
             }
@@ -105,18 +105,18 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     @Override
     public ReferenceVariable getDef() {
-        return assignee;
+        return this.assignee;
     }
 
     @Override
     public List<ReferenceVariable> getUses() {
-        return Collections.singletonList(receiver);
+        return Collections.singletonList(this.receiver);
     }
 
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
         assert useNumber == 0;
-        receiver = newVariable;
+        this.receiver = newVariable;
     }
 
     /**
@@ -125,24 +125,25 @@ public class FieldToLocalStatement extends PointsToStatement {
      * @return accessed field
      */
     public FieldReference getField() {
-        return declaredField;
+        return this.declaredField;
     }
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
         ReferenceVariableReplica rec =
-                new ReferenceVariableReplica(ctxt, receiver);
+                new ReferenceVariableReplica(ctxt, this.receiver);
 
         List<Object> uses = new ArrayList<>(2);
         uses.add(rec);
-        uses.add(declaredField);
+        uses.add(this.declaredField);
+
         return uses;
 
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt,
-                                                                  assignee));
+                                                                  this.assignee));
     }
 }

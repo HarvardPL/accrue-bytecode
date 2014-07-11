@@ -1,10 +1,12 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -27,6 +29,11 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     private final TypeFilter filter;
 
     /**
+     * Is right from a method summary?
+     */
+    private final boolean isToMethodSummaryVariable;
+
+    /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
      * 
@@ -41,61 +48,64 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      *            method the exception is thrown in
      */
     protected ExceptionAssignmentStatement(ReferenceVariable thrown,
-            ReferenceVariable caught, Set<IClass> notType, IMethod m) {
+                                           ReferenceVariable caught,
+                                           Set<IClass> notType, IMethod m,
+                                           boolean isToMethodSummaryVariable) {
         super(m);
         assert notType != null;
+        this.isToMethodSummaryVariable = isToMethodSummaryVariable;
         this.thrown = thrown;
         this.caught = caught;
         if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
             if (notType.isEmpty()) {
-                filter = null;
+                this.filter = null;
             }
             else {
-                filter = TypeFilter.create((IClass) null, notType);
+                this.filter = TypeFilter.create((IClass) null, notType);
             }
         }
         else {
-            filter = TypeFilter.create(caught.getExpectedType(), notType);
+            this.filter = TypeFilter.create(caught.getExpectedType(), notType);
         }
 
     }
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
-        PointsToGraphNode l = new ReferenceVariableReplica(context, caught);
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+        PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught);
         PointsToGraphNode r;
-        if (thrown.isSingleton()) {
+        if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), thrown);
+            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown);
         }
         else {
-            r = new ReferenceVariableReplica(context, thrown);
+            r = new ReferenceVariableReplica(context, this.thrown);
         }
 
         // don't need to use delta, as this just adds a subset edge
-        if (filter == null) {
+        if (this.filter == null) {
             return g.copyEdges(r, l);
         }
         else {
-            return g.copyFilteredEdges(r, filter, l);
+            return g.copyFilteredEdges(r, this.filter, l);
         }
 
     }
 
     @Override
     public String toString() {
-        return caught + " = ("
-                + PrettyPrinter.typeString(caught.getExpectedType()) + ") "
-                + thrown + " NOT "
-                + (filter == null ? "empty" : filter.notTypes);
+        return this.caught + " = ("
+                + PrettyPrinter.typeString(this.caught.getExpectedType()) + ") "
+                + this.thrown + " NOT "
+                + (this.filter == null ? "empty" : this.filter.notTypes);
     }
 
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
         assert useNumber == 0;
-        thrown = newVariable;
+        this.thrown = newVariable;
     }
 
     @Override
@@ -107,14 +117,14 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public List<ReferenceVariable> getUses() {
-        return Collections.singletonList(thrown);
+        return Collections.singletonList(this.thrown);
     }
 
     public Set<IClass> getNotTypes() {
-        if (filter == null || filter.notTypes == null) {
+        if (this.filter == null || this.filter.notTypes == null) {
             return Collections.emptySet();
         }
-        return filter.notTypes;
+        return this.filter.notTypes;
     }
 
     /**
@@ -123,28 +133,44 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      * @return variable for exception being assigned to
      */
     public ReferenceVariable getCaughtException() {
-        return caught;
+        return this.caught;
     }
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+                                             HeapAbstractionFactory haf) {
         ReferenceVariableReplica r;
-        if (thrown.isSingleton()) {
+        if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), thrown);
+            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown);
         }
         else {
-            r = new ReferenceVariableReplica(ctxt, thrown);
+            r = new ReferenceVariableReplica(ctxt, this.thrown);
         }
         return Collections.singleton(r);
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, caught));
+    public Collection<?> getWriteDependencies(Context ctxt,
+                                              HeapAbstractionFactory haf) {
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt,
+                                                                  this.caught);
+        if (this.isToMethodSummaryVariable && !this.getMethod().isStatic()) {
+            List<Object> defs = new ArrayList<>(3);
+            defs.add(r);
+            defs.add(this.caught);
+            if (!this.getMethod().isPrivate()) {
+                // Add in a special object for the exceptional return, so that virtual call statements can
+                // have a read dependency on it...
+                defs.add(new OrderedPair<>(this.getMethod().getSelector(),
+                        "ex-return"));
+            }
+            return defs;
+        }
+        else {
+            return Collections.singleton(r);
+        }
     }
 
 }
