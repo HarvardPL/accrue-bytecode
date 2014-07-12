@@ -46,7 +46,7 @@ public class VirtualCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a virtual method invocation.
-     * 
+     *
      * @param callSite
      *            Method call site
      * @param caller
@@ -121,7 +121,7 @@ public class VirtualCallStatement extends CallStatement {
                 return changed;
     }
 
-    private IMethod resolveMethod(IClass receiverConcreteType,
+    protected IMethod resolveMethod(IClass receiverConcreteType,
                                   TypeReference receiverExpectedType) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         IMethod resolvedCallee =
@@ -180,7 +180,7 @@ public class VirtualCallStatement extends CallStatement {
 
     /**
      * Variable for receiver followed by variables for arguments in order
-     * 
+     *
      * {@inheritDoc}
      */
     @Override
