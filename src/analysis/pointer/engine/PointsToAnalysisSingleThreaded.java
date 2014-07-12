@@ -1,21 +1,19 @@
 package analysis.pointer.engine;
 
 import java.util.AbstractQueue;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 
 import util.Histogram;
-import util.OrderedPair;
-import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -49,7 +47,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     /**
      * New pointer analysis engine
-     * 
+     *
      * @param haf Abstraction factory for this points-to analysis
      */
     public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
@@ -68,9 +66,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     /**
      * Slow naive implementation suitable for testing
-     * 
+     *
      * @param registrar Point-to statement registrar
-     * 
+     *
      * @return Points-to graph
      */
     @Deprecated
@@ -91,13 +89,17 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Generate a points-to graph by tracking dependencies and only analyzing
-     * statements that are reachable from the entry point
-     * 
+     * A placeholder object to indicate that we should process a statement without a GraphDelta.
+     */
+    private static final GraphDelta NO_DELTA = new GraphDelta(null);
+
+    /**
+     * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
+     * entry point
+     *
      * @param registrar points-to statement registrar
-     * @param registerOnline Whether to generate points-to statements during the
-     *            points-to analysis, otherwise the registrar will already be
-     *            populated
+     * @param registerOnline Whether to generate points-to statements during the points-to analysis, otherwise the
+     *            registrar will already be populated
      * @return Points-to graph
      */
     public PointsToGraph solveSmarter(StatementRegistrar registrar,
@@ -107,48 +109,29 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
 
-        Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>>());
-        Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>>());
-        Queue<StmtAndContext> noDeltaQueue = new SCCSortQueue();
+        Queue<StmtAndContext> queue = new SCCSortQueue();
+        Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    noDeltaQueue.add(new StmtAndContext(s, c));
+                    StmtAndContext sac = new StmtAndContext(s, c);
+                    queue.add(sac);
+                    deltas.put(sac, NO_DELTA);
                 }
             }
         }
 
         this.lastTime = this.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
-        while (!queue.isEmpty() || !nextQueue.isEmpty()
-                || !noDeltaQueue.isEmpty()) {
-            if (queue.isEmpty()) {
-                // the queue is now empty, swap it with nextQueue
-                Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> t = queue;
-                queue = nextQueue;
-                nextQueue = t;
+        while (!queue.isEmpty()) {
+            StmtAndContext sac = queue.poll();
+            GraphDelta delta = deltas.remove(sac);
+            if (delta == NO_DELTA) {
+                delta = null;
             }
-
-            // get the next sac, and the delta for it.
-            if (queue.isEmpty()) {
-                // get the next from the noDelta queue
-                StmtAndContext sac = noDeltaQueue.poll();
-                this.processSaC(sac, null, g, registrar, nextQueue,
-                                noDeltaQueue, registerOnline);
-
-            }
-            else {
-                OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>> next = queue.poll();
-                GraphDelta delta = next.fst();
-                Collection<StmtAndContext> sacs = next.snd();
-
-                for (StmtAndContext sac : sacs) {
-                    this.processSaC(sac, delta, g, registrar, nextQueue,
-                                    noDeltaQueue, registerOnline);
-                }
-            }
+            this.processSaC(sac, delta, g, registrar, queue, deltas, registerOnline);
         }
 
         long endTime = System.currentTimeMillis();
@@ -228,9 +211,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                             GraphDelta delta,
                             PointsToGraph g,
                             StatementRegistrar registrar,
-                            Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue,
-                            Queue<StmtAndContext> noDeltaQueue,
+                            Queue<StmtAndContext> queue,
+ Map<StmtAndContext, GraphDelta> deltas,
                             boolean registerOnline) {
+        // Do some accounting for debugging/informational purposes.
         this.numProcessed++;
         if (delta == null) {
             this.numNoDeltaProcessed++;
@@ -265,14 +249,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         // Add new contexts
         for (IMethod m : newContexts.keySet()) {
-            if (outputLevel >= 4) {
-                System.err.println("\tNEW CONTEXTS for "
-                        + PrettyPrinter.methodString(m));
-                for (Context context : newContexts.get(m)) {
-                    System.err.println("\t" + context);
-                }
-            }
-
             if (registerOnline) {
                 // Add statements for the given method to the registrar
                 long start = System.currentTimeMillis();
@@ -282,20 +258,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
-                if (outputLevel >= 4) {
-                    System.err.println("\t\tADDING " + stmt);
-                }
-
                 for (Context context : newContexts.get(m)) {
-                    noDeltaQueue.add(new StmtAndContext(stmt, context));
+                    StmtAndContext newSaC = new StmtAndContext(stmt, context);
+                    deltas.put(newSaC, NO_DELTA);
+                    queue.add(newSaC);
                 }
-            }
-        }
-
-        if (outputLevel >= 4 && !readNodes.isEmpty()) {
-            System.err.println("\tREAD:");
-            for (PointsToGraphNode read : readNodes) {
-                System.err.println("\t\t" + read);
             }
         }
 
@@ -320,7 +287,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
         }
-        this.handleChanges(queue, changed, g);
+        this.handleChanges(queue, deltas, changed, g);
 
         long currTime = System.currentTimeMillis();
         if (currTime > this.nextMilestone) {
@@ -332,8 +299,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             System.err.println("PROCESSED: " + this.numProcessed + " in "
                     + (currTime - this.startTime) / 1000 + "s;  graph="
                     + g.getBaseNodes().size() + " base nodes; cycles removed "
-                    + g.cycleRemovalCount() + " nodes ; queue=" + queue.size()
-                    + " noDeltaQueue=" + noDeltaQueue.size() + " ("
+ + g.cycleRemovalCount()
+                    + " nodes ; queue=" + queue.size() + " ("
                     + (this.numProcessed - this.lastNumProcessed) + " in "
                     + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
@@ -343,7 +310,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
     }
 
-    private void handleChanges(Queue<OrderedPair<GraphDelta, ? extends Collection<StmtAndContext>>> queue,
+    private void handleChanges(Queue<StmtAndContext> queue, Map<StmtAndContext, GraphDelta> deltas,
                                GraphDelta changes, PointsToGraph g) {
         if (changes.isEmpty()) {
             return;
@@ -351,15 +318,31 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Iterator<PointsToGraphNode> iter = changes.domainIterator();
         while (iter.hasNext()) {
             PointsToGraphNode n = iter.next();
-            queue.add(new OrderedPair<>(changes,
-                    this.getInterestingDependencies(n)));
+            for (StmtAndContext sac : this.getInterestingDependencies(n)) {
+                if (deltas.containsKey(sac)) {
+                    // the statement is already in the queue.
+                    GraphDelta existing = deltas.get(sac);
+                    if (existing == NO_DELTA) {
+                        // it's already doing everything, don't touch it
+                    }
+                    else {
+                        // Combine the graph deltas
+                        GraphDelta.merge(changes, existing);
+                    }
+                }
+                else {
+                    // statement is not already in the queue
+                    deltas.put(sac, changes);
+                    queue.add(sac);
+                }
+            }
         }
 
     }
 
     /**
      * Loop through and process all the points-to statements in the registrar.
-     * 
+     *
      * @param g points-to graph (may be modified)
      * @param registrar points-to statement registrar
      * @return true if the points-to graph changed
@@ -397,7 +380,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     /**
      * Get any (statement,context) pairs that depend on the given points-to
      * graph node
-     * 
+     *
      * @param n node to get the dependencies for
      * @return set of dependencies
      */
@@ -413,7 +396,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * Add the (statement, context) pair as a dependency of the points-to graph
      * node. This is an "interesting dependency", meaning that if the points to
      * set of n is modified, then sac will need to be processed again.
-     * 
+     *
      * @param n node the statement depends on
      * @param sac statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
@@ -429,137 +412,71 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
 
-    class TopoSortQueue extends AbstractQueue<StmtAndContext> {
-        ArrayList<StmtAndContext> current = new ArrayList<>();
-        Set<StmtAndContext> next = new HashSet<>();
-        Map<Object, Set<StmtAndContext>> readDependencies = new HashMap<>();
-
-        @Override
-        public boolean offer(StmtAndContext sac) {
-            this.next.add(sac);
-            // register it
-            for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                Set<StmtAndContext> set = this.readDependencies.get(read);
-                if (set == null) {
-                    set = new HashSet<>();
-                    this.readDependencies.put(read, set);
-                }
-                set.add(sac);
-            }
-            return true;
-        }
-
-        @Override
-        public StmtAndContext poll() {
-            if (this.current.isEmpty()) {
-                this.topoSortNextIntoCurrent();
-            }
-            return this.current.remove(this.current.size() - 1);
-        }
-
-        /*
-         * Topo sort the array
-         */
-        private void topoSortNextIntoCurrent() {
-            long start = System.currentTimeMillis();
-            this.next.addAll(this.current);
-            this.current.clear();
-
-            Set<StmtAndContext> done = new HashSet<>();
-            Set<StmtAndContext> visiting = new HashSet<>();
-            for (StmtAndContext sac : this.next) {
-                this.visit(sac, done, visiting);
-            }
-            long end = System.currentTimeMillis();
-            PointsToAnalysisSingleThreaded.this.topoSortTime += end - start;
-        }
-
-        private void visit(StmtAndContext sac, Set<StmtAndContext> done,
-                           Set<StmtAndContext> visiting) {
-            if (visiting.contains(sac)) {
-                // this is a cycle. ignore this edge
-                return;
-            }
-            if (!done.contains(sac)) {
-                visiting.add(sac);
-                for (StmtAndContext child : this.children(sac)) {
-                    this.visit(child, done, visiting);
-                }
-                done.add(sac);
-                visiting.remove(sac);
-                if (this.next.contains(sac)) {
-                    this.current.add(sac);
-                }
-            }
-        }
-
-        private Collection<StmtAndContext> children(StmtAndContext sac) {
-            // The children of sac are the StmtAndContexts that read a variable
-            // that sac writes.
-            HashSet<StmtAndContext> set = new HashSet<>();
-            for (Object written : sac.getWriteDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                Set<StmtAndContext> v = this.readDependencies.get(written);
-                if (v != null) {
-                    set.addAll(v);
-                }
-            }
-            return set;
-        }
-
-        @Override
-        public StmtAndContext peek() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Iterator<StmtAndContext> iterator() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int size() {
-            return this.current.size() + this.next.size();
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return this.current.isEmpty() && this.next.isEmpty();
-        }
-    }
 
     /**
-     * 
+     *
      */
     class SCCSortQueue extends AbstractQueue<StmtAndContext> {
-        ArrayList<StmtAndContext> current = new ArrayList<>();
+        //MutableIntSet current;
+        PriorityQueue<StmtAndContext> current;
         Set<StmtAndContext> next = new HashSet<>();
         Map<Object, Set<StmtAndContext>> readDependencies = new HashMap<>();
 
+        Map<StmtAndContext, Integer> indexMap = new HashMap<>();
+
+        //ArrayList<StmtAndContext> indexReverseMap = new ArrayList<>();
+
+        SCCSortQueue() {
+            Comparator<StmtAndContext> cmp = new Comparator<StmtAndContext>() {
+
+                @Override
+                public int compare(StmtAndContext o1, StmtAndContext o2) {
+                    int i1 = indexMap.get(o1);
+                    int i2 = indexMap.get(o2);
+                    if (i1 < i2) {
+                        return 1;
+                    }
+                    if (i1 > i2) {
+                        return -1;
+                    }
+                    return 0;
+                }
+            };
+            //this.current = MutableSparseIntSet.createMutableSparseIntSet(10000);
+            this.current = new PriorityQueue<>(10000, cmp);
+        }
         @Override
         public boolean offer(StmtAndContext sac) {
-            this.next.add(sac);
-            // register it
-            for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                Set<StmtAndContext> set = this.readDependencies.get(read);
-                if (set == null) {
-                    set = new HashSet<>();
-                    this.readDependencies.put(read,
-                                              set);
+            if (indexMap.containsKey(sac)) {
+                //                current.add(indexMap.get(sac));
+                current.add(sac);
+            }
+            else {
+                this.next.add(sac);
+                // register it
+                for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
+                    Set<StmtAndContext> set = this.readDependencies.get(read);
+                    if (set == null) {
+                        set = new HashSet<>();
+                        this.readDependencies.put(read, set);
+                    }
+                    set.add(sac);
                 }
-                set.add(sac);
             }
             return true;
         }
 
         @Override
         public StmtAndContext poll() {
-            if (this.current.isEmpty() || this.next.size() > 2500) {
+            if (this.current.isEmpty()/* || this.next.size() > 2500*/) {
                 this.sccSortNextIntoCurrent();
             }
-            return this.current.remove(this.current.size() - 1);
+            //            int max = this.current.max();
+            //            this.current.remove(max);
+            //            return indexReverseMap.get(max);
+            return current.poll();
         }
 
-        Map<StmtAndContext, Integer> indices;
         Set<StmtAndContext> visitingSet;
         Stack<StmtAndContext> visiting;
 
@@ -569,22 +486,29 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
          */
         private void sccSortNextIntoCurrent() {
             long start = System.currentTimeMillis();
-            this.next.addAll(this.current);
+            this.next.addAll(current);
+            //            this.current.foreach(new IntSetAction() {
+            //
+            //                @Override
+            //                public void act(int x) {
+            //                    next.add(indexReverseMap.get(x));
+            //                }
+            //            });
             this.current.clear();
 
             // reset the index counter.
             this.index = 0;
-            this.indices = new HashMap<>();
+            this.indexMap.clear();
+            //            this.indexReverseMap.clear();
             this.visitingSet = new HashSet<>();
             this.visiting = new Stack<>();
             for (StmtAndContext sac : this.next) {
-                if (!this.indices.containsKey(sac)) {
+                if (!this.indexMap.containsKey(sac)) {
                     this.visit(sac);
                 }
             }
 
             this.next.clear();
-            this.indices = null;
             this.visitingSet = null;
             this.visiting = null;
 
@@ -600,12 +524,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             int sacLowLink = this.index;
             this.index++;
 
-            this.indices.put(sac, sacIndex);
+            this.indexMap.put(sac, sacIndex);
+            //            this.indexReverseMap.add(sac);
+            //            assert this.indexReverseMap.size() == sacIndex;
             this.visitingSet.add(sac);
             this.visiting.push(sac);
 
             for (StmtAndContext w : this.children(sac)) {
-                Integer childIndex = this.indices.get(w);
+                Integer childIndex = this.indexMap.get(w);
                 if (childIndex == null) {
                     // successor child has not yet been visited. Recurse
                     int childLowLink = this.visit(w);
@@ -626,7 +552,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     w = this.visiting.pop();
                     this.visitingSet.remove(w);
                     if (this.next.contains(w)) {
-                        this.current.add(w);
+                        assert this.indexMap.containsKey(w);
+                        current.add(w);
+                        //                        current.add(indexMap.get(w));
                     }
                 } while (w != sac);
             }

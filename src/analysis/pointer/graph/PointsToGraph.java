@@ -120,7 +120,7 @@ public class PointsToGraph {
     /**
      * Populate the contexts map by adding the initial context for all the given
      * methods
-     * 
+     *
      * @param haf abstraction factory defining the initial context
      * @param initialMethods methods to be paired with the initial context
      * @return mapping from each method in the given set to the singleton set
@@ -193,7 +193,7 @@ public class PointsToGraph {
 
     /**
      * Add an edge from node to heapContext in the graph.
-     * 
+     *
      * @param node
      * @param heapContext
      * @return
@@ -233,13 +233,12 @@ public class PointsToGraph {
      * Copy the pointsto set of the source to the pointsto set of the target.
      * This should be used when the pointsto set of the target is a supserset of
      * the pointsto set of the source.
-     * 
+     *
      * @param source
      * @param target
      * @return
      */
-    public GraphDelta copyEdges(PointsToGraphNode source,
-                                PointsToGraphNode target) {
+    public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
         source = this.getRepresentative(source);
         target = this.getRepresentative(target);
 
@@ -270,7 +269,7 @@ public class PointsToGraph {
      * Copy the pointsto set of the source to the pointsto set of the target.
      * This should be used when the pointsto set of the target is a supserset of
      * the pointsto set of the source.
-     * 
+     *
      * @param source
      * @param target
      * @return
@@ -317,7 +316,7 @@ public class PointsToGraph {
      * Provide an interatory for the things that n points to. Note that we may
      * not return a set, i.e., some InstanceKeys may be returned multiple times.
      * XXX we may change this in the future...
-     * 
+     *
      * @param n
      * @return
      */
@@ -381,7 +380,7 @@ public class PointsToGraph {
 
     /**
      * XXXX DOCO TODO.
-     * 
+     *
      */
     @SuppressWarnings("deprecation")
     public boolean addCall(CallSiteReference callSite, IMethod caller,
@@ -418,7 +417,7 @@ public class PointsToGraph {
 
     /**
      * Record a callee context for the given method
-     * 
+     *
      * @param callee method
      * @param calleeContext context
      */
@@ -495,7 +494,7 @@ public class PointsToGraph {
 
     /**
      * Set of contexts for the given method
-     * 
+     *
      * @param m method reference to get contexts for
      * @return set of contexts for the given method
      */
@@ -598,7 +597,7 @@ public class PointsToGraph {
 
     /**
      * Get the procedure call graph
-     * 
+     *
      * @return call graph
      */
     public CallGraph getCallGraph() {
@@ -608,7 +607,7 @@ public class PointsToGraph {
     /**
      * Get new contexts created since this was last called and clear the new
      * context map
-     * 
+     *
      * @return new context map
      */
     public Map<IMethod, Set<Context>> getAndClearNewContexts() {
@@ -620,7 +619,7 @@ public class PointsToGraph {
     /**
      * Get the set of nodes that have been read since this was last called and
      * clear the set.
-     * 
+     *
      * @return set of nodes for which the points-to set was retrieved
      */
     public Set<PointsToGraphNode> getAndClearReadNodes() {
@@ -642,7 +641,7 @@ public class PointsToGraph {
     /**
      * When we have detected that the points to sets of two nodes are identical,
      * we can collapse them.
-     * 
+     *
      * @param n
      * @param rep
      */
@@ -749,7 +748,7 @@ public class PointsToGraph {
 
     /**
      * Add class initialization methods
-     * 
+     *
      * @param classInits list of class initializer is initialization order (i.e.
      *            element j is a super class of element j+1)
      * @return true if the call graph changed as a result of this call, false
@@ -790,7 +789,7 @@ public class PointsToGraph {
 
     /**
      * Add new entry point methods (i.e. methods called in the empty context)
-     * 
+     *
      * @param newEntryPoint list of methods to add
      * @return true if the call graph changed as a result of this call, false
      *         otherwise
@@ -1148,7 +1147,7 @@ public class PointsToGraph {
     /**
      * Return the set of InstanceKeys that are in source (and satisfy filter)
      * but are not in target.
-     * 
+     *
      * @param source
      * @param filter
      * @param target
@@ -1191,7 +1190,7 @@ public class PointsToGraph {
 
     /**
      * Return whatever is in set which is not in the points to set of target.
-     * 
+     *
      * @param set
      * @param target
      * @return
@@ -1426,7 +1425,7 @@ public class PointsToGraph {
          * n is a PointsToGraphNode with 1 or 2 subsets. Instead of caching it,
          * we will use a union data structure, relying on the fact that all the
          * IntSets in this structure are sorted.
-         * 
+         *
          * @param n
          * @param unfilteredSubsets
          * @param filteredSubsets
@@ -1504,7 +1503,7 @@ public class PointsToGraph {
 
     /**
      * Notify the cache that a node is in a cycle.
-     * 
+     *
      * @param n
      */
     public void inCycle(PointsToGraphNode n) {
