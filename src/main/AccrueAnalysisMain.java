@@ -31,7 +31,6 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
@@ -122,16 +121,16 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
-            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+//            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
             ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
 
-            System.err.println(g.getNodes().size() + " Nodes");
+//            System.err.println(g.getNodes().size() + " Nodes");
             int num = 0;
-            for (PointsToGraphNode n : g.getNodes()) {
-                num += g.getPointsToSet(n).size();
-            }
+//            for (PointsToGraphNode n : g.getNodes()) {
+//                num += g.getPointsToSet(n).size();
+//            }
             System.err.println(num + " Edges");
-            System.err.println(g.getAllHContexts().size() + " HContexts");
+//            System.err.println(g.getAllHContexts().size() + " HContexts");
 
             int numNodes = 0;
             for (@SuppressWarnings("unused")
@@ -246,7 +245,7 @@ public class AccrueAnalysisMain {
                     printSingleCFG(ir, fileName);
                 } else {
                     System.err.println("No CFG for " + PrettyPrinter.cgNodeString(n) + " it "
-                                                    + (m.isNative() ? "was" : "wasn't") + " native");
+                            + (m.isNative() ? "was" : "wasn't") + " native");
                 }
             }
         }
@@ -288,7 +287,7 @@ public class AccrueAnalysisMain {
                 }
             }
         }
-        System.err.println(g.getNodes().size() + " PTG nodes.");
+//        System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
 
         return new OrderedPair<>(g, rvCache);
@@ -306,7 +305,7 @@ public class AccrueAnalysisMain {
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
-                                    HeapAbstractionFactory haf, boolean isOnline) {
+                                                                                            HeapAbstractionFactory haf, boolean isOnline) {
 
         // HeapAbstractionFactory haf = new CallSiteSensitive(1);
 
@@ -340,7 +339,7 @@ public class AccrueAnalysisMain {
                 }
             }
         }
-        System.err.println(g.getNodes().size() + " PTG nodes.");
+//        System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
         System.err.println(g.clinitCount + " Class initializers.");
 
@@ -380,7 +379,7 @@ public class AccrueAnalysisMain {
      * @return the results of the non-null analysis
      */
     private static NonNullResults runNonNull(int outputLevel, PointsToGraph g, ReachabilityResults r,
-                                    ReferenceVariableCache rvCache) {
+                                             ReferenceVariableCache rvCache) {
         NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
@@ -401,9 +400,9 @@ public class AccrueAnalysisMain {
      * @return the results of the precise exceptions analysis
      */
     private static PreciseExceptionResults runPreciseExceptions(int outputLevel, PointsToGraph g,
-                                    ReachabilityResults r, NonNullResults nonNull, ReferenceVariableCache rvCache) {
+                                                                ReachabilityResults r, NonNullResults nonNull, ReferenceVariableCache rvCache) {
         PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g, nonNull, r,
-                                        rvCache);
+                                                                                                       rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
@@ -422,7 +421,7 @@ public class AccrueAnalysisMain {
      *            results of a precise exceptions analysis or null if none has been run yet
      */
     private static ReachabilityResults runReachability(int outputLevel, PointsToGraph g,
-                                    ReferenceVariableCache rvCache, PreciseExceptionResults preciseEx) {
+                                                       ReferenceVariableCache rvCache, PreciseExceptionResults preciseEx) {
         ReachabilityInterProceduralDataFlow analysis = new ReachabilityInterProceduralDataFlow(g, rvCache, preciseEx);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
@@ -443,7 +442,7 @@ public class AccrueAnalysisMain {
      * @return the program dependence graph
      */
     private static ProgramDependenceGraph runPDG(int outputLevel, PointsToGraph g, ReachabilityResults r,
-                                    PreciseExceptionResults preciseEx, ReferenceVariableCache rvCache) {
+                                                 PreciseExceptionResults preciseEx, ReferenceVariableCache rvCache) {
         PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
