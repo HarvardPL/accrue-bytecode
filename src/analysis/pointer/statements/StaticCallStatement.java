@@ -52,9 +52,9 @@ public class StaticCallStatement extends CallStatement {
      *            Receiver of the call
      */
     protected StaticCallStatement(CallSiteReference callSite, IMethod caller,
-            IMethod callee, ReferenceVariable result,
-            List<ReferenceVariable> actuals, ReferenceVariable exception,
-            MethodSummaryNodes calleeSummary) {
+                                  IMethod callee, ReferenceVariable result,
+                                  List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                  MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.calleeSummary = calleeSummary;
@@ -62,25 +62,25 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
-        return processCall(context, null, callee, g, haf, calleeSummary);
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+        return this.processCall(context, null, this.callee, g, haf, this.calleeSummary);
     }
 
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
-        if (getResult() != null) {
-            s.append(getResult().toString() + " = ");
+        if (this.getResult() != null) {
+            s.append(this.getResult().toString() + " = ");
         }
-        s.append("invokestatic " + PrettyPrinter.methodString(callee));
+        s.append("invokestatic " + PrettyPrinter.methodString(this.callee));
 
         s.append(" -- ");
-        s.append(PrettyPrinter.typeString(callee.getDeclaringClass()));
+        s.append(PrettyPrinter.typeString(this.callee.getDeclaringClass()));
         s.append(".");
-        s.append(callee.getName());
+        s.append(this.callee.getName());
         s.append("(");
-        List<ReferenceVariable> actuals = getActuals();
-        if (getActuals().size() > 0) {
+        List<ReferenceVariable> actuals = this.getActuals();
+        if (this.getActuals().size() > 0) {
             s.append(actuals.get(0));
         }
         for (int j = 1; j < actuals.size(); j++) {
@@ -94,64 +94,66 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
-        replaceActual(useNumber, newVariable);
+        this.replaceActual(useNumber, newVariable);
     }
 
     @Override
     public List<ReferenceVariable> getUses() {
-        return getActuals();
+        return this.getActuals();
     }
 
     @Override
     public ReferenceVariable getDef() {
-        return getResult();
+        return this.getResult();
     }
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> uses =
-                new ArrayList<>(Math.max(getActuals().size(), 1));
+        List<ReferenceVariableReplica> uses = new ArrayList<>(2 + this.getActuals()
+                .size());
 
-        for (ReferenceVariable use : getActuals()) {
+        for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
                 ReferenceVariableReplica n =
                         new ReferenceVariableReplica(ctxt, use);
                 uses.add(n);
             }
         }
-        if (getActuals().isEmpty() && callee.getReturnType().isReferenceType()) {
-            // there aren't actuals, and there is reference type for the return.
+        Context calleeContext = haf.merge(this.callSite, null, ctxt);
+        ReferenceVariableReplica ex = new ReferenceVariableReplica(calleeContext,
+                                                                   this.calleeSummary.getException());
+        uses.add(ex);
+        if (this.callee.getReturnType().isReferenceType()) {
             // Say that we read the return of the callee.
-            Context calleeContext = haf.merge(callSite, null, ctxt);
             ReferenceVariableReplica n =
                     new ReferenceVariableReplica(calleeContext,
-                                                 calleeSummary.getReturn());
+                                                 this.calleeSummary.getReturn());
             uses.add(n);
         }
         return uses;
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         List<ReferenceVariableReplica> defs =
-                new ArrayList<>(2 + callee.getNumberOfParameters());
+                new ArrayList<>(2 + this.callee.getNumberOfParameters());
 
-        if (getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, getResult()));
-        }
-        if (getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, getException()));
-        }
-        // Write to the arguments of the callee.
-        Context calleeContext = haf.merge(callSite, null, ctxt);
-        for (int i = 0; i < callee.getNumberOfParameters(); i++) {
-            ReferenceVariable rv = calleeSummary.getFormal(i);
-            if (rv != null) {
-                ReferenceVariableReplica n =
-                        new ReferenceVariableReplica(calleeContext, rv);
-                defs.add(n);
-            }
-        }
-        return defs;
+                if (this.getResult() != null) {
+                    defs.add(new ReferenceVariableReplica(ctxt, this.getResult()));
+                }
+                if (this.getException() != null) {
+                    defs.add(new ReferenceVariableReplica(ctxt, this.getException()));
+                }
+                // Write to the arguments of the callee.
+                Context calleeContext = haf.merge(this.callSite, null, ctxt);
+                for (int i = 0; i < this.callee.getNumberOfParameters(); i++) {
+                    ReferenceVariable rv = this.calleeSummary.getFormal(i);
+                    if (rv != null) {
+                        ReferenceVariableReplica n =
+                                new ReferenceVariableReplica(calleeContext, rv);
+                        defs.add(n);
+                    }
+                }
+                return defs;
     }
 }

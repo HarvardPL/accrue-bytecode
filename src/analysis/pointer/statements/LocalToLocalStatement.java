@@ -121,7 +121,7 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, left));
     }
 }

@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -64,9 +65,9 @@ public class VirtualCallStatement extends CallStatement {
      *            factory for managing the creation of reference variables for local variables and static fields
      */
     protected VirtualCallStatement(CallSiteReference callSite, IMethod caller,
-            MethodReference callee, ReferenceVariable result,
-            ReferenceVariable receiver, List<ReferenceVariable> actuals,
-            ReferenceVariable exception, ReferenceVariableFactory rvFactory) {
+                                   MethodReference callee, ReferenceVariable result,
+                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
+                                   ReferenceVariable exception, ReferenceVariableFactory rvFactory) {
         super(callSite, caller, result, actuals, exception);
 
         this.callee = callee;
@@ -78,66 +79,65 @@ public class VirtualCallStatement extends CallStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
         ReferenceVariableReplica receiverRep =
-                new ReferenceVariableReplica(context, receiver);
+                new ReferenceVariableReplica(context, this.receiver);
 
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter =
-                delta == null
-                        ? g.pointsToIterator(receiverRep)
+        Iterator<InstanceKey> iter = delta == null
+                ? g.pointsToIterator(receiverRep)
                         : delta.pointsToIterator(receiverRep);
-        while (iter.hasNext()) {
-            InstanceKey recHeapContext = iter.next();
-            // find the callee.
-            // The receiver is recHeapContext, and we want to find a method that matches selector
-            // callee.getSelector() in class recHeapContext.getConcreteType() or
-            // a superclass.
-            IMethod resolvedCallee =
-                    resolveMethod(recHeapContext.getConcreteType(),
-                                  receiverRep.getExpectedType());
+                while (iter.hasNext()) {
+                    InstanceKey recHeapContext = iter.next();
+                    // find the callee.
+                    // The receiver is recHeapContext, and we want to find a method that matches selector
+                    // callee.getSelector() in class recHeapContext.getConcreteType() or
+                    // a superclass.
+                    IMethod resolvedCallee =
+                            this.resolveMethod(recHeapContext.getConcreteType(),
+                                               receiverRep.getExpectedType());
 
-            if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                // Abstract method due to a native method that returns an abstract type or interface
-                // TODO Handle abstract methods in a smarter way
-                System.err.println("Abstract method "
-                        + PrettyPrinter.methodString(resolvedCallee));
-                continue;
-            }
+                    if (resolvedCallee != null && resolvedCallee.isAbstract()) {
+                        // Abstract method due to a native method that returns an abstract type or interface
+                        // TODO Handle abstract methods in a smarter way
+                        System.err.println("Abstract method "
+                                + PrettyPrinter.methodString(resolvedCallee));
+                        continue;
+                    }
 
-            // If we wanted to be very robust, check to make sure that
-            // resolvedCallee overrides
-            // the IMethod returned by ch.resolveMethod(callee).
-            changed =
-                    changed.combine(processCall(context,
-                                                recHeapContext,
-                                                resolvedCallee,
-                                                g,
-                                                haf,
-                                                registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                    rvFactory)));
-        }
-        return changed;
+                    // If we wanted to be very robust, check to make sure that
+                    // resolvedCallee overrides
+                    // the IMethod returned by ch.resolveMethod(callee).
+                    changed =
+                            changed.combine(this.processCall(context,
+                                                             recHeapContext,
+                                                             resolvedCallee,
+                                                             g,
+                                                             haf,
+                                                             registrar.findOrCreateMethodSummary(resolvedCallee,
+                                                                                                 this.rvFactory)));
+                }
+                return changed;
     }
 
     private IMethod resolveMethod(IClass receiverConcreteType,
-            TypeReference receiverExpectedType) {
+                                  TypeReference receiverExpectedType) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         IMethod resolvedCallee =
-                cha.resolveMethod(receiverConcreteType, callee.getSelector());
+                cha.resolveMethod(receiverConcreteType, this.callee.getSelector());
         if (resolvedCallee == null) {
             // XXX Try the type of the reference variable instead
             // This is probably a variable created for the return of a native method, then cast down
             if (PointsToAnalysis.outputLevel >= 1) {
                 System.err.println("Could not resolve " + receiverConcreteType
-                        + " " + callee.getSelector());
+                                   + " " + this.callee.getSelector());
                 System.err.println("\ttrying reference variable type "
                         + cha.lookupClass(receiverExpectedType));
             }
             resolvedCallee =
                     cha.resolveMethod(cha.lookupClass(receiverExpectedType),
-                                      callee.getSelector());
+                                      this.callee.getSelector());
         }
         return resolvedCallee;
     }
@@ -145,18 +145,18 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
-        if (getResult() != null) {
-            s.append(getResult().toString() + " = ");
+        if (this.getResult() != null) {
+            s.append(this.getResult().toString() + " = ");
         }
-        s.append("invokevirtual " + PrettyPrinter.methodString(callee));
+        s.append("invokevirtual " + PrettyPrinter.methodString(this.callee));
 
         s.append(" -- ");
-        s.append(receiver);
+        s.append(this.receiver);
         s.append(".");
-        s.append(callee.getName());
+        s.append(this.callee.getName());
         s.append("(");
-        List<ReferenceVariable> actuals = getActuals();
-        if (getActuals().size() > 1) {
+        List<ReferenceVariable> actuals = this.getActuals();
+        if (this.getActuals().size() > 1) {
             s.append(actuals.get(1));
         }
         for (int j = 2; j < actuals.size(); j++) {
@@ -170,12 +170,12 @@ public class VirtualCallStatement extends CallStatement {
 
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
-        assert useNumber <= getActuals().size() && useNumber >= 0;
+        assert useNumber <= this.getActuals().size() && useNumber >= 0;
         if (useNumber == 0) {
-            receiver = newVariable;
+            this.receiver = newVariable;
             return;
         }
-        replaceActual(useNumber - 1, newVariable);
+        this.replaceActual(useNumber - 1, newVariable);
     }
 
     /**
@@ -185,45 +185,48 @@ public class VirtualCallStatement extends CallStatement {
      */
     @Override
     public List<ReferenceVariable> getUses() {
-        List<ReferenceVariable> uses = new ArrayList<>(getActuals().size() + 1);
-        uses.add(receiver);
-        uses.addAll(getActuals());
+        List<ReferenceVariable> uses = new ArrayList<>(this.getActuals().size() + 1);
+        uses.add(this.receiver);
+        uses.addAll(this.getActuals());
         return uses;
     }
 
     @Override
     public ReferenceVariable getDef() {
-        return getResult();
+        return this.getResult();
     }
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> uses =
-                new ArrayList<>(getActuals().size() + 1);
-        uses.add(new ReferenceVariableReplica(ctxt, receiver));
-        for (ReferenceVariable use : getActuals()) {
+        List<Object> uses = new ArrayList<>(this.getActuals().size() + 2);
+        uses.add(new ReferenceVariableReplica(ctxt, this.receiver));
+        for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
                 ReferenceVariableReplica n =
                         new ReferenceVariableReplica(ctxt, use);
                 uses.add(n);
             }
         }
+
+        // we use the exception value...
+        uses.add(new OrderedPair<>(this.callee.getSelector(), "ex-return"));
+
         return uses;
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         List<Object> defs = new ArrayList<>(3);
 
-        if (getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, getResult()));
+        if (this.getResult() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, this.getResult()));
         }
-        if (getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, getException()));
+        if (this.getException() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, this.getException()));
         }
         // Add the callee Selector, so we can get dependences from this
         // to the summary nodes of the callees.
-        defs.add(callee.getSelector());
+        defs.add(this.callee.getSelector());
         return defs;
     }
 

@@ -203,7 +203,7 @@ public abstract class PointsToStatement {
      * specified context will "write". See documentation for 
      * getReadDependencies
      */
-    public abstract Collection<?> getWriteDependencis(Context ctxt,
+    public abstract Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf);
 
 }

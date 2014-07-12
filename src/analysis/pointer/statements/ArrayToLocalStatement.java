@@ -120,7 +120,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencis(Context ctxt,
+    public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, value));
     }
