@@ -82,6 +82,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("bool")) {
                 return;
             }
+            if (value.equals("android-cfg")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);

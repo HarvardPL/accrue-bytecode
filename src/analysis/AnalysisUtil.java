@@ -2,31 +2,25 @@ package analysis;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.jar.JarFile;
-
-import org.scandroid.util.EntryPoints;
 
 import signatures.Signatures;
+import util.OrderedPair;
 import util.print.CFGWriter;
+import android.AndroidInit;
 
-import com.ibm.wala.classLoader.DexFileModule;
 import com.ibm.wala.classLoader.DexIRFactory;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.classLoader.Module;
-import com.ibm.wala.dex.util.config.DexAnalysisScopeReader;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.AbstractRootMethod;
-import com.ibm.wala.ipa.callgraph.impl.DexFakeRootMethod;
 import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.callgraph.impl.FakeRootMethod;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
@@ -87,8 +81,7 @@ public class AnalysisUtil {
     /**
      * type of the field in java.lang.String
      */
-    public static final TypeReference STRING_VALUE_TYPE =
-            TypeReference.JavaLangObject;
+    public static final TypeReference STRING_VALUE_TYPE = TypeReference.JavaLangObject;
     /**
      * Class for value field of java.lang.String
      */
@@ -121,83 +114,48 @@ public class AnalysisUtil {
         // Intentionally blank
     }
 
-    public static void initDex(String androidLibLocation, String pathToApp)
-            throws IOException, ClassHierarchyException {
+    public static void initDex(String androidLibLocation, String pathToApp) throws IOException, ClassHierarchyException {
         cache = new AnalysisCache(new DexIRFactory());
-
         long start = System.currentTimeMillis();
-        AnalysisScope scope =
-                DexAnalysisScopeReader.makeAndroidBinaryAnalysisScope(pathToApp,
-                                                                      EXCLUSIONS_FILE);
-        scope.setLoaderImpl(ClassLoaderReference.Application,
-                            "com.ibm.wala.classLoader.WDexClassLoaderImpl");
 
-        scope.setLoaderImpl(ClassLoaderReference.Primordial,
-                            "com.ibm.wala.classLoader.WDexClassLoaderImpl");
-
-        ClassHierarchy concreteCHA;
-
-        // From org.SCandroid.util.AndroidAnalysisContext
-        URI androidLib = new File(androidLibLocation).toURI();
-        if (androidLib.getPath().endsWith(".dex")) {
-            Module dexMod = new DexFileModule(new File(androidLib));
-            scope.addToScope(ClassLoaderReference.Primordial, dexMod);
-            // try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
-            // scope.addToScope(ClassLoaderReference.Application, appModelJar);
-            concreteCHA = ClassHierarchy.make(scope);
-            // }
-        } else {
-            try (JarFile androidJar = new JarFile(new File(androidLib))) {
-                scope.addToScope(ClassLoaderReference.Primordial, androidJar);
-                // try (JarFile appModelJar = new JarFile(new File("data/AppModel_dummy.jar"))) {
-                // scope.addToScope(ClassLoaderReference.Application, appModelJar);
-                concreteCHA = ClassHierarchy.make(scope);
-                // }
-            }
-        }
-
-        cha = concreteCHA;
-        System.out.println(cha.getNumberOfClasses()
-                + " classes loaded. It took "
+        OrderedPair<IClassHierarchy, AnalysisScope> chaScope = AndroidInit.createAndroidCHAandAnalysisScope(pathToApp,
+                                                                                                            EXCLUSIONS_FILE,
+                                                                                                            androidLibLocation);
+        cha = chaScope.fst();
+        AnalysisScope scope = chaScope.snd();
+        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
 
-        // TODO not sure what this is for
-        // AnalysisScope scope_appmodel =
-        // DexAnalysisScopeReader.makeAndroidBinaryAnalysisScope(
-        // androidLib,
-        // exclusions);
-        // scope_appmodel.setLoaderImpl(ClassLoaderReference.Application,
-        // "com.ibm.wala.classLoader.WDexClassLoaderImpl");
-        //
-        // scope_appmodel.setLoaderImpl(ClassLoaderReference.Primordial,
-        // "com.ibm.wala.classLoader.WDexClassLoaderImpl");
-        // AndroidSpecs.addPossibleListeners(ClassHierarchy.make(scope_appmodel));
+        // Set up is a two phase process, first we perform a context-insensitive analysis to find all the reachable
+        // callbacks in the application starting with the activities defined in the manifest. The second phase is to add
+        // all these callbacks to the fake root method in a way that captures the Android application lifecycle.
 
-        // List<Entrypoint> entrypoints = EntryPoints.appModelEntry(concreteCHA);
-        List<Entrypoint> entrypoints =
-                EntryPoints.defaultEntryPoints(concreteCHA);
-        options = new AnalysisOptions(scope, entrypoints);
-        fakeRoot = new DexFakeRootMethod(cha, options, cache);
+        // Phase 1: the entry points are the activities found in the manifest
+        AndroidInit aInit = new AndroidInit(pathToApp);
+        Set<Entrypoint> entries = aInit.getActivityEntryPoints();
+        options = new AnalysisOptions(scope, entries);
+        addEntriesToRootMethod();
+        setUpCommonClasses();
+        // We now have valid values for all AnalysisUtil fields, but the entrypoints (system callbacks) are only a
+        // subset of the actual entrypoints. This subset gives a starting point for discovering the rest of the
+        // entrypoints.
 
-        setUpRootMethodAndClasses();
+        // Phase 2: Find all the call backs and set up the fake root
+        Map<IClass, Set<IMethod>> callbacks = AndroidInit.findAllCallBacks();
+        // Here we do not want to just add all the entrypoints to the fake root, we need to do something more clever
     }
 
     /**
      * Create a pass which will generate points-to statements
      * 
-     * @param classPath
-     *            Java class path to load class filed from with entries separated by ":"
-     * @param entryPoint
-     *            entry point main method, e.g mypackage.mysubpackage.MyClass
+     * @param classPath Java class path to load class filed from with entries separated by ":"
+     * @param entryPoint entry point main method, e.g mypackage.mysubpackage.MyClass
      * 
-     * @throws IOException
-     *             Thrown when the analysis scope is invalid
-     * @throws ClassHierarchyException
-     *             Thrown by WALA during class hierarchy construction, if there are issues with the class path and for
-     *             other reasons see {@link ClassHierarchy}
+     * @throws IOException Thrown when the analysis scope is invalid
+     * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
+     *             class path and for other reasons see {@link ClassHierarchy}
      */
-    public static void init(String classPath, String entryPoint)
-            throws IOException, ClassHierarchyException {
+    public static void init(String classPath, String entryPoint) throws IOException, ClassHierarchyException {
 
         cache = new AnalysisCache();
 
@@ -205,34 +163,26 @@ public class AnalysisUtil {
             classPath = DEFAULT_CLASSPATH;
         }
 
-        AnalysisScope scope =
-                AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
-                                                  EXCLUSIONS_FILE,
-                                                  AnalysisUtil.class.getClassLoader());
-        AnalysisScopeReader.addClassPathToScope(classPath,
-                                                scope,
-                                                ClassLoaderReference.Application);
+        AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME, EXCLUSIONS_FILE,
+                                                                AnalysisUtil.class.getClassLoader());
+        AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
         long start = System.currentTimeMillis();
 
         cha = ClassHierarchy.make(scope);
-        System.out.println(cha.getNumberOfClasses()
-                + " classes loaded. It took "
+        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
 
         // Add L to the name to indicate that this is a class name
-        Iterable<Entrypoint> entrypoints =
-                com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope,
-                                                                         cha,
-                                                                         "L"
-                                                                                 + entryPoint.replace(".",
-                                                                                                      "/"));
+        Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
+                + entryPoint.replace(".", "/"));
         options = new AnalysisOptions(scope, entrypoints);
 
-        setUpRootMethodAndClasses();
+        addEntriesToRootMethod();
+        setUpCommonClasses();
     }
 
-    private static void setUpRootMethodAndClasses() {
+    private static void addEntriesToRootMethod() {
         // Set up the entry points
         fakeRoot = new FakeRootMethod(cha, options, cache);
         for (Entrypoint e : options.getEntrypoints()) {
@@ -249,29 +199,24 @@ public class AnalysisUtil {
         // block.
         fakeRoot.addReturn(-1, false);
         CFGWriter.writeToFile(fakeRoot);
+    }
 
+    private static void setUpCommonClasses() {
         stringClass = cha.lookupClass(TypeReference.JavaLangString);
         stringValueClass = cha.lookupClass(STRING_VALUE_TYPE);
         objectClass = cha.lookupClass(TypeReference.JavaLangObject);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
-        TypeName privTN =
-                TypeName.string2TypeName("Ljava/security/PrivilegedAction");
-        TypeReference privTR =
-                TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                           privTN);
+        TypeName privTN = TypeName.string2TypeName("Ljava/security/PrivilegedAction");
+        TypeReference privTR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privTN);
         privilegedActionClass = cha.lookupClass(privTR);
 
-        TypeName privETN =
-                TypeName.string2TypeName("Ljava/security/PrivilegedExceptionAction");
-        TypeReference privETR =
-                TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                           privETN);
+        TypeName privETN = TypeName.string2TypeName("Ljava/security/PrivilegedExceptionAction");
+        TypeReference privETR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privETN);
         privilegedExceptionActionClass = cha.lookupClass(privETR);
 
         cloneableInterface = cha.lookupClass(TypeReference.JavaLangCloneable);
-        serializableInterface =
-                cha.lookupClass(TypeReference.JavaIoSerializable);
+        serializableInterface = cha.lookupClass(TypeReference.JavaIoSerializable);
 
     }
 
@@ -314,8 +259,7 @@ public class AnalysisUtil {
     /**
      * Get the IR for the given method, returns null for native methods without signatures
      * 
-     * @param resolvedMethod
-     *            method to get the IR for
+     * @param resolvedMethod method to get the IR for
      * @return the code for the given method, null for native methods
      */
     public static IR getIR(IMethod resolvedMethod) {
@@ -329,16 +273,13 @@ public class AnalysisUtil {
             return null;
         }
 
-        return cache.getSSACache().findOrCreateIR(resolvedMethod,
-                                                  Everywhere.EVERYWHERE,
-                                                  options.getSSAOptions());
+        return cache.getSSACache().findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
     }
 
     /**
      * Get the def-use results for the given method, returns null for native methods without signatures
      * 
-     * @param resolvedMethod
-     *            method to get the def-use results for
+     * @param resolvedMethod method to get the def-use results for
      * @return the def-use for the given method, null for native methods
      */
     public static DefUse getDefUse(IMethod resolvedMethod) {
@@ -352,16 +293,13 @@ public class AnalysisUtil {
             return null;
         }
 
-        return cache.getSSACache().findOrCreateDU(resolvedMethod,
-                                                  Everywhere.EVERYWHERE,
-                                                  options.getSSAOptions());
+        return cache.getSSACache().findOrCreateDU(resolvedMethod, Everywhere.EVERYWHERE, options.getSSAOptions());
     }
 
     /**
      * Get the IR for the method represented by the call graph node, returns null for native methods without signatures
      * 
-     * @param n
-     *            call graph node
+     * @param n call graph node
      * @return the code for the given call graph node, null for native methods without signatures
      */
     public static IR getIR(CGNode n) {
@@ -415,8 +353,7 @@ public class AnalysisUtil {
     /**
      * Check whether the given method has a signature
      * 
-     * @param m
-     *            method to check
+     * @param m method to check
      * @return true if the method has a signature implementation
      */
     public static boolean hasSignature(IMethod m) {
@@ -428,8 +365,7 @@ public class AnalysisUtil {
     }
 
     public static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
-        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime()
-                                                         .availableProcessors());
+        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     public static <T> Set<T> createConcurrentSet() {

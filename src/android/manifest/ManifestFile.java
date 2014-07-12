@@ -26,12 +26,14 @@ public class ManifestFile {
     private final Set<String> permissions = new LinkedHashSet<>();
     private final Map<String, String> metaData = new LinkedHashMap<>();
     private String packageName;
+    private final String fileName;
     private static final String NAME = "name";
     private static final String ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android";
     private static final String PACKAGE = "package";
     private static final String VALUE = "value";
 
     public ManifestFile(String apkFileName) {
+        this.fileName = apkFileName;
         ApkDecoder decoder = new ApkDecoder(new File(apkFileName));
         try {
             ResTable table = decoder.getResTable();
@@ -55,6 +57,7 @@ public class ManifestFile {
     }
 
     private void processManifest(AXmlResourceParser p, InputStream in) {
+        System.err.println("PROCESSING: " + fileName);
         int element;
         p.open(in);
         StringBuilder sb = new StringBuilder();
@@ -81,6 +84,7 @@ public class ManifestFile {
                             attributes.put(attrName, p.getAttributeValue(i));
                             if (attrName.equals(NAME)) {
                                 activityName = p.getAttributeValue(i);
+                                System.err.println("ACTIVITY: " + activityName);
                             }
                         }
                         assert activityName != null : "No activity name found";
@@ -91,14 +95,18 @@ public class ManifestFile {
                         Set<IntentFilter> filters = processIntentFilters(p);
                         assert currentActivity != null;
                         currentActivity.addAllFilters(filters);
+                        System.err.println("INTENT for " + currentActivity.getAttribute(NAME));
                         break;
                     case MANIFEST:
                         for (int i = 0; i < p.getAttributeCount(); i++) {
                             if (p.getAttributeName(i).equals(PACKAGE)) {
                                 packageName = p.getAttributeValue(i);
+                                System.err.println("PACKAGE: " + packageName);
                                 break;
                             }
                         }
+                        assert packageName != null : "no package name found in manifest";
+                        break;
                     case META_DATA:
                         String name = null;
                         String val = null;
@@ -289,5 +297,9 @@ public class ManifestFile {
             sb.append("\n" + activities.get(actName).toString());
         }
         return sb.toString();
+    }
+
+    public Set<String> getAllActivityNames() {
+        return activities.keySet();
     }
 }

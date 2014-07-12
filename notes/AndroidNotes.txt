@@ -1,4 +1,8 @@
+XXX integer arguments are not initialized by entry.addCall(fakeRoot)
+
 TODO process Layout XML file
 TODO change addClassInitializers in PointsToGraph to call addEntryPoint in the loop
 TODO parse resource file
 TODO Add initial Activity callbacks to fakeRoot, could add all of them or just add the LAUNCHER and add the rest by recognizing "startActivity" calls in the app
+
+It looks like an Instrumentation overrider could bypass the startActivityMethod and directy call execStartActivity

@@ -23,6 +23,10 @@ import brut.androlib.AndrolibException;
 import brut.androlib.ApkDecoder;
 import brut.androlib.res.data.ResPackage;
 import brut.androlib.res.data.ResTable;
+import brut.androlib.res.data.ResValuesFile;
+import brut.androlib.res.decoder.ARSCDecoder;
+import brut.androlib.res.decoder.ARSCDecoder.ARSCData;
+import brut.androlib.res.decoder.ARSCDecoder.FlagsOffset;
 import brut.androlib.res.decoder.AXmlResourceParser;
 import brut.androlib.res.decoder.ResAttrDecoder;
 
@@ -36,7 +40,6 @@ public class TestAndroid extends TestCase {
 
     public void testOpenAPK() throws IOException {
         try (ZipFile zip = new ZipFile(apkPath)) {
-            // search for file with given filename
             Enumeration<?> entries = zip.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = (ZipEntry) entries.nextElement();
@@ -78,8 +81,6 @@ public class TestAndroid extends TestCase {
             case XmlPullParser.START_DOCUMENT:
                 break;
 
-            // To handle an opening tag we create a new node
-            // and fetch the namespace and all attributes
             case XmlPullParser.START_TAG:
                 char[] whitespace = new char[(p.getDepth() - 1) * 4];
                 Arrays.fill(whitespace, ' ');
@@ -167,6 +168,118 @@ public class TestAndroid extends TestCase {
                 out.append(PrettyPrinter.typeString(c) + "\n");
             }
         }
+    }
 
+    public void testParseResourcesARSC() throws IOException, AndrolibException {
+        ApkDecoder decoder = new ApkDecoder(new File(apkPath));
+        ResTable table = decoder.getResTable();
+        try (ZipFile zip = new ZipFile(apkPath)) {
+            ZipEntry entry = zip.getEntry("resources.arsc");
+            try (InputStream in = zip.getInputStream(entry)) {
+                ARSCData data = ARSCDecoder.decode(in, true, true, table);
+                System.err.print("FLAGS: [");
+                FlagsOffset[] flags = data.getFlagsOffsets();
+                System.err.print(flagString(flags[0]));
+                for (int i = 1; i < flags.length; i++) {
+                    System.err.print(", " + flagString(flags[i]));
+                }
+                System.err.println("]");
+                System.err.println("PACKAGES: " + Arrays.toString(data.getPackages()));
+                System.err.println("RES TABLE:\n" + resTableString(data.getResTable()));
+            }
+        }
+    }
+
+    private static String flagString(FlagsOffset fo) {
+        return new String("count: " + fo.count + " offset: " + fo.offset);
+    }
+
+    private static String resTableString(ResTable table) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("  ANALYSIS MODE: " + table.getAnalysisMode() + "\n");
+        try {
+            sb.append("  CURRENT RES PACKAGE: " + table.getCurrentResPackage() + "\n");
+            sb.append("  HIGHEST SPEC PACKAGE: " + table.getHighestSpecPackage() + "\n");
+        }
+        catch (AndrolibException e) {
+            // intentionally blank
+        }
+        sb.append("  PACKAGE ID: " + table.getPackageId() + "\n");
+        sb.append("  PACKAGE ORIGINAL: " + table.getPackageOriginal() + "\n");
+        sb.append("  PACKAGE RENAMED: " + table.getPackageRenamed() + "\n");
+        sb.append("  SDK INFO: " + table.getSdkInfo() + "\n");
+        sb.append("  VERSION INFO: " + table.getVersionInfo() + "\n");
+        sb.append("  FRAME PACKAGES:\n");
+        for (ResPackage pkg : table.listFramePackages()) {
+            sb.append("    NAME: " + pkg.getName() + "\n");
+            sb.append("    CONFIGS: " + pkg.getConfigs() + "\n");
+            sb.append("    ID: " + pkg.getId() + "\n");
+            sb.append("    RES SPEC COUNT: " + pkg.getResSpecCount() + "\n");
+            sb.append("    VALUE FACTORY: " + pkg.getValueFactory() + "\n");
+            sb.append("    FILES: " + pkg.listFiles() + "\n");
+            sb.append("    RES SPECS: " + pkg.listResSpecs() + "\n");
+            sb.append("    TYPES: " + pkg.listTypes() + "\n");
+            sb.append("    VALUE FILES:\n");
+            for (ResValuesFile file : pkg.listValuesFiles()) {
+                sb.append(resValuesFileString(file) + "\n");
+            }
+        }
+        sb.append("  MAIN PACKAGES:\n");
+        
+        for (ResPackage pkg : table.listMainPackages()) {
+            sb.append("    -------------------\n");
+            sb.append("    NAME: " + pkg.getName() + "\n");
+            sb.append("    CONFIGS: " + pkg.getConfigs() + "\n");
+            sb.append("    ID: " + pkg.getId() + "\n");
+            sb.append("    RES SPEC COUNT: " + pkg.getResSpecCount() + "\n");
+            sb.append("    VALUE FACTORY: " + pkg.getValueFactory() + "\n");
+            sb.append("    FILES: " + pkg.listFiles() + "\n");
+            sb.append("    RES SPECS: " + pkg.listResSpecs() + "\n");
+            sb.append("    TYPES: " + pkg.listTypes() + "\n");
+            sb.append("    VALUE FILES:\n");
+            for (ResValuesFile file : pkg.listValuesFiles()) {
+                sb.append(resValuesFileString(file) + "\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String resValuesFileString(ResValuesFile file) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("      -------------------\n");
+        sb.append("      PATH: " + file.getPath() + "\n");
+        sb.append("      CONFIG: " + file.getConfig() + "\n");
+        sb.append("      TYPE: " + file.getType() + "\n");
+        sb.append("      RESOURCES: " + file.listResources());
+        return sb.toString();
+    }
+
+    public void testParseLayoutFiles() throws IOException, AndrolibException, XmlPullParserException {
+        ApkDecoder decoder = new ApkDecoder(new File(apkPath));
+        ResTable table = decoder.getResTable();
+        ResAttrDecoder attrDecoder = new ResAttrDecoder();
+        attrDecoder.setCurrentPackage(new ResPackage(table, 0, null));
+        try (ZipFile zip = new ZipFile(apkPath)) {
+            Enumeration<?> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = (ZipEntry) entries.nextElement();
+                if (entry.getName().startsWith("res/layout") && entry.getName().endsWith("xml")) {
+                    // Note that there could be multiple layouts with the same name for different screen sizes
+                    System.err.println(entry.getName());
+                    try (InputStream in = zip.getInputStream(entry)) {
+                        AXmlResourceParser p = new AXmlResourceParser();
+                        p.setAttrDecoder(attrDecoder);
+                        p.open(in);
+                        int element;
+                        while ((element = p.next()) != XmlPullParser.END_DOCUMENT) {
+                            System.err.println("\t" + element + " " + p.getName());
+                            for (int i = 0; i < p.getAttributeCount(); i++) {
+                                System.err.println("\t\t" + p.getAttributeName(i) + "=" + p.getAttributeValue(i));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

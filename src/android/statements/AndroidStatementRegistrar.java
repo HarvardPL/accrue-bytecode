@@ -1,28 +1,19 @@
 package android.statements;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
 import util.InstructionType;
-import analysis.AnalysisUtil;
 import analysis.pointer.registrar.StatementRegistrar;
-import android.FindAndroidCallbacks;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.SSAInstruction;
-import com.ibm.wala.ssa.SSANewInstruction;
 
 public class AndroidStatementRegistrar extends StatementRegistrar {
 
-    private final FindAndroidCallbacks callbackFinder;
     private final Map<IClass, Set<IMethod>> allCallbacks = new LinkedHashMap<>();
-
-    public AndroidStatementRegistrar() {
-        this.callbackFinder = new FindAndroidCallbacks();
-    }
 
     @Override
     protected void handle(InstructionInfo info) {
@@ -73,16 +64,6 @@ public class AndroidStatementRegistrar extends StatementRegistrar {
         case NEW_ARRAY:
             break;
         case NEW_OBJECT:
-            SSANewInstruction newStatement = (SSANewInstruction) i;
-            IClass newClass = AnalysisUtil.getClassHierarchy().lookupClass(newStatement.getConcreteType());
-            Set<IMethod> callbacks = callbackFinder.findOverriddenCallbacks(newClass);
-            addStatement(new CallBackStatement(containingMethod, callbacks));
-            Set<IMethod> callbacksForClass = allCallbacks.get(newClass);
-            if (callbacksForClass == null) {
-                callbacksForClass = new LinkedHashSet<>();
-                allCallbacks.put(newClass, callbacksForClass);
-            }
-            callbacksForClass.addAll(callbacks);
             break;
         case PHI:
             break;
