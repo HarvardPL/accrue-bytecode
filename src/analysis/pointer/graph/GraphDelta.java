@@ -1,18 +1,18 @@
 package analysis.pointer.graph;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 
 import util.OrderedPair;
+import util.intmap.IntMap;
+import util.intmap.SparseIntMap;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
+import com.ibm.wala.util.collections.IntStack;
 import com.ibm.wala.util.intset.EmptyIntSet;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
@@ -28,7 +28,11 @@ import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
  */
 public class GraphDelta {
     private final PointsToGraph g;
-    private final Map<PointsToGraphNode, MutableIntSet> delta;
+    /**
+     * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
+     * ints)
+     */
+    private final IntMap<MutableIntSet> delta;
 
     private GraphDelta representative;
 
@@ -47,11 +51,11 @@ public class GraphDelta {
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
-        this.delta = new HashMap<>();
+        this.delta = new SparseIntMap<MutableIntSet>();
         this.size = 0;
     }
 
-    private MutableIntSet getOrCreateSet(PointsToGraphNode src,
+    private MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
             Integer initialSize) {
         assert representative == null;
 
@@ -68,22 +72,22 @@ public class GraphDelta {
         return s;
     }
 
-    public void add(PointsToGraphNode n, int ik) {
+    public void add(/*PointsToGraphNode*/int n, int ik) {
         assert representative == null;
 
-        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
-                new HashMap<>();
+        // Map from PointsToGraphNode to sets of pointsToGraphNodes
+        IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
         addToSupersetsOf(n,
                          SparseIntSet.singleton(ik),
-                         new HashSet<PointsToGraphNode>(),
-                         new Stack<PointsToGraphNode>(),
-                         new Stack<TypeFilter>(),
+                         MutableSparseIntSet.makeEmpty(),
+                         new IntStack(),
+                         new Stack<Set<TypeFilter>>(),
                          toCollapse);
         collapseCycles(toCollapse);
     }
 
-    public void addCopyEdges(PointsToGraphNode source, TypeFilter filter,
-            PointsToGraphNode target) {
+    public void addCopyEdges(/*PointsToGraphNode*/int source, TypeFilter filter,
+    /*PointsToGraphNode*/int target) {
 
         assert representative == null;
 
@@ -91,24 +95,26 @@ public class GraphDelta {
         IntSet diff = g.getDifference(source, filter, target);
 
         // Now take care of all the supersets of target...
-        Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse =
-                new HashMap<>();
+        IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
         addToSupersetsOf(target,
                          diff,
-                         new HashSet<PointsToGraphNode>(),
-                         new Stack<PointsToGraphNode>(),
-                         new Stack<TypeFilter>(),
+                         MutableSparseIntSet.makeEmpty(),
+                         new IntStack(),
+                         new Stack<Set<TypeFilter>>(),
                          toCollapse);
         collapseCycles(toCollapse);
     }
 
-    private void collapseCycles(
-            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse) {
+    private void collapseCycles(IntMap<MutableIntSet> toCollapse) {
         assert representative == null;
-        Set<PointsToGraphNode> collapsed = new HashSet<>();
-        for (PointsToGraphNode rep : toCollapse.keySet()) {
+        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
+        IntIterator iter = toCollapse.keyIterator();
+        while (iter.hasNext()) {
+            int rep = iter.next();
             rep = g.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
-            for (PointsToGraphNode n : toCollapse.get(rep)) {
+            IntIterator collapseIter = toCollapse.get(rep).intIterator();
+            while (collapseIter.hasNext()) {
+                int n = collapseIter.next();
                 if (collapsed.contains(n)) {
                     // we have already collapsed n with something. let's skip it.
                     continue;
@@ -121,37 +127,35 @@ public class GraphDelta {
         }
     }
 
-    private void addToSupersetsOf(PointsToGraphNode target, IntSet set,
-            Set<PointsToGraphNode> currentlyAdding,
-            Stack<PointsToGraphNode> currentlyAddingStack,
-            Stack<TypeFilter> filters,
-            Map<PointsToGraphNode, Set<PointsToGraphNode>> toCollapse) {
+    private void addToSupersetsOf(/*PointsToGraphNode*/int target, IntSet set, MutableIntSet currentlyAdding,
+                                  IntStack currentlyAddingStack, Stack<Set<TypeFilter>> filterStack,
+                                  IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
         if (currentlyAdding.contains(target)) {
             // we detected a cycle!
             int foundAt = -1;
-            TypeFilter filter = null;
-            for (int i = 0; filter == null && i < currentlyAdding.size(); i++) {
-                if (foundAt < 0 && currentlyAddingStack.get(i).equals(target)) {
+            boolean hasMeaningfulFilter = false;
+            for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
+                if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
                     foundAt = i;
-                    filter = filters.get(i);
+                    hasMeaningfulFilter = filterStack.get(i) != null;
                     // Mark the node as being in a cycle, so that it will stay in the cache.
                     g.inCycle(currentlyAddingStack.get(i));
                 }
                 else if (foundAt >= 0) {
                     // Mark the node as being in a cycle, so that it will stay in the cache.
                     g.inCycle(currentlyAddingStack.get(i));
-                    filter = TypeFilter.compose(filter, filters.get(i));
+                    hasMeaningfulFilter |= filterStack.get(i) != null;
                 }
             }
-            if (filter == null) {
+            if (!hasMeaningfulFilter) {
                 // we can collapse some nodes together!
-                Set<PointsToGraphNode> toCollapseSet = toCollapse.get(target);
+                MutableIntSet toCollapseSet = toCollapse.get(target);
                 if (toCollapseSet == null) {
-                    toCollapseSet = new HashSet<>();
+                    toCollapseSet = MutableSparseIntSet.makeEmpty();
                     toCollapse.put(target, toCollapseSet);
                 }
-                for (int i = foundAt + 1; i < currentlyAddingStack.size(); i++) {
+                for (int i = foundAt + 1; i < filterStack.size(); i++) {
                     toCollapseSet.add(currentlyAddingStack.get(i));
                 }
             }
@@ -161,11 +165,6 @@ public class GraphDelta {
         // Now we actually add the set to the target.
         int estimatedSize = setSizeBestGuess(set);
         if (!getOrCreateSet(target, estimatedSize).addAll(set)) {
-            // we didn't add anything, so don't bother recursing...
-            if (getOrCreateSet(target, 2).isEmpty()) {
-                // let's clean up our mess...
-                delta.remove(target);
-            }
             return;
         }
         // increase the estimated size.
@@ -174,43 +173,54 @@ public class GraphDelta {
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
-        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter =
-                g.immediateSuperSetsOf(target);
+        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> supersets = g.immediateSuperSetsOf(target);
+        IntSet unfilteredSupersets = supersets.fst();
+        IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
+        IntIterator iter = unfilteredSupersets == null ? EmptyIntIterator.instance()
+                : unfilteredSupersets.intIterator();
         while (iter.hasNext()) {
-            OrderedPair<PointsToGraphNode, TypeFilter> superSet = iter.next();
-
-            TypeFilter filter = superSet.snd();
-            IntSet filteredSet =
-                    filter == null ? set : g.new FilteredIntSet(set,
-                                                                superSet.snd());
-
-            // The set of things that
-            IntSet diff;
-
-            if (g.numIsSupersetOf(superSet.fst()) == 1) {
-                // there is only one subset!
-                // This means that anything that was added to target
-                // will definitely be added to superSet.fst(), and
-                // so we don't need to explicitly compute the difference set
-                diff = filteredSet;
-            }
-            else {
-                // Figure out which elements of filteredSet are actually added to the superset...
-                diff = g.getDifference(filteredSet, superSet.fst());
-            }
-
-            filters.push(filter);
-            addToSupersetsOf(superSet.fst(),
-                             diff,
-                             currentlyAdding,
-                             currentlyAddingStack,
-                             filters,
-                             toCollapse);
-            filters.pop();
+            int m = iter.next();
+            propagateDifference(m, null, set, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
         }
-
+        iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
+        while (iter.hasNext()) {
+            int m = iter.next();
+            propagateDifference(m,
+                                filteredSupersets.get(m),
+                                set,
+                                currentlyAdding,
+                                currentlyAddingStack,
+                                filterStack,
+                                toCollapse);
+        }
         currentlyAdding.remove(target);
         currentlyAddingStack.pop();
+
+    }
+
+    private void propagateDifference(/*PointsToGraphNode*/int target, Set<TypeFilter> filters, IntSet source,
+                                     MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
+                                     Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
+        IntSet filteredSet = filters == null ? source : g.new FilteredIntSet(source, filters);
+
+        // The set of things that
+        IntSet diff;
+
+        if (g.numIsSupersetOf(target) == 1) {
+            // there is only one subset!
+            // This means that anything that was added to target
+            // will definitely be added to superSet.fst(), and
+            // so we don't need to explicitly compute the difference set
+            diff = filteredSet;
+        }
+        else {
+            // Figure out which elements of filteredSet are actually added to the superset...
+            diff = g.getDifference(filteredSet, target);
+        }
+
+        filterStack.push(filters);
+        addToSupersetsOf(target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
+        filterStack.pop();
 
     }
 
@@ -229,7 +239,9 @@ public class GraphDelta {
         assert representative == null;
         if (d != null) {
             GraphDelta dr = d.representative();
-            for (PointsToGraphNode src : dr.delta.keySet()) {
+            IntIterator keys = dr.delta.keyIterator();
+            while (keys.hasNext()) {
+                int src = keys.next();
                 IntSet srcSet = dr.delta.get(src);
                 int estimatedSize = setSizeBestGuess(srcSet);
                 getOrCreateSet(src, estimatedSize).addAll(srcSet);
@@ -252,7 +264,7 @@ public class GraphDelta {
         return "GraphDelta [" + representative().delta + "]";
     }
 
-    public IntSet pointsToSet(PointsToGraphNode n) {
+    public IntSet pointsToSet(/*PointsToGraphNode*/int n) {
         n = g.getRepresentative(n);
         MutableIntSet s = representative().delta.get(n);
         if (s == null) {
@@ -262,22 +274,23 @@ public class GraphDelta {
     }
 
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
-        return g.new IntToInstanceKeyIterator(pointsToIntIterator(n));
+        return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n)));
     }
 
-    public IntIterator pointsToIntIterator(PointsToGraphNode n) {
+    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n) {
         ArrayList<IntIterator> iterators = new ArrayList<>(10);
         // we need to look in delta for all the possible representatives that n has been known by.
         // This is because this GraphDelta may have been created sometime
         // before n got collapsed.
         GraphDelta rep = representative();
+        Integer node = n;
         do {
-            MutableIntSet s = rep.delta.get(n);
+            MutableIntSet s = rep.delta.get(node);
             if (s != null) {
                 iterators.add(s.intIterator());
             }
-            n = g.getImmediateRepresentative(n);
-        } while (n != null);
+            node = g.getImmediateRepresentative(node);
+        } while (node != null);
 
         if (iterators.isEmpty()) {
             return EmptyIntIterator.instance();
@@ -305,8 +318,8 @@ public class GraphDelta {
         return iterators.get(0);
     }
 
-    public Iterator<PointsToGraphNode> domainIterator() {
-        return representative().delta.keySet().iterator();
+    public IntIterator domainIterator() {
+        return representative().delta.keyIterator();
     }
 
     public static void merge(GraphDelta d, GraphDelta e) {
