@@ -39,10 +39,10 @@ public abstract class PointsToAnalysis {
 
     /**
      * Perform the analysis using the constraints from the points-to statement registrar
-     * 
+     *
      * @param registrar
      *            points-to statements
-     * 
+     *
      * @return points-to graph consistent with the statements in the registrar
      */
     public abstract PointsToGraph solve(StatementRegistrar registrar);
@@ -62,7 +62,7 @@ public abstract class PointsToAnalysis {
 
         /**
          * Combination of a points-to statement and a code context
-         * 
+         *
          * @param stmt
          *            points-to statement
          * @param context
@@ -127,4 +127,6 @@ public abstract class PointsToAnalysis {
             return this.stmt + " in " + this.context;
         }
     }
+
+    abstract public PointsToGraph solveAndRegister(StatementRegistrar registrar);
 }
