@@ -51,7 +51,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Run one of the selected tests
-     * 
+     *
      * @param args
      *            options and parameters see useage (pass in "-h") for details
      * @throws IOException
@@ -225,7 +225,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Print the control flow graph for all procedures in the call graph
-     * 
+     *
      * @param g
      *            points to graph
      */
@@ -253,7 +253,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Generate the full points-to graph, print statistics, and save it to a file.
-     * 
+     *
      * @param outputLevel
      *            print level
      * @return the resulting points-to graph, and cache of reference variables
@@ -295,7 +295,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Generate the full points-to graph, print statistics, and save it to a file.
-     * 
+     *
      * @param outputLevel
      *            print level
      * @param haf
@@ -315,7 +315,8 @@ public class AccrueAnalysisMain {
 
         // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
 
-        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
+        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
+        //PointsToAnalysis analysis = new PointsToAnalysisSingleThreadedSCCSorted(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;
         StatementRegistrar registrar;
@@ -349,7 +350,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Print the control flow graph for the given method
-     * 
+     *
      * @param IR
      *            code for the method to be printed
      * @param fileName
@@ -369,7 +370,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Run the non-null analysis and return the results
-     * 
+     *
      * @param method
      *            method to print the results for
      * @param g
@@ -388,7 +389,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Run a precise exceptions analysis
-     * 
+     *
      * @param outputLevel
      *            level of logging
      * @param g
@@ -410,7 +411,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Run the inter-procedural reachability analysis
-     * 
+     *
      * @param outputLevel
      *            logging level
      * @param g
@@ -430,7 +431,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Run an inter-procedural analysis that generates a program dependence graph
-     * 
+     *
      * @param outputLevel
      *            logging level
      * @param g
@@ -451,7 +452,7 @@ public class AccrueAnalysisMain {
 
     /**
      * Run the analysis to determine which locals are boolean constants and print the results
-     * 
+     *
      * @param entryPoint
      *            full name of class to print results for contained methods
      * @param outputLevel
