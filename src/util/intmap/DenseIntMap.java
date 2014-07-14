@@ -1,19 +1,17 @@
 package util.intmap;
 
-import java.util.ConcurrentModificationException;
-
 import com.ibm.wala.util.intset.IntIterator;
 
 public class DenseIntMap<T> implements IntMap<T> {
     private static final int DEFAULT_INITIAL_CAPACITY = 10;
     private Object[] array;
     private int size;
-    private int version;
+    private int max;
 
     public DenseIntMap(int initialCapacity) {
         this.array = new Object[initialCapacity];
         this.size = 0;
-        this.version = 0;
+        this.max = -1;
     }
 
     public DenseIntMap() {
@@ -39,29 +37,48 @@ public class DenseIntMap<T> implements IntMap<T> {
     @SuppressWarnings("unchecked")
     @Override
     public T put(int i, T val) {
-        if (i >= 0 || i < array.length) {
-            Object existing = array[i];
-            array[i] = val;
-            if (existing == null && val != null) {
-                size++;
+        try {
+            if (i >= 0 && i < array.length) {
+                Object existing = array[i];
+                array[i] = val;
+                if (existing == null && val != null) {
+                    size++;
+                }
+                else if (existing != null && val == null) {
+                    size--;
+                }
+                return (T) existing;
             }
-            else if (existing != null && val == null) {
-                size--;
+            if (i < 0) {
+                throw new IllegalArgumentException("Only handle non-negative ints");
             }
-            return (T) existing;
+            // need to expand
+            float newExtent = Math.max(array.length * getExpansionFactor() + 1, i + 1);
+            Object[] tmp = new Object[(int) newExtent];
+            System.arraycopy(array, 0, tmp, 0, array.length);
+            this.array = tmp;
+            this.array[i] = val;
+            size++;
+            return null;
         }
-        if (i < 0) {
-            throw new IllegalArgumentException("Only handle non-negative ints");
+        finally {
+            // update max
+            if (val != null && i > max) {
+                max = i;
+            }
+            else if (val == null && i == max) {
+                // need to lower max.
+                while (max > 0 && array[--max] == null) {
+                    ;
+                }
+                if (max == 0 && array[0] == null) {
+                    max = -1;
+                }
+                // max is now the highest index that has a non-null value, -1
+                // if there is none.
+
+            }
         }
-        // need to expand
-        float newExtent = array.length * getExpansionFactor() + 1;
-        Object[] tmp = new Object[(int) newExtent];
-        System.arraycopy(array, 0, tmp, 0, array.length);
-        this.array = tmp;
-        array[i] = val;
-        size++;
-        version++;
-        return null;
     }
 
     protected float getExpansionFactor() {
@@ -80,26 +97,19 @@ public class DenseIntMap<T> implements IntMap<T> {
 
     @Override
     public IntIterator keyIterator() {
-        final int myVersion = this.version;
         return new IntIterator() {
-            int count = 0;
-
             int last = -1;
 
             @Override
             public boolean hasNext() {
-                return count < size;
+                return last < max;
             }
 
             @Override
             public int next() {
-                if (myVersion != version) {
-                    throw new ConcurrentModificationException();
+                while (array[++last] == null) {
+                    ;
                 }
-                count++;
-                do {
-                    last++;
-                } while (array[last] == null);
                 return last;
             }
         };
@@ -107,10 +117,11 @@ public class DenseIntMap<T> implements IntMap<T> {
 
     @Override
     public int max() {
-        int m = array.length - 1;
-        while (m >= 0 && array[m] == null) {
-            m--;
-        }
-        return m;
+        return max;
+    }
+
+    @Override
+    public T remove(int key) {
+        return put(key, null);
     }
 }

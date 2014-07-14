@@ -83,6 +83,7 @@ public class SparseIntMap<T> implements IntMap<T> {
     @Override
     public IntIterator keyIterator() {
         return new IntIterator() {
+            int lastKey = -1;
             int i = 0;
 
             @Override
@@ -95,7 +96,13 @@ public class SparseIntMap<T> implements IntMap<T> {
                 if (keys == null) {
                     throw new NoSuchElementException();
                 }
-                return keys[i++];
+                int t;
+                while ((t = keys[i++]) <= lastKey) {
+                    ; // increase i until we see a value greater than the last one
+                      // This takes care of elements added while we are iterating.
+                }
+                lastKey = t;
+                return lastKey;
             }
         };
     }
@@ -115,6 +122,9 @@ public class SparseIntMap<T> implements IntMap<T> {
     @SuppressWarnings("unchecked")
     @Override
     public T get(int x) {
+        if (keys == null) {
+            return null;
+        }
         int ind = IntSetUtil.binarySearch(keys, x, 0, size - 1);
         if (ind >= 0) {
             return (T) values[ind];
@@ -181,6 +191,46 @@ public class SparseIntMap<T> implements IntMap<T> {
         size++;
         keys = tmpKeys;
         values = tmpValues;
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public T remove(int key) {
+        if (keys != null) {
+            int remove;
+            // special case the max element
+            if (key == max()) {
+                remove = size - 1;
+            }
+            else {
+                for (remove = 0; remove < size; remove++) {
+                    if (keys[remove] >= key) {
+                        break;
+                    }
+                }
+                if (remove == size) {
+                    // Nothing to remove
+                    return null;
+                }
+            }
+            if (keys[remove] == key) {
+                Object existing = values[remove];
+                if (size == 1) {
+                    keys = null;
+                    values = null;
+                    size = 0;
+                }
+                else {
+                    if (remove < size - 1) {
+                        System.arraycopy(keys, remove + 1, keys, remove, size - remove - 1);
+                        System.arraycopy(values, remove + 1, values, remove, size - remove - 1);
+                    }
+                    size--;
+                }
+                return (T) existing;
+            }
+        }
         return null;
     }
 

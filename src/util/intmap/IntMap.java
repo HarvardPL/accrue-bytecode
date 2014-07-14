@@ -4,7 +4,7 @@ import com.ibm.wala.util.intset.IntIterator;
 
 /**
  * Map of integers to (non-null) objects. Based on WALA IntSet implementation.
- * 
+ *
  */
 public interface IntMap<T> {
 
@@ -26,22 +26,30 @@ public interface IntMap<T> {
     /**
      * @return true iff this map is empty
      */
-  public boolean isEmpty();
+    public boolean isEmpty();
 
     /**
      * @return the number of keys in this map
      */
-  public int size();
+    public int size();
 
-  /**
-   * @return a perhaps more efficient iterator
-   */
+    /**
+     * @return a perhaps more efficient iterator
+     */
     public IntIterator keyIterator();
 
 
     /**
      * @return maximum integer key in this map.
      */
-  public int max();
+    public int max();
+
+    /**
+     * Remove an element from the map.
+     * 
+     * @param key
+     * @return the value the key mapped to, if any.
+     */
+    public T remove(int key);
 
 }
