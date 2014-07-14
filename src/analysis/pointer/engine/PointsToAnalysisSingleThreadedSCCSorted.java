@@ -1,8 +1,6 @@
 package analysis.pointer.engine;
 
 import java.util.AbstractQueue;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -10,12 +8,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 
 import util.Histogram;
+import util.intmap.DenseIntMap;
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
@@ -23,31 +21,21 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.statements.ArrayToLocalStatement;
-import analysis.pointer.statements.CallStatement;
-import analysis.pointer.statements.ClassInitStatement;
-import analysis.pointer.statements.ExceptionAssignmentStatement;
-import analysis.pointer.statements.FieldToLocalStatement;
-import analysis.pointer.statements.LocalToArrayStatement;
-import analysis.pointer.statements.LocalToFieldStatement;
-import analysis.pointer.statements.LocalToLocalStatement;
-import analysis.pointer.statements.LocalToStaticFieldStatement;
-import analysis.pointer.statements.NewStatement;
-import analysis.pointer.statements.PhiStatement;
 import analysis.pointer.statements.PointsToStatement;
-import analysis.pointer.statements.ReturnStatement;
-import analysis.pointer.statements.StaticFieldToLocalStatement;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
+import com.ibm.wala.util.intset.IntSetAction;
+import com.ibm.wala.util.intset.MutableIntSet;
+import com.ibm.wala.util.intset.MutableSparseIntSet;
 
 /**
  * Single-threaded implementation of a points-to graph solver. Given a set of
  * constraints, {@link PointsToStatement}s, compute the fixed point.
  */
-public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
+public class PointsToAnalysisSingleThreadedSCCSorted extends PointsToAnalysis {
 
     /**
      * If true then a debug pass will be run after the analysis reaches a fixed
@@ -68,7 +56,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *
      * @param haf Abstraction factory for this points-to analysis
      */
-    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
+    public PointsToAnalysisSingleThreadedSCCSorted(HeapAbstractionFactory haf) {
         super(haf);
     }
 
@@ -108,6 +96,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
+     * A placeholder object to indicate that we should process a statement without a GraphDelta.
+     */
+    private static final GraphDelta NO_DELTA = new GraphDelta(null);
+
+    /**
      * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
      * entry point
      *
@@ -123,11 +116,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
 
-        Queue<StmtAndContext> currentQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> nextQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        //Queue<StmtAndContext> noDeltaQueue = new SCCSortQueue();
-        Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
-        //        Queue<StmtAndContext> noDeltaQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> queue = new SCCSortQueue();
         Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
 
         // Add initial contexts
@@ -135,30 +124,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
                     StmtAndContext sac = new StmtAndContext(s, c);
-                    noDeltaQueue.add(sac);
+                    queue.add(sac);
+                    deltas.put(sac, NO_DELTA);
                 }
             }
         }
 
         this.lastTime = this.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
-        while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()) {
-            if (currentQueue.isEmpty()) {
-                Queue<StmtAndContext> t = nextQueue;
-                nextQueue = currentQueue;
-                currentQueue = t;
-            }
-            StmtAndContext sac;
-            GraphDelta delta;
-            if (currentQueue.isEmpty()) {
-                sac = noDeltaQueue.poll();
+        while (!queue.isEmpty()) {
+            StmtAndContext sac = queue.poll();
+            GraphDelta delta = deltas.remove(sac);
+            if (delta == NO_DELTA) {
                 delta = null;
             }
-            else {
-                sac = currentQueue.poll();
-                delta = deltas.remove(sac);
-            }
-            this.processSaC(sac, delta, g, registrar, currentQueue, nextQueue, noDeltaQueue, deltas, registerOnline);
+            this.processSaC(sac, delta, g, registrar, queue, deltas, registerOnline);
         }
 
         long endTime = System.currentTimeMillis();
@@ -236,11 +216,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     long lastTime;
     long startTime;
     Map<String, Map<StmtAndContext, Integer>> counts = new HashMap<>();
-
-    private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
-                            Queue<StmtAndContext> currentQueue, Queue<StmtAndContext> nextQueue,
-                            Queue<StmtAndContext> noDeltaQueue,
-                            Map<StmtAndContext, GraphDelta> deltas, boolean registerOnline) {
+    private void processSaC(StmtAndContext sac,
+                            GraphDelta delta,
+                            PointsToGraph g,
+                            StatementRegistrar registrar,
+                            Queue<StmtAndContext> queue,
+ Map<StmtAndContext, GraphDelta> deltas,
+                            boolean registerOnline) {
         // Do some accounting for debugging/informational purposes.
         this.numProcessed++;
         if (delta == null) {
@@ -287,7 +269,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
                 for (Context context : newContexts.get(m)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, context);
-                    noDeltaQueue.add(newSaC);
+                    deltas.put(newSaC, NO_DELTA);
+                    queue.add(newSaC);
                 }
             }
         }
@@ -317,7 +300,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
         }
-        this.handleChanges(nextQueue, deltas, changed, g);
+        this.handleChanges(queue, deltas, changed, g);
 
         long currTime = System.currentTimeMillis();
         if (currTime > this.nextMilestone) {
@@ -330,9 +313,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     + (currTime - this.startTime) / 1000 + "s;  graph="
                     + g.getBaseNodes().size() + " base nodes; cycles removed "
  + g.cycleRemovalCount()
-                    + " nodes ; queue=" + currentQueue.size() + "nextQueue=" + nextQueue.size() + "noDeltaQueue="
-                    + noDeltaQueue.size()
-                    + " ("
+                    + " nodes ; queue=" + queue.size() + " ("
                     + (this.numProcessed - this.lastNumProcessed) + " in "
                     + (currTime - this.lastTime) / 1000 + "s) existingDelta: " + this.existingDelta);
             this.lastTime = currTime;
@@ -352,11 +333,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             int n = iter.next();
             for (StmtAndContext sac : this.getInterestingDependencies(n)) {
                 if (deltas.containsKey(sac)) {
-                    existingDelta++;
                     // the statement is already in the queue.
+                    existingDelta++;
                     GraphDelta existing = deltas.get(sac);
-                    // Combine the graph deltas
-                    GraphDelta.merge(changes, existing);
+                    if (existing == NO_DELTA) {
+                        // it's already doing everything, don't touch it
+                    }
+                    else {
+                        // Combine the graph deltas
+                        GraphDelta.merge(changes, existing);
+                    }
                 }
                 else {
                     // statement is not already in the queue
@@ -445,14 +431,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *
      */
     class SCCSortQueue extends AbstractQueue<StmtAndContext> {
-        //MutableIntSet current;
-        PriorityQueue<StmtAndContext> current;
+        MutableIntSet current;
+        //        PriorityQueue<StmtAndContext> current;
         Set<StmtAndContext> next = new HashSet<>();
         Map<Object, Set<StmtAndContext>> readDependencies = new HashMap<>();
 
         Map<StmtAndContext, Integer> indexMap = new HashMap<>();
 
-        //ArrayList<StmtAndContext> indexReverseMap = new ArrayList<>();
+        IntMap<StmtAndContext> indexReverseMap = new DenseIntMap<>();
 
         SCCSortQueue() {
             Comparator<StmtAndContext> cmp = new Comparator<StmtAndContext>() {
@@ -470,19 +456,19 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     return 0;
                 }
             };
-            //this.current = MutableSparseIntSet.createMutableSparseIntSet(10000);
-            this.current = new PriorityQueue<>(10000, cmp);
+            this.current = MutableSparseIntSet.createMutableSparseIntSet(10000);
+            //            this.current = new PriorityQueue<>(10000, cmp);
         }
         @Override
         public boolean offer(StmtAndContext sac) {
             if (indexMap.containsKey(sac)) {
-                //                current.add(indexMap.get(sac));
-                current.add(sac);
+                current.add(indexMap.get(sac));
+                //current.add(sac);
             }
             else {
                 this.next.add(sac);
                 // register it
-                for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
+                for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreadedSCCSorted.this.haf)) {
                     Set<StmtAndContext> set = this.readDependencies.get(read);
                     if (set == null) {
                         set = new HashSet<>();
@@ -499,10 +485,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             if (this.current.isEmpty()/* || this.next.size() > 2500*/) {
                 this.sccSortNextIntoCurrent();
             }
-            //            int max = this.current.max();
-            //            this.current.remove(max);
-            //            return indexReverseMap.get(max);
-            return current.poll();
+            int max = this.current.max();
+            this.current.remove(max);
+            return indexReverseMap.get(max);
+            //            return current.poll();
         }
 
         Set<StmtAndContext> visitingSet;
@@ -514,20 +500,20 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
          */
         private void sccSortNextIntoCurrent() {
             long start = System.currentTimeMillis();
-            this.next.addAll(current);
-            //            this.current.foreach(new IntSetAction() {
-            //
-            //                @Override
-            //                public void act(int x) {
-            //                    next.add(indexReverseMap.get(x));
-            //                }
-            //            });
+            //            this.next.addAll(current);
+            this.current.foreach(new IntSetAction() {
+
+                @Override
+                public void act(int x) {
+                    next.add(indexReverseMap.get(x));
+                }
+            });
             this.current.clear();
 
             // reset the index counter.
             this.index = 0;
             this.indexMap.clear();
-            //            this.indexReverseMap.clear();
+            this.indexReverseMap = new DenseIntMap<>();
             this.visitingSet = new HashSet<>();
             this.visiting = new Stack<>();
             for (StmtAndContext sac : this.next) {
@@ -541,7 +527,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             this.visiting = null;
 
             long end = System.currentTimeMillis();
-            PointsToAnalysisSingleThreaded.this.topoSortTime += end - start;
+            PointsToAnalysisSingleThreadedSCCSorted.this.topoSortTime += end - start;
 
         }
 
@@ -553,8 +539,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             this.index++;
 
             this.indexMap.put(sac, sacIndex);
-            //            this.indexReverseMap.add(sac);
-            //            assert this.indexReverseMap.size() == sacIndex;
+            this.indexReverseMap.put(sacIndex, sac);
             this.visitingSet.add(sac);
             this.visiting.push(sac);
 
@@ -581,8 +566,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     this.visitingSet.remove(w);
                     if (this.next.contains(w)) {
                         assert this.indexMap.containsKey(w);
-                        current.add(w);
-                        //                        current.add(indexMap.get(w));
+                        //current.add(w);
+                        current.add(indexMap.get(w));
                     }
                 } while (w != sac);
             }
@@ -593,7 +578,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             // The children of sac are the StmtAndContexts that read a variable
             // that sac writes.
             HashSet<StmtAndContext> set = new HashSet<>();
-            for (Object written : sac.getWriteDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
+            for (Object written : sac.getWriteDependencies(PointsToAnalysisSingleThreadedSCCSorted.this.haf)) {
                 Set<StmtAndContext> v = this.readDependencies.get(written);
                 if (v != null) {
                     set.addAll(v);
@@ -623,95 +608,4 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
     }
 
-    static class PartitionedQueue extends AbstractQueue<StmtAndContext> {
-        Queue<StmtAndContext> base =
-        //new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> localAssigns =
-        //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> fieldReads =
-        //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> fieldWrites =
-        //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> calls =
-        //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-
-        ArrayList<Queue<StmtAndContext>> ordered = new ArrayList<>();
-
-        {
-            ordered.add(localAssigns);
-            ordered.add(fieldReads);
-            ordered.add(fieldWrites);
-            ordered.add(base);
-            ordered.add(calls);
-        }
-
-        @Override
-        public boolean offer(StmtAndContext sac) {
-            PointsToStatement stmt = sac.stmt;
-            if (stmt instanceof NewStatement) {
-                return base.offer(sac);
-            }
-            if (stmt instanceof CallStatement || stmt instanceof ClassInitStatement) {
-                return calls.offer(sac);
-            }
-            if (stmt instanceof FieldToLocalStatement || stmt instanceof ArrayToLocalStatement) {
-                return fieldReads.offer(sac);
-            }
-            if (stmt instanceof LocalToFieldStatement || stmt instanceof LocalToArrayStatement) {
-                return fieldWrites.offer(sac);
-            }
-            if (stmt instanceof LocalToLocalStatement || stmt instanceof LocalToStaticFieldStatement
-                    || stmt instanceof PhiStatement || stmt instanceof ReturnStatement
-                    || stmt instanceof StaticFieldToLocalStatement || stmt instanceof ExceptionAssignmentStatement) {
-                return localAssigns.offer(sac);
-            }
-            throw new IllegalArgumentException("Don't know how to handle a " + stmt.getClass());
-        }
-
-        @Override
-        public StmtAndContext poll() {
-            for (Queue<StmtAndContext> q : ordered) {
-                if (!q.isEmpty()) {
-                    return q.poll();
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public StmtAndContext peek() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Iterator<StmtAndContext> iterator() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int size() {
-            int size = 0;
-            for (Queue<StmtAndContext> q : ordered) {
-                size += q.size();
-            }
-            return size;
-        }
-
-        @Override
-        public boolean isEmpty() {
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                Queue<StmtAndContext> q = ordered.get(i);
-                if (!q.isEmpty()) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-    }
 }
