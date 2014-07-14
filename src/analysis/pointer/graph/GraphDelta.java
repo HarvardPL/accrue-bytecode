@@ -2,6 +2,7 @@ package analysis.pointer.graph;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.Stack;
 
 import util.OrderedPair;
@@ -80,7 +81,7 @@ public class GraphDelta {
                          SparseIntSet.singleton(ik),
                          MutableSparseIntSet.makeEmpty(),
                          new IntStack(),
-                         new Stack<TypeFilter>(),
+                         new Stack<Set<TypeFilter>>(),
                          toCollapse);
         collapseCycles(toCollapse);
     }
@@ -99,7 +100,7 @@ public class GraphDelta {
                          diff,
                          MutableSparseIntSet.makeEmpty(),
                          new IntStack(),
-                         new Stack<TypeFilter>(),
+                         new Stack<Set<TypeFilter>>(),
                          toCollapse);
         collapseCycles(toCollapse);
     }
@@ -127,34 +128,34 @@ public class GraphDelta {
     }
 
     private void addToSupersetsOf(/*PointsToGraphNode*/int target, IntSet set, MutableIntSet currentlyAdding,
-                                  IntStack currentlyAddingStack, Stack<TypeFilter> filters,
+                                  IntStack currentlyAddingStack, Stack<Set<TypeFilter>> filterStack,
                                   IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
         if (currentlyAdding.contains(target)) {
             // we detected a cycle!
             int foundAt = -1;
-            TypeFilter filter = null;
-            for (int i = 0; filter == null && i < currentlyAdding.size(); i++) {
+            boolean hasMeaningfulFilter = false;
+            for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
                 if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
                     foundAt = i;
-                    filter = filters.get(i);
+                    hasMeaningfulFilter = filterStack.get(i) != null;
                     // Mark the node as being in a cycle, so that it will stay in the cache.
                     g.inCycle(currentlyAddingStack.get(i));
                 }
                 else if (foundAt >= 0) {
                     // Mark the node as being in a cycle, so that it will stay in the cache.
                     g.inCycle(currentlyAddingStack.get(i));
-                    filter = TypeFilter.compose(filter, filters.get(i));
+                    hasMeaningfulFilter |= filterStack.get(i) != null;
                 }
             }
-            if (filter == null) {
+            if (!hasMeaningfulFilter) {
                 // we can collapse some nodes together!
                 MutableIntSet toCollapseSet = toCollapse.get(target);
                 if (toCollapseSet == null) {
                     toCollapseSet = MutableSparseIntSet.makeEmpty();
                     toCollapse.put(target, toCollapseSet);
                 }
-                for (int i = foundAt + 1; i < filters.size(); i++) {
+                for (int i = foundAt + 1; i < filterStack.size(); i++) {
                     toCollapseSet.add(currentlyAddingStack.get(i));
                 }
             }
@@ -172,14 +173,14 @@ public class GraphDelta {
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
-        OrderedPair<IntSet, IntMap<TypeFilter>> supersets = g.immediateSuperSetsOf(target);
+        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> supersets = g.immediateSuperSetsOf(target);
         IntSet unfilteredSupersets = supersets.fst();
-        IntMap<TypeFilter> filteredSupersets = supersets.snd();
+        IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
         IntIterator iter = unfilteredSupersets == null ? EmptyIntIterator.instance()
                 : unfilteredSupersets.intIterator();
         while (iter.hasNext()) {
             int m = iter.next();
-            propagateDifference(m, null, set, currentlyAdding, currentlyAddingStack, filters, toCollapse);
+            propagateDifference(m, null, set, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
         }
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
@@ -189,7 +190,7 @@ public class GraphDelta {
                                 set,
                                 currentlyAdding,
                                 currentlyAddingStack,
-                                filters,
+                                filterStack,
                                 toCollapse);
         }
         currentlyAdding.remove(target);
@@ -197,10 +198,10 @@ public class GraphDelta {
 
     }
 
-    private void propagateDifference(/*PointsToGraphNode*/int target, TypeFilter filter, IntSet source,
+    private void propagateDifference(/*PointsToGraphNode*/int target, Set<TypeFilter> filters, IntSet source,
                                      MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
-                                     Stack<TypeFilter> filters, IntMap<MutableIntSet> toCollapse) {
-        IntSet filteredSet = filter == null ? source : g.new FilteredIntSet(source, filter);
+                                     Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
+        IntSet filteredSet = filters == null ? source : g.new FilteredIntSet(source, filters);
 
         // The set of things that
         IntSet diff;
@@ -217,9 +218,9 @@ public class GraphDelta {
             diff = g.getDifference(filteredSet, target);
         }
 
-        filters.push(filter);
-        addToSupersetsOf(target, diff, currentlyAdding, currentlyAddingStack, filters, toCollapse);
-        filters.pop();
+        filterStack.push(filters);
+        addToSupersetsOf(target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
+        filterStack.pop();
 
     }
 

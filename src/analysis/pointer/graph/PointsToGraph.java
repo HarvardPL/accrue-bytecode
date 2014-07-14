@@ -84,12 +84,12 @@ public class PointsToGraph {
     /**
      * Map from PointsToGraphNode to map from PointsToGraphNode to TypeFilter
      */
-    private final IntMap<IntMap<TypeFilter>> isSubsetOf = new SparseIntMap<>();
+    private final IntMap<IntMap<Set<TypeFilter>>> isSubsetOf = new SparseIntMap<>();
 
     /**
      * Map from PointsToGraphNode to map from PointsToGraphNode to TypeFilter
      */
-    private final IntMap<IntMap<TypeFilter>> isSupersetOf = new SparseIntMap<>();
+    private final IntMap<IntMap<Set<TypeFilter>>> isSupersetOf = new SparseIntMap<>();
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes
@@ -165,27 +165,27 @@ public class PointsToGraph {
     }
 
     // Return the immediate supersets of PointsToGraphNode n. That is, any node m such that n is an immediate subset of m
-    public OrderedPair<IntSet, IntMap<TypeFilter>> immediateSuperSetsOf(int n) {
+    public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSuperSetsOf(int n) {
         n = this.getRepresentative(n);
 
         IntSet unfilteredsupersets = this.isUnfilteredSubsetOf.get(n);
-        IntMap<TypeFilter> supersets = this.isSubsetOf.get(n);
+        IntMap<Set<TypeFilter>> supersets = this.isSubsetOf.get(n);
         return new OrderedPair<>(unfilteredsupersets, supersets);
     }
 
     // Return the immediate supersets of n. That is, any node m such that n is an immediate superset of m
     // The first element of the pair returned is the IntSet of unfiltered PointsToGraphNodes,
     // and the second element is the IntMap for filtered PointsToGraphNodes.
-    public OrderedPair<IntSet, IntMap<TypeFilter>> immediateSubSetsOf(/*PointsToGraphNode*/int n) {
+    public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSubSetsOf(/*PointsToGraphNode*/int n) {
         n = this.getRepresentative(n);
         IntSet unfilteredsubsets = this.isUnfilteredSupersetOf.get(n);
-        IntMap<TypeFilter> subsets = this.isSupersetOf.get(n);
+        IntMap<Set<TypeFilter>> subsets = this.isSupersetOf.get(n);
         return new OrderedPair<>(unfilteredsubsets, subsets);
     }
 
     public int numIsSupersetOf(/*PointsToGraphNode*/int n) {
         IntSet unfSuperSetOf = this.isUnfilteredSupersetOf.get(n);
-        IntMap<TypeFilter> filtSuperSetOf = this.isSupersetOf.get(n);
+        IntMap<Set<TypeFilter>> filtSuperSetOf = this.isSupersetOf.get(n);
 
         return (unfSuperSetOf == null ? 0 : unfSuperSetOf.size())
                 + (filtSuperSetOf == null ? 0 : filtSuperSetOf.size());
@@ -319,26 +319,45 @@ public class PointsToGraph {
             return new GraphDelta(this);
         }
 
-        IntMap<TypeFilter> sourceSubset = this.getOrCreateSubsetSet(s);
+        IntMap<Set<TypeFilter>> sourceSubset = this.getOrCreateSubsetSet(s);
 
         GraphDelta changed = new GraphDelta(this);
-        if (!sourceSubset.containsKey(t)) {
+        if (!sourceSubset.containsKey(t) || !sourceSubset.get(t).contains(filter)) {
             // For the current design, it's important that we tell delta about the copyEdges before actually updating it.
             changed.addCopyEdges(s, filter, t);
 
-            sourceSubset.put(t, filter);
+            addFilter(sourceSubset, t, filter);
             // make sure the superset relation stays consistent
-            IntMap<TypeFilter> targetSuperset = this.getOrCreateSupersetSet(t);
-            targetSuperset.put(s, filter);
+            IntMap<Set<TypeFilter>> targetSuperset = this.getOrCreateSupersetSet(t);
+            addFilter(targetSuperset, s, filter);
 
             // update the cache for the changes
             this.cache.updateForDelta(changed);
         }
-        else {
-            // the source subset already contains a filtered edge to t.
-            assert sourceSubset.get(t).equals(filter);
-        }
         return changed;
+    }
+
+    private static void addFilter(IntMap<Set<TypeFilter>> supersets, /*PointsToGraphNode*/int n, TypeFilter filter) {
+        if (supersets.containsKey(n)) {
+            supersets.get(n).add(filter);
+        }
+        else {
+            Set<TypeFilter> set = new HashSet<>(10);
+            set.add(filter);
+            supersets.put(n, set);
+        }
+    }
+
+    private static void addFilters(IntMap<Set<TypeFilter>> supersets, /*PointsToGraphNode*/int n,
+                                   Set<TypeFilter> filters) {
+        if (supersets.containsKey(n)) {
+            supersets.get(n).addAll(filters);
+        }
+        else {
+            Set<TypeFilter> set = new HashSet<>(filters.size() + 10);
+            set.addAll(filters);
+            supersets.put(n, set);
+        }
     }
 
     /**
@@ -392,7 +411,7 @@ public class PointsToGraph {
         visited.add(n);
 
         // let's try the immediate subsets of n
-        OrderedPair<IntSet, IntMap<TypeFilter>> subsets = this.immediateSubSetsOf(n);
+        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> subsets = this.immediateSubSetsOf(n);
         // First go through the unfiltered subsets
         IntIterator unfilteredSubsets = subsets.fst().intIterator();
         while (unfilteredSubsets.hasNext()) {
@@ -405,11 +424,20 @@ public class PointsToGraph {
         IntIterator filteredSubsets = subsets.snd().keyIterator();
         while (filteredSubsets.hasNext()) {
             int ss = filteredSubsets.next();
-            TypeFilter filter = subsets.snd().get(ss);
-            if (filter.satisfies(this.concreteTypeDictionary.get(ik))) {
+            Set<TypeFilter> filters = subsets.snd().get(ss);
+            if (satisfiesAny(filters, this.concreteTypeDictionary.get(ik))) {
                 if (this.pointsTo(ss, ik, visited)) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    private static boolean satisfiesAny(Set<TypeFilter> filters, IClass type) {
+        for (TypeFilter f : filters) {
+            if (f.satisfies(type)) {
+                return true;
             }
         }
         return false;
@@ -489,12 +517,12 @@ public class PointsToGraph {
         return s;
     }
 
-    private IntMap<TypeFilter> getOrCreateSubsetSet(/*PointsToGraphNode*/int node) {
+    private IntMap<Set<TypeFilter>> getOrCreateSubsetSet(/*PointsToGraphNode*/int node) {
         assert !this.representative.containsKey(node);
         return getOrCreateIntMap(node, this.isSubsetOf);
     }
 
-    private IntMap<TypeFilter> getOrCreateSupersetSet(/*PointsToGraphNode*/int node) {
+    private IntMap<Set<TypeFilter>> getOrCreateSupersetSet(/*PointsToGraphNode*/int node) {
         assert !this.representative.containsKey(node);
         return getOrCreateIntMap(node, this.isSupersetOf);
     }
@@ -755,26 +783,25 @@ public class PointsToGraph {
             }
         }
 
-        IntMap<TypeFilter> filteredSubsetOf = this.isSubsetOf.remove(n);
-        IntMap<TypeFilter> filteredSupersetOf = this.isSupersetOf.remove(n);
+        IntMap<Set<TypeFilter>> filteredSubsetOf = this.isSubsetOf.remove(n);
+        IntMap<Set<TypeFilter>> filteredSupersetOf = this.isSupersetOf.remove(n);
 
-        IntMap<TypeFilter> repFilteredSubsetOf = this.getOrCreateSubsetSet(rep);
-        IntMap<TypeFilter> repFilteredSupersetOf = this.getOrCreateSupersetSet(rep);
+        IntMap<Set<TypeFilter>> repFilteredSubsetOf = this.getOrCreateSubsetSet(rep);
+        IntMap<Set<TypeFilter>> repFilteredSupersetOf = this.getOrCreateSupersetSet(rep);
 
         if (filteredSubsetOf != null) {
             IntIterator iter = filteredSubsetOf.keyIterator();
             while (iter.hasNext()) {
                 int m = iter.next();
-                TypeFilter f = filteredSubsetOf.get(m);
+                Set<TypeFilter> filters = filteredSubsetOf.get(m);
                 // n is a filtered subset of m, so n is in the isSupersets of m
-                IntMap<TypeFilter> s = this.isSupersetOf.get(m);
+                IntMap<Set<TypeFilter>> s = this.isSupersetOf.get(m);
                 s.remove(n);
                 if (m != rep) {
                     assert !s.containsKey(rep);
-                    s.put(rep, f);
+                    addFilters(s, rep, filters);
                     // add x to the representative's...
-                    assert repFilteredSubsetOf.get(m) == null || repFilteredSubsetOf.get(m).equals(f);
-                    repFilteredSubsetOf.put(m, f);
+                    addFilters(repFilteredSubsetOf, m, filters);
 
                 }
             }
@@ -784,16 +811,14 @@ public class PointsToGraph {
             IntIterator iter = filteredSupersetOf.keyIterator();
             while (iter.hasNext()) {
                 int m = iter.next();
-                TypeFilter f = filteredSupersetOf.get(m);
+                Set<TypeFilter> filters = filteredSupersetOf.get(m);
                 // n is a filtered superset of m, so n is in the isSubsets of m
-                IntMap<TypeFilter> s = this.isSubsetOf.get(m);
+                IntMap<Set<TypeFilter>> s = this.isSubsetOf.get(m);
                 s.remove(n);
                 if (m != rep) {
-                    assert !s.containsKey(rep);
-                    s.put(rep, f);
+                    addFilters(s, rep, filters);
                     // add x to the representative's...
-                    assert repFilteredSupersetOf.get(m) == null || repFilteredSupersetOf.get(m).equals(f);
-                    repFilteredSupersetOf.put(m, f);
+                    addFilters(repFilteredSupersetOf, m, filters);
                 }
             }
         }
@@ -879,28 +904,32 @@ public class PointsToGraph {
 
     class FilteredIntSet extends AbstractIntSet implements IntSet {
         final IntSet s;
-        final TypeFilter filter;
+        final Set<TypeFilter> filters;
 
-        FilteredIntSet(IntSet s, TypeFilter filter) {
-            this.filter = filter;
-            if (TypeFilter.IMPOSSIBLE.equals(filter)) {
-                // nothing will satisfy this filter.
-                this.s = EmptyIntSet.instance;
+        FilteredIntSet(IntSet s, Set<TypeFilter> filters) {
+            this.filters = filters;
+            assert filters != null && !filters.isEmpty();
+            boolean allImpossible = true;
+            for (TypeFilter filter : filters) {
+                if (TypeFilter.IMPOSSIBLE.equals(filter)) {
+                    // nothing will satisfy this filter.
+                }
+                else {
+                    allImpossible = false;
+                    break;
+                }
             }
-            else {
-                this.s = s;
-            }
+            this.s = allImpossible ? EmptyIntSet.instance : s;
         }
 
         @Override
         public IntIterator intIterator() {
-            return new FilteredIterator(this.s.intIterator(), this.filter);
+            return new FilteredIterator(this.s.intIterator(), this.filters);
         }
 
         @Override
         public boolean contains(int o) {
-            return this.s.contains(o)
-                    && this.filter.satisfies(PointsToGraph.this.concreteTypeDictionary.get(o));
+            return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteTypeDictionary.get(o));
         }
 
         @Override
@@ -974,11 +1003,32 @@ public class PointsToGraph {
     class FilteredIterator implements IntIterator {
         private final IntIterator iter;
         private final TypeFilter filter;
+        private final Set<TypeFilter> filters;
         private int next = -1;
 
         FilteredIterator(IntIterator iter, TypeFilter filter) {
             this.filter = filter;
+            this.filters = null;
             if (TypeFilter.IMPOSSIBLE.equals(filter)) {
+                // nothing will satisfy this filter.
+                this.iter = EmptyIntIterator.instance();
+            }
+            else {
+                this.iter = iter;
+            }
+
+        }
+
+        FilteredIterator(IntIterator iter, Set<TypeFilter> filters) {
+            if (filters.size() == 1) {
+                this.filter = filters.iterator().next();
+                this.filters = null;
+            }
+            else {
+                this.filter = null;
+                this.filters = filters;
+            }
+            if (filter != null && TypeFilter.IMPOSSIBLE.equals(filter)) {
                 // nothing will satisfy this filter.
                 this.iter = EmptyIntIterator.instance();
             }
@@ -992,7 +1042,9 @@ public class PointsToGraph {
         public boolean hasNext() {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
-                if (this.filter.satisfies(PointsToGraph.this.concreteTypeDictionary.get(i))) {
+                IClass type = PointsToGraph.this.concreteTypeDictionary.get(i);
+                if (this.filter != null && this.filter.satisfies(type) || this.filters != null
+                        && satisfiesAny(filters, type)) {
                     this.next = i;
                 }
             }
@@ -1381,7 +1433,7 @@ public class PointsToGraph {
 
                 IntSet unfilteredSubsets = PointsToGraph.this.isUnfilteredSupersetOf.get(n);
 
-                IntMap<TypeFilter> filteredSubsets = PointsToGraph.this.isSupersetOf.get(n);
+                IntMap<Set<TypeFilter>> filteredSubsets = PointsToGraph.this.isSupersetOf.get(n);
 
                 boolean hasUnfilteredSubsets = unfilteredSubsets != null
                         && !unfilteredSubsets.isEmpty();
@@ -1404,7 +1456,7 @@ public class PointsToGraph {
                 int totalSubsets = (hasUnfilteredSubsets
                         ? unfilteredSubsets.size() : 0)
                         + (hasFilteredSubsets ? filteredSubsets.size() : 0);
-//                if (totalSubsets <= 2 && !baseContains && !wasInCache) {
+                //                if (totalSubsets <= 2 && !baseContains && !wasInCache) {
                 if (totalSubsets <= 1 && !baseContains && !wasInCache) {
                     return this.realizeSetWithFewSubsets(n,
                                                          unfilteredSubsets,
@@ -1442,11 +1494,11 @@ public class PointsToGraph {
                     IntIterator iter = filteredSubsets.keyIterator();
                     while (iter.hasNext()) {
                         int x = iter.next();
-                        TypeFilter f = filteredSubsets.get(x);
+                        Set<TypeFilter> filters = filteredSubsets.get(x);
                         s.addAll(new FilteredIntSet(this.realizePointsToSet(x,
                                                                             currentlyRealizing,
                                                                             currentlyRealizingStack,
-                                                                            shouldCache), f));
+                                                                            shouldCache), filters));
                     }
                 }
                 currentlyRealizing.remove(n);
@@ -1499,7 +1551,8 @@ public class PointsToGraph {
          * @return
          */
         private IntSet realizeSetWithFewSubsets(/*PointsToGraphNode*/int n, IntSet unfilteredSubsets,
-                                                IntMap<TypeFilter> filteredSubsets, MutableIntSet currentlyRealizing,
+                                                IntMap<Set<TypeFilter>> filteredSubsets,
+                                                MutableIntSet currentlyRealizing,
                                                 IntStack currentlyRealizingStack,
                                                 Stack<Boolean> shouldCache) {
             currentlyRealizing.add(n);
@@ -1524,11 +1577,11 @@ public class PointsToGraph {
                 IntIterator iter = filteredSubsets.keyIterator();
                 while (iter.hasNext()) {
                     int x = iter.next();
-                    TypeFilter f = filteredSubsets.get(x);
+                    Set<TypeFilter> filters = filteredSubsets.get(x);
                     IntSet is = new FilteredIntSet(this.realizePointsToSet(x,
                                                                            currentlyRealizing,
                                                                            currentlyRealizingStack,
-                                                                           shouldCache), f);
+                                                                           shouldCache), filters);
                     subsets[ind++] = is;
                 }
             }
