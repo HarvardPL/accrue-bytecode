@@ -412,10 +412,10 @@ public class PointsToGraph {
 
         // let's try the immediate subsets of n
         OrderedPair<IntSet, IntMap<Set<TypeFilter>>> subsets = this.immediateSubSetsOf(n);
+        // First go through the unfiltered subsets
         IntSet unfilteredSubsets = subsets.fst();
         IntMap<Set<TypeFilter>> filteredSubsets = subsets.snd();
 
-        // First go through the unfiltered subsets
         if (unfilteredSubsets != null) {
             IntIterator unfilteredSubsetsIter = unfilteredSubsets.intIterator();
             while (unfilteredSubsetsIter.hasNext()) {
@@ -427,7 +427,7 @@ public class PointsToGraph {
         }
         // Now the filtered...
         if (filteredSubsets != null) {
-            IntIterator filteredSubsetsIter = filteredSubsets.keyIterator();
+            IntIterator filteredSubsetsIter = subsets.snd().keyIterator();
             while (filteredSubsetsIter.hasNext()) {
                 int ss = filteredSubsetsIter.next();
                 Set<TypeFilter> filters = subsets.snd().get(ss);
