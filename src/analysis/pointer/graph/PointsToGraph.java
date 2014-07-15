@@ -412,22 +412,29 @@ public class PointsToGraph {
 
         // let's try the immediate subsets of n
         OrderedPair<IntSet, IntMap<Set<TypeFilter>>> subsets = this.immediateSubSetsOf(n);
+        IntSet unfilteredSubsets = subsets.fst();
+        IntMap<Set<TypeFilter>> filteredSubsets = subsets.snd();
+
         // First go through the unfiltered subsets
-        IntIterator unfilteredSubsets = subsets.fst().intIterator();
-        while (unfilteredSubsets.hasNext()) {
-            int ss = unfilteredSubsets.next();
-            if (this.pointsTo(ss, ik, visited)) {
-                return true;
+        if (unfilteredSubsets != null) {
+            IntIterator unfilteredSubsetsIter = unfilteredSubsets.intIterator();
+            while (unfilteredSubsetsIter.hasNext()) {
+                int ss = unfilteredSubsetsIter.next();
+                if (this.pointsTo(ss, ik, visited)) {
+                    return true;
+                }
             }
         }
         // Now the filtered...
-        IntIterator filteredSubsets = subsets.snd().keyIterator();
-        while (filteredSubsets.hasNext()) {
-            int ss = filteredSubsets.next();
-            Set<TypeFilter> filters = subsets.snd().get(ss);
-            if (satisfiesAny(filters, this.concreteTypeDictionary.get(ik))) {
-                if (this.pointsTo(ss, ik, visited)) {
-                    return true;
+        if (filteredSubsets != null) {
+            IntIterator filteredSubsetsIter = filteredSubsets.keyIterator();
+            while (filteredSubsetsIter.hasNext()) {
+                int ss = filteredSubsetsIter.next();
+                Set<TypeFilter> filters = subsets.snd().get(ss);
+                if (satisfiesAny(filters, this.concreteTypeDictionary.get(ik))) {
+                    if (this.pointsTo(ss, ik, visited)) {
+                        return true;
+                    }
                 }
             }
         }
