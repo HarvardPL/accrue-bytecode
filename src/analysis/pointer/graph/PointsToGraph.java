@@ -1,12 +1,10 @@
 package analysis.pointer.graph;
 
-import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -393,7 +391,7 @@ public class PointsToGraph {
             return false;
         }
 
-        IntSet s = this.cache.getPointsToSetIfNotEvicted(n);
+        IntSet s = this.cache.getPointsToSet(n);
         if (s != null) {
             return s.contains(ik);
         }
@@ -1323,32 +1321,15 @@ public class PointsToGraph {
     }
 
     /**
-     * This class implements a cache for realized points-to sets, using
-     * SoftReferences
+     * This class implements a cache for realized points-to sets. Well, it's not really a cache, it just keeps
+     * everything.
      */
     private class RealizedSetCache {
-        private static final int RECENTLY_USED_LIMIT = 50000;
-        private final IntMap<SoftReference<MutableIntSet>> cache = new SparseIntMap<>();
+        private final IntMap<MutableIntSet> cache = new SparseIntMap<>();
         private int hits = 0;
         private int misses = 0;
-        private int evictions = 0;
         private int uncachable = 0;
 
-        /*
-         * The following maps are used to have hard reference to sets, to stop them being garbage collected,
-         * i.e., to keep them in the cache.
-         * Map from PointsToGraphNodes to the sets of InstanceKeys they point to
-         */
-        private IntMap<IntSet> inCycle = new SparseIntMap<>();
-
-        private Map<Integer, IntSet> recentlyUsedMap = new LinkedHashMap<Integer, IntSet>(RECENTLY_USED_LIMIT) {
-
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Integer, IntSet> eldest) {
-                return this.size() > RECENTLY_USED_LIMIT; // only keep the most recently accessed nodes.
-            }
-
-        };
 
         /**
          * Update or invalidate caches based on the changes represented by the
@@ -1358,16 +1339,11 @@ public class PointsToGraph {
             IntIterator iter = delta.domainIterator();
             while (iter.hasNext()) {
                 /*PointsToGraphNode*/int n = iter.next();
-                SoftReference<MutableIntSet> sr = this.cache.get(n);
-                if (sr != null) {
-                    MutableIntSet s = sr.get();
-                    if (s != null) {
-                        // the set is in the cache!
-                        IntSet deltaSet = delta.pointsToSet(n);
-                        s.addAll(deltaSet);
-                        this.recentlyUsedMap.put(n, s);
-                        // no need to update inCycle, since it is the same set s.
-                    }
+                MutableIntSet s = this.cache.get(n);
+                if (s != null) {
+                    // the set is in the cache!
+                    IntSet deltaSet = delta.pointsToSet(n);
+                    s.addAll(deltaSet);
                 }
             }
         }
@@ -1377,25 +1353,30 @@ public class PointsToGraph {
          */
         public void removed(/*PointsToGraphNode*/int n) {
             this.cache.remove(n);
-            this.recentlyUsedMap.remove(n);
-            this.inCycle.remove(n);
         }
 
-        IntSet getPointsToSetIfNotEvicted(/*PointsToGraphNode*/int n) {
-            SoftReference<MutableIntSet> sr = this.cache.get(n);
-            if (sr != null) {
-                IntSet s = sr.get();
-                if (s != null) {
-                    // put it in the recently used...
-                    this.recentlyUsedMap.put(n, s);
-                }
+        //        IntSet getPointsToSetIfNotEvicted(/*PointsToGraphNode*/int n) {
+        //            SoftReference<MutableIntSet> sr =
+        //            if (sr != null) {
+        //                IntSet s = this.cache.get(n);
+        //                if (s != null) {
+        //                    // put it in the recently used...
+        //                    this.recentlyUsedMap.put(n, s);
+        //                }
+        //                return s;
+        //            }
+        //            // the points to set hasn't been evicted, so lets get it.
+        //            return this.getPointsToSet(n);
+        //        }
+        //
+        public IntSet getPointsToSet(/*PointsToGraphNode*/int n) {
+            MutableIntSet s = this.cache.get(n);
+            if (s != null) {
+                // we have it in the cache!
+                hits++;
                 return s;
             }
-            // the points to set hasn't been evicted, so lets get it.
-            return this.getPointsToSet(n);
-        }
 
-        public IntSet getPointsToSet(/*PointsToGraphNode*/int n) {
             return this.realizePointsToSet(n, MutableSparseIntSet.makeEmpty(), new IntStack(), new Stack<Boolean>());
 
         }
@@ -1405,18 +1386,11 @@ public class PointsToGraph {
             assert !PointsToGraph.this.representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
 
             try {
-                boolean wasInCache = false;
-                SoftReference<MutableIntSet> sr = this.cache.get(n);
-                if (sr != null) {
-                    IntSet s = sr.get();
-                    if (s != null) {
-                        // we have it in the cache!
-                        this.hits++;
-                        // put it in the recently used...
-                        this.recentlyUsedMap.put(n, s);
-                        return s;
-                    }
-                    wasInCache = true;
+                MutableIntSet s = this.cache.get(n);
+                if (s != null) {
+                    // we have it in the cache!
+                    hits++;
+                    return s;
                 }
 
                 if (currentlyRealizing.contains(n)) {
@@ -1464,7 +1438,7 @@ public class PointsToGraph {
                         ? unfilteredSubsets.size() : 0)
                         + (hasFilteredSubsets ? filteredSubsets.size() : 0);
                 //                if (totalSubsets <= 2 && !baseContains && !wasInCache) {
-                if (totalSubsets <= 1 && !baseContains && !wasInCache) {
+                if (totalSubsets <= 1 && !baseContains) {
                     return this.realizeSetWithFewSubsets(n,
                                                          unfilteredSubsets,
                                                          filteredSubsets,
@@ -1475,11 +1449,8 @@ public class PointsToGraph {
 
                 // We now know we definitely missed in the cache (i.e., not a base node, and not one we choose not to cache).
                 this.misses++;
-                if (this.cache.get(n) != null) {
-                    this.evictions++;
-                }
 
-                MutableIntSet s = MutableSparseIntSet.makeEmpty();
+                s = MutableSparseIntSet.makeEmpty();
                 if (baseContains) {
                     s.addAll(PointsToGraph.this.base.get(n));
                 }
@@ -1521,14 +1492,10 @@ public class PointsToGraph {
             }
             finally {
                 if (this.hits + this.misses >= 1000000) {
-                    System.err.println("  Cache: " + (this.hits + this.misses)
-                                       + " accesses: " + 100 * this.hits
-                                       / (this.hits + this.misses) + "% hits; "
-                                       + this.evictions + " of " + this.misses
-                                       + " misses due to evictions; " + this.uncachable
-                                       + " of the misses were uncachable; cache size: "
-                                       + this.cache.size());
-                    this.hits = this.misses = this.evictions = this.uncachable = 0;
+                    System.err.println("  Cache: " + (this.hits + this.misses) + " accesses: " + 100 * this.hits
+                            / (this.hits + this.misses) + "% hits; " + this.misses + " misses; " + this.uncachable
+                            + " of the misses were uncachable; cache size: " + this.cache.size());
+                    this.hits = this.misses = this.uncachable = 0;
                 }
             }
 
@@ -1536,11 +1503,7 @@ public class PointsToGraph {
 
         private void storeInCache(/*PointsToGraphNode*/int n, MutableIntSet s) {
             // it is safe for us to cache the result of this realization.
-            this.cache.put(n, new SoftReference<>(s));
-            this.recentlyUsedMap.put(n, s);
-            if (this.inCycle.containsKey(n)) {
-                this.inCycle.put(n, s);
-            }
+            this.cache.put(n, s);
         }
 
         /**
@@ -1616,23 +1579,10 @@ public class PointsToGraph {
             return new SortedIntSetUnion(subsets[0], subsets[1]);
 
         }
-
-        public void inCycle(/*PointsToGraphNode*/int n) {
-            this.inCycle.put(n, this.getPointsToSet(n));
-        }
     }
 
     public int cycleRemovalCount() {
         return this.representative.size();
-    }
-
-    /**
-     * Notify the cache that a node is in a cycle.
-     *
-     * @param n
-     */
-    public void inCycle(/*PointsToGraphNode*/int n) {
-        this.cache.inCycle(n);
     }
 
     public void findCycles() {
@@ -1671,12 +1621,7 @@ public class PointsToGraph {
             for (int i = 0; i < currentlyVisiting.size(); i++) {
                 if (foundAt < 0 && currentlyVisitingStack.get(i) == n) {
                     foundAt = i;
-                    // Mark the node as being in a cycle, so that it will stay in the cache.
-                    this.inCycle(currentlyVisitingStack.get(i));
-                }
-                else if (foundAt >= 0) {
-                    // Mark the node as being in a cycle, so that it will stay in the cache.
-                    this.inCycle(currentlyVisitingStack.get(i));
+                    break;
                 }
             }
             // we can collapse some nodes together!
