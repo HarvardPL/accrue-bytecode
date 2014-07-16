@@ -71,14 +71,14 @@ public class ReferenceVariableFactory {
     /**
      * Get the reference variable for the given local in the given method. The local should not have a primitive type or
      * null. Create a reference variable if one does not already exist
-     * 
+     *
      * @param local
      *            local ID, the type of this should not be primitive or null
      * @param method
      *            method
      * @param pp
      *            Pretty printer used to get a name for the local (default name will be used if null)
-     * 
+     *
      * @return reference variable for the local
      */
     @SuppressWarnings("synthetic-access")
@@ -108,8 +108,8 @@ public class ReferenceVariableFactory {
     /**
      * Create the reference variable for an inner array of a multidimensional array. This should only be called once for
      * any given arguments.
-     * 
-     * 
+     *
+     *
      * @param dim
      *            Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared
      *            multi-dimensional array
@@ -134,7 +134,7 @@ public class ReferenceVariableFactory {
     /**
      * Create a reference variable for an implicitly thrown exception/error. This should only be called once for any
      * given arguments.
-     * 
+     *
      * @param type
      *            type of exception being thrown
      * @param basicBlockID
@@ -159,7 +159,7 @@ public class ReferenceVariableFactory {
      * Create a singleton node for a generated exception. This can be used to decrease the size of the points-to graph
      * and the run-time of the pointer analysis at the cost of less precision. This should only be called once for any
      * given exception type.
-     * 
+     *
      * @param type
      *            type of exception to get the node for
      * @return singleton reference variable for exceptions of the given type
@@ -175,14 +175,14 @@ public class ReferenceVariableFactory {
 
     /**
      * Get a reference variable for a method exit summary node. This should only be called once for any given arguments
-     * 
+     *
      * @param type
      *            type of the exception or return value
      * @param method
      *            method the summary node is for
      * @param exitType
      *            whether this is for a normal return value or an exception
-     * 
+     *
      * @return reference variable for a return value or an exception thrown by a method
      */
     @SuppressWarnings("synthetic-access")
@@ -199,7 +199,7 @@ public class ReferenceVariableFactory {
 
     /**
      * Create a reference variable representing the local variable for an exception within a native method
-     * 
+     *
      * @param exType
      *            exception type
      * @param m
@@ -220,14 +220,14 @@ public class ReferenceVariableFactory {
     /**
      * Get a reference variable for a formal parameter summary node. This should only be called once for any given
      * arguments
-     * 
+     *
      * @param paramNum
      *            formal parameter index (by convention the 0th argument is "this" for non-static methods)
      * @param type
      *            type of the formal
      * @param method
      *            method these are summary nodes for
-     * 
+     *
      * @return reference variable for a formal parameter
      */
     @SuppressWarnings("synthetic-access")
@@ -244,7 +244,7 @@ public class ReferenceVariableFactory {
 
     /**
      * Get the reference variable for the given static field
-     * 
+     *
      * @param field
      *            field to get the node for
      * @return reference variable for the static field
@@ -271,7 +271,7 @@ public class ReferenceVariableFactory {
 
     /**
      * Get a reference variable for the value field of a new String literal
-     * 
+     *
      * @param local
      *            local variable ID for the String literal
      * @param method
@@ -290,7 +290,7 @@ public class ReferenceVariableFactory {
 
     /**
      * Get the mapping from local variable to unique reference variable
-     * 
+     *
      * @return Cache of reference variables for each local variable
      */
     public ReferenceVariableCache getAllLocals() {
@@ -316,7 +316,7 @@ public class ReferenceVariableFactory {
 
         /**
          * Create a new key for the value field of a string literal
-         * 
+         *
          * @param local
          *            local variable for the string literal
          * @param method
@@ -345,12 +345,22 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
             StringValueKey other = (StringValueKey) obj;
-            if (local != other.local) return false;
-            if (!method.equals(other.method)) return false;
+            if (local != other.local) {
+                return false;
+            }
+            if (!method.equals(other.method)) {
+                return false;
+            }
             return true;
         }
     }
@@ -378,7 +388,7 @@ public class ReferenceVariableFactory {
 
         /**
          * Create a key that uniquely identifies an implicitly thrown exception.
-         * 
+         *
          * @param type
          *            type of exception being thrown
          * @param basicBlockID
@@ -413,13 +423,25 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
             ImplicitThrowKey other = (ImplicitThrowKey) obj;
-            if (basicBlockID != other.basicBlockID) return false;
-            if (!method.equals(other.method)) return false;
-            if (type != other.type) return false;
+            if (basicBlockID != other.basicBlockID) {
+                return false;
+            }
+            if (!method.equals(other.method)) {
+                return false;
+            }
+            if (type != other.type) {
+                return false;
+            }
             return true;
         }
     }
@@ -447,7 +469,7 @@ public class ReferenceVariableFactory {
 
         /**
          * Create a new key for a method exit
-         * 
+         *
          * @param method
          *            method this node is for
          * @param exitType
@@ -464,7 +486,7 @@ public class ReferenceVariableFactory {
 
         /**
          * Create a new key for a formal parameter
-         * 
+         *
          * @param method
          *            method this node is for
          * @param paramNum
@@ -497,16 +519,30 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
             MethodSummaryKey other = (MethodSummaryKey) obj;
             if (exitType == null) {
-                if (other.exitType != null) return false;
+                if (other.exitType != null) {
+                    return false;
+                }
             }
-            else if (!exitType.equals(other.exitType)) return false;
-            if (!method.equals(other.method)) return false;
-            if (paramNum != other.paramNum) return false;
+            else if (!exitType.equals(other.exitType)) {
+                return false;
+            }
+            if (!method.equals(other.method)) {
+                return false;
+            }
+            if (paramNum != other.paramNum) {
+                return false;
+            }
             return true;
         }
     }
@@ -535,7 +571,7 @@ public class ReferenceVariableFactory {
 
         /**
          * Create a new key for the contents of the inner dimensions of multi-dimensional arrays
-         * 
+         *
          * @param dim
          *            Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared
          *            multi-dimensional array
@@ -572,16 +608,30 @@ public class ReferenceVariableFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null) return false;
-            if (getClass() != obj.getClass()) return false;
-            ArrayContentsKey other = (ArrayContentsKey) obj;
-            if (dim != other.dim) return false;
-            if (method == null) {
-                if (other.method != null) return false;
+            if (this == obj) {
+                return true;
             }
-            else if (!method.equals(other.method)) return false;
-            if (programCounter != other.programCounter) return false;
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            ArrayContentsKey other = (ArrayContentsKey) obj;
+            if (dim != other.dim) {
+                return false;
+            }
+            if (method == null) {
+                if (other.method != null) {
+                    return false;
+                }
+            }
+            else if (!method.equals(other.method)) {
+                return false;
+            }
+            if (programCounter != other.programCounter) {
+                return false;
+            }
             return true;
         }
     }
@@ -607,17 +657,13 @@ public class ReferenceVariableFactory {
 
         /**
          * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis.
-         * 
-         * @param debugString
-         *            String used for debugging and printing
-         * @param expectedType
-         *            Type of the variable this represents
-         * @param isSingleton
-         *            Whether this reference variable represents a static field, or other global singleton (for which
-         *            only one reference variable replica will be created usually in the initial context)
+         *
+         * @param debugString String used for debugging and printing
+         * @param expectedType Type of the variable this represents
+         * @param isSingleton Whether this reference variable represents a static field, or other global singleton (for
+         *            which only one reference variable replica will be created usually in the initial context)
          */
-        private ReferenceVariable(String debugString,
-                TypeReference expectedType, boolean isSingleton) {
+        private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton) {
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
@@ -645,7 +691,7 @@ public class ReferenceVariableFactory {
 
         /**
          * Type of the reference variable
-         * 
+         *
          * @return The type of the reference variable
          */
         public TypeReference getExpectedType() {
@@ -657,7 +703,7 @@ public class ReferenceVariableFactory {
          * it? This should return true for reference variables that represent e.g., static fields. Because there is only
          * one location represented by the static field, there should not be multiple replicas of the reference variable
          * that represents the static field.
-         * 
+         *
          * @return true if this is a static variable
          */
         public boolean isSingleton() {

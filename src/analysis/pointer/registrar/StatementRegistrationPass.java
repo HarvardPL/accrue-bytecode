@@ -13,6 +13,7 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar.InstructionInfo;
 import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
@@ -29,9 +30,11 @@ public class StatementRegistrationPass {
 
     /**
      * Create a pass which will generate points-to statements
+     *
+     * @param factory
      */
-    public StatementRegistrationPass() {
-        registrar = new StatementRegistrar();
+    public StatementRegistrationPass(StatementFactory factory) {
+        registrar = new StatementRegistrar(factory);
     }
 
     /**
@@ -43,7 +46,7 @@ public class StatementRegistrationPass {
 
     /**
      * Add instructions to the work queue for the given method, if this method has not already been processed.
-     * 
+     *
      * @param q
      *            work queue containing instructions to be processed
      * @param m
@@ -56,7 +59,7 @@ public class StatementRegistrationPass {
 
     /**
      * Add statements given class initializers
-     * 
+     *
      * @param trigger
      *            instruction that triggered the clinit
      * @param containingCode

@@ -39,7 +39,7 @@ public class SpecialCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     * 
+     *
      * @param callSite
      *            Method call site
      * @param caller
@@ -130,7 +130,7 @@ public class SpecialCallStatement extends CallStatement {
 
     /**
      * Variable for receiver followed by variables for arguments in order
-     * 
+     *
      * {@inheritDoc}
      */
     @Override
@@ -179,5 +179,14 @@ public class SpecialCallStatement extends CallStatement {
         // the local-to-local's of the callee's method summaries
         defs.add(this.callee);
         return defs;
+    }
+
+    /**
+     * Get the resolved method being called
+     *
+     * @return method being called
+     */
+    protected IMethod getResolvedCallee() {
+        return callee;
     }
 }

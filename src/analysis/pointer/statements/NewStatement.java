@@ -33,7 +33,7 @@ public class NewStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for an allocation resulting from a new instruction, e.g. o = new Object
-     * 
+     *
      * @param result
      *            Points-to graph node for the assignee of the new
      * @param newClass
@@ -56,25 +56,23 @@ public class NewStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for an allocation that does not result from a new instruction
-     * 
-     * @param name
-     *            debug name to be put into the allocation node
-     * @param result
-     *            the assignee of the new allocation
-     * @param allocatedClass
-     *            Class being created
-     * @param m
-     *            method the points-to statement came from
+     *
+     * @param name debug name to be put into the allocation node
+     * @param result the assignee of the new allocation
+     * @param allocatedClass Class being created
+     * @param m method the points-to statement came from
+     * @param isStringLiteral true if this allocation is for a string literal, if this is true then
+     *            <code>name</name> should be the literal string being allocated
      */
-    protected NewStatement(String name, ReferenceVariable result,
-            IClass allocatedClass, IMethod m) {
+    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IMethod m,
+                           boolean isStringLiteral) {
         super(m);
         this.result = result;
-        alloc =
-                AllocSiteNodeFactory.createGenerated(name,
+        alloc = AllocSiteNodeFactory.createGenerated(name,
                                                      allocatedClass,
                                                      m.getDeclaringClass(),
-                                                     result);
+                                                     result,
+                                                     isStringLiteral);
     }
 
     @Override

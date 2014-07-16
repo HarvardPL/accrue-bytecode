@@ -40,7 +40,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     /**
      * Statement for an assignment into a field, o.f = v
-     * 
+     *
      * @param o
      *            points-to graph node for receiver of field access
      * @param f
@@ -142,5 +142,14 @@ public class LocalToFieldStatement extends PointsToStatement {
     @Override
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(this.field);
+    }
+
+    /**
+     * Get the field assigned into
+     *
+     * @return field assigned to
+     */
+    protected FieldReference getField() {
+        return field;
     }
 }
