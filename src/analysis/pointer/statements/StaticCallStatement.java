@@ -6,6 +6,7 @@ import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -62,7 +63,7 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         return this.processCall(context, null, this.callee, g, haf, this.calleeSummary);
     }
 

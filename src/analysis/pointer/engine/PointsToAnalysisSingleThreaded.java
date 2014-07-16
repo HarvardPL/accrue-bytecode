@@ -42,7 +42,6 @@ import analysis.pointer.statements.StaticFieldToLocalStatement;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
-import com.ibm.wala.util.intset.IntSet;
 
 /**
  * Single-threaded implementation of a points-to graph solver. Given a set of
@@ -93,7 +92,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     @Deprecated
     public PointsToGraph solveSimple(StatementRegistrar registrar) {
-        PointsToGraph g = new PointsToGraph(registrar, this.haf);
+        PointsToGraph g = new PointsToGraph(registrar, this.haf, null);
 
         boolean changed = true;
         int count = 0;
@@ -112,14 +111,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
      * entry point
      *
+     * @param registerOnline
+     * @param registrar
+     *
      * @param registrar points-to statement registrar
      * @param registerOnline Whether to generate points-to statements during the points-to analysis, otherwise the
      *            registrar will already be populated
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(StatementRegistrar registrar,
-                                      boolean registerOnline) {
-        PointsToGraph g = new PointsToGraph(registrar, this.haf);
+    public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf);
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
@@ -127,9 +127,46 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         //Queue<StmtAndContext> noDeltaQueue = new SCCSortQueue();
-        Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
+        final Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
         //        Queue<StmtAndContext> noDeltaQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
 
+        DependencyRecorder depRecorder = new DependencyRecorder() {
+
+            @Override
+            public void recordRead(int n, StmtAndContext sac) {
+                PointsToAnalysisSingleThreaded.this.addInterestingDependency(n, sac);
+            }
+
+            @Override
+            public void recordCollapsedNodes(int n, int rep) {
+                // now update the interesting dependencies.
+                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
+                if (deps != null) {
+                    for (StmtAndContext depSac : deps) {
+                        PointsToAnalysisSingleThreaded.this.addInterestingDependency(rep, depSac);
+                    }
+                    PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
+                }
+            }
+
+            @Override
+            public void recordNewContext(IMethod callee, Context calleeContext) {
+                if (registerOnline) {
+                    // Add statements for the given method to the registrar
+                    long start = System.currentTimeMillis();
+                    registrar.registerMethod(callee);
+                    long end = System.currentTimeMillis();
+                    PointsToAnalysisSingleThreaded.this.registrationTime += end - start;
+                }
+
+                for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
+                    StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
+                    noDeltaQueue.add(newSaC);
+                }
+            }
+        };
+
+        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder);
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
@@ -159,7 +196,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 sac = sacd.fst();
                 delta = sacd.snd();
             }
-            this.processSaC(sac, delta, g, registrar, currentQueue, nextQueue, noDeltaQueue, registerOnline);
+            this.processSaC(sac, delta, g, registrar, currentQueue, nextQueue, noDeltaQueue);
         }
 
         long endTime = System.currentTimeMillis();
@@ -238,8 +275,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
                             Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue,
-                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue,
-                            Queue<StmtAndContext> noDeltaQueue, boolean registerOnline) {
+                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue, Queue<StmtAndContext> noDeltaQueue) {
         // Do some accounting for debugging/informational purposes.
         this.numProcessed++;
         if (delta == null) {
@@ -266,52 +302,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (outputLevel >= 3) {
             System.err.println("\tPROCESSING: " + sac);
         }
-        GraphDelta changed = s.process(c, this.haf, g, delta, registrar);
-
-        // Get the changes from the graph
-        Map<IMethod, Set<Context>> newContexts = g.getAndClearNewContexts();
-        IntSet readNodes = g.getAndClearReadNodes();
-        IntSet newlyCombinedNodes = g.getAndClearNewlyCollapsedNodes();
-
-        // Add new contexts
-        for (IMethod m : newContexts.keySet()) {
-            if (registerOnline) {
-                // Add statements for the given method to the registrar
-                long start = System.currentTimeMillis();
-                registrar.registerMethod(m);
-                long end = System.currentTimeMillis();
-                this.registrationTime += end - start;
-            }
-
-            for (PointsToStatement stmt : registrar.getStatementsForMethod(m)) {
-                for (Context context : newContexts.get(m)) {
-                    StmtAndContext newSaC = new StmtAndContext(stmt, context);
-                    noDeltaQueue.add(newSaC);
-                }
-            }
-        }
-
-        // Now add the dependencies.
-
-        // Read nodes are nodes that the current statement depends on
-        IntIterator iter = readNodes.intIterator();
-        while (iter.hasNext()) {
-            int n = iter.next();
-            this.addInterestingDependency(n, sac);
-        }
-
-        // now update the interesting dependencies.
-        iter = newlyCombinedNodes.intIterator();
-        while (iter.hasNext()) {
-            int n = iter.next();
-            Set<StmtAndContext> deps = this.interestingDepedencies.remove(n);
-            if (deps != null) {
-                for (StmtAndContext depSac : deps) {
-                    this.addInterestingDependency(g.getRepresentative(n),
-                                                  depSac);
-                }
-            }
-        }
+        GraphDelta changed = s.process(c, this.haf, g, delta, registrar, sac);
 
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
@@ -370,7 +361,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    GraphDelta d = s.process(c, this.haf, g, null, registrar);
+                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null "
                                 + s.getClass() + " : " + s);
@@ -415,7 +406,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param sac statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    private boolean addInterestingDependency(/*PointsToGraphNode*/int n,
+    boolean addInterestingDependency(/*PointsToGraphNode*/int n,
                                              StmtAndContext sac) {
         Set<StmtAndContext> s = this.interestingDepedencies.get(n);
         if (s == null) {
@@ -700,4 +691,5 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
     }
+
 }

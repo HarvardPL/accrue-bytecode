@@ -50,7 +50,7 @@ public abstract class PointsToAnalysis {
     /**
      * Points-to statement together with a code context
      */
-    protected static class StmtAndContext {
+    public static class StmtAndContext {
         /**
          * Code context
          */

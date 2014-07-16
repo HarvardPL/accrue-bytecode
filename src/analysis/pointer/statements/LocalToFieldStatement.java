@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -40,7 +41,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     /**
      * Statement for an assignment into a field, o.f = v
-     * 
+     *
      * @param o
      *            points-to graph node for receiver of field access
      * @param f
@@ -60,7 +61,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
         PointsToGraphNode local =
                 new ReferenceVariableReplica(context, this.localVar);
@@ -69,7 +70,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
         if (delta == null) {
             // no delta, let's do some simple processing
-            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec); iter.hasNext();) {
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
 
                 ObjectField f = new ObjectField(recHeapContext, this.field);

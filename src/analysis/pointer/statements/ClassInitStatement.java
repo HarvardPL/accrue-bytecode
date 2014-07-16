@@ -8,6 +8,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -44,7 +45,7 @@ public class ClassInitStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit

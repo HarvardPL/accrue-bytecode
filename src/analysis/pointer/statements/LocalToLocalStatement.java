@@ -7,6 +7,7 @@ import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -63,7 +64,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
         // don't need to use delta, as this just adds a subset edge

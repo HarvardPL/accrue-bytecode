@@ -7,6 +7,7 @@ import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -39,7 +40,7 @@ public class SpecialCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     * 
+     *
      * @param callSite
      *            Method call site
      * @param caller
@@ -69,14 +70,14 @@ public class SpecialCallStatement extends CallStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica receiverRep =
                 new ReferenceVariableReplica(context, this.receiver);
         GraphDelta changed = new GraphDelta(g);
 
         Iterator<InstanceKey> iter =
                 delta == null
-                ? g.pointsToIterator(receiverRep)
+ ? g.pointsToIterator(receiverRep, originator)
                         : delta.pointsToIterator(receiverRep);
                 while (iter.hasNext()) {
                     InstanceKey recHeapCtxt = iter.next();
@@ -130,7 +131,7 @@ public class SpecialCallStatement extends CallStatement {
 
     /**
      * Variable for receiver followed by variables for arguments in order
-     * 
+     *
      * {@inheritDoc}
      */
     @Override

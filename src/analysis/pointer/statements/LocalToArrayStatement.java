@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -40,7 +41,7 @@ public class LocalToArrayStatement extends PointsToStatement {
     /**
      * Statement for an assignment into an array, a[i] = v. Note that we do not reason about the individual array
      * elements.
-     * 
+     *
      * @param a
      *            points-to graph node for array assigned into
      * @param value
@@ -60,7 +61,7 @@ public class LocalToArrayStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value);
 
@@ -68,7 +69,7 @@ public class LocalToArrayStatement extends PointsToStatement {
 
         if (delta == null) {
             // no changes, let's do the processing in a straightforward way.
-            for (Iterator<InstanceKey> iter = g.pointsToIterator(a); iter.hasNext();) {
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(a, originator); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
                 ObjectField contents =
                         new ObjectField(arrHeapContext,

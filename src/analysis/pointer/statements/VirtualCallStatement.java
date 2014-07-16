@@ -10,6 +10,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -69,12 +70,12 @@ public class VirtualCallStatement extends CallStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar) {
+                              StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver);
 
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep)
+        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
                 : delta.pointsToIterator(receiverRep);
 
         while (iter.hasNext()) {

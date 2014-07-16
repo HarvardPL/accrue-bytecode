@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
@@ -40,7 +41,7 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
-     * 
+     *
      * @param l
      *            points-to graph node for local assigned into
      * @param o
@@ -65,7 +66,7 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode left =
                 new ReferenceVariableReplica(context, this.assignee);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
@@ -74,7 +75,7 @@ public class FieldToLocalStatement extends PointsToStatement {
 
         if (delta == null) {
             // let's do the normal processing
-            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec); iter.hasNext();) {
+            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, this.declaredField);
 
@@ -121,7 +122,7 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     /**
      * Get the field being accessed
-     * 
+     *
      * @return accessed field
      */
     public FieldReference getField() {

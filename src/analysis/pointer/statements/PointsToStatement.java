@@ -10,6 +10,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -36,7 +37,7 @@ public abstract class PointsToStatement {
     /**
      * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
      * statement.
-     * 
+     *
      * @param m
      *            method this statement was created in
      */
@@ -46,7 +47,7 @@ public abstract class PointsToStatement {
 
     /**
      * Method this statement was created in
-     * 
+     *
      * @return resolved method
      */
     public IMethod getMethod() {
@@ -55,24 +56,21 @@ public abstract class PointsToStatement {
 
     /**
      * Process this statement, modifying the points-to graph if necessary
-     * 
-     * @param context
-     *            current analysis context
-     * @param haf
-     *            factory for creating new analysis contexts
-     * @param g
-     *            points-to graph (may be modified)
-     * @param delta
-     *            Changes to the graph relevant to this statement since the last time this stmt was processed. Maybe
+     *
+     * @param context current analysis context
+     * @param haf factory for creating new analysis contexts
+     * @param g points-to graph (may be modified)
+     * @param delta Changes to the graph relevant to this statement since the last time this stmt was processed. Maybe
      *            null (e.g., if it is the first time the statement is processed, and may be used by the processing to
      *            improve the performance of processing).
-     * @param registrar
-     *            Points-to statement registrar
+     * @param registrar Points-to statement registrar
+     * @param originator TODO
+     * @param originator The SaC that caused this processing, i.e. the pair of this and context.
      * @return Changes to the graph as a result of processing this statement. Must be non-null.
      */
     public abstract GraphDelta process(Context context,
             HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-            StatementRegistrar registrar);
+            StatementRegistrar registrar, StmtAndContext originator);
 
     @Override
     public final int hashCode() {
@@ -90,7 +88,7 @@ public abstract class PointsToStatement {
     /**
      * Check whether the types in the assignment satisfy type-system requirements (i.e. ensure that left = right is a
      * valid assignment)
-     * 
+     *
      * @param left
      *            assignee
      * @param right
@@ -138,7 +136,7 @@ public abstract class PointsToStatement {
     /**
      * Check whether the given set is empty and print an error message if we are in debug mode (PointsToAnalysis.DEBUG =
      * true) and the output level is high enough.
-     * 
+     *
      * @param pointsToSet
      *            set to check
      * @param r
@@ -164,7 +162,7 @@ public abstract class PointsToStatement {
     /**
      * Replace a variable use with a different variable. What the number corresponds to is defined by the implementation
      * of {@link PointsToStatement#getUses()}.
-     * 
+     *
      * @param useNumber
      *            use number of the variable to be replaced
      * @param newVariable
@@ -175,32 +173,32 @@ public abstract class PointsToStatement {
     /**
      * Get all variables used by this points-to statement. The order is arbitrary but the index is guaranteed to be the
      * same as the use number in {@link PointsToStatement#replaceUse(int, ReferenceVariable)}.
-     * 
+     *
      * @return list of variable uses
      */
     public abstract List<ReferenceVariable> getUses();
 
     /**
      * Get local variable defined by this statement, if any
-     * 
+     *
      * @return local variable assigned into, null if there no such variable
      */
     public abstract ReferenceVariable getDef();
 
     /**
-     * Get the objects that processing this PointsToStatement in the 
+     * Get the objects that processing this PointsToStatement in the
      * specified context will "read". One PointsToStatement depends on another
      * if the first "reads" an object that the other "writes". The objects
      * are typically ReferenceVariableReplicas, but may use other objects
-     * (e.g., FieldReferences and IMethods) to express dependencies between 
+     * (e.g., FieldReferences and IMethods) to express dependencies between
      * statements.
      */
     public abstract Collection<?> getReadDependencies(Context ctxt,
             HeapAbstractionFactory haf);
 
     /**
-     * Get the objects that processing this PointsToStatement in the 
-     * specified context will "write". See documentation for 
+     * Get the objects that processing this PointsToStatement in the
+     * specified context will "write". See documentation for
      * getReadDependencies
      */
     public abstract Collection<?> getWriteDependencies(Context ctxt,

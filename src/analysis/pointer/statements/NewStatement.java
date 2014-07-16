@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -79,7 +80,7 @@ public class NewStatement extends PointsToStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         InstanceKey newHeapContext = haf.record(alloc, context);
         assert newHeapContext != null;
 

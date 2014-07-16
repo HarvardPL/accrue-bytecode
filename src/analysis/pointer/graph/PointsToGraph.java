@@ -17,6 +17,8 @@ import util.intmap.SparseIntMap;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.engine.DependencyRecorder;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -116,11 +118,7 @@ public class PointsToGraph {
 
     private final HafCallGraph callGraph;
 
-    // private final DependencyRecorder depRecorder;
-    private MutableIntSet readNodes;
-    private MutableIntSet newlyCollapsedNodes;
-
-    private Map<IMethod, Set<Context>> newContexts;
+    private final DependencyRecorder depRecorder;
 
     /*
      * A cache for realized points to sets.
@@ -132,10 +130,8 @@ public class PointsToGraph {
     public static boolean DEBUG = false;
 
     public PointsToGraph(StatementRegistrar registrar,
-                         HeapAbstractionFactory haf) {
-        this.readNodes = MutableSparseIntSet.makeEmpty();
-        this.newlyCollapsedNodes = MutableSparseIntSet.makeEmpty();
-        this.newContexts = new HashMap<>();
+ HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
+        this.depRecorder = depRecorder;
 
         this.haf = haf;
         this.callGraph = new HafCallGraph(haf);
@@ -366,16 +362,20 @@ public class PointsToGraph {
      * @param n
      * @return
      */
-    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
-        return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n)));
+    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n, StmtAndContext origninator) {
+        return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), origninator));
     }
 
     public int graphNodeToInt(PointsToGraphNode n) {
         return lookupDictionary(n);
     }
-    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n) {
+
+    public IntIterator pointsToIntIterator(PointsToGraphNode n, StmtAndContext origninator) {
+        return pointsToIntIterator(lookupDictionary(n), origninator);
+    }
+    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext origninator) {
         n = this.getRepresentative(n);
-        this.recordRead(n);
+        this.recordRead(n, origninator);
         return this.cache.getPointsToSet(n).intIterator();
     }
 
@@ -507,12 +507,7 @@ public class PointsToGraph {
 
         if (s.add(calleeContext)) {
             // The context is new
-            Set<Context> n = this.newContexts.get(callee);
-            if (n == null) {
-                n = new HashSet<>();
-                this.newContexts.put(callee, n);
-            }
-            n.add(calleeContext);
+            depRecorder.recordNewContext(callee, calleeContext);
         }
     }
 
@@ -691,38 +686,8 @@ public class PointsToGraph {
         return this.callGraph;
     }
 
-    /**
-     * Get new contexts created since this was last called and clear the new
-     * context map
-     *
-     * @return new context map
-     */
-    public Map<IMethod, Set<Context>> getAndClearNewContexts() {
-        Map<IMethod, Set<Context>> newC = this.newContexts;
-        this.newContexts = new HashMap<>();
-        return newC;
-    }
-
-    /**
-     * Get the set of nodes that have been read since this was last called and
-     * clear the set.
-     *
-     * @return set of nodes for which the points-to set was retrieved
-     */
-    public MutableIntSet getAndClearReadNodes() {
-        MutableIntSet c = this.readNodes;
-        this.readNodes = MutableSparseIntSet.makeEmpty();
-        return c;
-    }
-
-    private void recordRead(/*PointsToGraphNode*/int node) {
-        this.readNodes.add(node);
-    }
-
-    public MutableIntSet getAndClearNewlyCollapsedNodes() {
-        MutableIntSet c = this.newlyCollapsedNodes;
-        this.newlyCollapsedNodes = MutableSparseIntSet.makeEmpty();
-        return c;
+    private void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
+        this.depRecorder.recordRead(node, sac);
     }
 
     /**
@@ -743,16 +708,12 @@ public class PointsToGraph {
             // they have already been merged.
             return;
         }
-        this.newlyCollapsedNodes.add(n);
 
         // update the cache.
         this.cache.removed(n);
 
-        // update the read nodes
-        if (this.readNodes.contains(n)) {
-            this.readNodes.remove(n);
-            this.readNodes.add(rep);
-        }
+        // Notify the dependency recorder
+        depRecorder.recordCollapsedNodes(n, rep);
 
         // update the subset and superset graphs.
         IntSet unfilteredSubsetOf = this.isUnfilteredSubsetOf.remove(n);
