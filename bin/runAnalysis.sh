@@ -1,6 +1,6 @@
 #!/bin/sh
 
-vmargs="-Xmx16G -Xms16G"
+vmargs="-Xmx14G -Xms14G -Xss30m"
 dir=`dirname "$0"`/..
 
 if [ -z "$WALA_HOME" ]; then
