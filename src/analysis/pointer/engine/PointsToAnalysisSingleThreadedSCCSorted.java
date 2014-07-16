@@ -341,7 +341,8 @@ public class PointsToAnalysisSingleThreadedSCCSorted extends PointsToAnalysis {
                     }
                     else {
                         // Combine the graph deltas
-                        GraphDelta.merge(changes, existing);
+                        //GraphDelta.merge(changes, existing);
+                        throw new RuntimeException("Merge not currently supported");
                     }
                 }
                 else {

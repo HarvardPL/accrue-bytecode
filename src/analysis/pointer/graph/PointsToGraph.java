@@ -370,6 +370,9 @@ public class PointsToGraph {
         return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n)));
     }
 
+    public int graphNodeToInt(PointsToGraphNode n) {
+        return lookupDictionary(n);
+    }
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n) {
         n = this.getRepresentative(n);
         this.recordRead(n);

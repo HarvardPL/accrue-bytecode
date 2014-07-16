@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.Stack;
 
 import util.Histogram;
+import util.OrderedPair;
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
@@ -123,12 +124,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
 
-        Queue<StmtAndContext> currentQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> nextQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         //Queue<StmtAndContext> noDeltaQueue = new SCCSortQueue();
         Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
         //        Queue<StmtAndContext> noDeltaQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Map<StmtAndContext, GraphDelta> deltas = new HashMap<>();
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
@@ -144,7 +144,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Set<StmtAndContext> visited = new HashSet<>();
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()) {
             if (currentQueue.isEmpty()) {
-                Queue<StmtAndContext> t = nextQueue;
+                Queue<OrderedPair<StmtAndContext, GraphDelta>> t = nextQueue;
                 nextQueue = currentQueue;
                 currentQueue = t;
             }
@@ -155,10 +155,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 delta = null;
             }
             else {
-                sac = currentQueue.poll();
-                delta = deltas.remove(sac);
+                OrderedPair<StmtAndContext, GraphDelta> sacd = currentQueue.poll();
+                sac = sacd.fst();
+                delta = sacd.snd();
             }
-            this.processSaC(sac, delta, g, registrar, currentQueue, nextQueue, noDeltaQueue, deltas, registerOnline);
+            this.processSaC(sac, delta, g, registrar, currentQueue, nextQueue, noDeltaQueue, registerOnline);
         }
 
         long endTime = System.currentTimeMillis();
@@ -180,7 +181,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 + this.numNoDeltaProcessed);
         System.err.println("   Num with delta processed "
                 + (this.numProcessed - this.numNoDeltaProcessed));
-        System.err.println("   Num with that had existing delta in queue " + (this.existingDelta));
         System.err.println("   Cycles removed " + g.cycleRemovalCount()
                            + " nodes");
 
@@ -229,7 +229,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     int numNoDeltaProcessed = 0;
     int lastNumNoDeltaProcessed = 0;
     int processedWithNoChange = 0;
-    int existingDelta = 0;
     long registrationTime = 0;
     long topoSortTime = 0;
     long nextMilestone;
@@ -238,9 +237,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     Map<String, Map<StmtAndContext, Integer>> counts = new HashMap<>();
 
     private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
-                            Queue<StmtAndContext> currentQueue, Queue<StmtAndContext> nextQueue,
-                            Queue<StmtAndContext> noDeltaQueue,
-                            Map<StmtAndContext, GraphDelta> deltas, boolean registerOnline) {
+                            Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue,
+                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue,
+                            Queue<StmtAndContext> noDeltaQueue, boolean registerOnline) {
         // Do some accounting for debugging/informational purposes.
         this.numProcessed++;
         if (delta == null) {
@@ -317,13 +316,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
         }
-        this.handleChanges(nextQueue, deltas, changed, g);
+        this.handleChanges(nextQueue, changed);
 
         long currTime = System.currentTimeMillis();
         if (currTime > this.nextMilestone) {
             do {
-                this.nextMilestone = this.nextMilestone + 1000 * 30; // 30
-                // seconds
+                this.nextMilestone = this.nextMilestone + 1000 * 30; // 30 seconds
             } while (currTime > this.nextMilestone);
 
             System.err.println("PROCESSED: " + this.numProcessed + " in "
@@ -334,7 +332,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     + noDeltaQueue.size()
                     + " ("
                     + (this.numProcessed - this.lastNumProcessed) + " in "
-                    + (currTime - this.lastTime) / 1000 + "s) existingDelta: " + this.existingDelta);
+                    + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
             this.lastNumProcessed = this.numProcessed;
             this.lastNumNoDeltaProcessed = this.numNoDeltaProcessed;
@@ -342,8 +340,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
     }
 
-    private void handleChanges(Queue<StmtAndContext> queue, Map<StmtAndContext, GraphDelta> deltas,
-                               GraphDelta changes, PointsToGraph g) {
+    private void handleChanges(Queue<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta changes) {
         if (changes.isEmpty()) {
             return;
         }
@@ -351,18 +348,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         while (iter.hasNext()) {
             int n = iter.next();
             for (StmtAndContext sac : this.getInterestingDependencies(n)) {
-                if (deltas.containsKey(sac)) {
-                    existingDelta++;
-                    // the statement is already in the queue.
-                    GraphDelta existing = deltas.get(sac);
-                    // Combine the graph deltas
-                    GraphDelta.merge(changes, existing);
-                }
-                else {
-                    // statement is not already in the queue
-                    deltas.put(sac, changes);
-                    queue.add(sac);
-                }
+                queue.add(new OrderedPair<>(sac, changes));
             }
         }
 

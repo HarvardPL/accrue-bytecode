@@ -47,27 +47,19 @@ public class VirtualCallStatement extends CallStatement {
     /**
      * Points-to statement for a virtual method invocation.
      *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param callee
-     *            Method being called
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param receiver
-     *            Receiver of the call
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node representing the exception thrown by this call (if any)
-     * @param rvFactory
-     *            factory for managing the creation of reference variables for local variables and static fields
+     * @param callSite Method call site
+     * @param caller caller method
+     * @param callee Method being called
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param receiver Receiver of the call
+     * @param actuals Actual arguments to the call
+     * @param exception Node representing the exception thrown by this call (if any)
+     * @param rvFactory factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteReference callSite, IMethod caller,
-                                   MethodReference callee, ReferenceVariable result,
-                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                   ReferenceVariable exception, ReferenceVariableFactory rvFactory) {
+    protected VirtualCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
+                                   ReferenceVariable result, ReferenceVariable receiver,
+                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                   ReferenceVariableFactory rvFactory) {
         super(callSite, caller, result, actuals, exception);
 
         this.callee = callee;
@@ -75,69 +67,57 @@ public class VirtualCallStatement extends CallStatement {
         this.rvFactory = rvFactory;
     }
 
-    // private static Map<ReferenceVariableReplica, Integer> lots = new HashMap<>();
-
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar) {
-        ReferenceVariableReplica receiverRep =
-                new ReferenceVariableReplica(context, this.receiver);
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar) {
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver);
 
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter = delta == null
-                ? g.pointsToIterator(receiverRep)
-                        : delta.pointsToIterator(receiverRep);
-                while (iter.hasNext()) {
-                    InstanceKey recHeapContext = iter.next();
-                    // find the callee.
-                    // The receiver is recHeapContext, and we want to find a method that matches selector
-                    // callee.getSelector() in class recHeapContext.getConcreteType() or
-                    // a superclass.
-                    IMethod resolvedCallee =
-                            this.resolveMethod(recHeapContext.getConcreteType(),
-                                               receiverRep.getExpectedType());
+        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep)
+                : delta.pointsToIterator(receiverRep);
 
-                    if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                        // Abstract method due to a native method that returns an abstract type or interface
-                        // TODO Handle abstract methods in a smarter way
-                        System.err.println("Abstract method "
-                                + PrettyPrinter.methodString(resolvedCallee));
-                        continue;
-                    }
+        while (iter.hasNext()) {
+            InstanceKey recHeapContext = iter.next();
 
-                    // If we wanted to be very robust, check to make sure that
-                    // resolvedCallee overrides
-                    // the IMethod returned by ch.resolveMethod(callee).
-                    changed =
-                            changed.combine(this.processCall(context,
-                                                             recHeapContext,
-                                                             resolvedCallee,
-                                                             g,
-                                                             haf,
-                                                             registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                                 this.rvFactory)));
-                }
-                return changed;
+            // find the callee.
+            // The receiver is recHeapContext, and we want to find a method that matches selector
+            // callee.getSelector() in class recHeapContext.getConcreteType() or
+            // a superclass.
+            IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
+
+            if (resolvedCallee != null && resolvedCallee.isAbstract()) {
+                // Abstract method due to a native method that returns an abstract type or interface
+                // TODO Handle abstract methods in a smarter way
+                System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
+                continue;
+            }
+
+            // If we wanted to be very robust, check to make sure that
+            // resolvedCallee overrides
+            // the IMethod returned by ch.resolveMethod(callee).
+            changed = changed.combine(this.processCall(context,
+                                                       recHeapContext,
+                                                       resolvedCallee,
+                                                       g,
+                                                       haf,
+                                                       registrar.findOrCreateMethodSummary(resolvedCallee,
+                                                                                           this.rvFactory)));
+        }
+        return changed;
     }
 
-    protected IMethod resolveMethod(IClass receiverConcreteType,
-                                  TypeReference receiverExpectedType) {
+    protected IMethod resolveMethod(IClass receiverConcreteType, TypeReference receiverExpectedType) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-        IMethod resolvedCallee =
-                cha.resolveMethod(receiverConcreteType, this.callee.getSelector());
+        IMethod resolvedCallee = cha.resolveMethod(receiverConcreteType, this.callee.getSelector());
         if (resolvedCallee == null) {
             // XXX Try the type of the reference variable instead
             // This is probably a variable created for the return of a native method, then cast down
             if (PointsToAnalysis.outputLevel >= 1) {
-                System.err.println("Could not resolve " + receiverConcreteType
-                                   + " " + this.callee.getSelector());
-                System.err.println("\ttrying reference variable type "
-                        + cha.lookupClass(receiverExpectedType));
+                System.err.println("Could not resolve " + receiverConcreteType + " " + this.callee.getSelector());
+                System.err.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
             }
-            resolvedCallee =
-                    cha.resolveMethod(cha.lookupClass(receiverExpectedType),
-                                      this.callee.getSelector());
+            resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverExpectedType), this.callee.getSelector());
         }
         return resolvedCallee;
     }
@@ -202,8 +182,7 @@ public class VirtualCallStatement extends CallStatement {
         uses.add(new ReferenceVariableReplica(ctxt, this.receiver));
         for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
-                ReferenceVariableReplica n =
-                        new ReferenceVariableReplica(ctxt, use);
+                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use);
                 uses.add(n);
             }
         }
