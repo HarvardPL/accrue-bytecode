@@ -138,13 +138,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void recordCollapsedNodes(int n, int rep) {
-                // now update the interesting dependencies.
+            public void startCollapseNode(int n, int rep) {
+                // add the new dependencies.
                 Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
                 if (deps != null) {
                     for (StmtAndContext depSac : deps) {
                         PointsToAnalysisSingleThreaded.this.addInterestingDependency(rep, depSac);
                     }
+                }
+            }
+
+            @Override
+            public void finishCollapseNode(int n, int rep) {
+                // remove the old dependency.
+                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
+                if (deps != null) {
                     PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
                 }
             }

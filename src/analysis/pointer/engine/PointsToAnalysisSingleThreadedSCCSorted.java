@@ -125,17 +125,24 @@ public class PointsToAnalysisSingleThreadedSCCSorted extends PointsToAnalysis {
             }
 
             @Override
-            public void recordCollapsedNodes(int n, int rep) {
-                // now update the interesting dependencies.
+            public void startCollapseNode(int n, int rep) {
+                // add the new dependencies.
                 Set<StmtAndContext> deps = interestingDepedencies.get(n);
                 if (deps != null) {
                     for (StmtAndContext depSac : deps) {
                         addInterestingDependency(rep, depSac);
                     }
-                    interestingDepedencies.remove(n);
                 }
             }
 
+            @Override
+            public void finishCollapseNode(int n, int rep) {
+                // remove the old dependency.
+                Set<StmtAndContext> deps = interestingDepedencies.get(n);
+                if (deps != null) {
+                    interestingDepedencies.remove(n);
+                }
+            }
             @Override
             public void recordNewContext(IMethod callee, Context calleeContext) {
                 if (registerOnline) {

@@ -713,7 +713,7 @@ public class PointsToGraph {
         this.cache.removed(n);
 
         // Notify the dependency recorder
-        depRecorder.recordCollapsedNodes(n, rep);
+        depRecorder.startCollapseNode(n, rep);
 
         // update the subset and superset graphs.
         IntSet unfilteredSubsetOf = this.isUnfilteredSubsetOf.remove(n);
@@ -728,12 +728,12 @@ public class PointsToGraph {
                 int x = iter.next();
                 // n is an unfiltered subset of x, so n is in the isUnfilteredSupersets of x
                 MutableIntSet s = this.isUnfilteredSupersetOf.get(x);
-                s.remove(n);
                 if (x != rep) {
                     s.add(rep);
                     // add x to the representative's...
                     repUnfilteredSubsetOf.add(x);
                 }
+                s.remove(n);
             }
         }
 
@@ -743,12 +743,12 @@ public class PointsToGraph {
                 int x = iter.next();
                 // n is an unfiltered superset of x, so n is in the isUnfilteredSubsets of x
                 MutableIntSet s = this.isUnfilteredSubsetOf.get(x);
-                s.remove(n);
                 if (x != rep) {
                     s.add(rep);
                     // add x to the representative's...
                     repUnfilteredSupersetOf.add(x);
                 }
+                s.remove(n);
             }
         }
 
@@ -765,14 +765,13 @@ public class PointsToGraph {
                 Set<TypeFilter> filters = filteredSubsetOf.get(m);
                 // n is a filtered subset of m, so n is in the isSupersets of m
                 IntMap<Set<TypeFilter>> s = this.isSupersetOf.get(m);
-                s.remove(n);
                 if (m != rep) {
                     assert !s.containsKey(rep);
                     addFilters(s, rep, filters);
                     // add x to the representative's...
                     addFilters(repFilteredSubsetOf, m, filters);
-
                 }
+                s.remove(n);
             }
         }
 
@@ -783,12 +782,12 @@ public class PointsToGraph {
                 Set<TypeFilter> filters = filteredSupersetOf.get(m);
                 // n is a filtered superset of m, so n is in the isSubsets of m
                 IntMap<Set<TypeFilter>> s = this.isSubsetOf.get(m);
-                s.remove(n);
                 if (m != rep) {
                     addFilters(s, rep, filters);
                     // add x to the representative's...
                     addFilters(repFilteredSupersetOf, m, filters);
                 }
+                s.remove(n);
             }
         }
 
@@ -796,6 +795,8 @@ public class PointsToGraph {
         assert !this.base.containsKey(n) : "Base nodes shouldn't be collapsed with other nodes";
 
         this.representative.put(n, rep);
+        depRecorder.finishCollapseNode(n, rep);
+
     }
 
     public void setOutputLevel(int outputLevel) {

@@ -15,19 +15,28 @@ public interface DependencyRecorder {
     void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac);
 
     /**
-     * Record that node n has been collpased and is now represented by node rep.
+     * Record that node n has started to be collapsed, and will be represented by node rep.
      *
      * @param n
      * @param rep
      */
-    void recordCollapsedNodes(int n, int rep);
+    void startCollapseNode(int n, int rep);
+
+    /**
+     * Record that we have finished collapsing n and it will now be represented by rep.
+     * 
+     * @param n
+     * @param rep
+     */
+    void finishCollapseNode(int n, int rep);
 
     /**
      * Record that callee is now called in calleeContext.
-     * 
+     *
      * @param callee
      * @param calleeContext
      */
     void recordNewContext(IMethod callee, Context calleeContext);
+
 
 }
