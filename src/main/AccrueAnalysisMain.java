@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import org.json.JSONException;
@@ -33,6 +34,10 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
+import analysis.string.AbstractString;
+import analysis.string.StringAnalysisResults;
+import analysis.string.StringVariableFactory;
+import analysis.string.StringVariableFactory.StringVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -60,7 +65,6 @@ public class AccrueAnalysisMain {
      *             issues writing JSON file
      */
     public static void main(String[] args) throws IOException, ClassHierarchyException, JSONException {
-
         AccrueAnalysisOptions options = AccrueAnalysisOptions.getOptions(args);
         if (options.shouldPrintUseage()) {
             System.err.println(AccrueAnalysisOptions.getUseage());
@@ -192,6 +196,17 @@ public class AccrueAnalysisMain {
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             printAllCFG(g);
+            break;
+        case "string-main":
+            AnalysisUtil.init(classPath, entryPoint);
+            StringVariableFactory factory = new StringVariableFactory();
+            StringAnalysisResults stringResults = new StringAnalysisResults(factory);
+            IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();
+            printSingleCFG(AnalysisUtil.getIR(main), fileName + "_main");
+            Map<StringVariable, AbstractString> res = stringResults.getResultsForMethod(main);
+            for (StringVariable v : res.keySet()) {
+                System.err.println(v + " = " + res.get(v));
+            }
             break;
         default:
             assert false;

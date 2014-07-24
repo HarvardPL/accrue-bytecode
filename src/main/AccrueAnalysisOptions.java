@@ -85,6 +85,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("android-cfg")) {
                 return;
             }
+            if (value.equals("string-main")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);
@@ -126,7 +129,7 @@ public final class AccrueAnalysisOptions {
 
     /**
      * Parse the options for the given args
-     * 
+     *
      * @param args
      * @return
      */
@@ -261,7 +264,7 @@ public final class AccrueAnalysisOptions {
 
     /**
      * Should we print the useage information
-     * 
+     *
      * @return true if we should print useage
      */
     public boolean shouldPrintUseage() {
@@ -278,7 +281,7 @@ public final class AccrueAnalysisOptions {
 
     /**
      * Print the parameter mapping for the main method
-     * 
+     *
      * @return String containing the documentation
      */
     protected static String analysisNameUsage() {
