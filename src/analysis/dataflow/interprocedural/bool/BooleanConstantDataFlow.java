@@ -97,7 +97,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
     /**
      * Run the analysis on the code in the call graph node passed into the constructor
-     * 
+     *
      * @return results of the analysis
      */
     public BooleanConstantResults run() {
@@ -198,7 +198,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
         boolean castAlwaysSucceeds = true;
         boolean castAlwaysFails = true;
-        Iterator<InstanceKey> iter = ptg.pointsToIterator(getReplica(i.getRef(), currentNode));
+        Iterator<InstanceKey> iter = ptg.pointsToIterator(getReplica(i.getRef(), currentNode), null);
         while (iter.hasNext()) {
             InstanceKey  hContext = iter.next();
             if (!(castAlwaysSucceeds || castAlwaysFails)) {
@@ -349,7 +349,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
     /**
      * All invocations are treated the same
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -499,7 +499,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
     /**
      * Get the reference variable replica for the given local variable in the current context
-     * 
+     *
      * @param local
      *            value number of the local variable
      * @param n
@@ -513,7 +513,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
     /**
      * Helper to combine input and put the results on each output edge.
-     * 
+     *
      * @param inputFacts
      *            input to merge
      * @param current
@@ -534,7 +534,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
     /**
      * Get the abstract value for the given local variable
-     * 
+     *
      * @param i
      *            local variable value number
      * @param c

@@ -330,7 +330,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         boolean castAlwaysSucceeds = true;
         IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getDeclaredResultTypes()[0]);
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            Iterator<InstanceKey> iter = ptg.pointsToIterator(interProc.getReplica(i.getVal(), currentNode));
+            Iterator<InstanceKey> iter = ptg.pointsToIterator(interProc.getReplica(i.getVal(), currentNode), null);
             while (iter.hasNext()) {
                 InstanceKey  hContext = iter.next();
                 IClass actual = hContext.getConcreteType();
@@ -482,7 +482,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
     /**
      * Many of the instructions can be computed in the same way, look up the set of implicit exceptions this exception
      * could throw and copy elements of that set on each exceptions edge that could throw it
-     * 
+     *
      * @param i
      *            instruction
      * @param canThrowNPE
@@ -506,7 +506,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
     /**
      * Create an exit map from the given set of exceptions
-     * 
+     *
      * @param types
      *            exceptions that can be thrown
      * @param cfg
@@ -554,7 +554,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
 
     /**
      * Decide whether the given index is definitely in bounds for the given array
-     * 
+     *
      * @param arrayValNumber
      *            value number for array
      * @param indexValNumber
@@ -592,7 +592,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
      * <li>long to float or double</li>
      * <li>float to double</li>
      * </ul>
-     * 
+     *
      * @param targetType
      *            type of the target variable
      * @param sourceType
