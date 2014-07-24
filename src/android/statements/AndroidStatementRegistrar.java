@@ -13,6 +13,10 @@ import com.ibm.wala.ssa.SSAInstruction;
 
 public class AndroidStatementRegistrar extends StatementRegistrar {
 
+    public AndroidStatementRegistrar(AndroidStatementFactory factory) {
+        super(factory);
+    }
+
     private final Map<IClass, Set<IMethod>> allCallbacks = new LinkedHashMap<>();
 
     @Override
@@ -85,7 +89,7 @@ public class AndroidStatementRegistrar extends StatementRegistrar {
 
     /**
      * Get a map from class to callbacks invoked on that class that were collected during the pointer-analysis.
-     * 
+     *
      * @return callback methods collected
      */
     public Map<IClass, Set<IMethod>> getAllCallbacks() {

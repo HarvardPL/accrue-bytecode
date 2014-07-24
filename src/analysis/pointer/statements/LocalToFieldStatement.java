@@ -144,4 +144,13 @@ public class LocalToFieldStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(this.field);
     }
+
+    /**
+     * Get the field assigned into
+     *
+     * @return field assigned to
+     */
+    protected FieldReference getField() {
+        return field;
+    }
 }

@@ -181,4 +181,13 @@ public class SpecialCallStatement extends CallStatement {
         defs.add(this.callee);
         return defs;
     }
+
+    /**
+     * Get the resolved method being called
+     *
+     * @return method being called
+     */
+    protected IMethod getResolvedCallee() {
+        return callee;
+    }
 }

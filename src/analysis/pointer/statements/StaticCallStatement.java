@@ -34,7 +34,7 @@ public class StaticCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a static method invocation.
-     * 
+     *
      * @param callSite
      *            Method call site
      * @param caller
@@ -156,5 +156,14 @@ public class StaticCallStatement extends CallStatement {
                     }
                 }
                 return defs;
+    }
+
+    /**
+     * Get the resolved callee
+     * 
+     * @return resolved method being called
+     */
+    protected IMethod getResolvedCallee() {
+        return callee;
     }
 }
