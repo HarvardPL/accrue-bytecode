@@ -240,11 +240,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             Map<StmtAndContext, Integer> virtCalls = this.counts.get("VirtualCallStatement");
             Histogram h = new Histogram();
-            for (Integer vals : virtCalls.values()) {
-                h.record(vals);
+            if (virtCalls != null) {
+                for (Integer vals : virtCalls.values()) {
+                    h.record(vals);
+                }
+                System.err.println("Histogram of number of time VirtualMethodCallStatements were re-executed: \n " + h);
             }
-            System.err.println("Histogram of number of time VirtualMethodCallStatements were re-executed: \n "
-                    + h);
+            else {
+                System.err.println("No virtual calls in this application");
+            }
         }
         System.err.println("   Finding more cycles...");
         g.findCycles();
