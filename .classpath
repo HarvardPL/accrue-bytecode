@@ -40,6 +40,7 @@
 			<accessrule ignoreifbetter="true" kind="nonaccessible" pattern="**/*"/>
 		</accessrules>
 	</classpathentry>
+	<classpathentry kind="lib" path="lib/android.jar"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/com.ibm.wala.core"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/com.ibm.wala.shrike"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/com.ibm.wala.util"/>

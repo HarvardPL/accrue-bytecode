@@ -42,3 +42,21 @@ Rewrite apps so they match a given spec.
 Intents can be instantiated via URI (Ugh!) Intent.parseURI(String, int)
 
 Policy: no opaque strings into Intents
+
+TODO what if a String is a null literal
+
+Intents match based on things in a particular order, if some things are null then they will match _more_ activities than if they are not. Are we precise enough to know whether a field is null or not? I think not.
+
+"If getComponent() returns an explicit class, that is returned without any further consideration.
+
+The activity must handle the CATEGORY_DEFAULT Intent category to be considered.
+
+If getAction() is non-NULL, the activity must handle this action.
+
+If resolveType(ContentResolver) returns non-NULL, the activity must handle this type.
+
+If addCategory(String) has added any categories, the activity must handle ALL of the categories specified.
+
+If getPackage() is non-NULL, only activity components in that application package will be considered.
+
+If there are no activities that satisfy all of these conditions, a null string is returned."
