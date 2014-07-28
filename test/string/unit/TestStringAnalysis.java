@@ -72,14 +72,16 @@ public class TestStringAnalysis extends TestCase {
         runTest("string.tests.GetStaticString", null);
         runTest("string.tests.GetStaticFinalString", new String[] { "foo" });
         runTest("string.tests.StringInitString", new String[] { "foo" });
-        runTest("string.tests.StringInitStringBuilder", new String[] { "foo" });
         runTest("string.tests.StringInitEmpty", new String[] { "" });
         runTest("string.tests.StringInitOther", null);
         runTest("string.tests.StringToString", new String[] { "foo" });
         runTest("string.tests.StringValueOfString", new String[] { "foo" });
         runTest("string.tests.StringValueOfOther", null);
-        runTest("string.tests.GetStaticStringBuilder", null);
+        runTest("string.tests.GetString", null);
+        // StringBuilder tests
+        runTest("string.tests.StringInitStringBuilder", new String[] { "foo" });
         runTest("string.tests.GetStringBuilder", null);
+        runTest("string.tests.GetStaticStringBuilder", null);
         runTest("string.tests.PhiStringBuilder", new String[] { "foo1", "foo2" });
         runTest("string.tests.ArrayLoadStringBuilder", null);
         runTest("string.tests.CheckCastStringBuilder", new String[] { "foo" });
@@ -87,11 +89,18 @@ public class TestStringAnalysis extends TestCase {
         runTest("string.tests.StringBuilderInitInt", new String[] { "" });
         runTest("string.tests.StringBuilderInitCharSequence", null);
         runTest("string.tests.StringBuilderAppend", new String[] { "foobar", "foobaz" });
+        // Class tests
+        runTest("string.tests.ArrayLoadClass", null);
+        runTest("string.tests.CheckCastClass", new String[] { "java.lang.String" });
+        runTest("string.tests.GetStaticClass", null);
+        runTest("string.tests.GetClass", null);
+        runTest("string.tests.PhiClass", new String[] { "java.lang.String", "string.tests.PhiClass" });
+        runTest("string.tests.ClassGetName", new String[] { "java.lang.String" });
 
     }
 
     public static void test1() throws ClassHierarchyException, IOException {
-        runTest("string.tests.StringBuilderAppend", new String[] { "foobar", "foobaz" });
+        runTest("string.tests.Loop", new String[] { "foo", "bar", "baz" });
     }
 
 }

@@ -18,10 +18,10 @@ public class CopyStringStatement extends StringStatement {
     public boolean process(StringVariableMap map) {
         AbstractString rightVal = map.get(right);
         if (rightVal == null) {
-            // Waiting for results for the right side, be conservative
-            return map.put(left, AbstractString.ANY);
+            // Waiting for results for the right side set to bottom
+            rightVal = AbstractString.NONE;
         }
-        return map.put(left, rightVal);
+        return map.put(left, AbstractString.join(rightVal, map.get(left)));
     }
 
     @Override

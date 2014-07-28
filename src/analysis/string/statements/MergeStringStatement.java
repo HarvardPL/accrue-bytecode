@@ -24,9 +24,13 @@ public class MergeStringStatement extends StringStatement {
 
     @Override
     public boolean process(StringVariableMap map) {
-        AbstractString newVal = AbstractString.NONE;
+        AbstractString newVal = map.get(local);
         for (StringVariable sv : vars) {
             newVal = AbstractString.join(map.get(sv), newVal);
+        }
+        if (newVal == null) {
+            // None of the arguments were found in the map
+            newVal = AbstractString.NONE;
         }
         return map.put(local, newVal);
     }

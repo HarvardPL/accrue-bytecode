@@ -35,13 +35,12 @@ public class AppendStringStatement extends StringStatement {
         AbstractString before = map.get(stringBuilderBefore);
         AbstractString arg = map.get(argument);
 
+        AbstractString newVal;
         if (before == null || arg == null) {
             // Waiting for results for the string builder before the append and/or the argument
-            return map.put(stringBuilderAfter, AbstractString.ANY);
+            newVal = AbstractString.NONE;
         }
-
-        AbstractString newVal;
-        if (before == AbstractString.ANY || arg == AbstractString.ANY) {
+        else if (before == AbstractString.ANY || arg == AbstractString.ANY) {
             newVal = AbstractString.ANY;
         }
         else {
@@ -55,7 +54,7 @@ public class AppendStringStatement extends StringStatement {
             }
             newVal = AbstractString.create(newStrings);
         }
-        return map.put(stringBuilderAfter, newVal);
+        return map.put(stringBuilderAfter, AbstractString.join(newVal, map.get(stringBuilderAfter)));
     }
 
     @Override

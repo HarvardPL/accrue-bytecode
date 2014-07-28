@@ -36,6 +36,11 @@ public class StringAnalysisResults {
         return result;
     }
 
+    public AbstractString getResultsForLocal(int variableNumber, IMethod m) {
+        Map<StringVariable, AbstractString> resultsForMethod = getResultsForMethod(m);
+        return resultsForMethod.get(variableNumber);
+    }
+
     public StringVariableFactory getFactory() {
         return this.factory;
     }

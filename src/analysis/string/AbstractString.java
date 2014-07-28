@@ -55,11 +55,19 @@ public class AbstractString {
             return ANY;
         }
 
-        if (s1 == null || s1 == NONE) {
+        if (s1 == null) {
             return s2;
         }
 
-        if (s2 == null || s2 == NONE) {
+        if (s2 == null) {
+            return s1;
+        }
+
+        if (s1 == NONE) {
+            return s2;
+        }
+
+        if (s2 == NONE) {
             return s1;
         }
 

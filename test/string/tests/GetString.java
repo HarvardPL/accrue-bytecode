@@ -1,10 +1,11 @@
 package string.tests;
 
-public class GetStaticStringBuilder {
-    static StringBuilder s = new StringBuilder("foo");
+public class GetString {
+    String s = "foo";
 
     public static void main(String[] args) {
-        bar(s.toString());
+        GetString s1 = new GetString();
+        bar(s1.s);
     }
 
     private static void bar(@SuppressWarnings("unused")

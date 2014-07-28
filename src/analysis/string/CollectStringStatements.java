@@ -70,9 +70,11 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
     private static final TypeName STRING = TypeName.findOrCreate("Ljava/lang/String");
     private static final TypeName STRING_BUILDER = TypeName.findOrCreate("Ljava/lang/StringBuilder");
     private static final TypeName CHAR_SEQUENCE = TypeName.findOrCreate("Ljava/lang/CharSequence");
+    private static final TypeName CLASS = TypeName.findOrCreate("Ljava/lang/Class");
     private static final String APPEND = "append";
     private static final String TO_STRING = "toString";
     private static final String VALUE_OF = "valueOf";
+    private static final String GET_NAME = "getName";
 
     private CollectStringStatements(IR ir, StringVariableFactory factory, StringAnalysisResults results) {
         super(true);
@@ -100,8 +102,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
             int use = i.getUse(j);
             String s = getStringLiteral(use);
             if (s != null) {
-                statements.add(new ConstantStringStatement(factory.getOrCreateLocal(i.getUse(j), m, pp),
-                                                           AbstractString.create(s)));
+                addStatement(new ConstantStringStatement(getOrCreateLocal(i.getUse(j)), AbstractString.create(s)));
             }
         }
         if (getAnalysisRecord(i) != null) {
@@ -147,7 +148,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                     StringBuilderVarType.CONFLUENCE,
                                                                     -1,
                                                                     pp);
-                statements.add(new MergeStringStatement(newVar, values));
+                addStatement(new MergeStringStatement(newVar, values));
                 newMap.put(valueNumber, newVar);
             }
             else {
@@ -196,11 +197,11 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                          Set<Map<Integer, StringVariable>> previousItems,
                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                          ISSABasicBlock current) {
-        TypeName type = types.getType(i.getDef()).getName();
+        TypeName type = getTypeName(i.getDef());
         if (type.equals(STRING)) {
             IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
             IField field = cha.resolveField(i.getDeclaredField());
-            StringVariable def = factory.getOrCreateLocal(i.getDef(), m, pp);
+            StringVariable def = getOrCreateLocal(i.getDef());
             if (field.isFinal()) {
                 // static final field
                 // Get the results of the String analysis for the static initializer for the containing class
@@ -208,29 +209,12 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                 Map<StringVariable, AbstractString> res = results.getResultsForMethod(clinit);
                 StringVariable fieldVar = factory.getOrCreateStaticField(field.getReference());
                 AbstractString s = res.get(fieldVar);
-                statements.add(new ConstantStringStatement(def, s));
+                addStatement(new ConstantStringStatement(def, s));
+                return confluence(previousItems, current);
             }
-            else {
-                // Intra-procedural analysis so we don't track non-final fields
-                statements.add(new ConstantStringStatement(def, AbstractString.ANY));
-            }
-        }
-        else if (type.equals(STRING_BUILDER)) {
-            // Intra-procedural analysis so we don't track StringBuilder fields
-            // We'll treat this like a new StringBuilder that could contain any string
-            StringVariable def = factory.createStringBuilder(i.getDef(),
-                                                             m,
-                                                             current.getNumber(),
-                                                             StringBuilderVarType.DEF,
-                                                             -1,
-                                                             pp);
-            statements.add(new ConstantStringStatement(def, AbstractString.ANY));
-            Map<Integer, StringVariable> out = confluence(previousItems, current);
-            out.put(i.getDef(), def);
-            return out;
         }
 
-        return confluence(previousItems, current);
+        return setDefToAny(i, previousItems, current);
     }
 
     /**
@@ -258,14 +242,14 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                    Set<Map<Integer, StringVariable>> previousItems,
                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                    ISSABasicBlock current) {
-        TypeName type = types.getType(i.getDef()).getName();
-        if (type.equals(STRING)) {
+        TypeName type = getTypeName(i.getDef());
+        if (type.equals(STRING) || type.equals(CLASS)) {
             Set<StringVariable> vars = new LinkedHashSet<>();
             for (int j = 0; j < i.getNumberOfUses(); j++) {
-                vars.add(factory.getOrCreateLocal(i.getUse(j), m, pp));
+                vars.add(getOrCreateLocal(i.getUse(j)));
             }
-            StringVariable local = factory.getOrCreateLocal(i.getDef(), m, pp);
-            statements.add(new MergeStringStatement(local, vars));
+            StringVariable local = getOrCreateLocal(i.getDef());
+            addStatement(new MergeStringStatement(local, vars));
         }
         else if (type.equals(STRING_BUILDER)) {
             Set<StringVariable> vars = new LinkedHashSet<>();
@@ -279,7 +263,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                StringBuilderVarType.DEF,
                                                                -1,
                                                                pp);
-            statements.add(new MergeStringStatement(local, vars));
+            addStatement(new MergeStringStatement(local, vars));
             in.put(i.getDef(), local);
             return in;
         }
@@ -291,7 +275,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                          Set<Map<Integer, StringVariable>> previousItems,
                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                          ISSABasicBlock current) {
-        TypeName type = types.getType(i.getDef()).getName();
+        TypeName type = getTypeName(i.getDef());
         if (type.equals(STRING)) {
             IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
             IField field = cha.resolveField(i.getDeclaredField());
@@ -302,8 +286,8 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                 StringVariable fieldVar = factory.getOrCreateStaticField(field.getReference());
                 AbstractString s = res.get(fieldVar);
 
-                StringVariable def = factory.getOrCreateLocal(i.getDef(), m, pp);
-                statements.add(new ConstantStringStatement(def, s));
+                StringVariable def = getOrCreateLocal(i.getDef());
+                addStatement(new ConstantStringStatement(def, s));
             }
         }
         // If this is not a static final String don't keep track of the store, the access will handle it correctly
@@ -332,26 +316,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                               Set<Map<Integer, StringVariable>> previousItems,
                                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                               ISSABasicBlock current) {
-        // could handle array stores more precisely, the array could be a set of strings that is everything ever put into it
-        TypeName type = types.getType(i.getDef()).getName();
-        if (type.equals(STRING)) {
-            StringVariable var = factory.getOrCreateLocal(i.getDef(), m, pp);
-            statements.add(new ConstantStringStatement(var, AbstractString.ANY));
-        }
-        else if (type.equals(STRING_BUILDER)) {
-            StringVariable var = factory.createStringBuilder(i.getDef(),
-                                                             m,
-                                                             current.getNumber(),
-                                                             StringBuilderVarType.DEF,
-                                                             -1,
-                                                             pp);
-            statements.add(new ConstantStringStatement(var, AbstractString.ANY));
-            Map<Integer, StringVariable> in = confluence(previousItems, current);
-            in.put(i.getDef(), var);
-            return factToMap(in, current, cfg);
-        }
-
-        return factToMap(confluence(previousItems, current), current, cfg);
+        return factToMap(setDefToAny(i, previousItems, current), current, cfg);
     }
 
     @Override
@@ -375,32 +340,43 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                               Set<Map<Integer, StringVariable>> previousItems,
                                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                               ISSABasicBlock current) {
-        TypeName type = types.getType(i.getDef()).getName();
+        TypeName type = getTypeName(i.getDef());
         if (type.equals(STRING)) {
-            StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-            if (types.getType(i.getUse(0)).equals(STRING)) {
-                StringVariable right = factory.getOrCreateLocal(i.getUse(0), m, pp);
-                statements.add(new CopyStringStatement(left, right));
+            StringVariable left = getOrCreateLocal(i.getDef());
+            if (getTypeName(i.getUse(0)).equals(STRING)) {
+                StringVariable right = getOrCreateLocal(i.getUse(0));
+                addStatement(new CopyStringStatement(left, right));
             }
             else {
                 // The right side might not be a string so is not a literal
-                statements.add(new ConstantStringStatement(left, AbstractString.ANY));
+                addStatement(new ConstantStringStatement(left, AbstractString.ANY));
             }
 
         }
-        if (type.equals(STRING_BUILDER)) {
-            StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-            if (types.getType(i.getUse(0)).equals(STRING_BUILDER)) {
-                StringVariable right = factory.getOrCreateLocal(i.getUse(0), m, pp);
-                statements.add(new CopyStringStatement(left, right));
+        else if (type.equals(STRING_BUILDER)) {
+            StringVariable left = getOrCreateLocal(i.getDef());
+            if (getTypeName(i.getUse(0)).equals(STRING_BUILDER)) {
+                StringVariable right = getOrCreateLocal(i.getUse(0));
+                addStatement(new CopyStringStatement(left, right));
             }
             else {
-                // The right side might not be a string so is not a literal
-                statements.add(new ConstantStringStatement(left, AbstractString.ANY));
+                // The right side might not be a StringBuilder so is not a literal
+                addStatement(new ConstantStringStatement(left, AbstractString.ANY));
             }
             Map<Integer, StringVariable> in = confluence(previousItems, current);
             in.put(i.getDef(), left);
             return factToMap(in, current, cfg);
+        }
+        else if (type.equals(CLASS)) {
+            StringVariable left = getOrCreateLocal(i.getDef());
+            if (getTypeName(i.getUse(0)).equals(CLASS)) {
+                StringVariable right = getOrCreateLocal(i.getUse(0));
+                addStatement(new CopyStringStatement(left, right));
+            }
+            else {
+                // The right side might not be a Class so is not a no-op cast
+                addStatement(new ConstantStringStatement(left, AbstractString.ANY));
+            }
         }
         return factToMap(confluence(previousItems, current), current, cfg);
     }
@@ -418,86 +394,63 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                              Set<Map<Integer, StringVariable>> previousItems,
                                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                              ISSABasicBlock current) {
-        // Since we are intraprocedural-ish we have to set the results to ANY here
-        TypeName type = types.getType(i.getDef()).getName();
-        if (type.equals(STRING)) {
-            StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-            statements.add(new ConstantStringStatement(left, AbstractString.ANY));
-        }
-        else if (type.equals(STRING_BUILDER)) {
-            StringVariable left = factory.createStringBuilder(i.getDef(),
-                                                              m,
-                                                              current.getNumber(),
-                                                              StringBuilderVarType.DEF,
-                                                              -1,
-                                                              pp);
-            statements.add(new ConstantStringStatement(left, AbstractString.ANY));
-            Map<Integer, StringVariable> in = confluence(previousItems, current);
-            in.put(i.getDef(), left);
-            return factToMap(in, current, cfg);
-        }
-        return factToMap(confluence(previousItems, current), current, cfg);
+        return factToMap(setDefToAny(i, previousItems, current), current, cfg);
     }
 
-    private Map<ISSABasicBlock, Map<Integer, StringVariable>> flowInvoke(SSAInvokeInstruction i,
-                                                                         Set<Map<Integer, StringVariable>> previousItems,
-                                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                         ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, Map<Integer, StringVariable>> flowInvoke(SSAInvokeInstruction i,
+                                                                           Set<Map<Integer, StringVariable>> previousItems,
+                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                           ISSABasicBlock current) {
         MethodReference mr = i.getDeclaredTarget();
         TypeName type = mr.getDeclaringClass().getName();
         Map<Integer, StringVariable> in = confluence(previousItems, current);
-        System.err.println(i + " params: " + mr.getNumberOfParameters() + " isInit: " + mr.isInit());
         if (type.equals(STRING)) {
             if (mr.isInit()) {
                 if (mr.getNumberOfParameters() == 1) {
                     if (mr.getParameterType(0).getName().equals(STRING)) {
                         // String.<init>(String)
-                        StringVariable left = factory.getOrCreateLocal(i.getReceiver(), m, pp);
-                        StringVariable right = factory.getOrCreateLocal(i.getUse(1), m, pp);
-                        statements.add(new CopyStringStatement(left, right));
+                        StringVariable left = getOrCreateLocal(i.getReceiver());
+                        StringVariable right = getOrCreateLocal(i.getUse(1));
+                        addStatement(new CopyStringStatement(left, right));
                         return factToMap(confluence(previousItems, current), current, cfg);
                     }
                     else if (mr.getParameterType(0).getName().equals(STRING_BUILDER)) {
                         // String.<init>String(StringBuilder)
-                        StringVariable left = factory.getOrCreateLocal(i.getReceiver(), m, pp);
+                        StringVariable left = getOrCreateLocal(i.getReceiver());
                         StringVariable right = in.get(i.getUse(1));
-                        statements.add(new CopyStringStatement(left, right));
+                        addStatement(new CopyStringStatement(left, right));
                         return factToMap(in, current, cfg);
                     }
                 }
                 else if (mr.getNumberOfParameters() == 0) {
                     // String.<init>String()
-                    StringVariable left = factory.getOrCreateLocal(i.getReceiver(), m, pp);
-                    statements.add(new ConstantStringStatement(left, AbstractString.create("")));
+                    StringVariable left = getOrCreateLocal(i.getReceiver());
+                    addStatement(new ConstantStringStatement(left, AbstractString.create("")));
                     return factToMap(in, current, cfg);
                 }
                 // Some other String.<init>, just be conservative
                 System.err.println("RECEIVER: " + i.getReceiver());
-                StringVariable left = factory.getOrCreateLocal(i.getReceiver(), m, pp);
-                statements.add(new ConstantStringStatement(left, AbstractString.ANY));
+                StringVariable left = getOrCreateLocal(i.getReceiver());
+                addStatement(new ConstantStringStatement(left, AbstractString.ANY));
                 return factToMap(in, current, cfg);
             }
             else if (mr.getName().toString().equals(TO_STRING)) {
                 // String.toString()
                 if (i.hasDef()) {
-                    StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-                    StringVariable right = factory.getOrCreateLocal(i.getReceiver(), m, pp);
-                    statements.add(new CopyStringStatement(left, right));
-                    return factToMap(confluence(previousItems, current), current, cfg);
+                    StringVariable left = getOrCreateLocal(i.getDef());
+                    StringVariable right = getOrCreateLocal(i.getReceiver());
+                    addStatement(new CopyStringStatement(left, right));
                 }
+                return factToMap(confluence(previousItems, current), current, cfg);
             }
             else if (mr.getName().toString().equals(VALUE_OF)) {
                 // String.valueOf(Object)
-                System.err.println("FOUND: " + PrettyPrinter.methodString(mr) + " argType: "
-                        + PrettyPrinter.typeString(types.getType(i.getUse(0))));
-                if (i.hasDef()) {
-                    if (types.getType(i.getUse(0)).getName().equals(STRING)) {
-                        // String.valueOf(Object) with a String argument
-                        StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-                        StringVariable right = factory.getOrCreateLocal(i.getUse(0), m, pp);
-                        statements.add(new CopyStringStatement(left, right));
-                        return factToMap(confluence(previousItems, current), current, cfg);
-                    }
+                if (i.hasDef() && getTypeName(i.getUse(0)).equals(STRING)) {
+                    // String.valueOf(Object) with a String argument
+                    StringVariable left = getOrCreateLocal(i.getDef());
+                    StringVariable right = getOrCreateLocal(i.getUse(0));
+                    addStatement(new CopyStringStatement(left, right));
+                    return factToMap(confluence(previousItems, current), current, cfg);
                 }
             }
             // TODO could model other String methods that return Strings (e.g. substring, replace, trim, etc.)
@@ -512,8 +465,8 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                        StringBuilderVarType.INIT,
                                                                        i.getProgramCounter(),
                                                                        pp);
-                    StringVariable arg = factory.getOrCreateLocal(i.getUse(1), m, pp);
-                    statements.add(new CopyStringStatement(newSB, arg));
+                    StringVariable arg = getOrCreateLocal(i.getUse(1));
+                    addStatement(new CopyStringStatement(newSB, arg));
                     Map<Integer, StringVariable> out = confluence(previousItems, current);
                     out.put(i.getReceiver(), newSB);
                     return factToMap(out, current, cfg);
@@ -526,7 +479,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                        StringBuilderVarType.INIT,
                                                                        i.getProgramCounter(),
                                                                        pp);
-                    statements.add(new ConstantStringStatement(newSB, AbstractString.ANY));
+                    addStatement(new ConstantStringStatement(newSB, AbstractString.ANY));
                     Map<Integer, StringVariable> out = confluence(previousItems, current);
                     out.put(i.getReceiver(), newSB);
                     return factToMap(out, current, cfg);
@@ -541,7 +494,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                        StringBuilderVarType.INIT,
                                                                        i.getProgramCounter(),
                                                                        pp);
-                    statements.add(new ConstantStringStatement(newSB, AbstractString.create("")));
+                    addStatement(new ConstantStringStatement(newSB, AbstractString.create("")));
                     Map<Integer, StringVariable> out = confluence(previousItems, current);
                     out.put(i.getReceiver(), newSB);
                     return factToMap(out, current, cfg);
@@ -556,8 +509,8 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                      StringBuilderVarType.APPEND,
                                                                      i.getProgramCounter(),
                                                                      pp);
-                StringVariable argument = factory.getOrCreateLocal(i.getUse(1), m, pp);
-                statements.add(new AppendStringStatement(sbAfter, sbBefore, argument));
+                StringVariable argument = getOrCreateLocal(i.getUse(1));
+                addStatement(new AppendStringStatement(sbAfter, sbBefore, argument));
                 Map<Integer, StringVariable> out = in;
                 out.put(i.getReceiver(), sbAfter);
                 if (i.hasDef()) {
@@ -569,34 +522,28 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
             else if (mr.getName().toString().equals(TO_STRING)) {
                 // StringBuilder.toString()
                 if (i.hasDef()) {
-                    StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
+                    StringVariable left = getOrCreateLocal(i.getDef());
                     StringVariable right = in.get(i.getReceiver());
-                    statements.add(new CopyStringStatement(left, right));
-                    return factToMap(confluence(previousItems, current), current, cfg);
+                    addStatement(new CopyStringStatement(left, right));
                 }
+                return factToMap(confluence(previousItems, current), current, cfg);
+            }
+        }
+        else if (type.equals(CLASS)) {
+            if (mr.getName().toString().equals(GET_NAME)) {
+                // Class.getName()
+                if (i.hasDef()) {
+                    StringVariable left = getOrCreateLocal(i.getDef());
+                    StringVariable right = getOrCreateLocal(i.getReceiver());
+                    addStatement(new CopyStringStatement(left, right));
+                }
+                return factToMap(confluence(previousItems, current), current, cfg);
             }
         }
 
         // Model any other method that returns a String or StringBuilder as opaque, could be more precise if this was a
         // true inter-procedural analysis
-        Map<Integer, StringVariable> out = confluence(previousItems, current);
-        if (i.hasDef()) {
-            TypeName returnType = types.getType(i.getDef()).getName();
-            if (returnType.equals(STRING)) {
-                StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-                statements.add(new ConstantStringStatement(left, AbstractString.ANY));
-            }
-            else if (returnType.equals(STRING_BUILDER)) {
-                StringVariable left = factory.createStringBuilder(i.getDef(),
-                                                                  m,
-                                                                  current.getNumber(),
-                                                                  StringBuilderVarType.DEF,
-                                                                  i.getProgramCounter(),
-                                                                  pp);
-                statements.add(new ConstantStringStatement(left, AbstractString.ANY));
-                out.put(i.getDef(), left);
-            }
-        }
+        Map<Integer, StringVariable> out = setDefToAny(i, previousItems, current);
 
         // A StringBuilder argument might get changed (and probably will) so we have to be conservative
         for (int j = 0; j < mr.getNumberOfParameters(); j++) {
@@ -614,7 +561,7 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                     StringBuilderVarType.METHOD_ARG,
                                                                     i.getProgramCounter(),
                                                                     pp);
-                statements.add(new ConstantStringStatement(newVar, AbstractString.ANY));
+                addStatement(new ConstantStringStatement(newVar, AbstractString.ANY));
                 out.put(argNum, newVar);
             }
         }
@@ -666,24 +613,24 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
                                                                                  Set<Map<Integer, StringVariable>> previousItems,
                                                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                                  ISSABasicBlock current) {
-        TypeName type = types.getType(i.getDef()).getName();
-        if (type.equals(STRING)) {
-            StringVariable left = factory.getOrCreateLocal(i.getDef(), m, pp);
-            statements.add(new ConstantStringStatement(left, AbstractString.ANY));
+        // loadmetadata is the instruction corresponding to Object.class, which is frequently used in Intent constructors
+        // The only thing used from these Class objects is the name of the class so track the String corresponding to the name
+        // Associate this String with the local variable assigned into by the loadmetadata instruction (i.e. the Class object)
+        if (i.getType().getName().equals(CLASS)) {
+            // This is creating a class object
+            StringVariable var = getOrCreateLocal(i.getDef());
+            if (i.getToken() instanceof TypeReference) {
+                // We have the type of the class object being created
+                String className = PrettyPrinter.typeString((TypeReference) i.getToken());
+                addStatement(new ConstantStringStatement(var, AbstractString.create(className)));
+            }
+            else {
+                addStatement(new ConstantStringStatement(var, AbstractString.ANY));
+            }
+            return factToMap(confluence(previousItems, current), current, cfg);
         }
-        else if (type.equals(STRING_BUILDER)) {
-            StringVariable left = factory.createStringBuilder(i.getDef(),
-                                                              m,
-                                                              current.getNumber(),
-                                                              StringBuilderVarType.DEF,
-                                                              -1,
-                                                              pp);
-            statements.add(new ConstantStringStatement(left, AbstractString.ANY));
-            Map<Integer, StringVariable> in = confluence(previousItems, current);
-            in.put(i.getDef(), left);
-            return factToMap(in, current, cfg);
-        }
-        return factToMap(confluence(previousItems, current), current, cfg);
+
+        return factToMap(setDefToAny(i, previousItems, current), current, cfg);
     }
 
     @Override
@@ -761,4 +708,66 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
         return false;
     }
 
+    private void addStatement(StringStatement ss) {
+        statements.add(ss);
+    }
+
+    /**
+     * Create a StringVariable for the given local variable number, create if it does not exist
+     *
+     * @param local variable number for the local variable
+     *
+     * @return String variable for the given local
+     */
+    private StringVariable getOrCreateLocal(int local) {
+        return factory.getOrCreateLocal(local, m, pp);
+    }
+
+    /**
+     * If the return type is one of the tracked types, create a statement setting the def in the given instruction to
+     * the constant StringStatement set to AbstractString.ANY. This is used for any opaque instruction such as a field
+     * access or a method call (since this analysis is intra-procedural).
+     *
+     * @param i instruction to be processed
+     * @param previousItems input data-flow facts for all incoming edges
+     * @param current current basic block
+     * @return the map from string builder local variable number to string variable after processing the given
+     *         instruction
+     */
+    private Map<Integer, StringVariable> setDefToAny(SSAInstruction i,
+                                                       Set<Map<Integer, StringVariable>> previousItems,
+                                                       ISSABasicBlock current) {
+        if (i.hasDef()) {
+            TypeName type = getTypeName(i.getDef());
+            if (type.equals(STRING) || type.equals(CLASS)) {
+                StringVariable left = getOrCreateLocal(i.getDef());
+                addStatement(new ConstantStringStatement(left, AbstractString.ANY));
+            }
+            else if (type.equals(STRING_BUILDER)) {
+                StringVariable left = factory.createStringBuilder(i.getDef(),
+                                                                  m,
+                                                                  current.getNumber(),
+                                                                  StringBuilderVarType.DEF,
+                                                                  -1,
+                                                                  pp);
+                addStatement(new ConstantStringStatement(left, AbstractString.ANY));
+                Map<Integer, StringVariable> in = confluence(previousItems, current);
+                in.put(i.getDef(), left);
+                return in;
+            }
+        }
+
+        return confluence(previousItems, current);
+    }
+
+    /**
+     * Get the name of the type for the given local variable. We do not use the TypeReference since in this case the
+     * class loader may be different.
+     *
+     * @param local local variable number of the variable to get the type for
+     * @return name for the local variable
+     */
+    private TypeName getTypeName(int local) {
+        return types.getType(local).getName();
+    }
 }
