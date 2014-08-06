@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import util.ImplicitEx;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -108,7 +107,7 @@ public class StatementFactory {
                                                                           notType,
                                                                           m,
                                                                           isToMethodSummaryVariable);
-        assert StatementRegistrar.SINGLETON_GENERATED_EXCEPTIONS
+        assert StatementRegistrar.USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS
                 || map.put(new StatementKey(thrown, caught), s) == null;
         return s;
 
@@ -270,7 +269,8 @@ public class StatementFactory {
 
     /**
      * Get a points-to statement representing the allocation of a JVM generated exception (e.g. NullPointerException),
-     * and the assignment of this new exception to a local variable
+     * and the assignment of this new exception to a local variable. We also use this method when we are using a single
+     * allocation per throwable type.
      *
      * @param exceptionAssignee Reference variable for the local variable the exception is assigned to after being
      *            created
@@ -279,17 +279,7 @@ public class StatementFactory {
      * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
     public NewStatement newForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass, IMethod m) {
-        assert exceptionAssignee != null;
-        assert exceptionClass != null;
-        assert m != null;
-
-        NewStatement s = new NewStatement(ImplicitEx.fromType(exceptionClass.getReference()).toString(),
-                                          exceptionAssignee,
-                                          exceptionClass,
-                                          m,
-                                          false);
-        assert map.put(new StatementKey(exceptionAssignee), s) == null;
-        return s;
+        return newForGeneratedObject(exceptionAssignee, exceptionClass, m, PrettyPrinter.typeString(exceptionClass));
     }
 
     /**
@@ -301,16 +291,31 @@ public class StatementFactory {
      * @return a statement representing the allocation for a native method with no signature
      */
     public NewStatement newForNative(ReferenceVariable summary, IClass allocatedClass, IMethod m) {
-        assert summary != null;
+        assert m.isNative();
+        return newForGeneratedObject(summary,
+                                     allocatedClass,
+                                     m,
+                                     PrettyPrinter.getCanonical("NATIVE-" + PrettyPrinter.typeString(allocatedClass)));
+    }
+
+    /**
+     * Get a points-to statement representing allocation generated for a native method with no signature
+     *
+     * @param summary Reference variable for the method summary node assigned to after being created
+     * @param allocatedClass Class being allocated
+     * @param m method
+     * @return a statement representing the allocation for a native method with no signature
+     */
+    private NewStatement newForGeneratedObject(ReferenceVariable v, IClass allocatedClass, IMethod m, String description) {
+        assert v != null;
         assert allocatedClass != null;
         assert m != null;
-        assert m.isNative();
 
-        String name = PrettyPrinter.getCanonical("NATIVE-" + PrettyPrinter.typeString(allocatedClass));
-        NewStatement s = new NewStatement(name, summary, allocatedClass, m, false);
-        assert map.put(new StatementKey(summary), s) == null;
+        NewStatement s = new NewStatement(description, v, allocatedClass, m, false);
+        assert map.put(new StatementKey(v), s) == null;
         return s;
     }
+
 
     /**
      * Get a points-to statement representing the allocation of an inner array of a multidimensional array
@@ -321,14 +326,8 @@ public class StatementFactory {
      * @return a statement representing the allocation of the inner array of a multidimensional array
      */
     public NewStatement newForInnerArray(ReferenceVariable innerArray, IClass innerArrayClass, IMethod m) {
-        assert innerArray != null;
-        assert innerArrayClass != null;
-        assert m != null;
-
         String name = PrettyPrinter.getCanonical("GENERATED-" + PrettyPrinter.typeString(innerArrayClass));
-        NewStatement s = new NewStatement(name, innerArray, innerArrayClass, m, false);
-        assert map.put(new StatementKey(innerArray), s) == null;
-        return s;
+        return newForGeneratedObject(innerArray, innerArrayClass, m, name);
     }
 
     /**
@@ -358,17 +357,12 @@ public class StatementFactory {
      * @return a statement representing the allocation of a new string literal's value field
      */
     public NewStatement newForStringField(ReferenceVariable local, IMethod m) {
-        assert local != null;
-        assert m != null;
-
-        NewStatement s = new NewStatement(STRING_LIT_FIELD_DESC, local, AnalysisUtil.getStringValueClass(), m, false);
-        assert map.put(new StatementKey(local, STRING_LIT_FIELD_DESC), s) == null;
-        return s;
+        return newForGeneratedObject(local, AnalysisUtil.getStringValueClass(), m, STRING_LIT_FIELD_DESC);
     }
 
     /**
      * Get a points-to statement representing the allocation of a String literal
-     * 
+     *
      * @param literalValue String value of the new string literal
      * @param local Reference variable for the local variable for the string at the allocation site
      * @param m method containing the String literal

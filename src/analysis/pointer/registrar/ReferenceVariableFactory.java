@@ -3,7 +3,6 @@ package analysis.pointer.registrar;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import util.ImplicitEx;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -61,11 +60,11 @@ public class ReferenceVariableFactory {
     private final Map<OrderedPair<IMethod, TypeReference>, ReferenceVariable> nativeExceptions =
             new LinkedHashMap<>();
     /**
-     * Nodes for singleton generated exceptions if they are created, there can be only one per type. The points-to
-     * analysis will be less precise, but the points-to graph will be smaller and the points-to analysis faster. The
-     * creation is governed by a flag in {@link StatementRegistrar}
+     * Nodes for singleton exceptions if they are created, there can be only one per type. The points-to analysis will
+     * be less precise, but the points-to graph will be smaller and the points-to analysis faster. The creation is
+     * governed by a flag in {@link StatementRegistrar}
      */
-    private final Map<ImplicitEx, ReferenceVariable> singletons =
+    private final Map<TypeReference, ReferenceVariable> singletons =
             new LinkedHashMap<>();
 
     /**
@@ -144,10 +143,9 @@ public class ReferenceVariableFactory {
      * @return reference variable for an implicit throwable
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createImplicitExceptionNode(ImplicitEx type,
+    protected ReferenceVariable createImplicitExceptionNode(TypeReference type,
             int basicBlockID, IMethod method) {
-        ReferenceVariable rv =
-                new ReferenceVariable(type.toString(), type.toType(), false);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false);
         // These should only be created once assert that this is true
         assert implicitThrows.put(new ImplicitThrowKey(type,
                                                        basicBlockID,
@@ -156,18 +154,15 @@ public class ReferenceVariableFactory {
     }
 
     /**
-     * Create a singleton node for a generated exception. This can be used to decrease the size of the points-to graph
-     * and the run-time of the pointer analysis at the cost of less precision. This should only be called once for any
-     * given exception type.
-     *
-     * @param type
-     *            type of exception to get the node for
-     * @return singleton reference variable for exceptions of the given type
+     * Create a singleton node for a type. This can be used to decrease the size of the points-to graph and the run-time
+     * of the pointer analysis at the cost of less precision. This should only be called once for any given type.
+     * 
+     * @param type type of the objects pointed to by the singleton node
+     * @return singleton reference variable for the given type
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createSingletonException(ImplicitEx type) {
-        ReferenceVariable rv =
-                new ReferenceVariable(type + "(SINGLETON)", type.toType(), true);
+    protected ReferenceVariable createSingletonReferenceVariable(TypeReference type) {
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)", type, true);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
         return rv;
@@ -380,7 +375,7 @@ public class ReferenceVariableFactory {
         /**
          * Type of exception/error
          */
-        private final ImplicitEx type;
+        private final TypeReference type;
         /**
          * Compute the hashcode once
          */
@@ -396,7 +391,7 @@ public class ReferenceVariableFactory {
          * @param method
          *            Method in which the exception is thrown
          */
-        public ImplicitThrowKey(ImplicitEx type, int basicBlockID,
+        public ImplicitThrowKey(TypeReference type, int basicBlockID,
                 IMethod method) {
             assert type != null;
             assert basicBlockID >= 0;

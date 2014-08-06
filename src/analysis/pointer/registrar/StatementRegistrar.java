@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 import types.TypeRepository;
-import util.ImplicitEx;
 import util.InstructionType;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -79,12 +78,25 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
      */
-    public static final boolean SINGLETON_GENERATED_EXCEPTIONS = true;
+    public static final boolean USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS = true;
+    /**
+     * If true then only one allocation will be made for each type of throwable. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for throwables.
+     */
+    public static final boolean USE_SINGLE_ALLOC_PER_THROWABLE_TYPE = true;
+
+    /**
+     * If true then only one allocation will be made for any kind of primitive array. Reduces precision, but improves
+     * performance.
+     */
+    public static final boolean USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS = true;
+
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
-    private final Map<ImplicitEx, ReferenceVariable> singletonExceptions;
+    private final Map<TypeReference, ReferenceVariable> singletonExceptions;
+
     /**
      * Methods we have already added statements for
      */
@@ -564,8 +576,17 @@ public class StatementRegistrar {
 
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite().getProgramCounter()));
-
+        if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
+            this.addStatement(stmtFactory.localToLocal(a,
+                                                       getOrCreateSingletonException(resultType,
+                                                                                     ir.getMethod()),
+                                                       ir.getMethod(),
+                                                       false));
+        }
+        else {
+            this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
+                                                                                       .getProgramCounter()));
+        }
         // Handle arrays with multiple dimensions
         ReferenceVariable outerArray = a;
         for (int dim = 1; dim < i.getNumberOfUses(); dim++) {
@@ -599,10 +620,22 @@ public class StatementRegistrar {
         assert resultType.getName().equals(types.getType(i.getDef()).getName());
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pp);
 
-        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
+        TypeReference allocType = i.getNewSite().getDeclaredType();
+        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(allocType);
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
+        if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE
+                && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
+            // the newly allocated object is throwable, and we only want one allocation per throwable type
+            this.addStatement(stmtFactory.localToLocal(result,
+                                                       getOrCreateSingletonException(allocType, ir.getMethod()),
+                                                       ir.getMethod(),
+                                                       false));
+
+        }
+        else {
+            this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
                                                                                         .getProgramCounter()));
+        }
     }
 
     /**
@@ -882,26 +915,17 @@ public class StatementRegistrar {
      * @param ir code containing the instruction
      * @param rvFactory factory for creating new reference variables
      */
+    @SuppressWarnings("unused")
     private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir,
                                                           ReferenceVariableFactory rvFactory, TypeRepository types,
                                                           PrettyPrinter pp) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
-            if (SINGLETON_GENERATED_EXCEPTIONS) {
-                ImplicitEx type = ImplicitEx.fromType(exType);
-                ex = this.singletonExceptions.get(type);
-                if (ex == null) {
-                    ex = rvFactory.createSingletonException(type);
-
-                    IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
-                    assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
-
-                    this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, ir.getMethod()));
-                    this.singletonExceptions.put(type, ex);
-                }
+            if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE || USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS) {
+                ex = getOrCreateSingletonException(exType, ir.getMethod());
             }
             else {
-                ex = rvFactory.createImplicitExceptionNode(ImplicitEx.fromType(exType), bb.getNumber(), ir.getMethod());
+                ex = rvFactory.createImplicitExceptionNode(exType, bb.getNumber(), ir.getMethod());
 
                 IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
@@ -910,6 +934,24 @@ public class StatementRegistrar {
             }
             this.registerThrownException(bb, ir, ex, rvFactory, types, pp);
         }
+    }
+
+    private ReferenceVariable getOrCreateSingletonException(TypeReference exType, IMethod m) {
+        ReferenceVariable ex = this.singletonExceptions.get(exType);
+        if (ex == null) {
+            ex = rvFactory.createSingletonReferenceVariable(exType);
+
+            IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
+            assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
+
+            // IDEALLY, WE SHOULDN"T USE m. This will likely cause bugs for off-line registration.
+            // TODO: refactor code to allow the new statement to be associated with the FakeRootMethod,
+            // yet still work in either online or offline registration mode.
+            this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, m));
+
+            this.singletonExceptions.put(exType, ex);
+        }
+        return ex;
     }
 
     /**
