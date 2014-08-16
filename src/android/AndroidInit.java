@@ -15,6 +15,7 @@ import analysis.pointer.analyses.CallSiteSensitive;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import android.manifest.ManifestFile;
+import android.statements.AndroidStatementFactory;
 import android.statements.AndroidStatementRegistrar;
 
 import com.ibm.wala.classLoader.DexFileModule;
@@ -44,7 +45,7 @@ public class AndroidInit {
     }
 
     public static Map<IClass, Set<IMethod>> findAllCallBacks() {
-        AndroidStatementRegistrar registrar = new AndroidStatementRegistrar();
+        AndroidStatementRegistrar registrar = new AndroidStatementRegistrar(new AndroidStatementFactory());
         // Context insensitive analysis
         HeapAbstractionFactory haf = new CallSiteSensitive(0);
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);

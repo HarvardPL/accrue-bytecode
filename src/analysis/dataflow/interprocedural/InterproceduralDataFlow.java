@@ -28,7 +28,7 @@ import com.ibm.wala.types.FieldReference;
 
 /**
  * Manages the running of an inter-procedural data-flow analysis
- * 
+ *
  * <F> Type of data-flow facts propagated by this analysis
  */
 public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
@@ -85,7 +85,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Construct a new inter-procedural analysis over the given call graph
-     * 
+     *
      * @param cg
      *            call graph this analysis will be over
      * @param ptg
@@ -140,7 +140,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Increment the counter giving the number of times the given node has been analyzed
-     * 
+     *
      * @param n
      *            node to increment for
      * @return incremented counter
@@ -161,7 +161,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Increment the counter giving the number of times the given node has been requested (and the request returned the
      * latest results
-     * 
+     *
      * @param n
      *            node to increment for
      * @return incremented counter
@@ -181,7 +181,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get any nodes that have to be reanalyzed if the result of analyzing n changes
-     * 
+     *
      * @param n
      *            call graph node to get the dependencies for
      * @return set of nodes that need to be reanalyzed if the result of analyzing n changes
@@ -196,7 +196,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Ensure that n2 will be reanalyzed if the result of analyzing n1 changes
-     * 
+     *
      * @param n1
      *            node on which the n2 depends
      * @param n2
@@ -213,7 +213,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the call graph this is an analysis over
-     * 
+     *
      * @return call graph
      */
     public CallGraph getCallGraph() {
@@ -222,7 +222,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the previously computed points-to graph
-     * 
+     *
      * @return points-to graph
      */
     public PointsToGraph getPointsToGraph() {
@@ -231,7 +231,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the results of analyzing the callee
-     * 
+     *
      * @param caller
      *            caller's call graph node
      * @param callee
@@ -239,7 +239,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @param input
      *            initial data-flow fact
      * @return map from exit type (normal or exceptional) to data-flow fact
-     * 
+     *
      */
     public Map<ExitType, F> getResults(CGNode caller, CGNode callee, F input) {
         if (getOutputLevel() >= 4) {
@@ -291,7 +291,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Print the results to the screen if the logging level is high enough
-     * 
+     *
      * @param n
      *            node the results are for
      * @param label
@@ -309,7 +309,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Check if the results computed for the given node have only used sound results so far. This could be false if
      * there are recursive calls for which we had to use unsound results.
-     * 
+     *
      * @param n
      *            node to check
      * @return true if the results for <code>n</code> are sound
@@ -322,7 +322,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Process the given node using the given input, record the results. If the output changes then add dependencies to
      * the work-queue.
-     * 
+     *
      * @param n
      *            node to process
      * @param input
@@ -361,7 +361,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the logging level for this class
-     * 
+     *
      * @return logging level (higher is more)
      */
     public int getOutputLevel() {
@@ -370,7 +370,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Set the logging level for this class
-     * 
+     *
      * @param outputLevel
      *            logging level (higher is more)
      */
@@ -380,7 +380,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the latest results, may return null if none have been computed yet
-     * 
+     *
      * @param n
      *            node to get results for
      * @return latest results for the given node or null if there are none
@@ -391,7 +391,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Results of an inter-procedural reachability analysis
-     * 
+     *
      * @return results of a reachability analysis
      */
     public ReachabilityResults getReachabilityResults() {
@@ -400,14 +400,14 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the results after running this analysis. These may be unsound until the analysis has completed.
-     * 
+     *
      * @return results of the inter-procedural analysis
      */
     public abstract AnalysisResults getAnalysisResults();
 
     /**
      * Analyze the given node with the given input data-flow fact
-     * 
+     *
      * @param n
      *            node to analyze
      * @param input
@@ -418,7 +418,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Analyze the given node with the given input data-flow fact
-     * 
+     *
      * @param n
      *            node to analyze
      * @param input
@@ -430,7 +430,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Get the default output data-flow facts (given an input fact), this is used as the output for a recursive call
      * before a fixed point is reached.
-     * 
+     *
      * @param input
      *            input data-flow fact
      * @return output to be returned to callers when the callee is already in the middle of being analyzed
@@ -439,14 +439,14 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the input for the root node of the call graph. This is the initial input to the inter-procedural analysis
-     * 
+     *
      * @return initial data-flow fact
      */
     protected abstract F getInputForEntryPoint();
 
     /**
      * Check whether the output changed after analysis, and dependencies need to be reanalyzed.
-     * 
+     *
      * @param previousOutput
      *            previous output results
      * @param currentOutput
@@ -457,7 +457,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Check whether existing output results are suitable, given a new input
-     * 
+     *
      * @param newInput
      *            new input to the analysis
      * @param existingResults
@@ -468,7 +468,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Class holding the input and output values for a specific call graph node
-     * 
+     *
      * @param <F>
      *            type of the data-flow facts
      */
@@ -489,7 +489,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         /**
          * Create a record for the analysis of a specific call graph node
-         * 
+         *
          * @param input
          *            input for the analysis
          * @param output
@@ -505,7 +505,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         /**
          * Get the input used for this analysis
-         * 
+         *
          * @return the input
          */
         public F getInput() {
@@ -514,7 +514,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         /**
          * Get the output returned by this analysis
-         * 
+         *
          * @return the output
          */
         public Map<ExitType, F> getOutput() {
@@ -524,7 +524,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         /**
          * Check whether this record contains sound results. This will be false if there were back edges in the call
          * graph due to recursive calls, and temporary unsound results were used to compute the output.
-         * 
+         *
          * @return whether the results are sound
          */
         public boolean isSoundResult() {
@@ -539,7 +539,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the abstract locations for a non-static field
-     * 
+     *
      * @param receiver
      *            value number for the local variable for the receiver of a field access
      * @param field
@@ -549,7 +549,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the field
      */
     public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
-        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n));
+        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n), null);
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Field target doesn't point to anything. v" + receiver + " in "
                                             + PrettyPrinter.cgNodeString(n) + " accessing field: "
@@ -569,7 +569,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the abstract locations for the contents of an array
-     * 
+     *
      * @param arary
      *            value number for the local variable for the array
      * @param n
@@ -577,7 +577,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the contents of the array
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
-        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n));
+        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Array doesn't point to anything. " + getReplica(array, n) + " METHOD: "
                                             + PrettyPrinter.methodString(n.getMethod()));
@@ -594,7 +594,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the reference variable replica for the given local variable in the current context
-     * 
+     *
      * @param local
      *            value number of the local variable
      * @param n
@@ -608,7 +608,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
     /**
      * Get the cache containing reference variables for local variables
-     * 
+     *
      * @return reference variable cache
      */
     public ReferenceVariableCache getRvCache() {

@@ -109,7 +109,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Create a data-flow that adds edge to a PDG for the given call graph node.
-     * 
+     *
      * @param currentNode
      *            node this analysis is over
      * @param interProc
@@ -276,8 +276,9 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         // Check if everything the cast object could point to is safe to cast (or unsafe)
         IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getCheckedType());
-        Iterator<InstanceKey> iter = interProc.getPointsToGraph().pointsToIterator(
-                                        interProc.getReplica(i.getRef(), currentNode));
+        Iterator<InstanceKey> iter = interProc.getPointsToGraph().pointsToIterator(interProc.getReplica(i.getRef(),
+                                                                                                        currentNode),
+                                                                                   null);
         while (iter.hasNext()) {
             InstanceKey hContext = iter.next();
 
@@ -886,7 +887,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Add an edge of the given type from/to a procdure summary node for a callee
-     * 
+     *
      * @param source
      *            source of the new edge
      * @param target
@@ -902,7 +903,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Add an edge of the given type to the PDG
-     * 
+     *
      * @param source
      *            source of the new edge
      * @param target
@@ -916,7 +917,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Create a new merge node if the input set has size bigger than 1
-     * 
+     *
      * @param nodesToMerge
      *            nodes to be merged if necessary
      * @param mergeNodeDesc
@@ -949,7 +950,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Add MERGE edges from every node in nodesToMerge to the merge node
-     * 
+     *
      * @param nodesToMerge
      *            set of sources of the new edges
      * @param mergeNode
@@ -964,7 +965,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     /**
      * Determine whether a exception of the given type can be thrown and create nodes and edges in the PDG to capture
      * the dependencies when an exception is thrown by the JVM (e.g. a {@link NullPointerException}).
-     * 
+     *
      * @param exType
      *            type of exception being thrown
      * @param cause
@@ -976,7 +977,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      *            exception. (e.g. o == null for an NPE, index > a.length for an ArrayIndexOutOfBoundsException).
      * @param bb
      *            basic block that could throw the exception
-     * 
+     *
      * @return PDGContext when the exception is not thrown
      */
     private PDGContext handlePossibleException(TypeReference exType, PDGNode cause, PDGContext beforeException,
@@ -1010,7 +1011,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     /**
      * Check whether the procedure can terminate normally (in a particular context).
-     * 
+     *
      * @param n
      *            call graph node containing the method and context
      * @return whether the method can terminate normally in the given context

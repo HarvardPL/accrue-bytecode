@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import org.json.JSONException;
@@ -23,10 +24,7 @@ import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
-import analysis.pointer.analyses.CrossProduct;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StaticCallSiteSensitive;
-import analysis.pointer.analyses.TypeSensitive;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
@@ -35,6 +33,11 @@ import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
 import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.StatementFactory;
+import analysis.string.AbstractString;
+import analysis.string.StringAnalysisResults;
+import analysis.string.StringVariableFactory;
+import analysis.string.StringVariableFactory.StringVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -62,7 +65,6 @@ public class AccrueAnalysisMain {
      *             issues writing JSON file
      */
     public static void main(String[] args) throws IOException, ClassHierarchyException, JSONException {
-
         AccrueAnalysisOptions options = AccrueAnalysisOptions.getOptions(args);
         if (options.shouldPrintUseage()) {
             System.err.println(AccrueAnalysisOptions.getUseage());
@@ -95,28 +97,6 @@ public class AccrueAnalysisMain {
         PointsToGraph g;
         ReferenceVariableCache rvCache;
         switch (analysisName) {
-        // case "pointsto":
-        // AnalysisUtil.init(classPath, entryPoint);
-        // results = generatePointsToGraph(outputLevel);
-        // g = results.fst();
-        // g.dumpPointsToGraphToFile(fileName + "_ptg", false);
-        // ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
-        //
-        // System.err.println(g.getNodes().size() + " Nodes");
-        // int num = 0;
-        // for (PointsToGraphNode n : g.getNodes()) {
-        // num += g.getPointsToSet(n).size();
-        // }
-        // System.err.println(num + " Edges");
-        // System.err.println(g.getAllHContexts().size() + " HContexts");
-        //
-        // int numNodes = 0;
-        // for (@SuppressWarnings("unused")
-        // CGNode n : g.getCallGraph()) {
-        // numNodes++;
-        // }
-        // System.err.println(numNodes + " CGNodes");
-        // break;
         case "pointsto":
             AnalysisUtil.init(classPath, entryPoint);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
@@ -217,6 +197,17 @@ public class AccrueAnalysisMain {
             g = results.fst();
             printAllCFG(g);
             break;
+        case "string-main":
+            AnalysisUtil.init(classPath, entryPoint);
+            StringVariableFactory factory = new StringVariableFactory();
+            StringAnalysisResults stringResults = new StringAnalysisResults(factory);
+            IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();
+            printSingleCFG(AnalysisUtil.getIR(main), fileName + "_main");
+            Map<StringVariable, AbstractString> res = stringResults.getResultsForMethod(main);
+            for (StringVariable v : res.keySet()) {
+                System.err.println(v + " = " + res.get(v));
+            }
+            break;
         default:
             assert false;
             throw new RuntimeException("The options parser should prevent reaching this point");
@@ -256,48 +247,6 @@ public class AccrueAnalysisMain {
      *
      * @param outputLevel
      *            print level
-     * @return the resulting points-to graph, and cache of reference variables
-     */
-    @SuppressWarnings("unused")
-    // Use the online analysis
-    @Deprecated
-    private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel) {
-
-        // Gather all the points-to statements
-        StatementRegistrationPass pass = new StatementRegistrationPass();
-        pass.run();
-        StatementRegistrar registrar = pass.getRegistrar();
-        ReferenceVariableCache rvCache = pass.getAllLocals();
-
-        // HeapAbstractionFactory haf = new CallSiteSensitive(1);
-        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
-        HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
-        HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
-        HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
-
-        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
-        PointsToAnalysis.outputLevel = outputLevel;
-        PointsToGraph g = analysis.solve(registrar);
-
-        System.err.println("Registered statements: " + pass.getRegistrar().size());
-        if (outputLevel >= 2) {
-            for (IMethod m : pass.getRegistrar().getRegisteredMethods()) {
-                for (PointsToStatement s : pass.getRegistrar().getStatementsForMethod(m)) {
-                    System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
-                }
-            }
-        }
-//        System.err.println(g.getNodes().size() + " PTG nodes.");
-        System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
-
-        return new OrderedPair<>(g, rvCache);
-    }
-
-    /**
-     * Generate the full points-to graph, print statistics, and save it to a file.
-     *
-     * @param outputLevel
-     *            print level
      * @param haf
      *            Definition of the abstraction for heap locations
      * @param online
@@ -306,26 +255,17 @@ public class AccrueAnalysisMain {
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf, boolean isOnline) {
-
-        // HeapAbstractionFactory haf = new CallSiteSensitive(1);
-
-        // HeapAbstractionFactory haf1 = new TypeSensitive(2, 1);
-        // HeapAbstractionFactory haf2 = new StaticCallSiteSensitive(2);
-        // HeapAbstractionFactory haf = new CrossProduct(haf1, haf2);
-
-        // HeapAbstractionFactory haf = new TypeSensitive(2, 1);
-
-        PointsToAnalysis analysis = new PointsToAnalysisSingleThreaded(haf);
-        //PointsToAnalysis analysis = new PointsToAnalysisSingleThreadedSCCSorted(haf);
+        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;
         StatementRegistrar registrar;
+        StatementFactory factory = new StatementFactory();
         if (isOnline) {
-            registrar = new StatementRegistrar();
+            registrar = new StatementRegistrar(factory);
             g = analysis.solveAndRegister(registrar);
         }
         else {
-            StatementRegistrationPass pass = new StatementRegistrationPass();
+            StatementRegistrationPass pass = new StatementRegistrationPass(factory);
             pass.run();
             registrar = pass.getRegistrar();
             PointsToAnalysis.outputLevel = outputLevel;

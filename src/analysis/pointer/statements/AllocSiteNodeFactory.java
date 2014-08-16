@@ -30,7 +30,7 @@ public class AllocSiteNodeFactory {
     /**
      * Create an allocation node for a normal allocation (i.e. from a "new" instruction o = new Object). This should
      * only be called once for each allocation.
-     * 
+     *
      * @param allocatedClass
      *            class being allocated
      * @param allocatingClass
@@ -45,7 +45,7 @@ public class AllocSiteNodeFactory {
                                     ReferenceVariable result, int pc) {
         String name = PrettyPrinter.typeString(allocatedClass);
         @SuppressWarnings("synthetic-access")
-        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass, pc);
+        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass, pc, false);
         assert nodeMap.put(result, n) == null;
         return n;
     }
@@ -54,18 +54,18 @@ public class AllocSiteNodeFactory {
      * Create a new analysis-generated allocation, (i.e. a generated exception, a string literal, a native method
      * signature). This should only be called once for each allocation
      * 
-     * @param debugString
-     *            String for printing and debugging
-     * @param allocatedClass
-     *            class being allocated
-     * @param allocatingClass
-     *            class where allocation occurs
+     * @param debugString String for printing and debugging
+     * @param allocatedClass class being allocated
+     * @param allocatingClass class where allocation occurs
+     * @param isStringLiteral true if this allocation is for a string literal, if this is true then debugString should
+     *            be the literal string being allocated
+     * 
      * @return unique allocation node
      */
     protected static AllocSiteNode createGenerated(String debugString, IClass allocatedClass, IClass allocatingClass,
-                                    ReferenceVariable result) {
+                                                   ReferenceVariable result, boolean isStringLiteral) {
         @SuppressWarnings("synthetic-access")
-        AllocSiteNode n = new AllocSiteNode(debugString, allocatedClass, allocatingClass);
+        AllocSiteNode n = new AllocSiteNode(debugString, allocatedClass, allocatingClass, isStringLiteral);
         assert nodeMap.put(result, n) == null;
         return n;
     }
@@ -93,34 +93,36 @@ public class AllocSiteNodeFactory {
         private final int programCounter;
 
         /**
+         * Is this allocation a string literal then this is the literal value?
+         */
+        private final boolean isStringLiteral;
+
+        /**
          * Represents the allocation of an object by something other than a "new" instruction.
          * <p>
          * e.g. a string literal, generated exception, signature for a native method
-         * 
-         * @param debugString
-         *            String for printing and debugging
-         * @param allocatedClass
-         *            class being allocated
-         * @param allocatingClass
-         *            class where allocation occurs
+         *
+         * @param debugString String for printing and debugging
+         * @param allocatedClass class being allocated
+         * @param allocatingClass class where allocation occurs
+         * @param isStringLiteral true if this allocation is for a string literal
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass) {
-            this(debugString, allocatedClass, allocatingClass, -1);
+        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass, boolean isStringLiteral) {
+            this(debugString, allocatedClass, allocatingClass, -1, isStringLiteral);
         }
 
         /**
          * Represents the allocation of a new object
-         * 
-         * @param debugString
-         *            String for printing and debugging
-         * @param allocatedClass
-         *            class being allocated
-         * @param allocatingClass
-         *            class where allocation occurs
-         * @param programCounter
-         *            program counter at the allocation site (-1 for generated allocations e.g. generated exceptions)
+         *
+         * @param debugString String for printing and debugging
+         * @param allocatedClass class being allocated
+         * @param allocatingClass class where allocation occurs
+         * @param programCounter program counter at the allocation site (-1 for generated allocations e.g. generated
+         *            exceptions)
+         * @param isStringLiteral true if this allocation is for a string literal
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass, int programCounter) {
+        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass, int programCounter,
+                              boolean isStringLiteral) {
             assert debugString != null;
             assert allocatingClass != null;
             assert allocatedClass != null;
@@ -128,6 +130,7 @@ public class AllocSiteNodeFactory {
             this.allocatingClass = allocatingClass;
             this.allocatedClass = allocatedClass;
             this.programCounter = programCounter;
+            this.isStringLiteral = isStringLiteral;
         }
 
         @Override
@@ -135,7 +138,18 @@ public class AllocSiteNodeFactory {
             if (programCounter >= 0) {
                 return debugString + "@" + programCounter;
             }
-            return debugString;
+            return (isStringLiteral ? "LITERAL " : "") + debugString;
+        }
+
+        public String getStringLiteralValue() {
+            if (isStringLiteral) {
+                return debugString;
+            }
+            throw new RuntimeException("Trying to get String literal value for an allocation that is not a String literal. Call isStringLiteral() first.");
+        }
+
+        public boolean isStringLiteral() {
+            return isStringLiteral;
         }
 
         public TypeReference getExpectedType() {
