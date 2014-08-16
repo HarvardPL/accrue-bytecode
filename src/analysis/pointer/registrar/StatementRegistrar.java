@@ -92,6 +92,12 @@ public class StatementRegistrar {
     public static final boolean USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS = true;
 
     /**
+     * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
+     * (and speed up the points-to analysis), but result in a loss of precision for strings.
+     */
+    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = true;
+
+    /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
@@ -578,8 +584,8 @@ public class StatementRegistrar {
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
             this.addStatement(stmtFactory.localToLocal(a,
-                                                       getOrCreateSingletonException(resultType,
-                                                                                     ir.getMethod()),
+                                                       getOrCreateSingleton(resultType,
+                                                                            ir.getMethod()),
                                                        ir.getMethod(),
                                                        false));
         }
@@ -627,7 +633,15 @@ public class StatementRegistrar {
                 && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             this.addStatement(stmtFactory.localToLocal(result,
-                                                       getOrCreateSingletonException(allocType, ir.getMethod()),
+                                                       getOrCreateSingleton(allocType, ir.getMethod()),
+                                                       ir.getMethod(),
+                                                       false));
+
+        }
+        else if (USE_SINGLE_ALLOC_FOR_STRINGS && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
+            // the newly allocated object is a string, and we only want one allocation for strings
+            this.addStatement(stmtFactory.localToLocal(result,
+                                                       getOrCreateSingleton(allocType, ir.getMethod()),
                                                        ir.getMethod(),
                                                        false));
 
@@ -894,17 +908,26 @@ public class StatementRegistrar {
      */
     private void registerStringLiteral(ReferenceVariable stringLit, int local, IMethod m,
                                        ReferenceVariableFactory rvFactory, PrettyPrinter pp) {
-        // v = new String
-        this.addStatement(stmtFactory.newForStringLiteral(pp.valString(local), stringLit, m));
-        for (IField f : AnalysisUtil.getStringClass().getAllFields()) {
-            if (f.getName().toString().equals("value")) {
-                // This is the value field of the String
-                ReferenceVariable stringValue = rvFactory.createStringLitField(local, m);
-                this.addStatement(stmtFactory.newForStringField(stringValue, m));
-                this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, m));
+        if (USE_SINGLE_ALLOC_FOR_STRINGS) {
+            // v = string
+            this.addStatement(stmtFactory.localToLocal(stringLit,
+                                                       getOrCreateSingleton(AnalysisUtil.getStringClass()
+                                                                                        .getReference(), m),
+                                                       m,
+                                                       false));
+        }
+        else {
+            // v = new String
+            this.addStatement(stmtFactory.newForStringLiteral(pp.valString(local), stringLit, m));
+            for (IField f : AnalysisUtil.getStringClass().getAllFields()) {
+                if (f.getName().toString().equals("value")) {
+                    // This is the value field of the String
+                    ReferenceVariable stringValue = rvFactory.createStringLitField(local, m);
+                    this.addStatement(stmtFactory.newForStringField(stringValue, m));
+                    this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, m));
+                }
             }
         }
-
     }
 
     /**
@@ -922,7 +945,7 @@ public class StatementRegistrar {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE || USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS) {
-                ex = getOrCreateSingletonException(exType, ir.getMethod());
+                ex = getOrCreateSingleton(exType, ir.getMethod());
             }
             else {
                 ex = rvFactory.createImplicitExceptionNode(exType, bb.getNumber(), ir.getMethod());
@@ -936,7 +959,10 @@ public class StatementRegistrar {
         }
     }
 
-    private ReferenceVariable getOrCreateSingletonException(TypeReference exType, IMethod m) {
+    /**
+     * get or create a singleton reference variable based on the type.
+     */
+    private ReferenceVariable getOrCreateSingleton(TypeReference exType, IMethod m) {
         ReferenceVariable ex = this.singletonExceptions.get(exType);
         if (ex == null) {
             ex = rvFactory.createSingletonReferenceVariable(exType);
@@ -944,7 +970,7 @@ public class StatementRegistrar {
             IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
-            // IDEALLY, WE SHOULDN"T USE m. This will likely cause bugs for off-line registration.
+            // IDEALLY, WE SHOULDN'T USE m. This will likely cause bugs for off-line registration.
             // TODO: refactor code to allow the new statement to be associated with the FakeRootMethod,
             // yet still work in either online or offline registration mode.
             this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, m));
