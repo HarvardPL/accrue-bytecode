@@ -85,47 +85,47 @@ public class PointsToGraph {
      *
      * Map from PointsToGraphNode to sets of InstanceKeys
      */
-    private final ConcurrentIntMap<MutableIntSet> basex = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> base = new SimpleConcurrentIntMap<>();
 
     /**
      * Map from PointsToGraphNode to set of PointsToGraphNode
      */
-    private final ConcurrentIntMap<MutableIntSet> isUnfilteredSubsetOfx = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> isUnfilteredSubsetOf = new SimpleConcurrentIntMap<>();
 
     /**
      * Map from PointsToGraphNode to set of PointsToGraphNode
      */
-    private final ConcurrentIntMap<MutableIntSet> isUnfilteredSupersetOfx = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> isUnfilteredSupersetOf = new SimpleConcurrentIntMap<>();
 
     /**
      * Map from PointsToGraphNode to map from PointsToGraphNode to TypeFilter
      */
-    private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSubsetOfx = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSubsetOf = new SimpleConcurrentIntMap<>();
 
     /**
      * Map from PointsToGraphNode to map from PointsToGraphNode to TypeFilter
      */
-    private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSupersetOfx = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSupersetOf = new SimpleConcurrentIntMap<>();
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes
      */
-    private final ConcurrentIntMap<Integer> representativex = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<Integer> representative = new SimpleConcurrentIntMap<>();
     /**
      * The contexts that a method may appear in.
      */
-    private final ConcurrentMap<IMethod, Set<Context>> contextsx = new ConcurrentHashMap<>();
+    private final ConcurrentMap<IMethod, Set<Context>> contexts = new ConcurrentHashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static
      * initializers).
      */
-    private final Set<IMethod> classInitializersx = AnalysisUtil.createConcurrentSet();
+    private final Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
 
     /**
      * Entry points added during the pointer analysis
      */
-    private final Set<IMethod> entryPointsx = AnalysisUtil.createConcurrentSet();
+    private final Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
 
     /**
      * Heap abstraction factory.
@@ -171,15 +171,15 @@ public class PointsToGraph {
     }
 
     public IntMap<MutableIntSet> getBaseNodes() {
-        return this.basex;
+        return this.base;
     }
 
     // Return the immediate supersets of PointsToGraphNode n. That is, any node m such that n is an immediate subset of m
     public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSuperSetsOf(int n) {
         n = this.getRepresentative(n);
 
-        IntSet unfilteredsupersets = this.isUnfilteredSubsetOfx.get(n);
-        IntMap<Set<TypeFilter>> supersets = this.isSubsetOfx.get(n);
+        IntSet unfilteredsupersets = this.isUnfilteredSubsetOf.get(n);
+        IntMap<Set<TypeFilter>> supersets = this.isSubsetOf.get(n);
         return new OrderedPair<>(unfilteredsupersets, supersets);
     }
 
@@ -188,14 +188,14 @@ public class PointsToGraph {
     // and the second element is the IntMap for filtered PointsToGraphNodes.
     public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSubSetsOf(/*PointsToGraphNode*/int n) {
         n = this.getRepresentative(n);
-        IntSet unfilteredsubsets = this.isUnfilteredSupersetOfx.get(n);
-        IntMap<Set<TypeFilter>> subsets = this.isSupersetOfx.get(n);
+        IntSet unfilteredsubsets = this.isUnfilteredSupersetOf.get(n);
+        IntMap<Set<TypeFilter>> subsets = this.isSupersetOf.get(n);
         return new OrderedPair<>(unfilteredsubsets, subsets);
     }
 
 
     Integer getImmediateRepresentative(/*PointsToGraphNode*/int n) {
-        return this.representativex.get(n);
+        return this.representative.get(n);
     }
 
     public/*PointsToGraphNode*/int getRepresentative(/*PointsToGraphNode*/int n) {
@@ -204,7 +204,7 @@ public class PointsToGraph {
         Integer x = n;
         do {
             rep = x;
-            x = this.representativex.get(x);
+            x = this.representative.get(x);
         } while (x != null);
         return rep;
     }
@@ -421,9 +421,9 @@ public class PointsToGraph {
         }
 
         // we don't have a cached version of the points to set. Let's try to be cunning.
-        if (this.basex.containsKey(n)) {
+        if (this.base.containsKey(n)) {
             // we have a base node,
-            if (this.basex.get(n).contains(ik)) {
+            if (this.base.get(n).contains(ik)) {
                 return true;
             }
         }
@@ -522,10 +522,10 @@ public class PointsToGraph {
             System.err.println("RECORDING: " + callee + " in " + calleeContext
                                + " hc " + calleeContext);
         }
-        Set<Context> s = this.contextsx.get(callee);
+        Set<Context> s = this.contexts.get(callee);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<Context> existing = this.contextsx.putIfAbsent(callee, s);
+            Set<Context> existing = this.contexts.putIfAbsent(callee, s);
             if (existing != null) {
                 s = existing;
             }
@@ -538,10 +538,10 @@ public class PointsToGraph {
     }
 
     private MutableIntSet getOrCreateBaseSet(/*PointsToGraphNode*/int node) {
-        MutableIntSet s = this.basex.get(node);
+        MutableIntSet s = this.base.get(node);
         if (s == null) {
             s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
-            MutableIntSet existing = this.basex.putIfAbsent(node, s);
+            MutableIntSet existing = this.base.putIfAbsent(node, s);
             if (existing != null) {
                 s = existing;
             }
@@ -550,27 +550,27 @@ public class PointsToGraph {
     }
 
     private ConcurrentIntMap<Set<TypeFilter>> getOrCreateSubsetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representativex.containsKey(node);
-        return getOrCreateIntMap(node, this.isSubsetOfx);
+        assert !this.representative.containsKey(node);
+        return getOrCreateIntMap(node, this.isSubsetOf);
     }
 
     private IntMap<Set<TypeFilter>> getOrCreateSupersetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representativex.containsKey(node);
-        return getOrCreateIntMap(node, this.isSupersetOfx);
+        assert !this.representative.containsKey(node);
+        return getOrCreateIntMap(node, this.isSupersetOf);
     }
 
     private MutableIntSet getOrCreateUnfilteredSubsetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representativex.containsKey(node);
-        return getOrCreateIntSet(node, this.isUnfilteredSubsetOfx);
+        assert !this.representative.containsKey(node);
+        return getOrCreateIntSet(node, this.isUnfilteredSubsetOf);
     }
 
     private MutableIntSet getOrCreateUnfilteredSupersetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representativex.containsKey(node);
-        return getOrCreateIntSet(node, this.isUnfilteredSupersetOfx);
+        assert !this.representative.containsKey(node);
+        return getOrCreateIntSet(node, this.isUnfilteredSupersetOf);
     }
 
     private Set<Context> getOrCreateContextSet(IMethod callee) {
-        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contextsx);
+        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contexts);
     }
 
     static MutableIntSet getOrCreateIntSet(int key, ConcurrentIntMap<MutableIntSet> map) {
@@ -618,11 +618,11 @@ public class PointsToGraph {
      * @return set of contexts for the given method
      */
     public Set<Context> getContexts(IMethod m) {
-        Set<Context> s = this.contextsx.get(m);
+        Set<Context> s = this.contexts.get(m);
         if (s == null) {
             return Collections.<Context> emptySet();
         }
-        return Collections.unmodifiableSet(this.contextsx.get(m));
+        return Collections.unmodifiableSet(this.contexts.get(m));
     }
 
     //
@@ -755,8 +755,8 @@ public class PointsToGraph {
         depRecorder.startCollapseNode(n, rep);
 
         // update the subset and superset graphs.
-        IntSet unfilteredSubsetOf = this.isUnfilteredSubsetOfx.remove(n);
-        IntSet unfilteredSupersetOf = this.isUnfilteredSupersetOfx.remove(n);
+        IntSet unfilteredSubsetOf = this.isUnfilteredSubsetOf.remove(n);
+        IntSet unfilteredSupersetOf = this.isUnfilteredSupersetOf.remove(n);
 
         MutableIntSet repUnfilteredSubsetOf = this.getOrCreateUnfilteredSubsetSet(rep);
         MutableIntSet repUnfilteredSupersetOf = this.getOrCreateUnfilteredSupersetSet(rep);
@@ -766,7 +766,7 @@ public class PointsToGraph {
             while (iter.hasNext()) {
                 int x = iter.next();
                 // n is an unfiltered subset of x, so n is in the isUnfilteredSupersets of x
-                MutableIntSet s = this.isUnfilteredSupersetOfx.get(x);
+                MutableIntSet s = this.isUnfilteredSupersetOf.get(x);
                 if (x != rep) {
                     s.add(rep);
                     // add x to the representative's...
@@ -781,7 +781,7 @@ public class PointsToGraph {
             while (iter.hasNext()) {
                 int x = iter.next();
                 // n is an unfiltered superset of x, so n is in the isUnfilteredSubsets of x
-                MutableIntSet s = this.isUnfilteredSubsetOfx.get(x);
+                MutableIntSet s = this.isUnfilteredSubsetOf.get(x);
                 if (x != rep) {
                     s.add(rep);
                     // add x to the representative's...
@@ -791,8 +791,8 @@ public class PointsToGraph {
             }
         }
 
-        IntMap<Set<TypeFilter>> filteredSubsetOf = this.isSubsetOfx.remove(n);
-        IntMap<Set<TypeFilter>> filteredSupersetOf = this.isSupersetOfx.remove(n);
+        IntMap<Set<TypeFilter>> filteredSubsetOf = this.isSubsetOf.remove(n);
+        IntMap<Set<TypeFilter>> filteredSupersetOf = this.isSupersetOf.remove(n);
 
         IntMap<Set<TypeFilter>> repFilteredSubsetOf = this.getOrCreateSubsetSet(rep);
         IntMap<Set<TypeFilter>> repFilteredSupersetOf = this.getOrCreateSupersetSet(rep);
@@ -803,7 +803,7 @@ public class PointsToGraph {
                 int m = iter.next();
                 Set<TypeFilter> filters = filteredSubsetOf.get(m);
                 // n is a filtered subset of m, so n is in the isSupersets of m
-                IntMap<Set<TypeFilter>> s = this.isSupersetOfx.get(m);
+                IntMap<Set<TypeFilter>> s = this.isSupersetOf.get(m);
                 if (m != rep) {
                     assert !s.containsKey(rep);
                     addFilters(s, rep, filters);
@@ -820,7 +820,7 @@ public class PointsToGraph {
                 int m = iter.next();
                 Set<TypeFilter> filters = filteredSupersetOf.get(m);
                 // n is a filtered superset of m, so n is in the isSubsets of m
-                IntMap<Set<TypeFilter>> s = this.isSubsetOfx.get(m);
+                IntMap<Set<TypeFilter>> s = this.isSubsetOf.get(m);
                 if (m != rep) {
                     addFilters(s, rep, filters);
                     // add x to the representative's...
@@ -831,9 +831,9 @@ public class PointsToGraph {
         }
 
         // update the base nodes.
-        assert !this.basex.containsKey(n) : "Base nodes shouldn't be collapsed with other nodes";
+        assert !this.base.containsKey(n) : "Base nodes shouldn't be collapsed with other nodes";
 
-        this.representativex.put(n, rep);
+        this.representative.put(n, rep);
         depRecorder.finishCollapseNode(n, rep);
 
     }
@@ -856,7 +856,7 @@ public class PointsToGraph {
         boolean cgChanged = false;
         for (int j = classInits.size() - 1; j >= 0; j--) {
             IMethod clinit = classInits.get(j);
-            if (this.classInitializersx.add(clinit)) {
+            if (this.classInitializers.add(clinit)) {
                 // new initializer
                 cgChanged = true;
                 Context c = this.haf.initialContext();
@@ -893,7 +893,7 @@ public class PointsToGraph {
      *         otherwise
      */
     public boolean addEntryPoint(IMethod newEntryPoint) {
-        boolean changed = this.entryPointsx.add(newEntryPoint);
+        boolean changed = this.entryPoints.add(newEntryPoint);
         if (changed) {
             // new initializer
             Context c = this.haf.initialContext();
@@ -1329,7 +1329,7 @@ public class PointsToGraph {
      * everything.
      */
     private class RealizedSetCache {
-        private final ConcurrentIntMap<MutableIntSet> cachex = new SimpleConcurrentIntMap<>();
+        private final ConcurrentIntMap<MutableIntSet> cache = new SimpleConcurrentIntMap<>();
         private int hits = 0;
         private int misses = 0;
         private int uncachable = 0;
@@ -1343,7 +1343,7 @@ public class PointsToGraph {
             IntIterator iter = delta.domainIterator();
             while (iter.hasNext()) {
                 /*PointsToGraphNode*/int n = iter.next();
-                MutableIntSet s = this.cachex.get(n);
+                MutableIntSet s = this.cache.get(n);
                 if (s != null) {
                     // the set is in the cache!
                     IntSet deltaSet = delta.pointsToSet(n);
@@ -1356,25 +1356,11 @@ public class PointsToGraph {
          * Node n has been removed (e.g., collapsed with another node)
          */
         public void removed(/*PointsToGraphNode*/int n) {
-            this.cachex.remove(n);
+            this.cache.remove(n);
         }
 
-        //        IntSet getPointsToSetIfNotEvicted(/*PointsToGraphNode*/int n) {
-        //            SoftReference<MutableIntSet> sr =
-        //            if (sr != null) {
-        //                IntSet s = this.cache.get(n);
-        //                if (s != null) {
-        //                    // put it in the recently used...
-        //                    this.recentlyUsedMap.put(n, s);
-        //                }
-        //                return s;
-        //            }
-        //            // the points to set hasn't been evicted, so lets get it.
-        //            return this.getPointsToSet(n);
-        //        }
-        //
         public IntSet getPointsToSet(/*PointsToGraphNode*/int n) {
-            MutableIntSet s = this.cachex.get(n);
+            MutableIntSet s = this.cache.get(n);
             if (s != null) {
                 // we have it in the cache!
                 hits++;
@@ -1387,10 +1373,10 @@ public class PointsToGraph {
 
         private IntSet realizePointsToSet(/*PointsToGraphNode*/int n, MutableIntSet currentlyRealizing,
                                           IntStack currentlyRealizingStack, Stack<Boolean> shouldCache) {
-            assert !PointsToGraph.this.representativex.containsKey(n) : "Getting points to set of node that has been merged with another node.";
+            assert !PointsToGraph.this.representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
 
             try {
-                MutableIntSet s = this.cachex.get(n);
+                MutableIntSet s = this.cache.get(n);
                 if (s != null) {
                     // we have it in the cache!
                     hits++;
@@ -1414,11 +1400,11 @@ public class PointsToGraph {
                     // point to set.
                     return EmptyIntSet.instance;
                 }
-                boolean baseContains = PointsToGraph.this.basex.containsKey(n);
+                boolean baseContains = PointsToGraph.this.base.containsKey(n);
 
-                IntSet unfilteredSubsets = PointsToGraph.this.isUnfilteredSupersetOfx.get(n);
+                IntSet unfilteredSubsets = PointsToGraph.this.isUnfilteredSupersetOf.get(n);
 
-                IntMap<Set<TypeFilter>> filteredSubsets = PointsToGraph.this.isSupersetOfx.get(n);
+                IntMap<Set<TypeFilter>> filteredSubsets = PointsToGraph.this.isSupersetOf.get(n);
 
                 boolean hasUnfilteredSubsets = unfilteredSubsets != null
                         && !unfilteredSubsets.isEmpty();
@@ -1435,7 +1421,7 @@ public class PointsToGraph {
                 if (baseContains
                         && !(hasUnfilteredSubsets || hasFilteredSubsets)) {
                     // n is a base node, and no superset relations
-                    return PointsToGraph.this.basex.get(n);
+                    return PointsToGraph.this.base.get(n);
                 }
 
 
@@ -1444,7 +1430,7 @@ public class PointsToGraph {
 
                 s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
                 if (baseContains) {
-                    s.addAll(PointsToGraph.this.basex.get(n));
+                    s.addAll(PointsToGraph.this.base.get(n));
                 }
                 shouldCache.push(true);
                 currentlyRealizing.add(n);
@@ -1485,7 +1471,7 @@ public class PointsToGraph {
                 if (this.hits + this.misses >= 1000000) {
                     System.err.println("  Cache: " + (this.hits + this.misses) + " accesses: " + 100 * this.hits
                             / (this.hits + this.misses) + "% hits; " + this.misses + " misses; " + this.uncachable
-                            + " of the misses were uncachable; cache size: " + this.cachex.size());
+                            + " of the misses were uncachable; cache size: " + this.cache.size());
                     this.hits = this.misses = this.uncachable = 0;
                 }
             }
@@ -1495,7 +1481,7 @@ public class PointsToGraph {
         private void storeInCache(/*PointsToGraphNode*/int n, MutableIntSet s) {
             // it is safe for us to cache the result of this realization.
 
-            MutableIntSet ex = this.cachex.putIfAbsent(n, s);
+            MutableIntSet ex = this.cache.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!
                 ex.addAll(s);
@@ -1504,14 +1490,14 @@ public class PointsToGraph {
     }
 
     public int cycleRemovalCount() {
-        return this.representativex.size();
+        return this.representative.size();
     }
 
     public void findCycles() {
         IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
 
         MutableIntSet visited = MutableSparseIntSet.makeEmpty();
-        IntIterator iter = this.isUnfilteredSupersetOfx.keyIterator();
+        IntIterator iter = this.isUnfilteredSupersetOf.keyIterator();
         while (iter.hasNext()) {
             int n = iter.next();
             this.findCycles(n, visited, MutableSparseIntSet.makeEmpty(), new IntStack(), toCollapse);
@@ -1567,7 +1553,7 @@ public class PointsToGraph {
         // now recurse.
         currentlyVisiting.add(n);
         currentlyVisitingStack.push(n);
-        IntSet children = this.isUnfilteredSupersetOfx.get(n);
+        IntSet children = this.isUnfilteredSupersetOf.get(n);
         if (children == null) {
             children = EmptyIntSet.instance;
         }
