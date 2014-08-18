@@ -50,12 +50,6 @@ import com.ibm.wala.util.intset.IntIterator;
 public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     /**
-     * If true then a debug pass will be run after the analysis reaches a fixed
-     * point
-     */
-    public static boolean DEBUG_SOLVED = false;
-
-    /**
      * An interesting dependency from node n to StmtAndContext sac exists when a
      * modification to the pointstoset of n (i.e., if n changes to point to more
      * things) requires reevaluation of sac. Many dependencies are just copy
@@ -264,12 +258,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                            + " nodes");
 
         this.processAllStatements(g, registrar);
-        if (outputLevel >= 5) {
-            System.err.println("****************************** CHECKING ******************************");
-            PointsToGraph.DEBUG = true;
-            DEBUG_SOLVED = true;
-            this.processAllStatements(g, registrar);
-        }
         return g;
     }
 

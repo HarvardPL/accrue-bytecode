@@ -67,11 +67,11 @@ public class GraphDelta {
                          new IntStack(),
                          new Stack<Set<TypeFilter>>(),
                          toCollapse);
-        collapseCycles(toCollapse);
+        // XXX TO ADD LATER?
+        // collapseCycles(toCollapse);
     }
 
-    public void addCopyEdges(/*PointsToGraphNode*/int source, TypeFilter filter,
-    /*PointsToGraphNode*/int target) {
+    public void addCopyEdges(/*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/int target) {
 
         // go through the points to set of source, and add anything that target doesn't already point to.
         IntSet diff = g.getDifference(source, filter, target);
@@ -84,7 +84,8 @@ public class GraphDelta {
                          new IntStack(),
                          new Stack<Set<TypeFilter>>(),
                          toCollapse);
-        collapseCycles(toCollapse);
+        // XXX maybe add later?
+        // collapseCycles(toCollapse);
     }
 
     private void collapseCycles(IntMap<MutableIntSet> toCollapse) {
@@ -177,20 +178,8 @@ public class GraphDelta {
                                      Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         IntSet filteredSet = filters == null ? source : g.new FilteredIntSet(source, filters);
 
-        // The set of things that
-        IntSet diff;
-
-        if (g.numIsSupersetOf(target) == 1) {
-            // there is only one subset!
-            // This means that anything that was added to target
-            // will definitely be added to superSet.fst(), and
-            // so we don't need to explicitly compute the difference set
-            diff = filteredSet;
-        }
-        else {
-            // Figure out which elements of filteredSet are actually added to the superset...
-            diff = g.getDifference(filteredSet, target);
-        }
+        // The set of elements that will be added to the superset.
+        IntSet diff = g.getDifference(filteredSet, target);
 
         filterStack.push(filters);
         addToSupersetsOf(target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);

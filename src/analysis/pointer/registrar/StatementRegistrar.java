@@ -136,7 +136,7 @@ public class StatementRegistrar {
      *
      * @param m method to register points-to statements for
      */
-    public void registerMethod(IMethod m) {
+    public synchronized void registerMethod(IMethod m) {
         Set<InstructionInfo> instructions = this.getFromMethod(m);
         for (InstructionInfo info : instructions) {
             this.handle(info);
