@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
@@ -65,7 +66,7 @@ public class RemoveDuplicateStatements {
 
     /**
      * Create analysis that will find and remove duplicate points-to statements in the given set
-     * 
+     *
      * @param statements
      *            set of points-to statements
      */
@@ -76,7 +77,7 @@ public class RemoveDuplicateStatements {
     /**
      * Initialize the reverse index from variable to the set of statements that use them and the sets of different types
      * of statements
-     * 
+     *
      * @param statements
      *            set of all points-to statements
      */
@@ -87,7 +88,7 @@ public class RemoveDuplicateStatements {
             for (ReferenceVariable rv : uses) {
                 Set<OrderedPair<PointsToStatement, Integer>> pairs = this.useIndex.get(rv);
                 if (pairs == null) {
-                    pairs = new LinkedHashSet<>();
+                    pairs = AnalysisUtil.createConcurrentSet();
                     this.useIndex.put(rv, pairs);
                 }
                 pairs.add(new OrderedPair<>(s, useNum));
@@ -127,7 +128,7 @@ public class RemoveDuplicateStatements {
 
     /**
      * Find and remove duplicate points-to statements in the given set. The input set will be modified.
-     * 
+     *
      * @param statements
      *            set of points-to statements (will be modified)
      * @return set with duplicate statements removed
@@ -156,7 +157,7 @@ public class RemoveDuplicateStatements {
             changed |= analysis.handleStaticFieldToLocal();
             changed |= analysis.handleCall();
         }
-        
+
         if (DEBUG && startSize != analysis.allStatements.size()) {
             System.err.println("AFTER:");
             for (PointsToStatement s : analysis.allStatements) {
@@ -376,7 +377,7 @@ public class RemoveDuplicateStatements {
 
     /**
      * Replace all uses of <code>replaced</code> with <code>replacement</code>
-     * 
+     *
      * @param replaced
      *            variable to be replaced
      * @param replacement

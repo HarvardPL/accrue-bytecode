@@ -16,7 +16,6 @@ import util.intmap.ConcurrentIntMap;
 import util.intmap.IntMap;
 import util.intmap.SimpleConcurrentIntMap;
 import util.intmap.SparseIntMap;
-import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.DependencyRecorder;
@@ -128,11 +127,18 @@ public class PointsToGraph {
     private final Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
 
     /**
+     * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
+     * HafCallGraph later.
+     */
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+
+    private HafCallGraph callGraph = null;
+
+    /**
      * Heap abstraction factory.
      */
     private final HeapAbstractionFactory haf;
 
-    private final HafCallGraph callGraph;
 
     private final DependencyRecorder depRecorder;
 
@@ -145,12 +151,10 @@ public class PointsToGraph {
 
     public static boolean DEBUG = false;
 
-    public PointsToGraph(StatementRegistrar registrar,
- HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
+    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
         this.depRecorder = depRecorder;
 
         this.haf = haf;
-        this.callGraph = new HafCallGraph(haf);
 
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
@@ -183,15 +187,6 @@ public class PointsToGraph {
         return new OrderedPair<>(unfilteredsupersets, supersets);
     }
 
-    // Return the immediate supersets of n. That is, any node m such that n is an immediate superset of m
-    // The first element of the pair returned is the IntSet of unfiltered PointsToGraphNodes,
-    // and the second element is the IntMap for filtered PointsToGraphNodes.
-    public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSubSetsOf(/*PointsToGraphNode*/int n) {
-        n = this.getRepresentative(n);
-        IntSet unfilteredsubsets = this.isUnfilteredSupersetOf.get(n);
-        IntMap<Set<TypeFilter>> subsets = this.isSupersetOf.get(n);
-        return new OrderedPair<>(unfilteredsubsets, subsets);
-    }
 
 
     Integer getImmediateRepresentative(/*PointsToGraphNode*/int n) {
@@ -339,6 +334,7 @@ public class PointsToGraph {
             // For the current design, it's important that we tell delta about the copyEdges before actually updating it.
             // XXX!@! AND I'M GOING TO BREAK THAT NOW...
 
+
             addFilter(sourceSubset, t, filter);
             // make sure the superset relation stays consistent
             IntMap<Set<TypeFilter>> targetSuperset = this.getOrCreateSupersetSet(t);
@@ -394,27 +390,23 @@ public class PointsToGraph {
     public IntIterator pointsToIntIterator(PointsToGraphNode n, StmtAndContext origninator) {
         return pointsToIntIterator(lookupDictionary(n), origninator);
     }
-    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext origninator) {
+    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext originator) {
         n = this.getRepresentative(n);
-        this.recordRead(n, origninator);
+        this.recordRead(n, originator);
         return this.cache.getPointsToSet(n).intIterator();
     }
 
     /**
      * Does n point to ik?
      */
-    public boolean pointsTo(/*PointsToGraphNode*/int n, int ik) {
-        return this.pointsTo(n, ik, null);
-    }
+    //    public boolean pointsTo(/*PointsToGraphNode*/int n, int ik) {
+    //        return this.pointsTo(n, ik, null);
+    //    }
 
     /**
      * Does n point to ik?
      */
-    private boolean pointsTo(/*PointsToGraphNode*/int n, int ik, MutableIntSet visited) {
-        if (visited != null && visited.contains(n)) {
-            return false;
-        }
-
+    private boolean pointsTo(/*PointsToGraphNode*/int n, int ik) {
         IntSet s = this.cache.getPointsToSet(n);
         if (s != null) {
             return s.contains(ik);
@@ -423,44 +415,9 @@ public class PointsToGraph {
         // we don't have a cached version of the points to set. Let's try to be cunning.
         if (this.base.containsKey(n)) {
             // we have a base node,
-            if (this.base.get(n).contains(ik)) {
-                return true;
-            }
+            return (this.base.get(n).contains(ik));
         }
-        if (visited == null) {
-            visited = MutableSparseIntSet.makeEmpty();
-        }
-        visited.add(n);
-
-        // let's try the immediate subsets of n
-        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> subsets = this.immediateSubSetsOf(n);
-        // First go through the unfiltered subsets
-        IntSet unfilteredSubsets = subsets.fst();
-        IntMap<Set<TypeFilter>> filteredSubsets = subsets.snd();
-
-        if (unfilteredSubsets != null) {
-            IntIterator unfilteredSubsetsIter = unfilteredSubsets.intIterator();
-            while (unfilteredSubsetsIter.hasNext()) {
-                int ss = unfilteredSubsetsIter.next();
-                if (this.pointsTo(ss, ik, visited)) {
-                    return true;
-                }
-            }
-        }
-        // Now the filtered...
-        if (filteredSubsets != null) {
-            IntIterator filteredSubsetsIter = subsets.snd().keyIterator();
-            while (filteredSubsetsIter.hasNext()) {
-                int ss = filteredSubsetsIter.next();
-                Set<TypeFilter> filters = subsets.snd().get(ss);
-                if (satisfiesAny(filters, this.concreteTypeDictionary.get(ik))) {
-                    if (this.pointsTo(ss, ik, visited)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        throw new RuntimeException("Bad state");//!@!
     }
 
     private static boolean satisfiesAny(Set<TypeFilter> filters, IClass type) {
@@ -477,35 +434,22 @@ public class PointsToGraph {
      *
      */
     @SuppressWarnings("deprecation")
-    public synchronized boolean addCall(CallSiteReference callSite, IMethod caller,
+    public boolean addCall(CallSiteReference callSite, IMethod caller,
                            Context callerContext, IMethod callee,
                            Context calleeContext) {
-        // XXX !@! This method is synchronized, and is possibly a bottle neck. Should do something better with the call graph.
+        OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
+        OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
 
-        CGNode src;
-        CGNode dst;
-
-        try {
-            src = this.callGraph.findOrCreateNode(caller, callerContext);
-            dst = this.callGraph.findOrCreateNode(callee, calleeContext);
+        ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
+        if (m == null) {
+            m = AnalysisUtil.createConcurrentHashMap();
+            ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair,
+                                                                                                                     m);
+            if (existing != null) {
+                m = existing;
+            }
         }
-        catch (CancelException e) {
-            throw new RuntimeException(e + " cannot add call graph edge from "
-                    + PrettyPrinter.methodString(caller) + " to "
-                    + PrettyPrinter.methodString(callee));
-        }
-
-        // We are building a call graph so it is safe to call this "deprecated" method
-        if (!src.addTarget(callSite, dst)) {
-            // not a new target
-            return false;
-        }
-        if (this.outputLevel >= 2) {
-            System.err.println("ADDED\n\t" + PrettyPrinter.methodString(caller)
-                               + " in " + callerContext + " to\n\t"
-                               + PrettyPrinter.methodString(callee) + " in "
-                               + calleeContext);
-        }
+        m.putIfAbsent(callSite, calleePair);
 
         this.recordContext(callee, calleeContext);
         return true;
@@ -720,7 +664,56 @@ public class PointsToGraph {
      * @return call graph
      */
     public CallGraph getCallGraph() {
-        return this.callGraph;
+        if (this.callGraph != null) {
+            return this.callGraph;
+        }
+
+        // Construct the call graph.
+        HafCallGraph callGraph = new HafCallGraph(this.haf);
+        this.callGraph = callGraph;
+        try {
+            for (OrderedPair<IMethod, Context> callerPair : this.callGraphMap.keySet()) {
+                IMethod caller = callerPair.fst();
+                Context callerContext = callerPair.snd();
+                CGNode src = callGraph.findOrCreateNode(caller, callerContext);
+                ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
+                for (CallSiteReference callSite : m.keySet()) {
+                    OrderedPair<IMethod, Context> calleePair = m.get(callSite);
+                    IMethod callee = calleePair.fst();
+                    Context calleeContext = calleePair.snd();
+
+                    CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
+
+                    // We are building a call graph so it is safe to call this "deprecated" method
+                    src.addTarget(callSite, dst);
+                    //            if (this.outputLevel >= 2) {
+                    //                System.err.println("ADDED\n\t" + PrettyPrinter.methodString(caller)
+                    //                                   + " in " + callerContext + " to\n\t"
+                    //                                   + PrettyPrinter.methodString(callee) + " in "
+                    //                                   + calleeContext);
+                    //            }
+
+                }
+            }
+
+            Context initialContext = this.haf.initialContext();
+
+            for (IMethod entryPoint : this.entryPoints) {
+                callGraph.registerEntrypoint(callGraph.findOrCreateNode(entryPoint, initialContext));
+
+            }
+
+            for (IMethod classInit : this.classInitializers) {
+                // new initializer
+                CGNode initNode = callGraph.findOrCreateNode(classInit, initialContext);
+                callGraph.registerEntrypoint(initNode);
+            }
+        }
+        catch (CancelException e) {
+            throw new RuntimeException(e);
+        }
+        return callGraph;
+
     }
 
     private void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
@@ -860,15 +853,7 @@ public class PointsToGraph {
                 // new initializer
                 cgChanged = true;
                 Context c = this.haf.initialContext();
-                CGNode initNode;
-                try {
-                    initNode = this.callGraph.findOrCreateNode(clinit, c);
-                }
-                catch (CancelException e) {
-                    throw new RuntimeException(e);
-                }
                 this.recordContext(clinit, c);
-                this.callGraph.registerEntrypoint(initNode);
                 this.clinitCount++;
             }
             else {
@@ -895,17 +880,7 @@ public class PointsToGraph {
     public boolean addEntryPoint(IMethod newEntryPoint) {
         boolean changed = this.entryPoints.add(newEntryPoint);
         if (changed) {
-            // new initializer
-            Context c = this.haf.initialContext();
-            CGNode initNode;
-            try {
-                initNode = this.callGraph.findOrCreateNode(newEntryPoint, c);
-            }
-            catch (CancelException e) {
-                throw new RuntimeException(e);
-            }
-            this.recordContext(newEntryPoint, c);
-            this.callGraph.registerEntrypoint(initNode);
+            this.recordContext(newEntryPoint, this.haf.initialContext());
             this.clinitCount++;
         }
         return changed;
@@ -1259,7 +1234,9 @@ public class PointsToGraph {
 
         @Override
         public InstanceKey next() {
-            return PointsToGraph.this.instanceKeyDictionary.get(this.iter.next());
+            InstanceKey ik = PointsToGraph.this.instanceKeyDictionary.get(this.iter.next());
+            assert ik != null;
+            return ik;
         }
 
         @Override
@@ -1343,7 +1320,7 @@ public class PointsToGraph {
             IntIterator iter = delta.domainIterator();
             while (iter.hasNext()) {
                 /*PointsToGraphNode*/int n = iter.next();
-                MutableIntSet s = this.cache.get(n);
+                MutableIntSet s = this.getPointsToSetInternal(n);
                 if (s != null) {
                     // the set is in the cache!
                     IntSet deltaSet = delta.pointsToSet(n);
@@ -1360,6 +1337,10 @@ public class PointsToGraph {
         }
 
         public IntSet getPointsToSet(/*PointsToGraphNode*/int n) {
+            return getPointsToSetInternal(n);
+        }
+
+        private MutableIntSet getPointsToSetInternal(/*PointsToGraphNode*/int n) {
             MutableIntSet s = this.cache.get(n);
             if (s != null) {
                 // we have it in the cache!
@@ -1371,8 +1352,8 @@ public class PointsToGraph {
 
         }
 
-        private IntSet realizePointsToSet(/*PointsToGraphNode*/int n, MutableIntSet currentlyRealizing,
-                                          IntStack currentlyRealizingStack, Stack<Boolean> shouldCache) {
+        private MutableIntSet realizePointsToSet(/*PointsToGraphNode*/int n, MutableIntSet currentlyRealizing,
+                                                 IntStack currentlyRealizingStack, Stack<Boolean> shouldCache) {
             assert !PointsToGraph.this.representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
 
             try {
@@ -1398,7 +1379,7 @@ public class PointsToGraph {
                     }
                     // return an empty set, which will let us compute the realization of the
                     // point to set.
-                    return EmptyIntSet.instance;
+                    return PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
                 }
                 boolean baseContains = PointsToGraph.this.base.containsKey(n);
 
@@ -1410,13 +1391,6 @@ public class PointsToGraph {
                         && !unfilteredSubsets.isEmpty();
                 boolean hasFilteredSubsets = filteredSubsets != null
                         && !filteredSubsets.isEmpty();
-
-                // A case that shouldn't be true...
-                if (!baseContains && !hasUnfilteredSubsets
-                        && !hasFilteredSubsets) {
-                    // doesn't point to anything.
-                    return EmptyIntSet.instance;
-                }
 
                 if (baseContains
                         && !(hasUnfilteredSubsets || hasFilteredSubsets)) {
@@ -1459,13 +1433,8 @@ public class PointsToGraph {
                 }
                 currentlyRealizing.remove(n);
                 currentlyRealizingStack.pop();
-                if (shouldCache.pop()) {
-                    this.storeInCache(n, s);
-                }
-                else {
-                    this.uncachable++;
-                }
-                return s;
+                this.storeInCache(n, s);
+                return this.cache.get(n);
             }
             finally {
                 if (this.hits + this.misses >= 1000000) {

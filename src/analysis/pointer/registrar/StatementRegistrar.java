@@ -4,15 +4,13 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 import types.TypeRepository;
 import util.InstructionType;
@@ -61,7 +59,7 @@ public class StatementRegistrar {
     /**
      * Map from method signature to nodes representing formals and returns
      */
-    private final Map<IMethod, MethodSummaryNodes> methods;
+    private final ConcurrentMap<IMethod, MethodSummaryNodes> methods;
     /**
      * Entry point for the code being analyzed
      */
@@ -69,7 +67,7 @@ public class StatementRegistrar {
     /**
      * Map from method to the points-to statements generated from instructions in that method
      */
-    private final Map<IMethod, Set<PointsToStatement>> statementsForMethod;
+    private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
     /**
      * String literals that new allocation sites have already been created for
      */
@@ -101,12 +99,12 @@ public class StatementRegistrar {
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
-    private final Map<TypeReference, ReferenceVariable> singletonExceptions;
+    private final ConcurrentMap<TypeReference, ReferenceVariable> singletonExceptions;
 
     /**
      * Methods we have already added statements for
      */
-    private final Set<IMethod> visitedMethods = new LinkedHashSet<>();
+    private final Set<IMethod> visitedMethods = AnalysisUtil.createConcurrentSet();
     /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
@@ -123,10 +121,10 @@ public class StatementRegistrar {
      * @param factory factory used to create points-to statements
      */
     public StatementRegistrar(StatementFactory factory) {
-        this.methods = new LinkedHashMap<>();
-        this.statementsForMethod = new HashMap<>();
-        this.singletonExceptions = new HashMap<>();
-        this.handledStringLit = new HashSet<>();
+        this.methods = AnalysisUtil.createConcurrentHashMap();
+        this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
+        this.singletonExceptions = AnalysisUtil.createConcurrentHashMap();
+        this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryPoint = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
     }
@@ -735,7 +733,10 @@ public class StatementRegistrar {
         MethodSummaryNodes msn = this.methods.get(method);
         if (msn == null) {
             msn = new MethodSummaryNodes(method, rvFactory);
-            this.methods.put(method, msn);
+            MethodSummaryNodes ex = this.methods.putIfAbsent(method, msn);
+            if (ex != null) {
+                msn = ex;
+            }
         }
         return msn;
     }
@@ -800,8 +801,11 @@ public class StatementRegistrar {
         IMethod m = s.getMethod();
         Set<PointsToStatement> ss = this.statementsForMethod.get(m);
         if (ss == null) {
-            ss = new LinkedHashSet<>();
-            this.statementsForMethod.put(m, ss);
+            ss = AnalysisUtil.createConcurrentSet();
+            Set<PointsToStatement> ex = this.statementsForMethod.putIfAbsent(m, ss);
+            if (ex != null) {
+                ss = ex;
+            }
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         ss.add(s);
@@ -966,6 +970,10 @@ public class StatementRegistrar {
         ReferenceVariable ex = this.singletonExceptions.get(exType);
         if (ex == null) {
             ex = rvFactory.createSingletonReferenceVariable(exType);
+            ReferenceVariable existing = this.singletonExceptions.put(exType, ex);
+            if (existing != null) {
+                ex = existing;
+            }
 
             IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
@@ -975,7 +983,6 @@ public class StatementRegistrar {
             // yet still work in either online or offline registration mode.
             this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, m));
 
-            this.singletonExceptions.put(exType, ex);
         }
         return ex;
     }

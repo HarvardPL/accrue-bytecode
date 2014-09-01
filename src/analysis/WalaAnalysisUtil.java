@@ -1,7 +1,5 @@
 package analysis;
 
-import java.util.Iterator;
-
 import signatures.Signatures;
 
 import com.ibm.wala.classLoader.IClass;
@@ -64,8 +62,13 @@ public class WalaAnalysisUtil {
     private static final ClassLoaderReference CLASS_LOADER = ClassLoaderReference.Primordial;
 
     /**
+     * Signatures
+     */
+    public static final Signatures signatures = new Signatures();
+
+    /**
      * Create a pass which will generate points-to statements
-     * 
+     *
      * @param cha
      *            class hierarchy
      * @param cache
@@ -79,8 +82,7 @@ public class WalaAnalysisUtil {
         this.cha = cha;
         // Set up the entry points
         fakeRoot = new FakeRootMethod(cha, options, cache);
-        for (Iterator<? extends Entrypoint> it = options.getEntrypoints().iterator(); it.hasNext();) {
-            Entrypoint e = it.next();
+        for (Entrypoint e : options.getEntrypoints()) {
             // Add in the fake root method that sets up the call to main
             SSAAbstractInvokeInstruction call = e.addCall(fakeRoot);
 
@@ -102,7 +104,7 @@ public class WalaAnalysisUtil {
 
     /**
      * Cache of various analysis artifacts, contains the SSA IR
-     * 
+     *
      * @return WALA analysis cache
      */
     public AnalysisCache getCache() {
@@ -111,7 +113,7 @@ public class WalaAnalysisUtil {
 
     /**
      * WALA analysis options, contains the entry-point
-     * 
+     *
      * @return WALA analysis options
      */
     public AnalysisOptions getOptions() {
@@ -120,7 +122,7 @@ public class WalaAnalysisUtil {
 
     /**
      * WALA's class hierarchy
-     * 
+     *
      * @return class hierarchy
      */
     public IClassHierarchy getClassHierarchy() {
@@ -129,7 +131,7 @@ public class WalaAnalysisUtil {
 
     /**
      * The root method that calls the entry-points
-     * 
+     *
      * @return WALA fake root method (sets up and calls actual entry points)
      */
     public FakeRootMethod getFakeRoot() {
@@ -138,13 +140,13 @@ public class WalaAnalysisUtil {
 
     /**
      * Get the IR for the given method, do not call for native methods
-     * 
+     *
      * @param resolvedMethod
      *            method to get the IR for
      * @return the code for the given method
      */
     public IR getIR(IMethod resolvedMethod) {
-        IR sigIR = Signatures.getSignatureIR(resolvedMethod, this);
+        IR sigIR = signatures.getSignatureIR(resolvedMethod);
         if (sigIR != null) {
             return sigIR;
         }

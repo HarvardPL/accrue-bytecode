@@ -36,7 +36,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     int numThreads() {
         return 1;
-        //        return Runtime.getRuntime().availableProcessors();
+        //return Runtime.getRuntime().availableProcessors();
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {

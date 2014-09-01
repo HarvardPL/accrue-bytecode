@@ -55,7 +55,6 @@ public class LocalToLocalStatement extends PointsToStatement {
             boolean isFromMethodSummaryVariable) {
         super(m);
         assert !left.isSingleton() : left + " is static";
-        assert !right.isSingleton() : right + " is static";
         this.left = left;
         this.right = right;
         filter = filterBasedOnType;

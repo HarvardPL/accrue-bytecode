@@ -40,24 +40,9 @@ public class ReferenceVariableFactory {
     private final Map<IField, ReferenceVariable> staticFields =
             new LinkedHashMap<>();
     /**
-     * Points-to graph nodes for synthesized fields for String.value (literals)
-     */
-    private final Map<StringValueKey, ReferenceVariable> stringValueFields =
-            new LinkedHashMap<>();
-    /**
      * Nodes for local variables
      */
     private final Map<OrderedPair<Integer, IMethod>, ReferenceVariable> locals =
-            new LinkedHashMap<>();
-    /**
-     * Nodes for method exit
-     */
-    private final Map<MethodSummaryKey, ReferenceVariable> methodExitSummaries =
-            new LinkedHashMap<>();
-    /**
-     * Nodes for exception within native method
-     */
-    private final Map<OrderedPair<IMethod, TypeReference>, ReferenceVariable> nativeExceptions =
             new LinkedHashMap<>();
     /**
      * Nodes for singleton exceptions if they are created, there can be only one per type. The points-to analysis will
@@ -186,9 +171,6 @@ public class ReferenceVariableFactory {
         ReferenceVariable rv =
                 new ReferenceVariable(PrettyPrinter.methodString(method) + "-"
                         + exitType, type, false);
-        // These should only be created once assert that this is true
-        assert methodExitSummaries.put(new MethodSummaryKey(method, exitType),
-                                       rv) == null;
         return rv;
     }
 
@@ -207,8 +189,6 @@ public class ReferenceVariableFactory {
         ReferenceVariable rv =
                 new ReferenceVariable("NATIVE-"
                         + PrettyPrinter.typeString(exType), exType, false);
-        // These should only be created once assert that this is true
-        assert nativeExceptions.put(new OrderedPair<>(m, exType), rv) == null;
         return rv;
     }
 
@@ -231,9 +211,6 @@ public class ReferenceVariableFactory {
         ReferenceVariable rv =
                 new ReferenceVariable(PrettyPrinter.methodString(method)
                         + "-formal(" + paramNum + ")", type, false);
-        // These should only be created once assert that this is true
-        assert methodExitSummaries.put(new MethodSummaryKey(method, paramNum),
-                                       rv) == null;
         return rv;
     }
 
@@ -279,7 +256,6 @@ public class ReferenceVariableFactory {
                 new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
                                       AnalysisUtil.STRING_VALUE_TYPE,
                                       false);
-        assert stringValueFields.put(new StringValueKey(local, method), rv) == null;
         return rv;
     }
 
