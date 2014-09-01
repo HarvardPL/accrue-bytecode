@@ -14,7 +14,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
@@ -45,12 +44,12 @@ public class NewStatement extends PointsToStatement {
      *            program counter of the allocation
      */
     protected NewStatement(ReferenceVariable result, IClass newClass,
-            IMethod m, int pc) {
-        super(m);
+ ProgramPoint pp, int pc) {
+        super(pp);
         this.result = result;
         alloc =
                 AllocSiteNodeFactory.createNormal(newClass,
-                                                  m.getDeclaringClass(),
+ pp.containingProcedure().getDeclaringClass(),
                                                   result,
                                                   pc);
     }
@@ -65,13 +64,13 @@ public class NewStatement extends PointsToStatement {
      * @param isStringLiteral true if this allocation is for a string literal, if this is true then
      *            <code>name</name> should be the literal string being allocated
      */
-    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, IMethod m,
+    protected NewStatement(String name, ReferenceVariable result, IClass allocatedClass, ProgramPoint pp,
                            boolean isStringLiteral) {
-        super(m);
+        super(pp);
         this.result = result;
         alloc = AllocSiteNodeFactory.createGenerated(name,
                                                      allocatedClass,
-                                                     m.getDeclaringClass(),
+                                                     pp.containingProcedure().getDeclaringClass(),
                                                      result,
                                                      isStringLiteral);
     }

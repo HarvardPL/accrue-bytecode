@@ -14,7 +14,6 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
@@ -33,7 +32,7 @@ public class PhiStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
-     * 
+     *
      * @param v
      *            value assigned into
      * @param xs
@@ -41,9 +40,8 @@ public class PhiStatement extends PointsToStatement {
      * @param m
      *            method containing the phi instruction
      */
-    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs,
-            IMethod m) {
-        super(m);
+    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, ProgramPoint pp) {
+        super(pp);
         assert !xs.isEmpty();
         assignee = v;
         uses = xs;

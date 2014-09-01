@@ -15,7 +15,6 @@ import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -58,11 +57,11 @@ public class SpecialCallStatement extends CallStatement {
      * @param calleeSummary
      *            summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller,
+    protected SpecialCallStatement(CallSiteLabel callerPP,
                                    IMethod callee, ReferenceVariable result,
                                    ReferenceVariable receiver, List<ReferenceVariable> actuals,
                                    ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception);
+        super(callerPP, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
         this.calleeSummary = calleeSummary;

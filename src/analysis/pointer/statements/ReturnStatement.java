@@ -12,7 +12,6 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
@@ -31,7 +30,7 @@ public class ReturnStatement extends PointsToStatement {
 
     /**
      * Create a points-to statement for a return instruction
-     * 
+     *
      * @param result
      *            Node for return result
      * @param returnSummary
@@ -40,8 +39,8 @@ public class ReturnStatement extends PointsToStatement {
      *            method the points-to statement came from
      */
     protected ReturnStatement(ReferenceVariable result,
-            ReferenceVariable returnSummary, IMethod m) {
-        super(m);
+ ReferenceVariable returnSummary, ProgramPoint pp) {
+        super(pp);
         this.result = result;
         this.returnSummary = returnSummary;
     }

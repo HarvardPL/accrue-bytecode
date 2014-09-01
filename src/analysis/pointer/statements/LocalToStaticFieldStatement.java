@@ -13,7 +13,6 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
@@ -32,7 +31,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
 
     /**
      * Statement for an assignment from a local into a static field, ClassName.staticField = local
-     * 
+     *
      * @param staticField
      *            points-to graph node for the assigned value
      * @param local
@@ -41,8 +40,8 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
      *            method containing the statement
      */
     protected LocalToStaticFieldStatement(ReferenceVariable staticField,
-            ReferenceVariable local, IMethod m) {
-        super(m);
+ ReferenceVariable local, ProgramPoint pp) {
+        super(pp);
         assert !local.isSingleton() : local + " is static";
         assert staticField.isSingleton() : staticField + " is not static";
         this.local = local;

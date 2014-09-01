@@ -19,7 +19,6 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
 
@@ -37,7 +36,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
-     * 
+     *
      * @param thrown
      *            reference variable for the exception being thrown
      * @param caught
@@ -50,9 +49,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      */
     protected ExceptionAssignmentStatement(ReferenceVariable thrown,
                                            ReferenceVariable caught,
-                                           Set<IClass> notType, IMethod m,
+ Set<IClass> notType,
+                                           ProgramPoint pp,
                                            boolean isToMethodSummaryVariable) {
-        super(m);
+        super(pp);
         assert notType != null;
         this.isToMethodSummaryVariable = isToMethodSummaryVariable;
         this.thrown = thrown;
@@ -130,7 +130,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     /**
      * Get the exception being assigned to (either the catch formal or the procedure exit exception summary)
-     * 
+     *
      * @return variable for exception being assigned to
      */
     public ReferenceVariable getCaughtException() {

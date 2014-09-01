@@ -18,7 +18,6 @@ import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -47,9 +46,8 @@ public class VirtualCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a virtual method invocation.
-     *
-     * @param callSite Method call site
-     * @param caller caller method
+     * 
+     * @param callerPP caller program point
      * @param callee Method being called
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver Receiver of the call
@@ -57,11 +55,11 @@ public class VirtualCallStatement extends CallStatement {
      * @param exception Node representing the exception thrown by this call (if any)
      * @param rvFactory factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
+    protected VirtualCallStatement(CallSiteLabel callerPP, MethodReference callee,
                                    ReferenceVariable result, ReferenceVariable receiver,
                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
                                    ReferenceVariableFactory rvFactory) {
-        super(callSite, caller, result, actuals, exception);
+        super(callerPP, result, actuals, exception);
 
         this.callee = callee;
         this.receiver = receiver;

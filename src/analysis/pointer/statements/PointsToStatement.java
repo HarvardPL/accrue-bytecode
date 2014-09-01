@@ -30,9 +30,9 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 public abstract class PointsToStatement {
 
     /**
-     * method this statement was created in
+     * Program point that created this statement.
      */
-    private final IMethod m;
+    private final ProgramPoint pp;
 
     /**
      * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
@@ -41,8 +41,14 @@ public abstract class PointsToStatement {
      * @param m
      *            method this statement was created in
      */
-    public PointsToStatement(IMethod m) {
-        this.m = m;
+    public PointsToStatement(ProgramPoint pp) {
+        this.pp = pp;
+        assert pp != null;
+
+    }
+
+    public ProgramPoint programPoint() {
+        return this.pp;
     }
 
     /**
@@ -51,7 +57,7 @@ public abstract class PointsToStatement {
      * @return resolved method
      */
     public IMethod getMethod() {
-        return m;
+        return this.pp.containingProcedure();
     }
 
     /**

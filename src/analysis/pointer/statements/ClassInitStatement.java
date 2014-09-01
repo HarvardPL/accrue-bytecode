@@ -30,15 +30,15 @@ public class ClassInitStatement extends PointsToStatement {
 
     /**
      * Create a points-to statement for class initialization
-     * 
+     *
      * @param clinits
      *            class initialization methods that might need to be called in the order they need to be called (i.e.
      *            element j is a super class of element j+1)
      * @param m
      *            method the instruction triggering the initialization is in
      */
-    protected ClassInitStatement(List<IMethod> clinits, IMethod m) {
-        super(m);
+    protected ClassInitStatement(List<IMethod> clinits, ProgramPoint pp) {
+        super(pp);
         assert !clinits.isEmpty() : "No need for a statment if there are no class inits.";
         this.clinits = clinits;
     }

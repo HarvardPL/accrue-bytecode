@@ -42,7 +42,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     /**
      * Statement for a local assignment, left = right
-     * 
+     *
      * @param left
      *            points-to graph node for assignee
      * @param right
@@ -51,9 +51,10 @@ public class LocalToLocalStatement extends PointsToStatement {
      *            method the assignment is from
      */
     protected LocalToLocalStatement(ReferenceVariable left,
-            ReferenceVariable right, IMethod m, boolean filterBasedOnType,
+ ReferenceVariable right, ProgramPoint pp,
+                                    boolean filterBasedOnType,
             boolean isFromMethodSummaryVariable) {
-        super(m);
+        super(pp);
         assert !left.isSingleton() : left + " is static";
         this.left = left;
         this.right = right;

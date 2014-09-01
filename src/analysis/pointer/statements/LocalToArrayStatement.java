@@ -16,7 +16,6 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.TypeReference;
@@ -52,8 +51,8 @@ public class LocalToArrayStatement extends PointsToStatement {
      *            method the points-to statement came from
      */
     public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v,
-            TypeReference baseType, IMethod m) {
-        super(m);
+ TypeReference baseType, ProgramPoint pp) {
+        super(pp);
         array = a;
         value = v;
         this.baseType = baseType;

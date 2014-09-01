@@ -16,7 +16,6 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
@@ -52,8 +51,8 @@ public class LocalToFieldStatement extends PointsToStatement {
      *            method the points-to statement came from
      */
     public LocalToFieldStatement(ReferenceVariable o, FieldReference f,
-                                 ReferenceVariable v, IMethod m) {
-        super(m);
+ ReferenceVariable v, ProgramPoint pp) {
+        super(pp);
         this.field = f;
         this.receiver = o;
         this.localVar = v;

@@ -14,7 +14,6 @@ import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -52,11 +51,11 @@ public class StaticCallStatement extends CallStatement {
      * @param receiver
      *            Receiver of the call
      */
-    protected StaticCallStatement(CallSiteReference callSite, IMethod caller,
+    protected StaticCallStatement(CallSiteLabel callerPP,
                                   IMethod callee, ReferenceVariable result,
                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
                                   MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception);
+        super(callerPP, result, actuals, exception);
         this.callee = callee;
         this.calleeSummary = calleeSummary;
     }
@@ -120,7 +119,7 @@ public class StaticCallStatement extends CallStatement {
                 uses.add(n);
             }
         }
-        Context calleeContext = haf.merge(this.callSite, null, ctxt);
+        Context calleeContext = haf.merge(this.programPoint(), null, ctxt);
         ReferenceVariableReplica ex = new ReferenceVariableReplica(calleeContext,
                                                                    this.calleeSummary.getException());
         uses.add(ex);
@@ -146,7 +145,7 @@ public class StaticCallStatement extends CallStatement {
                     defs.add(new ReferenceVariableReplica(ctxt, this.getException()));
                 }
                 // Write to the arguments of the callee.
-                Context calleeContext = haf.merge(this.callSite, null, ctxt);
+        Context calleeContext = haf.merge(this.programPoint(), null, ctxt);
                 for (int i = 0; i < this.callee.getNumberOfParameters(); i++) {
                     ReferenceVariable rv = this.calleeSummary.getFormal(i);
                     if (rv != null) {
@@ -160,7 +159,7 @@ public class StaticCallStatement extends CallStatement {
 
     /**
      * Get the resolved callee
-     * 
+     *
      * @return resolved method being called
      */
     protected IMethod getResolvedCallee() {

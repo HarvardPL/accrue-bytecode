@@ -9,7 +9,6 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -20,10 +19,6 @@ import com.ibm.wala.types.MethodReference;
  */
 public abstract class CallStatement extends PointsToStatement {
 
-    /**
-     * Call site
-     */
-    protected final CallSiteLabel callSite;
     /**
      * Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      */
@@ -39,7 +34,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     * 
+     *
      * @param callSite
      *            Method call site
      * @param caller
@@ -52,11 +47,10 @@ public abstract class CallStatement extends PointsToStatement {
      *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
      *            thrown by this statement
      */
-    protected CallStatement(CallSiteReference callSite, IMethod caller,
+    protected CallStatement(CallSiteLabel callerPP,
             ReferenceVariable result, List<ReferenceVariable> actuals,
             ReferenceVariable exception) {
-        super(caller);
-        this.callSite = new CallSiteLabel(caller, callSite);
+        super(callerPP);
         this.actuals = actuals;
         this.result = result;
         this.exception = exception;
@@ -64,7 +58,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Process a call for a particular receiver and resolved method
-     * 
+     *
      * @param callerContext
      *            Calling context for the caller
      * @param receiver
@@ -85,11 +79,11 @@ public abstract class CallStatement extends PointsToStatement {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
-        Context calleeContext = haf.merge(callSite, receiver, callerContext);
+        Context calleeContext = haf.merge(programPoint(), receiver, callerContext);
         GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
-        g.addCall(callSite.getReference(),
+        g.addCall(programPoint().getReference(),
                   getMethod(),
                   callerContext,
                   callee,
@@ -171,7 +165,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Result of the call if any, null if void or primitive return or if the return result is not assigned
-     * 
+     *
      * @return return result node (in the caller)
      */
     protected final ReferenceVariable getResult() {
@@ -180,7 +174,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Actual arguments to the call (if the type is primitive or it is a null literal then the entry will be null)
-     * 
+     *
      * @return list of actual parameters
      */
     protected final List<ReferenceVariable> getActuals() {
@@ -190,7 +184,7 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Reference variable for any exceptions thrown by this call (including a NullPointerException due to the receiver
      * being null)
-     * 
+     *
      * @return exception reference variable
      */
     public ReferenceVariable getException() {
@@ -200,16 +194,16 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * (Unresolved) Method being called. The actual method depends on the run-time type of the receiver, which is
      * approximated by the pointer analysis.
-     * 
+     *
      * @return callee
      */
     public MethodReference getCallee() {
-        return callSite.getCallee();
+        return programPoint().getCallee();
     }
 
     /**
      * Replace the variable for an actual argument with the given variable
-     * 
+     *
      * @param argNum
      *            index of the argument to replace
      * @param newVariable
@@ -218,4 +212,10 @@ public abstract class CallStatement extends PointsToStatement {
     protected void replaceActual(int argNum, ReferenceVariable newVariable) {
         actuals.set(argNum, newVariable);
     }
+
+    @Override
+    public CallSiteLabel programPoint() {
+        return (CallSiteLabel) super.programPoint();
+    }
+
 }

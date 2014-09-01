@@ -48,10 +48,17 @@ public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
 
+    /* ***************************************************************************
+     *
+     * Fields for managing integer dictionaries.
+     * That is, for efficiency we map InstanceKeys and PointsToGraphNode to ints, and
+     * these fields help us manage those mappings.
+     */
     /**
      * InstanceKey counter, for unique integers for InstanceKeys
      */
     private final AtomicInteger instanceKeyCounter = new AtomicInteger(0);
+
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
@@ -66,6 +73,7 @@ public class PointsToGraph {
      */
     final ConcurrentMap<Integer, IClass> concreteTypeDictionary = new ConcurrentHashMap<>();
 
+
     /**
      * GraphNode counter, for unique integers for GraphNodes
      */
@@ -76,6 +84,14 @@ public class PointsToGraph {
      */
     private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
 
+
+    /* ***************************************************************************
+     *
+     * The Points To graph itself. This is represented as several different relations.
+     *
+     * The base relations express the flow XXX.
+     *
+     */
 
     /*
      * The pointsto graph is represented using two relations. If base.get(n).contains(i) then i is in the pointsto set
@@ -106,14 +122,26 @@ public class PointsToGraph {
      */
     private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSupersetOf = new SimpleConcurrentIntMap<>();
 
+    /*
+     * A cache for realized points to sets.
+     */
+    RealizedSetCache cache = new RealizedSetCache();
+
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes
      */
     private final ConcurrentIntMap<Integer> representative = new SimpleConcurrentIntMap<>();
+
+    /* ***************************************************************************
+     *
+     * Reachable contexts and entry points, and call graph representations.
+     *
+     */
+
     /**
      * The contexts that a method may appear in.
      */
-    private final ConcurrentMap<IMethod, Set<Context>> contexts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<IMethod, Set<Context>> reachableContexts = new ConcurrentHashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static
@@ -134,6 +162,7 @@ public class PointsToGraph {
 
     private HafCallGraph callGraph = null;
 
+
     /**
      * Heap abstraction factory.
      */
@@ -142,14 +171,10 @@ public class PointsToGraph {
 
     private final DependencyRecorder depRecorder;
 
-    /*
-     * A cache for realized points to sets.
-     */
-    RealizedSetCache cache = new RealizedSetCache();
-
     private int outputLevel = 0;
 
     public static boolean DEBUG = false;
+
 
     public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
         this.depRecorder = depRecorder;
@@ -462,14 +487,15 @@ public class PointsToGraph {
      * @param calleeContext context
      */
     private void recordContext(IMethod callee, Context calleeContext) {
+        assert this.callGraph == null : "Cannot record context after callGraph has been instantiated";
         if (this.outputLevel >= 1) {
             System.err.println("RECORDING: " + callee + " in " + calleeContext
                                + " hc " + calleeContext);
         }
-        Set<Context> s = this.contexts.get(callee);
+        Set<Context> s = this.reachableContexts.get(callee);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<Context> existing = this.contexts.putIfAbsent(callee, s);
+            Set<Context> existing = this.reachableContexts.putIfAbsent(callee, s);
             if (existing != null) {
                 s = existing;
             }
@@ -514,7 +540,7 @@ public class PointsToGraph {
     }
 
     private Set<Context> getOrCreateContextSet(IMethod callee) {
-        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.contexts);
+        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.reachableContexts);
     }
 
     static MutableIntSet getOrCreateIntSet(int key, ConcurrentIntMap<MutableIntSet> map) {
@@ -562,11 +588,11 @@ public class PointsToGraph {
      * @return set of contexts for the given method
      */
     public Set<Context> getContexts(IMethod m) {
-        Set<Context> s = this.contexts.get(m);
+        Set<Context> s = this.reachableContexts.get(m);
         if (s == null) {
             return Collections.<Context> emptySet();
         }
-        return Collections.unmodifiableSet(this.contexts.get(m));
+        return Collections.unmodifiableSet(this.reachableContexts.get(m));
     }
 
     //
@@ -865,8 +891,7 @@ public class PointsToGraph {
             }
         }
         // Should always be true
-        assert cgChanged : "Reached the end of the loop without adding any clinits "
-        + classInits;
+        assert cgChanged : "Reached the end of the loop without adding any clinits " + classInits;
         return cgChanged;
     }
 

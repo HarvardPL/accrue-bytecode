@@ -50,13 +50,13 @@ public class StatementFactory {
      * @return statement to be processed during pointer analysis
      */
     public ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, TypeReference baseType,
-                                              IMethod m) {
+                                              ProgramPoint pp) {
         assert v != null;
         assert a != null;
         assert baseType != null;
-        assert m != null;
+        assert pp != null;
 
-        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, m);
+        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, pp);
         assert map.put(new StatementKey(v), s) == null;
         return s;
     }
@@ -69,13 +69,13 @@ public class StatementFactory {
      * @param i Instruction triggering the initialization
      * @return statement to be processed during pointer analysis
      */
-    public ClassInitStatement classInit(List<IMethod> clinits, IMethod m, SSAInstruction i) {
+    public ClassInitStatement classInit(List<IMethod> clinits, ProgramPoint pp, SSAInstruction i) {
         assert clinits != null;
         assert !clinits.isEmpty();
-        assert m != null;
+        assert pp != null;
         assert i != null;
 
-        ClassInitStatement s = new ClassInitStatement(clinits, m);
+        ClassInitStatement s = new ClassInitStatement(clinits, pp);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(clinits, i), s) == null;
         return s;
