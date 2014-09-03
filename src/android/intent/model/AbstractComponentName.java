@@ -1,65 +1,66 @@
 package android.intent.model;
 
-import analysis.string.AbstractString;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import android.content.ComponentName;
 
 public class AbstractComponentName {
-    private AbstractString packageName;
-    private AbstractString className;
+    public static final AbstractComponentName ANY = new AbstractComponentName();
+    public static final AbstractComponentName NONE = new AbstractComponentName(Collections.<ComponentName> emptySet());
+    private final Set<ComponentName> components;
 
     /**
      * Create an abstract ComponentName object that represents zero or more concrete (runtime) objects
-     *
-     * @param packageName
-     * @param className
      */
-    public AbstractComponentName(AbstractString packageName, AbstractString className) {
-        assert className != null;
-        assert packageName != null;
-        this.className = className;
-        this.packageName = packageName;
+    private AbstractComponentName(Set<ComponentName> components) {
+        assert components != null;
+        this.components = components;
     }
 
-    /**
-     * Record a new possible package and class name (from an init method)
-     *
-     * @param pkgName package name to add
-     * @param clsName class name to add
-     * @return new AbstractComponentName if this object changed (otherwise returss this)
-     */
-    public AbstractComponentName join(AbstractString pkgName, AbstractString clsName) {
-        AbstractString tempPkg = AbstractString.join(this.packageName, pkgName);
-        AbstractString tempClass = AbstractString.join(this.className, clsName);
-        if (this.packageName.equals(tempPkg) && this.className.equals(tempClass)) {
-            return this;
+    private AbstractComponentName() {
+        this.components = null;
+    }
+
+    public static AbstractComponentName create(Set<ComponentName> components) {
+        if (components == null) {
+            return ANY;
         }
-        return new AbstractComponentName(tempPkg, tempClass);
+        if (components.isEmpty()) {
+            return NONE;
+        }
+        return new AbstractComponentName(components);
     }
 
-    /**
-     * Record a new possible package and class name (from an init method)
-     *
-     * @param pkgName package name to add
-     * @param clsName class name to add
-     * @return new AbstractComponentName if this object changed (otherwise returss this)
-     */
-    public AbstractComponentName join(AbstractComponentName otherComponentName) {
-        return join(otherComponentName.getPackageName(), otherComponentName.getPackageName());
+    public static AbstractComponentName join(AbstractComponentName cn1, AbstractComponentName cn2) {
+        if (cn1 == null) {
+            return cn2;
+        }
+        if (cn2 == null) {
+            return cn1;
+        }
+        if (cn1 == AbstractComponentName.ANY || cn2 == AbstractComponentName.ANY) {
+            return AbstractComponentName.ANY;
+        }
+        if (cn1.equals(cn2)) {
+            return cn1;
+        }
+        Set<ComponentName> newSet = new LinkedHashSet<>();
+        newSet.addAll(cn1.getPossibleValues());
+        newSet.addAll(cn2.getPossibleValues());
+        return new AbstractComponentName(newSet);
     }
 
-    public AbstractString getClassName() {
-        return className;
-    }
-
-    public AbstractString getPackageName() {
-        return packageName;
+    public Set<ComponentName> getPossibleValues() {
+        return components;
     }
 
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
-        result = prime * result + ((className == null) ? 0 : className.hashCode());
-        result = prime * result + ((packageName == null) ? 0 : packageName.hashCode());
+        result = prime * result + ((components == null) ? 0 : components.hashCode());
         return result;
     }
 
@@ -75,22 +76,19 @@ public class AbstractComponentName {
             return false;
         }
         AbstractComponentName other = (AbstractComponentName) obj;
-        if (className == null) {
-            if (other.className != null) {
+        if (components == null) {
+            if (other.components != null) {
                 return false;
             }
         }
-        else if (!className.equals(other.className)) {
-            return false;
-        }
-        if (packageName == null) {
-            if (other.packageName != null) {
-                return false;
-            }
-        }
-        else if (!packageName.equals(other.packageName)) {
+        else if (!components.equals(other.components)) {
             return false;
         }
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return components.toString();
     }
 }
