@@ -58,7 +58,7 @@ public class StringVariableFactory {
             else {
                 name = PrettyPrinter.getCanonical("v" + local + "-" + method.getName());
             }
-            rv = new StringVariable(name, false);
+            rv = new StringVariable(name, local, false);
             locals.put(key, rv);
         }
         return rv;
@@ -342,6 +342,10 @@ public class StringVariableFactory {
          * String used for debugging
          */
         private final String debugString;
+        /**
+         * Local variable number if any
+         */
+        private final int valueNumber;
 
         /**
          * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis.
@@ -351,11 +355,15 @@ public class StringVariableFactory {
          *            which only one reference variable replica will be created usually in the initial context)
          */
         private StringVariable(String debugString, boolean isSingleton) {
+            this(debugString, -1, isSingleton);
+        }
+
+        private StringVariable(String debugString, int valueNumber, boolean isSingleton) {
             assert debugString != null;
             assert !debugString.equals("null");
-
             this.debugString = debugString;
             this.isSingleton = isSingleton;
+            this.valueNumber = valueNumber;
         }
 
         @Override
@@ -383,6 +391,15 @@ public class StringVariableFactory {
          */
         public boolean isSingleton() {
             return isSingleton;
+        }
+
+        /**
+         * Get the value number for the associated local variable if there is one.
+         *
+         * @return local variable value number or -1 if this is not a local
+         */
+        public int getValueNumber() {
+            return valueNumber;
         }
     }
 }

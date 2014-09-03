@@ -1,5 +1,6 @@
 package analysis.string;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -60,6 +61,7 @@ import com.ibm.wala.types.TypeReference;
  */
 public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Integer, StringVariable>> {
 
+    private final Map<Integer, StringVariable> input = new LinkedHashMap<>();
     private final TypeRepository types;
     private final PrettyPrinter pp;
     private final Set<StringStatement> statements = new LinkedHashSet<>();
@@ -88,8 +90,37 @@ public class CollectStringStatements extends InstructionDispatchDataFlow<Map<Int
 
     public static Set<StringStatement> collect(IR ir, StringVariableFactory factory, StringAnalysisResults results) {
         CollectStringStatements css = new CollectStringStatements(ir, factory, results);
+        for (int param : ir.getParameterValueNumbers()) {
+            // Since this is an intra-procedural analysis we assume the string parameters can be any string
+            TypeName type = css.getTypeName(param);
+            if (type.equals(STRING) || type.equals(CLASS)) {
+                StringVariable var = factory.getOrCreateLocal(param, css.m, css.pp);
+                css.addStatement(new ConstantStringStatement(var, AbstractString.ANY));
+            }
+            else if (type.equals(STRING_BUILDER)) {
+                StringVariable left = factory.createStringBuilder(param,
+                                                                  css.m,
+                                                                  ir.getControlFlowGraph().entry().getNumber(),
+                                                                  StringBuilderVarType.DEF,
+                                                                  -1,
+                                                                  css.pp);
+                css.addStatement(new ConstantStringStatement(left, AbstractString.ANY));
+                css.input.put(param, left);
+            }
+        }
         css.dataflow(ir);
         return css.statements;
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, Map<Integer, StringVariable>> flow(Set<Map<Integer, StringVariable>> inItems,
+                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                     ISSABasicBlock current) {
+        Set<Map<Integer, StringVariable>> flowInput = inItems;
+        if (current.isEntryBlock()) {
+            flowInput = Collections.singleton(input);
+        }
+        return super.flow(flowInput, cfg, current);
     }
 
     @Override

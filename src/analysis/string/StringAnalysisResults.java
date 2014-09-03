@@ -36,9 +36,16 @@ public class StringAnalysisResults {
         return result;
     }
 
-    public AbstractString getResultsForLocal(int variableNumber, IMethod m) {
+    public Map<Integer, AbstractString> getIntegerResultsForMethod(IMethod m) {
         Map<StringVariable, AbstractString> resultsForMethod = getResultsForMethod(m);
-        return resultsForMethod.get(variableNumber);
+        Map<Integer, AbstractString> results = new LinkedHashMap<>();
+        for (StringVariable sv : resultsForMethod.keySet()) {
+            int value = sv.getValueNumber();
+            if (value >= 0) {
+                results.put(sv.getValueNumber(), resultsForMethod.get(sv));
+            }
+        }
+        return results;
     }
 
     public StringVariableFactory getFactory() {
