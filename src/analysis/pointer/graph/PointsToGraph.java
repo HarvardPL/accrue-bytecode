@@ -39,6 +39,7 @@ import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.IntSetAction;
 import com.ibm.wala.util.intset.MutableIntSet;
 import com.ibm.wala.util.intset.MutableSparseIntSet;
+import com.ibm.wala.util.intset.SparseIntSet;
 
 /**
  * Graph mapping local variables (in a particular context) and fields to
@@ -242,13 +243,39 @@ public class PointsToGraph {
 
         GraphDelta delta = new GraphDelta(this);
         if (add) {
-            delta.add(n, h);
             pointsToSet.add(h);
-
-            // update the cache for the changes
-            this.cache.updateForDelta(delta);
+            IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
+            addToSupersetsOf(delta,
+                             n,
+                             SparseIntSet.singleton(h),
+                             MutableSparseIntSet.makeEmpty(),
+                             new IntStack(),
+                             new Stack<Set<TypeFilter>>(),
+                             toCollapse);
+            // XXX maybe add later?
+            // collapseCycles(toCollapse, delta);
         }
         return delta;
+    }
+
+    private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
+        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
+        IntIterator iter = toCollapse.keyIterator();
+        while (iter.hasNext()) {
+            int rep = iter.next();
+            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
+            IntIterator collapseIter = toCollapse.get(rep).intIterator();
+            while (collapseIter.hasNext()) {
+                int n = collapseIter.next();
+                if (collapsed.contains(n)) {
+                    // we have already collapsed n with something. let's skip it.
+                    continue;
+                }
+                collapsed.add(n);
+                this.collapseNodes(n, rep);
+                delta.collapseNodes(n, rep);
+            }
+        }
     }
 
     protected int lookupDictionary(PointsToGraphNode node) {
@@ -284,19 +311,12 @@ public class PointsToGraph {
         MutableIntSet sourceSubset = this.getOrCreateUnfilteredSubsetSet(s);
 
         GraphDelta changed = new GraphDelta(this);
-        if (!sourceSubset.contains(t)) {
-            // For the current design, it's important that we tell delta about the copyEdges before actually updating it.
-            // XXX!@! AND I'M GOING TO BREAK THAT NOW...
-
-            sourceSubset.add(t);
+        if (sourceSubset.add(t)) {
             // make sure the superset relation stays consistent
             MutableIntSet targetSuperset = this.getOrCreateUnfilteredSupersetSet(t);
             targetSuperset.add(s);
 
-            changed.addCopyEdges(s, null, t); // XXX THIS WAS EARLIER
-
-            // update the cache for the changes
-            this.cache.updateForDelta(changed);
+            computeDeltaForAddedEdge(changed, s, null, t);
         }
         return changed;
     }
@@ -331,21 +351,113 @@ public class PointsToGraph {
 
         GraphDelta changed = new GraphDelta(this);
         if (!sourceSubset.containsKey(t) || !sourceSubset.get(t).contains(filter)) {
-            // For the current design, it's important that we tell delta about the copyEdges before actually updating it.
-            // XXX!@! AND I'M GOING TO BREAK THAT NOW...
-
-
             addFilter(sourceSubset, t, filter);
             // make sure the superset relation stays consistent
             IntMap<Set<TypeFilter>> targetSuperset = this.getOrCreateSupersetSet(t);
             addFilter(targetSuperset, s, filter);
 
-            changed.addCopyEdges(s, filter, t); // XXX THIS WAS EARLIER
-
-            // update the cache for the changes
-            this.cache.updateForDelta(changed);
+            computeDeltaForAddedEdge(changed, s, filter, t);
         }
         return changed;
+    }
+
+    /*
+     * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta,
+     * and the recurses
+     */
+    private void computeDeltaForAddedEdge(GraphDelta changed, /*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/
+                                          int target) {
+        // go through the points to set of source, and add anything that target doesn't already point to.
+        IntSet diff = this.getDifference(source, filter, target);
+
+        // Now take care of all the supersets of target...
+        IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
+        addToSupersetsOf(changed,
+                         target,
+                         diff,
+                         MutableSparseIntSet.makeEmpty(),
+                         new IntStack(),
+                         new Stack<Set<TypeFilter>>(),
+                         toCollapse);
+        // XXX maybe add later?
+        // collapseCycles(toCollapse);
+
+    }
+
+    private void addToSupersetsOf(GraphDelta changed, /*PointsToGraphNode*/int target, IntSet set,
+                                  MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
+                                  Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
+        // Handle detection of cycles.
+        if (currentlyAdding.contains(target)) {
+            // we detected a cycle!
+            int foundAt = -1;
+            boolean hasMeaningfulFilter = false;
+            for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
+                if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
+                    foundAt = i;
+                }
+                hasMeaningfulFilter |= filterStack.get(i) != null;
+            }
+            if (!hasMeaningfulFilter) {
+                // we can collapse some nodes together!
+                MutableIntSet toCollapseSet = toCollapse.get(target);
+                if (toCollapseSet == null) {
+                    toCollapseSet = MutableSparseIntSet.makeEmpty();
+                    toCollapse.put(target, toCollapseSet);
+                }
+                for (int i = foundAt + 1; i < filterStack.size(); i++) {
+                    toCollapseSet.add(currentlyAddingStack.get(i));
+                }
+            }
+            assert !changed.addAllToSet(target, set) : "Shouldn't be anything left to add by this point";
+        }
+
+        // Now we actually add the set to the target, both in the cache, and in the GraphDelta
+        if (!changed.addAllToSet(target, set)) {
+            return;
+        }
+        cache.update(target, set);
+
+        // We added at least one element to target, so let's recurse on the immediate supersets of target.
+        currentlyAdding.add(target);
+        currentlyAddingStack.push(target);
+        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> supersets = this.immediateSuperSetsOf(target);
+        IntSet unfilteredSupersets = supersets.fst();
+        IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
+        IntIterator iter = unfilteredSupersets == null ? EmptyIntIterator.instance()
+                : unfilteredSupersets.intIterator();
+        while (iter.hasNext()) {
+            int m = iter.next();
+            propagateDifference(changed, m, null, set, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
+        }
+        iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
+        while (iter.hasNext()) {
+            int m = iter.next();
+            propagateDifference(changed,
+                                m,
+                                filteredSupersets.get(m),
+                                set,
+                                currentlyAdding,
+                                currentlyAddingStack,
+                                filterStack,
+                                toCollapse);
+        }
+        currentlyAdding.remove(target);
+        currentlyAddingStack.pop();
+
+    }
+
+    private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target, Set<TypeFilter> filters,
+                                     IntSet source, MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
+                                     Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
+        IntSet filteredSet = filters == null ? source : new FilteredIntSet(source, filters);
+
+        // The set of elements that will be added to the superset.
+        IntSet diff = this.getDifference(filteredSet, target);
+
+        filterStack.push(filters);
+        addToSupersetsOf(changed, target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
+        filterStack.pop();
     }
 
     private static void addFilter(IntMap<Set<TypeFilter>> supersets, /*PointsToGraphNode*/int n, TypeFilter filter) {
@@ -1313,19 +1425,13 @@ public class PointsToGraph {
 
 
         /**
-         * Update or invalidate caches based on the changes represented by the
-         * graph delta
+         * Update the cache.
          */
-        private void updateForDelta(GraphDelta delta) {
-            IntIterator iter = delta.domainIterator();
-            while (iter.hasNext()) {
-                /*PointsToGraphNode*/int n = iter.next();
-                MutableIntSet s = this.getPointsToSetInternal(n);
-                if (s != null) {
-                    // the set is in the cache!
-                    IntSet deltaSet = delta.pointsToSet(n);
-                    s.addAll(deltaSet);
-                }
+        private void update(/*PointsToGraphNode*/int n, IntSet toAdd) {
+            MutableIntSet s = this.getPointsToSetInternal(n);
+            if (s != null) {
+                // the set is in the cache!
+                s.addAll(toAdd);
             }
         }
 
