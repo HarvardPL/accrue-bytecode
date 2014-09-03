@@ -222,9 +222,9 @@ public class PointsToGraph {
         }
 
         GraphDelta delta = new GraphDelta(this);
-        if (this.pointsToSet(n).add(h)) {// !@! check this and the interaction with addtosupersetsof. Who is reponsible for adding to delta?
+        if (!this.pointsToSet(n).contains(h)) {
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
-            addToSupersetsOf(delta,
+            addToSetAndSupersets(delta,
                              n,
                              SparseIntSet.singleton(h),
                              MutableSparseIntSet.makeEmpty(),
@@ -232,7 +232,7 @@ public class PointsToGraph {
                              new Stack<Set<TypeFilter>>(),
                              toCollapse);
             // XXX maybe add later?
-            // collapseCycles(toCollapse, delta);
+            collapseCycles(toCollapse, delta);
         }
         return delta;
     }
@@ -351,7 +351,7 @@ public class PointsToGraph {
 
         // Now take care of all the supersets of target...
         IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
-        addToSupersetsOf(changed,
+        addToSetAndSupersets(changed,
                          target,
                          diff,
                          MutableSparseIntSet.makeEmpty(),
@@ -359,11 +359,11 @@ public class PointsToGraph {
                          new Stack<Set<TypeFilter>>(),
                          toCollapse);
         // XXX maybe add later?
-        // collapseCycles(toCollapse);
+        collapseCycles(toCollapse, changed);
 
     }
 
-    private void addToSupersetsOf(GraphDelta changed, /*PointsToGraphNode*/int target, IntSet set,
+    private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, IntSet setToAdd,
                                   MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                   Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
@@ -388,14 +388,14 @@ public class PointsToGraph {
                     toCollapseSet.add(currentlyAddingStack.get(i));
                 }
             }
-            assert !changed.addAllToSet(target, set) : "Shouldn't be anything left to add by this point";
+            assert !changed.addAllToSet(target, setToAdd) : "Shouldn't be anything left to add by this point";
         }
 
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
-        if (!changed.addAllToSet(target, set)) {
+        if (!changed.addAllToSet(target, setToAdd)) {
             return;
         }
-        this.pointsToSet(target).addAll(set);
+        this.pointsToSet(target).addAll(setToAdd);
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -407,7 +407,14 @@ public class PointsToGraph {
                 : unfilteredSupersets.intIterator();
         while (iter.hasNext()) {
             int m = iter.next();
-            propagateDifference(changed, m, null, set, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
+            propagateDifference(changed,
+                                m,
+                                null,
+                                setToAdd,
+                                currentlyAdding,
+                                currentlyAddingStack,
+                                filterStack,
+                                toCollapse);
         }
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
@@ -415,7 +422,7 @@ public class PointsToGraph {
             propagateDifference(changed,
                                 m,
                                 filteredSupersets.get(m),
-                                set,
+                                setToAdd,
                                 currentlyAdding,
                                 currentlyAddingStack,
                                 filterStack,
@@ -435,7 +442,7 @@ public class PointsToGraph {
         IntSet diff = this.getDifference(filteredSet, target);
 
         filterStack.push(filters);
-        addToSupersetsOf(changed, target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
+        addToSetAndSupersets(changed, target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
         filterStack.pop();
     }
 
@@ -792,9 +799,6 @@ public class PointsToGraph {
      */
     void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
         assert n != rep : "Can't collapse a node with itself";
-        if (true) {
-            throw new UnsupportedOperationException(); //how to do this concurrently();
-        }
         // it is possible that since n and rep were registered, one or both of them were already merged.
         n = this.getRepresentative(n);
         rep = this.getRepresentative(rep);
@@ -1361,6 +1365,9 @@ public class PointsToGraph {
         return this.getDifference(set.intIterator(), target);
     }
 
+    public int numPointsToGraphNodes() {
+        return this.pointsTo.size();
+    }
     private MutableIntSet pointsToSet(/*PointsToGraphNode*/int n) {
         MutableIntSet s = this.pointsTo.get(n);
         if (s == null) {
@@ -1373,6 +1380,7 @@ public class PointsToGraph {
         }
         return s;
     }
+
     public int cycleRemovalCount() {
         return this.representative.size();
     }

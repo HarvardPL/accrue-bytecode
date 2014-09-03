@@ -35,8 +35,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = new SimpleConcurrentIntMap<>();
 
     int numThreads() {
-        //return 1;
-        return Runtime.getRuntime().availableProcessors();
+        return 1;
+        //return Runtime.getRuntime().availableProcessors();
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
@@ -127,8 +127,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
-        System.err.println("   Total time       : " + totalTime / 1000 + "s.");
-        System.err.println("   Cycles removed " + g.cycleRemovalCount() + " nodes");
+        System.err.println("\n\n  ***************************** \n\n");
+        System.err.println("   Total time             : " + totalTime / 1000 + "s.");
+        System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
+        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+        System.err.println("\n\n");
 
         // check that nothing went wrong, and that we have indeed reached a fixed point.
         this.processAllStatements(g, registrar);
