@@ -970,7 +970,7 @@ public class StatementRegistrar {
         ReferenceVariable ex = this.singletonExceptions.get(exType);
         if (ex == null) {
             ex = rvFactory.createSingletonReferenceVariable(exType);
-            ReferenceVariable existing = this.singletonExceptions.put(exType, ex);
+            ReferenceVariable existing = this.singletonExceptions.putIfAbsent(exType, ex);
             if (existing != null) {
                 ex = existing;
             }
