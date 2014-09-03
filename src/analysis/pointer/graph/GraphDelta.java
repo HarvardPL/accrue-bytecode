@@ -9,7 +9,6 @@ import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
-import com.ibm.wala.util.intset.EmptyIntSet;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
@@ -31,6 +30,8 @@ public class GraphDelta {
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
+        // Map doesn't need to be thread safe, since when it is being modified it is thread local
+        // and when it is shared, it is read only.
         this.delta = new SparseIntMap<MutableIntSet>();
     }
 
@@ -107,15 +108,6 @@ public class GraphDelta {
         return sb.toString();
     }
 
-    public IntSet pointsToSet(/*PointsToGraphNode*/int n) {
-        n = g.getRepresentative(n);
-        MutableIntSet s = this.delta.get(n);
-        if (s == null) {
-            return EmptyIntSet.instance;
-        }
-        return s;
-    }
-
     public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
         return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n)));
     }
@@ -141,7 +133,7 @@ public class GraphDelta {
             return iterators.get(0);
         }
         // there are multiple iterators.
-        // Combine them in a gree.
+        // Combine them in a tree.
         do {
             ArrayList<IntIterator> newIterators = new ArrayList<>(iterators.size() / 2 + 1);
             for (int i = 0; i < iterators.size(); i += 2) {
