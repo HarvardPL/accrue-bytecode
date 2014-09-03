@@ -1,7 +1,6 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -78,14 +77,10 @@ public class PointsToGraph {
     private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
 
 
-    /*
-     * The pointsto graph is represented using two relations. If base.get(n).contains(i) then i is in the pointsto set
-     * of n. If isSubsetOf.get(n).contains(<m, f>), then the filtered pointsto set of n is a subset of the points to set
-     * of m. The superset relation is just the reverse of subset.
-     *
-     * Map from PointsToGraphNode to sets of InstanceKeys
+    /**
+     * The PointsTo sets.
      */
-    private final ConcurrentIntMap<MutableIntSet> base = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> pointsTo = new SimpleConcurrentIntMap<>();
 
     /**
      * Map from PointsToGraphNode to set of PointsToGraphNode
@@ -143,10 +138,6 @@ public class PointsToGraph {
 
     private final DependencyRecorder depRecorder;
 
-    /*
-     * A cache for realized points to sets.
-     */
-    RealizedSetCache cache = new RealizedSetCache();
 
     private int outputLevel = 0;
 
@@ -173,10 +164,6 @@ public class PointsToGraph {
         for (IMethod m : initialMethods) {
             this.getOrCreateContextSet(m).add(this.haf.initialContext());
         }
-    }
-
-    public IntMap<MutableIntSet> getBaseNodes() {
-        return this.base;
     }
 
     // Return the immediate supersets of PointsToGraphNode n. That is, any node m such that n is an immediate subset of m
@@ -219,9 +206,6 @@ public class PointsToGraph {
 
         n = this.getRepresentative(n);
 
-        MutableIntSet pointsToSet = this.getOrCreateBaseSet(n);
-
-        boolean add;
         Integer h = this.reverseInstanceKeyDictionary.get(heapContext);
         if (h == null) {
             // not in the dictionary yet
@@ -235,15 +219,10 @@ public class PointsToGraph {
             else {
                 h = existing;
             }
-            add = true;
-        }
-        else {
-            add = !pointsToSet.contains(h);
         }
 
         GraphDelta delta = new GraphDelta(this);
-        if (add) {
-            pointsToSet.add(h);
+        if (this.pointsToSet(n).add(h)) {// !@! check this and the interaction with addtosupersetsof. Who is reponsible for adding to delta?
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
             addToSupersetsOf(delta,
                              n,
@@ -316,7 +295,7 @@ public class PointsToGraph {
             MutableIntSet targetSuperset = this.getOrCreateUnfilteredSupersetSet(t);
             targetSuperset.add(s);
 
-            computeDeltaForAddedEdge(changed, s, null, t);
+            computeDeltaForAddedSubsetRelation(changed, s, null, t);
         }
         return changed;
     }
@@ -356,7 +335,7 @@ public class PointsToGraph {
             IntMap<Set<TypeFilter>> targetSuperset = this.getOrCreateSupersetSet(t);
             addFilter(targetSuperset, s, filter);
 
-            computeDeltaForAddedEdge(changed, s, filter, t);
+            computeDeltaForAddedSubsetRelation(changed, s, filter, t);
         }
         return changed;
     }
@@ -365,7 +344,7 @@ public class PointsToGraph {
      * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta,
      * and the recurses
      */
-    private void computeDeltaForAddedEdge(GraphDelta changed, /*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/
+    private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/
                                           int target) {
         // go through the points to set of source, and add anything that target doesn't already point to.
         IntSet diff = this.getDifference(source, filter, target);
@@ -416,7 +395,7 @@ public class PointsToGraph {
         if (!changed.addAllToSet(target, set)) {
             return;
         }
-        cache.update(target, set);
+        this.pointsToSet(target).addAll(set);
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -465,7 +444,7 @@ public class PointsToGraph {
             supersets.get(n).add(filter);
         }
         else {
-            Set<TypeFilter> set = new HashSet<>(10);
+            Set<TypeFilter> set = PointsToAnalysisMultiThreaded.makeConcurrentSet();
             set.add(filter);
             supersets.put(n, set);
         }
@@ -477,7 +456,7 @@ public class PointsToGraph {
             supersets.get(n).addAll(filters);
         }
         else {
-            Set<TypeFilter> set = new HashSet<>(filters.size() + 10);
+            Set<TypeFilter> set = PointsToAnalysisMultiThreaded.makeConcurrentSet();
             set.addAll(filters);
             supersets.put(n, set);
         }
@@ -505,31 +484,15 @@ public class PointsToGraph {
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext originator) {
         n = this.getRepresentative(n);
         this.recordRead(n, originator);
-        return this.cache.getPointsToSet(n).intIterator();
+        return this.pointsToSet(n).intIterator();
     }
 
-    /**
-     * Does n point to ik?
-     */
-    //    public boolean pointsTo(/*PointsToGraphNode*/int n, int ik) {
-    //        return this.pointsTo(n, ik, null);
-    //    }
 
     /**
      * Does n point to ik?
      */
     private boolean pointsTo(/*PointsToGraphNode*/int n, int ik) {
-        IntSet s = this.cache.getPointsToSet(n);
-        if (s != null) {
-            return s.contains(ik);
-        }
-
-        // we don't have a cached version of the points to set. Let's try to be cunning.
-        if (this.base.containsKey(n)) {
-            // we have a base node,
-            return (this.base.get(n).contains(ik));
-        }
-        throw new RuntimeException("Bad state");//!@!
+        return this.pointsToSet(n).contains(ik);
     }
 
     private static boolean satisfiesAny(Set<TypeFilter> filters, IClass type) {
@@ -591,18 +554,6 @@ public class PointsToGraph {
             // The context is new
             depRecorder.recordNewContext(callee, calleeContext);
         }
-    }
-
-    private MutableIntSet getOrCreateBaseSet(/*PointsToGraphNode*/int node) {
-        MutableIntSet s = this.base.get(node);
-        if (s == null) {
-            s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
-            MutableIntSet existing = this.base.putIfAbsent(node, s);
-            if (existing != null) {
-                s = existing;
-            }
-        }
-        return s;
     }
 
     private ConcurrentIntMap<Set<TypeFilter>> getOrCreateSubsetSet(/*PointsToGraphNode*/int node) {
@@ -853,8 +804,8 @@ public class PointsToGraph {
             return;
         }
 
-        // update the cache.
-        this.cache.removed(n);
+        // update the points to sets.
+        this.pointsTo.remove(n);
 
         // Notify the dependency recorder
         depRecorder.startCollapseNode(n, rep);
@@ -934,9 +885,6 @@ public class PointsToGraph {
                 s.remove(n);
             }
         }
-
-        // update the base nodes.
-        assert !this.base.containsKey(n) : "Base nodes shouldn't be collapsed with other nodes";
 
         this.representative.put(n, rep);
         depRecorder.finishCollapseNode(n, rep);
@@ -1371,7 +1319,7 @@ public class PointsToGraph {
     /*PointsToGraphNode*/int target) {
         source = this.getRepresentative(source);
 
-        IntSet s = this.cache.getPointsToSet(source);
+        IntSet s = this.pointsToSet(source);
         IntIterator srcIter;
         if (filter == null) {
             srcIter = s.intIterator();
@@ -1413,157 +1361,18 @@ public class PointsToGraph {
         return this.getDifference(set.intIterator(), target);
     }
 
-    /**
-     * This class implements a cache for realized points-to sets. Well, it's not really a cache, it just keeps
-     * everything.
-     */
-    private class RealizedSetCache {
-        private final ConcurrentIntMap<MutableIntSet> cache = new SimpleConcurrentIntMap<>();
-        private int hits = 0;
-        private int misses = 0;
-        private int uncachable = 0;
-
-
-        /**
-         * Update the cache.
-         */
-        private void update(/*PointsToGraphNode*/int n, IntSet toAdd) {
-            MutableIntSet s = this.getPointsToSetInternal(n);
-            if (s != null) {
-                // the set is in the cache!
-                s.addAll(toAdd);
-            }
-        }
-
-        /**
-         * Node n has been removed (e.g., collapsed with another node)
-         */
-        public void removed(/*PointsToGraphNode*/int n) {
-            this.cache.remove(n);
-        }
-
-        public IntSet getPointsToSet(/*PointsToGraphNode*/int n) {
-            return getPointsToSetInternal(n);
-        }
-
-        private MutableIntSet getPointsToSetInternal(/*PointsToGraphNode*/int n) {
-            MutableIntSet s = this.cache.get(n);
-            if (s != null) {
-                // we have it in the cache!
-                hits++;
-                return s;
-            }
-
-            return this.realizePointsToSet(n, MutableSparseIntSet.makeEmpty(), new IntStack(), new Stack<Boolean>());
-
-        }
-
-        private MutableIntSet realizePointsToSet(/*PointsToGraphNode*/int n, MutableIntSet currentlyRealizing,
-                                                 IntStack currentlyRealizingStack, Stack<Boolean> shouldCache) {
-            assert !PointsToGraph.this.representative.containsKey(n) : "Getting points to set of node that has been merged with another node.";
-
-            try {
-                MutableIntSet s = this.cache.get(n);
-                if (s != null) {
-                    // we have it in the cache!
-                    hits++;
-                    return s;
-                }
-
-                if (currentlyRealizing.contains(n)) {
-                    // we are called recursively. Need to handle this specially.
-                    // find the index that n first appears at
-                    int foundAt = -1;
-                    for (int i = 0; i < currentlyRealizingStack.size(); i++) {
-                        if (foundAt < 0 && currentlyRealizingStack.get(i) == n) {
-                            foundAt = i;
-                        }
-                        else if (foundAt >= 0) {
-                            // it is not safe to cache the result of i. (but will be ok to cache foundAt).
-                            shouldCache.setElementAt(false, i);
-                        }
-                    }
-                    // return an empty set, which will let us compute the realization of the
-                    // point to set.
-                    return PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
-                }
-                boolean baseContains = PointsToGraph.this.base.containsKey(n);
-
-                IntSet unfilteredSubsets = PointsToGraph.this.isUnfilteredSupersetOf.get(n);
-
-                IntMap<Set<TypeFilter>> filteredSubsets = PointsToGraph.this.isSupersetOf.get(n);
-
-                boolean hasUnfilteredSubsets = unfilteredSubsets != null
-                        && !unfilteredSubsets.isEmpty();
-                boolean hasFilteredSubsets = filteredSubsets != null
-                        && !filteredSubsets.isEmpty();
-
-                if (baseContains
-                        && !(hasUnfilteredSubsets || hasFilteredSubsets)) {
-                    // n is a base node, and no superset relations
-                    return PointsToGraph.this.base.get(n);
-                }
-
-
-                // We now know we definitely missed in the cache (i.e., not a base node, and not one we choose not to cache).
-                this.misses++;
-
-                s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
-                if (baseContains) {
-                    s.addAll(PointsToGraph.this.base.get(n));
-                }
-                shouldCache.push(true);
-                currentlyRealizing.add(n);
-                currentlyRealizingStack.push(n);
-
-                if (hasUnfilteredSubsets) {
-                    IntIterator iter = unfilteredSubsets.intIterator();
-                    while (iter.hasNext()) {
-                        int x = iter.next();
-                        s.addAll(this.realizePointsToSet(x,
-                                                         currentlyRealizing,
-                                                         currentlyRealizingStack,
-                                                         shouldCache));
-                    }
-                }
-                if (hasFilteredSubsets) {
-                    IntIterator iter = filteredSubsets.keyIterator();
-                    while (iter.hasNext()) {
-                        int x = iter.next();
-                        Set<TypeFilter> filters = filteredSubsets.get(x);
-                        s.addAll(new FilteredIntSet(this.realizePointsToSet(x,
-                                                                            currentlyRealizing,
-                                                                            currentlyRealizingStack,
-                                                                            shouldCache), filters));
-                    }
-                }
-                currentlyRealizing.remove(n);
-                currentlyRealizingStack.pop();
-                this.storeInCache(n, s);
-                return this.cache.get(n);
-            }
-            finally {
-                if (this.hits + this.misses >= 1000000) {
-                    System.err.println("  Cache: " + (this.hits + this.misses) + " accesses: " + 100 * this.hits
-                            / (this.hits + this.misses) + "% hits; " + this.misses + " misses; " + this.uncachable
-                            + " of the misses were uncachable; cache size: " + this.cache.size());
-                    this.hits = this.misses = this.uncachable = 0;
-                }
-            }
-
-        }
-
-        private void storeInCache(/*PointsToGraphNode*/int n, MutableIntSet s) {
-            // it is safe for us to cache the result of this realization.
-
-            MutableIntSet ex = this.cache.putIfAbsent(n, s);
+    private MutableIntSet pointsToSet(/*PointsToGraphNode*/int n) {
+        MutableIntSet s = this.pointsTo.get(n);
+        if (s == null) {
+            s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
+            MutableIntSet ex = this.pointsTo.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!
-                ex.addAll(s);
+                s = ex;
             }
         }
+        return s;
     }
-
     public int cycleRemovalCount() {
         return this.representative.size();
     }

@@ -36,6 +36,9 @@ public class GraphDelta {
 
 
     protected boolean addAllToSet(/*PointsToGraphNode*/int n, IntSet set) {
+        if (set.isEmpty()) {
+            return false;
+        }
         return getOrCreateSet(n, setSizeBestGuess(set)).addAll(set);
     }
     private MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
@@ -88,7 +91,20 @@ public class GraphDelta {
 
     @Override
     public String toString() {
-        return "GraphDelta [" + delta + "]";
+        int size = 0;
+        IntIterator iter = delta.keyIterator();
+        StringBuffer sb = new StringBuffer();
+        sb.append("GraphDelta [");
+        while (iter.hasNext()) {
+            int i = iter.next();
+            MutableIntSet s = delta.get(i);
+            sb.append(i);
+            sb.append(":");
+            sb.append(s);
+            size += s.size();
+        }
+        sb.append("](size" + size + ")");
+        return sb.toString();
     }
 
     public IntSet pointsToSet(/*PointsToGraphNode*/int n) {
