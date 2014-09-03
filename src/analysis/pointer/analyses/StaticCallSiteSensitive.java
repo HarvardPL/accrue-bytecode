@@ -1,7 +1,7 @@
 package analysis.pointer.analyses;
 
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
-import analysis.pointer.statements.CallSiteLabel;
+import analysis.pointer.statements.CallSiteProgramPoint;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -43,23 +43,23 @@ public class StaticCallSiteSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite, Context context) {
-        return AllocationName.create((ContextStack<CallSiteLabel>) context, allocationSite);
+    public AllocationName<ContextStack<CallSiteProgramPoint>> record(AllocSiteNode allocationSite, Context context) {
+        return AllocationName.create((ContextStack<CallSiteProgramPoint>) context, allocationSite);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<CallSiteProgramPoint> merge(CallSiteProgramPoint callSite, InstanceKey receiver, Context callerContext) {
         if (!callSite.isStatic()) {
             // only track call sites to static methods.
             callSite = null;
         }
-        return ((ContextStack<CallSiteLabel>) callerContext).push(callSite, sensitivity);
+        return ((ContextStack<CallSiteProgramPoint>) callerContext).push(callSite, sensitivity);
     }
 
     @Override
-    public ContextStack<CallSiteLabel> initialContext() {
-        return ContextStack.<CallSiteLabel> emptyStack();
+    public ContextStack<CallSiteProgramPoint> initialContext() {
+        return ContextStack.<CallSiteProgramPoint> emptyStack();
     }
 
     @Override

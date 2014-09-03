@@ -3,7 +3,7 @@ package analysis.pointer.analyses;
 import java.util.Iterator;
 
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
-import analysis.pointer.statements.CallSiteLabel;
+import analysis.pointer.statements.CallSiteProgramPoint;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.NewSiteReference;
@@ -39,7 +39,7 @@ public class CrossProduct extends HeapAbstractionFactory {
     }
 
     @Override
-    public CrossProductContext merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public CrossProductContext merge(CallSiteProgramPoint callSite, InstanceKey receiver, Context callerContext) {
         InstanceKey r1 = null;
         InstanceKey r2 = null;
         if (receiver != null) {

@@ -6,6 +6,7 @@ import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -51,7 +52,7 @@ public class StaticCallStatement extends CallStatement {
      * @param receiver
      *            Receiver of the call
      */
-    protected StaticCallStatement(CallSiteLabel callerPP,
+    protected StaticCallStatement(CallSiteProgramPoint callerPP,
                                   IMethod callee, ReferenceVariable result,
                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
                                   MethodSummaryNodes calleeSummary) {
@@ -61,7 +62,7 @@ public class StaticCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         return this.processCall(context, null, this.callee, g, haf, this.calleeSummary);
     }

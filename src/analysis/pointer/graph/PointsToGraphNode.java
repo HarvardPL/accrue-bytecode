@@ -8,8 +8,13 @@ import com.ibm.wala.types.TypeReference;
 public interface PointsToGraphNode {
     /**
      * Get the type this points to graph node represents
-     * 
+     *
      * @return type
      */
     TypeReference getExpectedType();
+
+    /**
+     * Should the points to set of this PointsToGraphNode flow sensitive or not?
+     */
+    boolean isFlowSensitive();
 }

@@ -9,13 +9,13 @@ import com.ibm.wala.types.MethodReference;
 /**
  * Description of a (statically) unique method call site
  */
-public class CallSiteLabel extends ProgramPoint {
+public class CallSiteProgramPoint extends ProgramPoint {
     /**
      * Call site in the caller
      */
     private final CallSiteReference callSite;
 
-    public CallSiteLabel(IMethod caller, CallSiteReference callSite) {
+    public CallSiteProgramPoint(IMethod caller, CallSiteReference callSite) {
         super(caller, PrettyPrinter.methodString(caller) + "@" + callSite.getProgramCounter());
         this.callSite = callSite;
     }

@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -49,7 +50,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l =
                 new ReferenceVariableReplica(haf.initialContext(), staticField);

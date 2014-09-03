@@ -83,7 +83,7 @@ public class ReferenceVariableFactory {
                         PrettyPrinter.getCanonical("v" + local + "-"
                                 + method.getName());
             }
-            rv = new ReferenceVariable(name, type, false);
+            rv = new ReferenceVariable(name, type, false, false);
             locals.put(key, rv);
         }
         return rv;
@@ -108,6 +108,7 @@ public class ReferenceVariableFactory {
         ReferenceVariable local =
                 new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim,
                                       type,
+ false,
                                       false);
         // These should only be created once assert that this is true
         assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method),
@@ -130,7 +131,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createImplicitExceptionNode(TypeReference type,
             int basicBlockID, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false);
         // These should only be created once assert that this is true
         assert implicitThrows.put(new ImplicitThrowKey(type,
                                                        basicBlockID,
@@ -141,13 +142,13 @@ public class ReferenceVariableFactory {
     /**
      * Create a singleton node for a type. This can be used to decrease the size of the points-to graph and the run-time
      * of the pointer analysis at the cost of less precision. This should only be called once for any given type.
-     * 
+     *
      * @param type type of the objects pointed to by the singleton node
      * @return singleton reference variable for the given type
      */
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createSingletonReferenceVariable(TypeReference type) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)", type, true);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)", type, true, false);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
         return rv;
@@ -170,7 +171,10 @@ public class ReferenceVariableFactory {
             IMethod method, ExitType exitType) {
         ReferenceVariable rv =
                 new ReferenceVariable(PrettyPrinter.methodString(method) + "-"
-                        + exitType, type, false);
+ + exitType,
+                                                     type,
+                                                     false,
+                                                     false);
         return rv;
     }
 
@@ -188,7 +192,7 @@ public class ReferenceVariableFactory {
         assert m.isNative();
         ReferenceVariable rv =
                 new ReferenceVariable("NATIVE-"
-                        + PrettyPrinter.typeString(exType), exType, false);
+ + PrettyPrinter.typeString(exType), exType, false, false);
         return rv;
     }
 
@@ -210,7 +214,10 @@ public class ReferenceVariableFactory {
             IMethod method) {
         ReferenceVariable rv =
                 new ReferenceVariable(PrettyPrinter.methodString(method)
-                        + "-formal(" + paramNum + ")", type, false);
+ + "-formal(" + paramNum + ")",
+                                                     type,
+                                                     false,
+                                                     false);
         return rv;
     }
 
@@ -235,7 +242,8 @@ public class ReferenceVariableFactory {
                                                   + "."
                                                   + f.getName().toString(),
                                           f.getFieldTypeReference(),
-                                          true);
+                                         true,
+                                         true);
             staticFields.put(f, node);
         }
         return node;
@@ -255,7 +263,8 @@ public class ReferenceVariableFactory {
         ReferenceVariable rv =
                 new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
                                       AnalysisUtil.STRING_VALUE_TYPE,
-                                      false);
+                                                     false,
+                                                     false);
         return rv;
     }
 
@@ -617,6 +626,12 @@ public class ReferenceVariableFactory {
          * should be created
          */
         private final boolean isSingleton;
+
+        /**
+         * True if we want to compute a flow-sensitive points-to set for replicas of this variable
+         *
+         */
+        private final boolean isFlowSensitive;
         /**
          * String used for debugging
          */
@@ -634,7 +649,8 @@ public class ReferenceVariableFactory {
          * @param isSingleton Whether this reference variable represents a static field, or other global singleton (for
          *            which only one reference variable replica will be created usually in the initial context)
          */
-        private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton) {
+        private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton,
+                                  boolean isFlowSensitive) {
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
@@ -643,6 +659,7 @@ public class ReferenceVariableFactory {
             this.debugString = debugString;
             this.expectedType = expectedType;
             this.isSingleton = isSingleton;
+            this.isFlowSensitive = isFlowSensitive;
         }
 
         @Override
@@ -678,7 +695,14 @@ public class ReferenceVariableFactory {
          * @return true if this is a static variable
          */
         public boolean isSingleton() {
-            return isSingleton;
+            return this.isSingleton;
+        }
+
+        /**
+         * Do we want to compute flow-sensitive points-to sets for replicas of this variable?
+         */
+        public boolean isFlowSensitive() {
+            return this.isFlowSensitive;
         }
     }
 }

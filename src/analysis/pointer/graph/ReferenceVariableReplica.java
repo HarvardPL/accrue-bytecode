@@ -11,29 +11,34 @@ import com.ibm.wala.types.TypeReference;
 public final class ReferenceVariableReplica implements PointsToGraphNode {
 
     private final Context context;
-    private final ReferenceVariable l;
+    private final ReferenceVariable var;
     private final int memoizedHashCode;
 
     public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
         assert rv != null;
         assert context != null;
-        l = rv;
+        var = rv;
         this.context = context;
         memoizedHashCode = computeHashCode();
     }
 
     /**
      * Memoize hash code
-     * 
+     *
      * @return hash code
      */
     private int computeHashCode() {
-        return context.hashCode() * 31 + l.hashCode();
+        return context.hashCode() * 31 + var.hashCode();
     }
 
     @Override
     public TypeReference getExpectedType() {
-        return l.getExpectedType();
+        return var.getExpectedType();
+    }
+
+    @Override
+    public boolean isFlowSensitive() {
+        return var.isFlowSensitive();
     }
 
     @Override
@@ -43,17 +48,27 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null) return false;
-        if (!(obj instanceof ReferenceVariableReplica)) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof ReferenceVariableReplica)) {
+            return false;
+        }
         ReferenceVariableReplica other = (ReferenceVariableReplica) obj;
-        if (!context.equals(other.context)) return false;
-        if (!l.equals(other.l)) return false;
+        if (!context.equals(other.context)) {
+            return false;
+        }
+        if (!var.equals(other.var)) {
+            return false;
+        }
         return true;
     }
 
     @Override
     public String toString() {
-        return l + " in " + context;
+        return var + " in " + context;
     }
 }

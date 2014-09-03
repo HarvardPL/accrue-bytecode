@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -15,7 +17,6 @@ import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to graph statement for a "new" statement, e.g. Object o = new Object()
@@ -76,9 +77,9 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        InstanceKey newHeapContext = haf.record(alloc, context);
+        InstanceKeyRecency newHeapContext = haf.record(alloc, context);
         assert newHeapContext != null;
 
         ReferenceVariableReplica r =

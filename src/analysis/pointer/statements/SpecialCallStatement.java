@@ -7,6 +7,8 @@ import java.util.List;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -17,7 +19,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Statement for a special invoke statement.
@@ -57,7 +58,7 @@ public class SpecialCallStatement extends CallStatement {
      * @param calleeSummary
      *            summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteLabel callerPP,
+    protected SpecialCallStatement(CallSiteProgramPoint callerPP,
                                    IMethod callee, ReferenceVariable result,
                                    ReferenceVariable receiver, List<ReferenceVariable> actuals,
                                    ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
@@ -68,27 +69,19 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica receiverRep =
                 new ReferenceVariableReplica(context, this.receiver);
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter =
-                delta == null
- ? g.pointsToIterator(receiverRep, originator)
-                        : delta.pointsToIterator(receiverRep);
-                while (iter.hasNext()) {
-                    InstanceKey recHeapCtxt = iter.next();
-                    changed =
-                            changed.combine(this.processCall(context,
-                                                             recHeapCtxt,
-                                                             this.callee,
-                                                             g,
-                                                             haf,
-                                                             this.calleeSummary));
-                }
-                return changed;
+        Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
+                : delta.pointsToIterator(receiverRep);
+        while (iter.hasNext()) {
+            InstanceKeyRecency recHeapCtxt = iter.next();
+            changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
+        }
+        return changed;
 
     }
 

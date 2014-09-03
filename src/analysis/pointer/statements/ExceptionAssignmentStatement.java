@@ -9,6 +9,7 @@ import java.util.Set;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -72,7 +73,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught);
         PointsToGraphNode r;

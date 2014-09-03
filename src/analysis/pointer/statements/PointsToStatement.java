@@ -9,6 +9,7 @@ import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -74,9 +75,8 @@ public abstract class PointsToStatement {
      * @param originator The SaC that caused this processing, i.e. the pair of this and context.
      * @return Changes to the graph as a result of processing this statement. Must be non-null.
      */
-    public abstract GraphDelta process(Context context,
-            HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-            StatementRegistrar registrar, StmtAndContext originator);
+    public abstract GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g,
+                                       GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator);
 
     @Override
     public final int hashCode() {

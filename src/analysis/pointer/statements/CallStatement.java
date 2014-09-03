@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -11,7 +12,6 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.MethodReference;
 
 /**
@@ -47,7 +47,7 @@ public abstract class CallStatement extends PointsToStatement {
      *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
      *            thrown by this statement
      */
-    protected CallStatement(CallSiteLabel callerPP,
+    protected CallStatement(CallSiteProgramPoint callerPP,
             ReferenceVariable result, List<ReferenceVariable> actuals,
             ReferenceVariable exception) {
         super(callerPP);
@@ -73,9 +73,8 @@ public abstract class CallStatement extends PointsToStatement {
      *            summary nodes for formals and exits of the callee
      * @return true if the points-to graph has changed
      */
-    protected final GraphDelta processCall(Context callerContext,
-            InstanceKey receiver, IMethod callee, PointsToGraph g,
-            HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
+    protected final GraphDelta processCall(Context callerContext, InstanceKeyRecency receiver, IMethod callee,
+                                           PointsToGraph g, HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
@@ -214,8 +213,8 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     @Override
-    public CallSiteLabel programPoint() {
-        return (CallSiteLabel) super.programPoint();
+    public CallSiteProgramPoint programPoint() {
+        return (CallSiteProgramPoint) super.programPoint();
     }
 
 }

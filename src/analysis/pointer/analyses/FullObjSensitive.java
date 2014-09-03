@@ -1,7 +1,7 @@
 package analysis.pointer.analyses;
 
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
-import analysis.pointer.statements.CallSiteLabel;
+import analysis.pointer.statements.CallSiteProgramPoint;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.ContextItem;
@@ -47,7 +47,7 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public AllocationNameContext merge(CallSiteLabel callSite,
+    public AllocationNameContext merge(CallSiteProgramPoint callSite,
             InstanceKey receiver, Context callerContext) {
         if (callSite.isStatic()) {
             // this is a static method call return the caller's context

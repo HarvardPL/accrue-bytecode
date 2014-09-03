@@ -9,6 +9,8 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -21,7 +23,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
@@ -46,7 +47,7 @@ public class VirtualCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a virtual method invocation.
-     * 
+     *
      * @param callerPP caller program point
      * @param callee Method being called
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
@@ -55,7 +56,7 @@ public class VirtualCallStatement extends CallStatement {
      * @param exception Node representing the exception thrown by this call (if any)
      * @param rvFactory factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteLabel callerPP, MethodReference callee,
+    protected VirtualCallStatement(CallSiteProgramPoint callerPP, MethodReference callee,
                                    ReferenceVariable result, ReferenceVariable receiver,
                                    List<ReferenceVariable> actuals, ReferenceVariable exception,
                                    ReferenceVariableFactory rvFactory) {
@@ -67,17 +68,17 @@ public class VirtualCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver);
 
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
+        Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
                 : delta.pointsToIterator(receiverRep);
 
         while (iter.hasNext()) {
-            InstanceKey recHeapContext = iter.next();
+            InstanceKeyRecency recHeapContext = iter.next();
 
             // find the callee.
             // The receiver is recHeapContext, and we want to find a method that matches selector

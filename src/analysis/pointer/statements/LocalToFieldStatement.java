@@ -7,6 +7,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -17,7 +19,6 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
 
 /**
@@ -59,7 +60,7 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
         PointsToGraphNode local =
@@ -69,8 +70,8 @@ public class LocalToFieldStatement extends PointsToStatement {
 
         if (delta == null) {
             // no delta, let's do some simple processing
-            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
-                InstanceKey recHeapContext = iter.next();
+            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
+                InstanceKeyRecency recHeapContext = iter.next();
 
                 ObjectField f = new ObjectField(recHeapContext, this.field);
                 // o.f can point to anything that local can.
@@ -82,8 +83,8 @@ public class LocalToFieldStatement extends PointsToStatement {
         else {
             // We check if o has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
-                InstanceKey recHeapContext = iter.next();
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec); iter.hasNext();) {
+                InstanceKeyRecency recHeapContext = iter.next();
                 ObjectField contents = new ObjectField(recHeapContext, this.field);
                 GraphDelta d1 = g.copyEdges(local, contents);
                 changed = changed.combine(d1);

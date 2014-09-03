@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
-import analysis.pointer.statements.CallSiteLabel;
+import analysis.pointer.statements.CallSiteProgramPoint;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -48,7 +48,7 @@ public abstract class HeapAbstractionFactory {
      *            Code context in the method caller
      * @return code context for the callee
      */
-    public abstract Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext);
+    public abstract Context merge(CallSiteProgramPoint callSite, InstanceKey receiver, Context callerContext);
 
     /**
      * Return the initial Context, i.e., to analyze the root method.

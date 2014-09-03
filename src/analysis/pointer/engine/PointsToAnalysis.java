@@ -3,6 +3,7 @@ package analysis.pointer.engine;
 import java.util.Collection;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
@@ -22,7 +23,7 @@ public abstract class PointsToAnalysis {
     /**
      * Defining abstraction factory for this points-to analysis
      */
-    protected final HeapAbstractionFactory haf;
+    protected final RecencyHeapAbstractionFactory haf;
 
     /**
      * Effects the amount of debugging output. See also {@link PointsToAnalysis#DEBUG}, which makes debug strings in
@@ -35,10 +36,10 @@ public abstract class PointsToAnalysis {
      * Create a new analysis with the given abstraction
      */
     public PointsToAnalysis(HeapAbstractionFactory haf) {
-        this.haf = haf;
+        this.haf = new RecencyHeapAbstractionFactory(haf);
     }
 
-    public HeapAbstractionFactory heapAbstractionFactory() {
+    public RecencyHeapAbstractionFactory heapAbstractionFactory() {
         return haf;
     }
 

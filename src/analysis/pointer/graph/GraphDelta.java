@@ -8,9 +8,10 @@ import java.util.Stack;
 import util.OrderedPair;
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.collections.IntStack;
 import com.ibm.wala.util.intset.EmptyIntSet;
@@ -34,13 +35,9 @@ public class GraphDelta {
      */
     private final IntMap<MutableIntSet> delta;
 
-    // An estimate of the size of this delta.
-    private int size;
-
     public GraphDelta(PointsToGraph g) {
         this.g = g;
         this.delta = new SparseIntMap<MutableIntSet>();
-        this.size = 0;
     }
 
     private MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
@@ -71,6 +68,14 @@ public class GraphDelta {
         // collapseCycles(toCollapse);
     }
 
+    public void addCopyEdges(/*PointsToGraphNode*/int source, /*PointsToGraphNode*/int target) {
+XXX
+    }
+
+    public void addCopyEdges(/*PointsToGraphNode*/int source, /*PointsToGraphNode*/int target,
+                             InterProgramPointReplica ippr) {
+XXX
+    }
     public void addCopyEdges(/*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/int target) {
 
         // go through the points to set of source, and add anything that target doesn't already point to.
@@ -142,8 +147,6 @@ public class GraphDelta {
         if (!getOrCreateSet(target, estimatedSize).addAll(set)) {
             return;
         }
-        // increase the estimated size.
-        size += estimatedSize;
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -206,7 +209,6 @@ public class GraphDelta {
                 IntSet srcSet = d.delta.get(src);
                 int estimatedSize = setSizeBestGuess(srcSet);
                 getOrCreateSet(src, estimatedSize).addAll(srcSet);
-                size += estimatedSize;
             }
         }
         return this;
@@ -221,16 +223,7 @@ public class GraphDelta {
         return "GraphDelta [" + delta + "]";
     }
 
-    public IntSet pointsToSet(/*PointsToGraphNode*/int n) {
-        n = g.getRepresentative(n);
-        MutableIntSet s = this.delta.get(n);
-        if (s == null) {
-            return EmptyIntSet.instance;
-        }
-        return s;
-    }
-
-    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n) {
         return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n)));
     }
 

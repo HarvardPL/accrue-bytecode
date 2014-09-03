@@ -1,5 +1,7 @@
 package analysis.pointer.graph;
 
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
@@ -12,7 +14,7 @@ public final class ObjectField implements PointsToGraphNode {
     /**
      * Heap context for the receiver of the field
      */
-    private final InstanceKey receiver;
+    private final InstanceKeyRecency receiver;
 
     /**
      * Name of the field
@@ -29,7 +31,7 @@ public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Points-to graph node representing a non-static field of an object
-     * 
+     *
      * @param receiver
      *            heap context for the receiver
      * @param fieldName
@@ -37,7 +39,7 @@ public final class ObjectField implements PointsToGraphNode {
      * @param expectedType
      *            type of the field
      */
-    public ObjectField(InstanceKey receiver, String fieldName,
+    public ObjectField(InstanceKeyRecency receiver, String fieldName,
             TypeReference expectedType) {
         assert receiver != null;
         assert fieldName != null;
@@ -50,13 +52,13 @@ public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Points-to graph node representing a non-static field of an object
-     * 
+     *
      * @param receiver
      *            heap context for the receiver
      * @param fieldReference
      *            the field
      */
-    public ObjectField(InstanceKey receiver, FieldReference fieldReference) {
+    public ObjectField(InstanceKeyRecency receiver, FieldReference fieldReference) {
         this(receiver,
              fieldReference.getName().toString(),
              fieldReference.getFieldType());
@@ -134,5 +136,11 @@ public final class ObjectField implements PointsToGraphNode {
 
     public TypeReference expectedType() {
         return expectedType;
+    }
+
+    @Override
+    public boolean isFlowSensitive() {
+        // Be flow sensitive for the recent objects.
+        return this.receiver.isRecent();
     }
 }

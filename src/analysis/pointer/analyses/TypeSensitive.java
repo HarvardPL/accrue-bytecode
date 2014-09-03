@@ -2,7 +2,7 @@ package analysis.pointer.analyses;
 
 import util.print.PrettyPrinter;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
-import analysis.pointer.statements.CallSiteLabel;
+import analysis.pointer.statements.CallSiteProgramPoint;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -60,7 +60,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<ClassWrapper> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<ClassWrapper> merge(CallSiteProgramPoint callSite, InstanceKey receiver, Context callerContext) {
         if (callSite.isStatic()) {
             // this is a static method call. Return the caller's
             // context.
