@@ -47,9 +47,9 @@
 	<classpathentry exported="true" kind="lib" path="lib/jcommander-1.35.jar" sourcepath="lib/jcommander-1.35-src.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/java-cup-11a.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/JFlex.jar"/>
-	<classpathentry kind="lib" path="lib/android.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/SCanDroid"/>
 	<classpathentry kind="lib" path="lib/apktool-cli.jar" sourcepath="/Apktool"/>
 	<classpathentry kind="lib" path="data"/>
+	<classpathentry kind="lib" path="lib/android-19.jar"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>

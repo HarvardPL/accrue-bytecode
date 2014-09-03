@@ -60,3 +60,7 @@ If addCategory(String) has added any categories, the activity must handle ALL of
 If getPackage() is non-NULL, only activity components in that application package will be considered.
 
 If there are no activities that satisfy all of these conditions, a null string is returned."
+
+Policy: Do not override Context.getPackageName()
+
+XXX: Intent passed as a method argument could be modified
