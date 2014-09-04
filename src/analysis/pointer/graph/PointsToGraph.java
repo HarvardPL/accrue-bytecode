@@ -83,6 +83,7 @@ public class PointsToGraph {
     private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
 
 
+
     /* ***************************************************************************
     *
     * The Points To graph itself. The pointsTo map records the actual points to sets,
@@ -117,9 +118,11 @@ public class PointsToGraph {
     private final AnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new AnnotatedIntRelation<>();
 
     /**
-     * Map from PointsToGraphNodes to PointsToGraphNodes
+     * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
+     * cycles) and which node now represents them.
      */
     private final ConcurrentIntMap<Integer> representative = new SimpleConcurrentIntMap<>();
+
 
     /* ***************************************************************************
     *
@@ -401,9 +404,10 @@ public class PointsToGraph {
         }
 
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
-        if (!changed.addAllToSet(target, setToAdd) & !this.pointsToSet(target).addAll(setToAdd)) {
+        if (!changed.addAllToSet(target, setToAdd)) {
             return;
         }
+        this.pointsToSet(target).addAll(setToAdd);
 
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
@@ -428,14 +432,20 @@ public class PointsToGraph {
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = iter.next();
-            propagateDifference(changed,
-                                m,
-                                filteredSupersets.get(m),
-                                setToAdd,
-                                currentlyAdding,
-                                currentlyAddingStack,
-                                filterStack,
-                                toCollapse);
+            Set<TypeFilter> filterSet = filteredSupersets.get(m);
+            // it is possible that the filter set is empty, due to race conditions.
+            // No trouble, we will just ignore it, and pretend we got in there before
+            // the relation between target and m was created.
+            if (!filterSet.isEmpty()) {
+                propagateDifference(changed,
+                                    m,
+                                    filterSet,
+                                    setToAdd,
+                                    currentlyAdding,
+                                    currentlyAddingStack,
+                                    filterStack,
+                                    toCollapse);
+            }
         }
         currentlyAdding.remove(target);
         currentlyAddingStack.pop();

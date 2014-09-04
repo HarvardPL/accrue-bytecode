@@ -35,8 +35,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = new SimpleConcurrentIntMap<>();
 
     int numThreads() {
-        //return 1;
-        return Runtime.getRuntime().availableProcessors();
+        return 1;
+        //return Runtime.getRuntime().availableProcessors();
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
