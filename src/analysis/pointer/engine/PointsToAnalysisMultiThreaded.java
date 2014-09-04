@@ -60,6 +60,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
         final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
+        //final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
+        //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+        //                                                                                               null,
+        //                                                                                               true));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -127,8 +132,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
-        System.err.println("   Total time       : " + totalTime / 1000 + "s.");
-        System.err.println("   Cycles removed " + g.cycleRemovalCount() + " nodes");
+        System.err.println("\n\n  ***************************** \n\n");
+        System.err.println("   Total time             : " + totalTime / 1000 + "s.");
+        System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
+        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+        System.err.println("\n\n");
 
         // check that nothing went wrong, and that we have indeed reached a fixed point.
         this.processAllStatements(g, registrar);

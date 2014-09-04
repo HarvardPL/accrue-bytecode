@@ -17,7 +17,13 @@ public class AnnotatedIntRelation<T> {
 
     boolean add(int from, int to, T annotation) {
         boolean changed = getOrCreateSet(from, true, to).add(annotation);
-        changed |= getOrCreateSet(to, false, from).add(annotation);
+        getOrCreateSet(to, false, from).add(annotation);
+        return changed;
+    }
+
+    boolean addAll(int from, int to, Set<T> annotations) {
+        boolean changed = getOrCreateSet(from, true, to).addAll(annotations);
+        getOrCreateSet(to, false, from).addAll(annotations);
         return changed;
     }
 
@@ -83,13 +89,12 @@ public class AnnotatedIntRelation<T> {
         IntIterator ii = nForward.keyIterator();
         while (ii.hasNext()) {
             int b = ii.next();
-            Set<T> annotation = nForward.get(b);
+            Set<T> annotations = nForward.get(b);
 
-            Set<T> bBackward = this.getOrCreateSet(b, false, rep);
             if (rep != b) {
-                this.getOrCreateSet(rep, true, b).addAll(annotation);
-                bBackward.addAll(annotation);
+                this.addAll(rep, b, annotations);
             }
+            Set<T> bBackward = this.getOrCreateSet(b, false, rep);
             bBackward.remove(n);
         }
         forwardReln.remove(n);
@@ -100,12 +105,11 @@ public class AnnotatedIntRelation<T> {
         ii = nBackward.keyIterator();
         while (ii.hasNext()) {
             int a = ii.next();
-            Set<T> annotation = nBackward.get(a);
-            Set<T> aForward = this.getOrCreateSet(a, true, rep);
+            Set<T> annotations = nBackward.get(a);
             if (rep != a) {
-                this.getOrCreateSet(rep, false, a).addAll(annotation);
-                aForward.addAll(annotation);
+                this.addAll(rep, a, annotations);
             }
+            Set<T> aForward = this.getOrCreateSet(a, true, rep);
             aForward.remove(n);
         }
         backReln.remove(n);

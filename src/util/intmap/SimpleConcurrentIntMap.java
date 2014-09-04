@@ -85,4 +85,9 @@ public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
         return map.replace(key, value);
     }
 
+    @Override
+    public String toString() {
+        return map.toString();
+    }
+
 }

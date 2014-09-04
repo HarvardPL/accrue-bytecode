@@ -316,8 +316,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             } while (currTime > this.nextMilestone);
 
             System.err.println("PROCESSED: " + this.numProcessed + " in "
-                    + (currTime - this.startTime) / 1000 + "s;  graph="
-                    + g.getBaseNodes().size() + " base nodes; cycles removed "
+ + (currTime - this.startTime) / 1000
+                    + "s; number of source node " + g.numPointsToGraphNodes() + "; cycles removed "
  + g.cycleRemovalCount()
                     + " nodes ; queue=" + currentQueue.size() + "nextQueue=" + nextQueue.size() + "noDeltaQueue="
                     + noDeltaQueue.size()

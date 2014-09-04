@@ -14,4 +14,16 @@ public class ProgramPointSet {
     public ProgramPointSet() {
         this.s = PointsToAnalysisMultiThreaded.makeConcurrentSet();
     }
+
+    /**
+     * Add all of the program points in pps to this set. Return true if a change was made to this set.
+     */
+    public boolean addAll(ProgramPointSet pps) {
+    }
+
+    /**
+     * Does this set contain all of the program points in pps?
+     */
+    public boolean containsAll(ProgramPointSet pps) {
+    }
 }
