@@ -220,7 +220,8 @@ public class PointsToGraph {
                              new IntStack(),
                              new Stack<Set<TypeFilter>>(),
                              toCollapse);
-            collapseCycles(toCollapse, delta);
+            // XXX maybe enable later.
+            //collapseCycles(toCollapse, delta);
         }
         return delta;
     }
@@ -334,7 +335,8 @@ public class PointsToGraph {
                          new IntStack(),
                          new Stack<Set<TypeFilter>>(),
                          toCollapse);
-        collapseCycles(toCollapse, changed);
+        //XXX maybe enable later.
+        //collapseCycles(toCollapse, changed);
 
     }
 

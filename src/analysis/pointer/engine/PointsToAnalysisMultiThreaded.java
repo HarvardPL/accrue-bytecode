@@ -35,8 +35,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = new SimpleConcurrentIntMap<>();
 
     int numThreads() {
-        return 1;
-        //return Runtime.getRuntime().availableProcessors();
+        //return 1;
+        return Runtime.getRuntime().availableProcessors();
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
@@ -60,6 +60,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
         final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
+        //final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
+        //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+        //                                                                                               null,
+        //                                                                                               true));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
