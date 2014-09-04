@@ -81,7 +81,7 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for each type of throwable. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for throwables.
      */
-    public static final boolean USE_SINGLE_ALLOC_PER_THROWABLE_TYPE = true;
+    public static final boolean USE_SINGLE_ALLOC_PER_THROWABLE_TYPE = false;
 
     /**
      * If true then only one allocation will be made for any kind of primitive array. Reduces precision, but improves

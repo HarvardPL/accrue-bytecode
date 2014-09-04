@@ -140,6 +140,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         // check that nothing went wrong, and that we have indeed reached a fixed point.
         this.processAllStatements(g, registrar);
+        g.constructionFinished();
         return g;
     }
 
@@ -290,7 +291,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
-        System.err.println("Processing all statements for good luck: " + registrar.size());
+        System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
+                + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {

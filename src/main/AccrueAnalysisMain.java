@@ -26,7 +26,7 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityInterProcedura
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
-import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
@@ -255,8 +255,8 @@ public class AccrueAnalysisMain {
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf, boolean isOnline) {
-        //        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
-        PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
+        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
+        //PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;
         StatementRegistrar registrar;
