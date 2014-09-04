@@ -82,25 +82,14 @@ public class PointsToGraph {
      */
     private final ConcurrentIntMap<MutableIntSet> pointsTo = new SimpleConcurrentIntMap<>();
 
-    /**
-     * Map from PointsToGraphNode to set of PointsToGraphNode
-     */
-    private final ConcurrentIntMap<MutableIntSet> isUnfilteredSubsetOf = new SimpleConcurrentIntMap<>();
-
-    /**
-     * Map from PointsToGraphNode to set of PointsToGraphNode
-     */
-    private final ConcurrentIntMap<MutableIntSet> isUnfilteredSupersetOf = new SimpleConcurrentIntMap<>();
+    private final IntRelation isUnfilteredSubsetOfReln = new IntRelation();
 
     /**
      * Map from PointsToGraphNode to map from PointsToGraphNode to TypeFilter
      */
     private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSubsetOf = new SimpleConcurrentIntMap<>();
 
-    /**
-     * Map from PointsToGraphNode to map from PointsToGraphNode to TypeFilter
-     */
-    private final ConcurrentIntMap<ConcurrentIntMap<Set<TypeFilter>>> isSupersetOf = new SimpleConcurrentIntMap<>();
+    private final AnnotatedIntRelation<TypeFilter> isFilterSubsetOfReln = new AnnotatedIntRelation<>();
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes
@@ -170,8 +159,9 @@ public class PointsToGraph {
     public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSuperSetsOf(int n) {
         n = this.getRepresentative(n);
 
-        IntSet unfilteredsupersets = this.isUnfilteredSubsetOf.get(n);
-        IntMap<Set<TypeFilter>> supersets = this.isSubsetOf.get(n);
+        IntSet unfilteredsupersets = this.isUnfilteredSubsetOfReln.forward(n);
+        //        IntMap<Set<TypeFilter>> supersets = this.isSubsetOf.get(n);
+        IntMap<Set<TypeFilter>> supersets = this.isFilterSubsetOfReln.forward(n);
         return new OrderedPair<>(unfilteredsupersets, supersets);
     }
 
@@ -232,30 +222,30 @@ public class PointsToGraph {
                              new Stack<Set<TypeFilter>>(),
                              toCollapse);
             // XXX maybe add later?
-            collapseCycles(toCollapse, delta);
+            //collapseCycles(toCollapse, delta);
         }
         return delta;
     }
 
-    private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
-        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
-        IntIterator iter = toCollapse.keyIterator();
-        while (iter.hasNext()) {
-            int rep = iter.next();
-            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
-            IntIterator collapseIter = toCollapse.get(rep).intIterator();
-            while (collapseIter.hasNext()) {
-                int n = collapseIter.next();
-                if (collapsed.contains(n)) {
-                    // we have already collapsed n with something. let's skip it.
-                    continue;
-                }
-                collapsed.add(n);
-                this.collapseNodes(n, rep);
-                delta.collapseNodes(n, rep);
-            }
-        }
-    }
+    //    private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
+    //        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
+    //        IntIterator iter = toCollapse.keyIterator();
+    //        while (iter.hasNext()) {
+    //            int rep = iter.next();
+    //            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
+    //            IntIterator collapseIter = toCollapse.get(rep).intIterator();
+    //            while (collapseIter.hasNext()) {
+    //                int n = collapseIter.next();
+    //                if (collapsed.contains(n)) {
+    //                    // we have already collapsed n with something. let's skip it.
+    //                    continue;
+    //                }
+    //                collapsed.add(n);
+    //                this.collapseNodes(n, rep);
+    //                delta.collapseNodes(n, rep);
+    //            }
+    //        }
+    //    }
 
     protected int lookupDictionary(PointsToGraphNode node) {
         Integer n = this.reverseGraphNodeDictionary.get(node);
@@ -287,14 +277,9 @@ public class PointsToGraph {
             return new GraphDelta(this);
         }
         // source is a subset of target, target is a superset of source.
-        MutableIntSet sourceSubset = this.getOrCreateUnfilteredSubsetSet(s);
 
         GraphDelta changed = new GraphDelta(this);
-        if (sourceSubset.add(t)) {
-            // make sure the superset relation stays consistent
-            MutableIntSet targetSuperset = this.getOrCreateUnfilteredSupersetSet(t);
-            targetSuperset.add(s);
-
+        if (isUnfilteredSubsetOfReln.add(s, t)) {
             computeDeltaForAddedSubsetRelation(changed, s, null, t);
         }
         return changed;
@@ -326,15 +311,9 @@ public class PointsToGraph {
             return new GraphDelta(this);
         }
 
-        IntMap<Set<TypeFilter>> sourceSubset = this.getOrCreateSubsetSet(s);
-
         GraphDelta changed = new GraphDelta(this);
-        if (!sourceSubset.containsKey(t) || !sourceSubset.get(t).contains(filter)) {
-            addFilter(sourceSubset, t, filter);
-            // make sure the superset relation stays consistent
-            IntMap<Set<TypeFilter>> targetSuperset = this.getOrCreateSupersetSet(t);
-            addFilter(targetSuperset, s, filter);
-
+        //isFilterSubsetOfReln.add(s, t, filter);//!@!
+        if (isFilterSubsetOfReln.add(s, t, filter)/*!sourceSubset.containsKey(t) || !sourceSubset.get(t).contains(filter)*/) {
             computeDeltaForAddedSubsetRelation(changed, s, filter, t);
         }
         return changed;
@@ -359,7 +338,7 @@ public class PointsToGraph {
                          new Stack<Set<TypeFilter>>(),
                          toCollapse);
         // XXX maybe add later?
-        collapseCycles(toCollapse, changed);
+        //collapseCycles(toCollapse, changed);
 
     }
 
@@ -444,17 +423,6 @@ public class PointsToGraph {
         filterStack.push(filters);
         addToSetAndSupersets(changed, target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
         filterStack.pop();
-    }
-
-    private static void addFilter(IntMap<Set<TypeFilter>> supersets, /*PointsToGraphNode*/int n, TypeFilter filter) {
-        if (supersets.containsKey(n)) {
-            supersets.get(n).add(filter);
-        }
-        else {
-            Set<TypeFilter> set = PointsToAnalysisMultiThreaded.makeConcurrentSet();
-            set.add(filter);
-            supersets.put(n, set);
-        }
     }
 
     private static void addFilters(IntMap<Set<TypeFilter>> supersets, /*PointsToGraphNode*/int n,
@@ -561,26 +529,6 @@ public class PointsToGraph {
             // The context is new
             depRecorder.recordNewContext(callee, calleeContext);
         }
-    }
-
-    private ConcurrentIntMap<Set<TypeFilter>> getOrCreateSubsetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representative.containsKey(node);
-        return getOrCreateIntMap(node, this.isSubsetOf);
-    }
-
-    private IntMap<Set<TypeFilter>> getOrCreateSupersetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representative.containsKey(node);
-        return getOrCreateIntMap(node, this.isSupersetOf);
-    }
-
-    private MutableIntSet getOrCreateUnfilteredSubsetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representative.containsKey(node);
-        return getOrCreateIntSet(node, this.isUnfilteredSubsetOf);
-    }
-
-    private MutableIntSet getOrCreateUnfilteredSupersetSet(/*PointsToGraphNode*/int node) {
-        assert !this.representative.containsKey(node);
-        return getOrCreateIntSet(node, this.isUnfilteredSupersetOf);
     }
 
     private Set<Context> getOrCreateContextSet(IMethod callee) {
@@ -797,103 +745,103 @@ public class PointsToGraph {
      * @param n
      * @param rep
      */
-    void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
-        assert n != rep : "Can't collapse a node with itself";
-        // it is possible that since n and rep were registered, one or both of them were already merged.
-        n = this.getRepresentative(n);
-        rep = this.getRepresentative(rep);
-
-        if (n == rep) {
-            // they have already been merged.
-            return;
-        }
-
-        // update the points to sets.
-        this.pointsTo.remove(n);
-
-        // Notify the dependency recorder
-        depRecorder.startCollapseNode(n, rep);
-
-        // update the subset and superset graphs.
-        IntSet unfilteredSubsetOf = this.isUnfilteredSubsetOf.remove(n);
-        IntSet unfilteredSupersetOf = this.isUnfilteredSupersetOf.remove(n);
-
-        MutableIntSet repUnfilteredSubsetOf = this.getOrCreateUnfilteredSubsetSet(rep);
-        MutableIntSet repUnfilteredSupersetOf = this.getOrCreateUnfilteredSupersetSet(rep);
-
-        if (unfilteredSubsetOf != null) {
-            IntIterator iter = unfilteredSubsetOf.intIterator();
-            while (iter.hasNext()) {
-                int x = iter.next();
-                // n is an unfiltered subset of x, so n is in the isUnfilteredSupersets of x
-                MutableIntSet s = this.isUnfilteredSupersetOf.get(x);
-                if (x != rep) {
-                    s.add(rep);
-                    // add x to the representative's...
-                    repUnfilteredSubsetOf.add(x);
-                }
-                s.remove(n);
-            }
-        }
-
-        if (unfilteredSupersetOf != null) {
-            IntIterator iter = unfilteredSupersetOf.intIterator();
-            while (iter.hasNext()) {
-                int x = iter.next();
-                // n is an unfiltered superset of x, so n is in the isUnfilteredSubsets of x
-                MutableIntSet s = this.isUnfilteredSubsetOf.get(x);
-                if (x != rep) {
-                    s.add(rep);
-                    // add x to the representative's...
-                    repUnfilteredSupersetOf.add(x);
-                }
-                s.remove(n);
-            }
-        }
-
-        IntMap<Set<TypeFilter>> filteredSubsetOf = this.isSubsetOf.remove(n);
-        IntMap<Set<TypeFilter>> filteredSupersetOf = this.isSupersetOf.remove(n);
-
-        IntMap<Set<TypeFilter>> repFilteredSubsetOf = this.getOrCreateSubsetSet(rep);
-        IntMap<Set<TypeFilter>> repFilteredSupersetOf = this.getOrCreateSupersetSet(rep);
-
-        if (filteredSubsetOf != null) {
-            IntIterator iter = filteredSubsetOf.keyIterator();
-            while (iter.hasNext()) {
-                int m = iter.next();
-                Set<TypeFilter> filters = filteredSubsetOf.get(m);
-                // n is a filtered subset of m, so n is in the isSupersets of m
-                IntMap<Set<TypeFilter>> s = this.isSupersetOf.get(m);
-                if (m != rep) {
-                    assert !s.containsKey(rep);
-                    addFilters(s, rep, filters);
-                    // add x to the representative's...
-                    addFilters(repFilteredSubsetOf, m, filters);
-                }
-                s.remove(n);
-            }
-        }
-
-        if (filteredSupersetOf != null) {
-            IntIterator iter = filteredSupersetOf.keyIterator();
-            while (iter.hasNext()) {
-                int m = iter.next();
-                Set<TypeFilter> filters = filteredSupersetOf.get(m);
-                // n is a filtered superset of m, so n is in the isSubsets of m
-                IntMap<Set<TypeFilter>> s = this.isSubsetOf.get(m);
-                if (m != rep) {
-                    addFilters(s, rep, filters);
-                    // add x to the representative's...
-                    addFilters(repFilteredSupersetOf, m, filters);
-                }
-                s.remove(n);
-            }
-        }
-
-        this.representative.put(n, rep);
-        depRecorder.finishCollapseNode(n, rep);
-
-    }
+    //    void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
+    //        assert n != rep : "Can't collapse a node with itself";
+    //        // it is possible that since n and rep were registered, one or both of them were already merged.
+    //        n = this.getRepresentative(n);
+    //        rep = this.getRepresentative(rep);
+    //
+    //        if (n == rep) {
+    //            // they have already been merged.
+    //            return;
+    //        }
+    //
+    //        // update the points to sets.
+    //        this.pointsTo.remove(n);
+    //
+    //        // Notify the dependency recorder
+    //        depRecorder.startCollapseNode(n, rep);
+    //
+    //        // update the subset and superset graphs.
+    //        IntSet unfilteredSubsetOf = this.isUnfilteredSubsetOf.remove(n);
+    //        //        IntSet unfilteredSupersetOf = this.isUnfilteredSupersetOf.remove(n);
+    //
+    //        MutableIntSet repUnfilteredSubsetOf = this.getOrCreateUnfilteredSubsetSet(rep);
+    //        //        MutableIntSet repUnfilteredSupersetOf = this.getOrCreateUnfilteredSupersetSet(rep);
+    //
+    //        if (unfilteredSubsetOf != null) {
+    //            IntIterator iter = unfilteredSubsetOf.intIterator();
+    //            while (iter.hasNext()) {
+    //                int x = iter.next();
+    //                // n is an unfiltered subset of x, so n is in the isUnfilteredSupersets of x
+    //                MutableIntSet s = this.isUnfilteredSupersetOf.get(x);
+    //                if (x != rep) {
+    //                    s.add(rep);
+    //                    // add x to the representative's...
+    //                    repUnfilteredSubsetOf.add(x);
+    //                }
+    //                s.remove(n);
+    //            }
+    //        }
+    //
+    //        if (unfilteredSupersetOf != null) {
+    //            IntIterator iter = unfilteredSupersetOf.intIterator();
+    //            while (iter.hasNext()) {
+    //                int x = iter.next();
+    //                // n is an unfiltered superset of x, so n is in the isUnfilteredSubsets of x
+    //                MutableIntSet s = this.isUnfilteredSubsetOf.get(x);
+    //                if (x != rep) {
+    //                    s.add(rep);
+    //                    // add x to the representative's...
+    //                    repUnfilteredSupersetOf.add(x);
+    //                }
+    //                s.remove(n);
+    //            }
+    //        }
+    //
+    //        IntMap<Set<TypeFilter>> filteredSubsetOf = this.isSubsetOf.remove(n);
+    //        IntMap<Set<TypeFilter>> filteredSupersetOf = this.isSupersetOf.remove(n);
+    //
+    //        IntMap<Set<TypeFilter>> repFilteredSubsetOf = this.getOrCreateSubsetSet(rep);
+    //        IntMap<Set<TypeFilter>> repFilteredSupersetOf = this.getOrCreateSupersetSet(rep);
+    //
+    //        if (filteredSubsetOf != null) {
+    //            IntIterator iter = filteredSubsetOf.keyIterator();
+    //            while (iter.hasNext()) {
+    //                int m = iter.next();
+    //                Set<TypeFilter> filters = filteredSubsetOf.get(m);
+    //                // n is a filtered subset of m, so n is in the isSupersets of m
+    //                IntMap<Set<TypeFilter>> s = this.isSupersetOf.get(m);
+    //                if (m != rep) {
+    //                    assert !s.containsKey(rep);
+    //                    addFilters(s, rep, filters);
+    //                    // add x to the representative's...
+    //                    addFilters(repFilteredSubsetOf, m, filters);
+    //                }
+    //                s.remove(n);
+    //            }
+    //        }
+    //
+    //        if (filteredSupersetOf != null) {
+    //            IntIterator iter = filteredSupersetOf.keyIterator();
+    //            while (iter.hasNext()) {
+    //                int m = iter.next();
+    //                Set<TypeFilter> filters = filteredSupersetOf.get(m);
+    //                // n is a filtered superset of m, so n is in the isSubsets of m
+    //                IntMap<Set<TypeFilter>> s = this.isSubsetOf.get(m);
+    //                if (m != rep) {
+    //                    addFilters(s, rep, filters);
+    //                    // add x to the representative's...
+    //                    addFilters(repFilteredSupersetOf, m, filters);
+    //                }
+    //                s.remove(n);
+    //            }
+    //        }
+    //
+    //        this.representative.put(n, rep);
+    //        depRecorder.finishCollapseNode(n, rep);
+    //
+    //    }
 
     public void setOutputLevel(int outputLevel) {
         this.outputLevel = outputLevel;
@@ -1385,33 +1333,34 @@ public class PointsToGraph {
         return this.representative.size();
     }
 
-    public void findCycles() {
-        IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
-
-        MutableIntSet visited = MutableSparseIntSet.makeEmpty();
-        IntIterator iter = this.isUnfilteredSupersetOf.keyIterator();
-        while (iter.hasNext()) {
-            int n = iter.next();
-            this.findCycles(n, visited, MutableSparseIntSet.makeEmpty(), new IntStack(), toCollapse);
-        }
-        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
-        IntIterator repIter = toCollapse.keyIterator();
-        while (repIter.hasNext()) {
-            int rep = repIter.next();
-            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
-            IntIterator nIter = toCollapse.get(rep).intIterator();
-            while (nIter.hasNext()) {
-                int n = nIter.next();
-                if (collapsed.contains(n)) {
-                    // we have already collapsed n with something. let's skip it.
-                    continue;
-                }
-                collapsed.add(n);
-                this.collapseNodes(n, rep);
-            }
-        }
-
-    }
+    //    public void findCycles() {
+    //        IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
+    //
+    //        MutableIntSet visited = MutableSparseIntSet.makeEmpty();
+    //        //IntIterator iter = this.isUnfilteredSupersetOf.keyIterator();
+    //        IntIterator iter = this.isUnfilteredSubsetOf.keyIterator();
+    //        while (iter.hasNext()) {
+    //            int n = iter.next();
+    //            this.findCycles(n, visited, MutableSparseIntSet.makeEmpty(), new IntStack(), toCollapse);
+    //        }
+    //        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
+    //        IntIterator repIter = toCollapse.keyIterator();
+    //        while (repIter.hasNext()) {
+    //            int rep = repIter.next();
+    //            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
+    //            IntIterator nIter = toCollapse.get(rep).intIterator();
+    //            while (nIter.hasNext()) {
+    //                int n = nIter.next();
+    //                if (collapsed.contains(n)) {
+    //                    // we have already collapsed n with something. let's skip it.
+    //                    continue;
+    //                }
+    //                collapsed.add(n);
+    //                this.collapseNodes(n, rep);
+    //            }
+    //        }
+    //
+    //    }
 
     private void findCycles(/*PointsToGraphNode*/int n, MutableIntSet visited, MutableIntSet currentlyVisiting,
                             IntStack currentlyVisitingStack, IntMap<MutableIntSet> toCollapse) {
@@ -1445,7 +1394,7 @@ public class PointsToGraph {
         // now recurse.
         currentlyVisiting.add(n);
         currentlyVisitingStack.push(n);
-        IntSet children = this.isUnfilteredSupersetOf.get(n);
+        IntSet children = this.isUnfilteredSubsetOfReln.forward(n);
         if (children == null) {
             children = EmptyIntSet.instance;
         }
