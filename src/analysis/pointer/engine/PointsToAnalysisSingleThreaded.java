@@ -24,6 +24,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
@@ -177,6 +178,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     noDeltaQueue.add(sac);
                 }
             }
+        }
+
+        if (registerOnline) {
+            StatementListener stmtListener = new StatementListener() {
+
+                @Override
+                public void newStatement(PointsToStatement stmt) {
+                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
+                        // it's a new special instruction. Let's make sure it gets evaluated.
+                        noDeltaQueue.add(new StmtAndContext(stmt, haf.initialContext()));
+                    }
+
+                }
+
+            };
+            registrar.setStatementListener(stmtListener);
         }
 
         this.lastTime = this.startTime;

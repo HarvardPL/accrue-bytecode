@@ -24,6 +24,7 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.LocalToFieldStatement;
+import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
 
@@ -81,7 +82,7 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for each type of throwable. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for throwables.
      */
-    public static final boolean USE_SINGLE_ALLOC_PER_THROWABLE_TYPE = false;
+    public static final boolean USE_SINGLE_ALLOC_PER_THROWABLE_TYPE = true;
 
     /**
      * If true then only one allocation will be made for any kind of primitive array. Reduces precision, but improves
@@ -153,6 +154,11 @@ public class StatementRegistrar {
     }
 
     private static final Set<IMethod> duplicatesRemoved = new HashSet<>();
+
+    /**
+     * A listener that will get notified of newly created statements.
+     */
+    private StatementListener stmtListener = null;
 
     private static int removed = 0;
 
@@ -581,11 +587,7 @@ public class StatementRegistrar {
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
-            this.addStatement(stmtFactory.localToLocal(a,
-                                                       getOrCreateSingleton(resultType,
-                                                                            ir.getMethod()),
-                                                       ir.getMethod(),
-                                                       false));
+            this.addStatement(stmtFactory.localToLocal(a, getOrCreateSingleton(resultType), ir.getMethod(), false));
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
@@ -630,23 +632,17 @@ public class StatementRegistrar {
         if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE
                 && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
-            this.addStatement(stmtFactory.localToLocal(result,
-                                                       getOrCreateSingleton(allocType, ir.getMethod()),
-                                                       ir.getMethod(),
-                                                       false));
+            this.addStatement(stmtFactory.localToLocal(result, getOrCreateSingleton(allocType), ir.getMethod(), false));
 
         }
         else if (USE_SINGLE_ALLOC_FOR_STRINGS && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
-            this.addStatement(stmtFactory.localToLocal(result,
-                                                       getOrCreateSingleton(allocType, ir.getMethod()),
-                                                       ir.getMethod(),
-                                                       false));
+            this.addStatement(stmtFactory.localToLocal(result, getOrCreateSingleton(allocType), ir.getMethod(), false));
 
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
-                                                                                        .getProgramCounter()));
+                                                                                            .getProgramCounter()));
         }
     }
 
@@ -797,7 +793,6 @@ public class StatementRegistrar {
      * @param s statement to add
      */
     protected void addStatement(PointsToStatement s) {
-
         IMethod m = s.getMethod();
         Set<PointsToStatement> ss = this.statementsForMethod.get(m);
         if (ss == null) {
@@ -809,6 +804,10 @@ public class StatementRegistrar {
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         ss.add(s);
+        if (stmtListener != null) {
+            // let the listener now a statement has been added.
+            stmtListener.newStatement(s);
+        }
 
         int num = this.size();
         if (num % 10000 == 0) {
@@ -916,7 +915,7 @@ public class StatementRegistrar {
             // v = string
             this.addStatement(stmtFactory.localToLocal(stringLit,
                                                        getOrCreateSingleton(AnalysisUtil.getStringClass()
-                                                                                        .getReference(), m),
+                                                                                        .getReference()),
                                                        m,
                                                        false));
         }
@@ -949,7 +948,7 @@ public class StatementRegistrar {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE || USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS) {
-                ex = getOrCreateSingleton(exType, ir.getMethod());
+                ex = getOrCreateSingleton(exType);
             }
             else {
                 ex = rvFactory.createImplicitExceptionNode(exType, bb.getNumber(), ir.getMethod());
@@ -966,7 +965,7 @@ public class StatementRegistrar {
     /**
      * get or create a singleton reference variable based on the type.
      */
-    private ReferenceVariable getOrCreateSingleton(TypeReference exType, IMethod m) {
+    private ReferenceVariable getOrCreateSingleton(TypeReference exType) {
         ReferenceVariable ex = this.singletonExceptions.get(exType);
         if (ex == null) {
             ex = rvFactory.createSingletonReferenceVariable(exType);
@@ -978,10 +977,9 @@ public class StatementRegistrar {
             IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
-            // IDEALLY, WE SHOULDN'T USE m. This will likely cause bugs for off-line registration.
-            // TODO: refactor code to allow the new statement to be associated with the FakeRootMethod,
-            // yet still work in either online or offline registration mode.
-            this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, m));
+            // We present that the allocation for this object occurs in the entry point.
+            NewStatement stmt = stmtFactory.newForGeneratedException(ex, exClass, this.entryPoint);
+            this.addStatement(stmt);
 
         }
         return ex;
@@ -1201,4 +1199,22 @@ public class StatementRegistrar {
             return this.instruction.equals(other.instruction);
         }
     }
+
+    public interface StatementListener {
+        /**
+         * Called when a new statement is added to the registrar.
+         *
+         * @param stmt
+         */
+        void newStatement(PointsToStatement stmt);
+    }
+
+    public void setStatementListener(StatementListener stmtListener) {
+        this.stmtListener = stmtListener;
+    }
+
+    public IMethod getEntryPoint() {
+        return this.entryPoint;
+    }
+
 }
