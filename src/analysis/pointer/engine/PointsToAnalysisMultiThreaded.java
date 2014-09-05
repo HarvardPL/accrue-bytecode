@@ -151,6 +151,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         long totalTime = endTime - startTime;
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000 + "s.");
+        System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
         System.err.println("\n\n");
