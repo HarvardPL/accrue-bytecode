@@ -68,6 +68,12 @@ public class StatementRegistrar {
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
+
+    /**
+     * The total number of statements
+     */
+    private int size;
+
     /**
      * String literals that new allocation sites have already been created for
      */
@@ -139,6 +145,7 @@ public class StatementRegistrar {
             // Don't need to register abstract methods
             return;
         }
+
         if (this.registeredMethods.add(m)) {
             // we need to register the method.
 
@@ -164,10 +171,13 @@ public class StatementRegistrar {
 
             // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
-            int startSize = oldStatements.size();
+            int oldSize = oldStatements.size();
             Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            removed += startSize - newStatements.size();
-            this.replaceStatementsForMethod(m, newStatements);
+            int newSize = newStatements.size();
+
+            removed += (oldSize - newSize);
+            this.statementsForMethod.put(m, newStatements);
+            this.size += (newSize - oldSize);
 
 
             if (PointsToAnalysis.outputLevel >= 1) {
@@ -196,76 +206,14 @@ public class StatementRegistrar {
     private static int removed = 0;
 
     /**
-     * Get points-to statements for the given method if this method has not already been processed. (Does not
-     * recursively get statements for callees.)
-     * 
-     * @param m method to get instructions for
-     * @return set of new instructions, empty if the method is abstract, or has already been processed
-     */
-    Set<InstructionInfo> getFromMethodXXX(IMethod m) {
-
-        if (this.registeredMethods.contains(m)) {
-            if (PointsToAnalysis.outputLevel >= 2) {
-                System.err.println("\tAlready added " + PrettyPrinter.methodString(m));
-            }
-            return Collections.emptySet();
-        }
-        if (m.isAbstract()) {
-            if (PointsToAnalysis.outputLevel >= 2) {
-                System.err.println("No need to analyze abstract methods: " + m.getSignature());
-            }
-            return Collections.emptySet();
-        }
-
-        IR ir = AnalysisUtil.getIR(m);
-        if (ir == null) {
-            // Native method with no signature
-            assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-            this.registerNative(m, this.rvFactory);
-            return Collections.emptySet();
-        }
-        this.registeredMethods.add(m);
-
-        TypeRepository types = new TypeRepository(ir);
-        PrettyPrinter pp = new PrettyPrinter(ir);
-
-        // Add edges from formal summary nodes to the local variables representing the method parameters
-        this.registerFormalAssignments(ir, this.rvFactory, pp);
-
-        Set<InstructionInfo> newInstructions = new LinkedHashSet<>();
-        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-            for (SSAInstruction ins : bb) {
-                newInstructions.add(new InstructionInfo(ins, ir, bb, types, pp));
-            }
-        }
-
-        if (PointsToAnalysis.outputLevel >= 1) {
-            System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
-            CFGWriter.writeToFile(ir);
-            System.err.println();
-        }
-
-        if (PointsToAnalysis.outputLevel >= 6) {
-            try (Writer writer = new StringWriter()) {
-                PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-                System.err.print(writer.toString());
-            }
-            catch (IOException e) {
-                throw new RuntimeException();
-            }
-        }
-        return newInstructions;
-    }
-
-    /**
      * Handle a particular instruction, this dispatches on the type of the instruction
-     * 
+     *
      * @param pp
      * @param types2
      * @param bb2
      * @param ir2
      * @param ins
-     * 
+     *
      * @param info information about the instruction to handle
      */
     protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types,
@@ -837,15 +785,17 @@ public class StatementRegistrar {
             }
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
-        ss.add(s);
+        if (ss.add(s)) {
+            this.size++;
+        }
         if (stmtListener != null) {
             // let the listener now a statement has been added.
             stmtListener.newStatement(s);
         }
 
-        int num = this.size();
-        if (num % 10000 == 0) {
-            System.err.println("REGISTERED: " + num + ", removed: " + removed);
+        if ((this.size + this.removed) % 10000 == 0) {
+            System.err.println("REGISTERED: " + (this.size + this.removed) + ", removed: " + this.removed
+                    + " effective: " + this.size);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
@@ -867,6 +817,7 @@ public class StatementRegistrar {
         for (IMethod m : this.statementsForMethod.keySet()) {
             total += this.statementsForMethod.get(m).size();
         }
+        this.size = total;
         return total;
     }
 
@@ -883,16 +834,6 @@ public class StatementRegistrar {
 
         }
         return Collections.emptySet();
-    }
-
-    /**
-     * Imperatively update the registrar, replacing the existing set of points-to statements with the given set.
-     *
-     * @param m method to replace the statements for
-     * @param ss new set of points-to statements
-     */
-    public void replaceStatementsForMethod(IMethod m, Set<PointsToStatement> ss) {
-        this.statementsForMethod.put(m, ss);
     }
 
     /**
@@ -1110,10 +1051,6 @@ public class StatementRegistrar {
     }
 
     private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
-        if (!this.registeredMethods.add(m)) {
-            // Already handled
-            return;
-        }
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m, rvFactory);
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
