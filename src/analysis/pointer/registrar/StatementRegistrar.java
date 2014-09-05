@@ -140,10 +140,10 @@ public class StatementRegistrar {
      *
      * @param m method to register points-to statements for
      */
-    public synchronized void registerMethod(IMethod m) {
+    public synchronized boolean registerMethod(IMethod m) {
         if (m.isAbstract()) {
             // Don't need to register abstract methods
-            return;
+            return false;
         }
 
         if (this.registeredMethods.add(m)) {
@@ -154,7 +154,7 @@ public class StatementRegistrar {
                 // Native method with no signature
                 assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
                 this.registerNative(m, this.rvFactory);
-                return;
+                return true;
             }
 
             TypeRepository types = new TypeRepository(ir);
@@ -195,7 +195,9 @@ public class StatementRegistrar {
                     throw new RuntimeException();
                 }
             }
+            return true;
         }
+        return false;
 
     }
     /**
@@ -475,7 +477,7 @@ public class StatementRegistrar {
         // //////////// Receiver ////////////
 
         // Get the receiver if it is not a static call
-        // TODO the second condition is used because sometimes the receiver is a null constant
+        // the second condition is used because sometimes the receiver is a null constant
         // This is usually due to something like <code>o = null; if (o != null) { o.foo(); }</code>,
         // note that the o.foo() is dead code
         // see SocketAdapter$SocketInputStream.read(ByteBuffer), the call to sk.cancel() near the end
@@ -793,8 +795,9 @@ public class StatementRegistrar {
             stmtListener.newStatement(s);
         }
 
-        if ((this.size + this.removed) % 10000 == 0) {
-            System.err.println("REGISTERED: " + (this.size + this.removed) + ", removed: " + this.removed
+        if ((this.size + StatementRegistrar.removed) % 10000 == 0) {
+            System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removed) + ", removed: "
+                    + StatementRegistrar.removed
                     + " effective: " + this.size);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
