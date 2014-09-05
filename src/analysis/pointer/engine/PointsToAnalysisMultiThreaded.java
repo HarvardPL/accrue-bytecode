@@ -17,6 +17,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -35,8 +36,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = new SimpleConcurrentIntMap<>();
 
     int numThreads() {
-        return 1;
-        //return Runtime.getRuntime().availableProcessors();
+        //return 1;
+        return Runtime.getRuntime().availableProcessors();
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
@@ -107,7 +108,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         };
 
-
         PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder);
         execService.setGraphAndRegistrar(g, registrar);
 
@@ -120,6 +120,23 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 }
             }
         }
+
+        if (registerOnline) {
+            StatementListener stmtListener = new StatementListener() {
+
+                @Override
+                public void newStatement(PointsToStatement stmt) {
+                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
+                        // it's a new special instruction. Let's make sure it gets evaluated.
+                        execService.submitTask(new StmtAndContext(stmt, haf.initialContext()));
+                    }
+
+                }
+
+            };
+            registrar.setStatementListener(stmtListener);
+        }
+
 
         // start up...
 
@@ -140,6 +157,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         // check that nothing went wrong, and that we have indeed reached a fixed point.
         this.processAllStatements(g, registrar);
+        g.constructionFinished();
         return g;
     }
 
@@ -290,7 +308,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
-        System.err.println("Processing all statements for good luck: " + registrar.size());
+        System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
+                + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {

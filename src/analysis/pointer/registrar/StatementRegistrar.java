@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -24,6 +23,7 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.LocalToFieldStatement;
+import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
 
@@ -68,6 +68,12 @@ public class StatementRegistrar {
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
+
+    /**
+     * The total number of statements
+     */
+    private int size;
+
     /**
      * String literals that new allocation sites have already been created for
      */
@@ -104,7 +110,7 @@ public class StatementRegistrar {
     /**
      * Methods we have already added statements for
      */
-    private final Set<IMethod> visitedMethods = AnalysisUtil.createConcurrentSet();
+    private final Set<IMethod> registeredMethods = AnalysisUtil.createConcurrentSet();
     /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
@@ -135,101 +141,83 @@ public class StatementRegistrar {
      * @param m method to register points-to statements for
      */
     public synchronized void registerMethod(IMethod m) {
-        Set<InstructionInfo> instructions = this.getFromMethod(m);
-        for (InstructionInfo info : instructions) {
-            this.handle(info);
+        if (m.isAbstract()) {
+            // Don't need to register abstract methods
+            return;
         }
-        if (!instructions.isEmpty()) {
-            if (!duplicatesRemoved.add(m)) {
-                throw new RuntimeException("Processing the same method twice " + PrettyPrinter.methodString(m));
+
+        if (this.registeredMethods.add(m)) {
+            // we need to register the method.
+
+            IR ir = AnalysisUtil.getIR(m);
+            if (ir == null) {
+                // Native method with no signature
+                assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
+                this.registerNative(m, this.rvFactory);
+                return;
             }
 
-            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
-            int startSize = oldStatements.size();
-            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            removed += startSize - newStatements.size();
-            this.replaceStatementsForMethod(m, newStatements);
-        }
-    }
+            TypeRepository types = new TypeRepository(ir);
+            PrettyPrinter pp = new PrettyPrinter(ir);
 
-    private static final Set<IMethod> duplicatesRemoved = new HashSet<>();
+            // Add edges from formal summary nodes to the local variables representing the method parameters
+            this.registerFormalAssignments(ir, this.rvFactory, pp);
+
+            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                for (SSAInstruction ins : bb) {
+                    handleInstruction(ins, ir, bb, types, pp);
+                }
+            }
+
+            // now try to remove duplicates
+            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
+            int oldSize = oldStatements.size();
+            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            int newSize = newStatements.size();
+
+            removed += (oldSize - newSize);
+            this.statementsForMethod.put(m, newStatements);
+            this.size += (newSize - oldSize);
+
+
+            if (PointsToAnalysis.outputLevel >= 1) {
+                System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
+                CFGWriter.writeToFile(ir);
+                System.err.println();
+            }
+
+            if (PointsToAnalysis.outputLevel >= 6) {
+                try (Writer writer = new StringWriter()) {
+                    PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+                    System.err.print(writer.toString());
+                }
+                catch (IOException e) {
+                    throw new RuntimeException();
+                }
+            }
+        }
+
+    }
+    /**
+     * A listener that will get notified of newly created statements.
+     */
+    private StatementListener stmtListener = null;
 
     private static int removed = 0;
 
     /**
-     * Get points-to statements for the given method if this method has not already been processed. (Does not
-     * recursively get statements for callees.)
-     *
-     * @param m method to get instructions for
-     * @return set of new instructions, empty if the method is abstract, or has already been processed
-     */
-    Set<InstructionInfo> getFromMethod(IMethod m) {
-
-        if (this.visitedMethods.contains(m)) {
-            if (PointsToAnalysis.outputLevel >= 2) {
-                System.err.println("\tAlready added " + PrettyPrinter.methodString(m));
-            }
-            return Collections.emptySet();
-        }
-        if (m.isAbstract()) {
-            if (PointsToAnalysis.outputLevel >= 2) {
-                System.err.println("No need to analyze abstract methods: " + m.getSignature());
-            }
-            return Collections.emptySet();
-        }
-
-        IR ir = AnalysisUtil.getIR(m);
-        if (ir == null) {
-            // Native method with no signature
-            assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-            this.registerNative(m, this.rvFactory);
-            return Collections.emptySet();
-        }
-        this.visitedMethods.add(m);
-
-        TypeRepository types = new TypeRepository(ir);
-        PrettyPrinter pp = new PrettyPrinter(ir);
-
-        // Add edges from formal summary nodes to the local variables representing the method parameters
-        this.registerFormalAssignments(ir, this.rvFactory, pp);
-
-        Set<InstructionInfo> newInstructions = new LinkedHashSet<>();
-        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-            for (SSAInstruction ins : bb) {
-                newInstructions.add(new InstructionInfo(ins, ir, bb, types, pp));
-            }
-        }
-
-        if (PointsToAnalysis.outputLevel >= 1) {
-            System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
-            CFGWriter.writeToFile(ir);
-            System.err.println();
-        }
-
-        if (PointsToAnalysis.outputLevel >= 6) {
-            try (Writer writer = new StringWriter()) {
-                PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-                System.err.print(writer.toString());
-            }
-            catch (IOException e) {
-                throw new RuntimeException();
-            }
-        }
-        return newInstructions;
-    }
-
-    /**
      * Handle a particular instruction, this dispatches on the type of the instruction
+     *
+     * @param pp
+     * @param types2
+     * @param bb2
+     * @param ir2
+     * @param ins
      *
      * @param info information about the instruction to handle
      */
-    protected void handle(InstructionInfo info) {
-        SSAInstruction i = info.instruction;
-        IR ir = info.ir;
-        ISSABasicBlock bb = info.basicBlock;
-        TypeRepository types = info.typeRepository;
-        PrettyPrinter printer = info.prettyPrinter;
-
+    protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types,
+                                     PrettyPrinter printer) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         // Add statements for any string literals in the instruction
@@ -238,7 +226,7 @@ public class StatementRegistrar {
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
         this.findAndRegisterGeneratedExceptions(i, bb, ir, this.rvFactory, types, printer);
 
-        List<IMethod> inits = ClassInitFinder.getClassInitializers(info.instruction);
+        List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
         if (!inits.isEmpty()) {
             this.registerClassInitializers(i, ir, inits);
         }
@@ -581,11 +569,7 @@ public class StatementRegistrar {
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
-            this.addStatement(stmtFactory.localToLocal(a,
-                                                       getOrCreateSingleton(resultType,
-                                                                            ir.getMethod()),
-                                                       ir.getMethod(),
-                                                       false));
+            this.addStatement(stmtFactory.localToLocal(a, getOrCreateSingleton(resultType), ir.getMethod(), false));
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
@@ -630,23 +614,17 @@ public class StatementRegistrar {
         if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE
                 && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
-            this.addStatement(stmtFactory.localToLocal(result,
-                                                       getOrCreateSingleton(allocType, ir.getMethod()),
-                                                       ir.getMethod(),
-                                                       false));
+            this.addStatement(stmtFactory.localToLocal(result, getOrCreateSingleton(allocType), ir.getMethod(), false));
 
         }
         else if (USE_SINGLE_ALLOC_FOR_STRINGS && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
-            this.addStatement(stmtFactory.localToLocal(result,
-                                                       getOrCreateSingleton(allocType, ir.getMethod()),
-                                                       ir.getMethod(),
-                                                       false));
+            this.addStatement(stmtFactory.localToLocal(result, getOrCreateSingleton(allocType), ir.getMethod(), false));
 
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
-                                                                                        .getProgramCounter()));
+                                                                                            .getProgramCounter()));
         }
     }
 
@@ -797,7 +775,6 @@ public class StatementRegistrar {
      * @param s statement to add
      */
     protected void addStatement(PointsToStatement s) {
-
         IMethod m = s.getMethod();
         Set<PointsToStatement> ss = this.statementsForMethod.get(m);
         if (ss == null) {
@@ -808,11 +785,17 @@ public class StatementRegistrar {
             }
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
-        ss.add(s);
+        if (ss.add(s)) {
+            this.size++;
+        }
+        if (stmtListener != null) {
+            // let the listener now a statement has been added.
+            stmtListener.newStatement(s);
+        }
 
-        int num = this.size();
-        if (num % 10000 == 0) {
-            System.err.println("REGISTERED: " + num + ", removed: " + removed);
+        if ((this.size + this.removed) % 10000 == 0) {
+            System.err.println("REGISTERED: " + (this.size + this.removed) + ", removed: " + this.removed
+                    + " effective: " + this.size);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
@@ -834,6 +817,7 @@ public class StatementRegistrar {
         for (IMethod m : this.statementsForMethod.keySet()) {
             total += this.statementsForMethod.get(m).size();
         }
+        this.size = total;
         return total;
     }
 
@@ -850,16 +834,6 @@ public class StatementRegistrar {
 
         }
         return Collections.emptySet();
-    }
-
-    /**
-     * Imperatively update the registrar, replacing the existing set of points-to statements with the given set.
-     *
-     * @param m method to replace the statements for
-     * @param ss new set of points-to statements
-     */
-    public void replaceStatementsForMethod(IMethod m, Set<PointsToStatement> ss) {
-        this.statementsForMethod.put(m, ss);
     }
 
     /**
@@ -916,7 +890,7 @@ public class StatementRegistrar {
             // v = string
             this.addStatement(stmtFactory.localToLocal(stringLit,
                                                        getOrCreateSingleton(AnalysisUtil.getStringClass()
-                                                                                        .getReference(), m),
+                                                                                        .getReference()),
                                                        m,
                                                        false));
         }
@@ -949,7 +923,7 @@ public class StatementRegistrar {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE || USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS) {
-                ex = getOrCreateSingleton(exType, ir.getMethod());
+                ex = getOrCreateSingleton(exType);
             }
             else {
                 ex = rvFactory.createImplicitExceptionNode(exType, bb.getNumber(), ir.getMethod());
@@ -966,7 +940,7 @@ public class StatementRegistrar {
     /**
      * get or create a singleton reference variable based on the type.
      */
-    private ReferenceVariable getOrCreateSingleton(TypeReference exType, IMethod m) {
+    private ReferenceVariable getOrCreateSingleton(TypeReference exType) {
         ReferenceVariable ex = this.singletonExceptions.get(exType);
         if (ex == null) {
             ex = rvFactory.createSingletonReferenceVariable(exType);
@@ -978,10 +952,9 @@ public class StatementRegistrar {
             IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
             assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
-            // IDEALLY, WE SHOULDN'T USE m. This will likely cause bugs for off-line registration.
-            // TODO: refactor code to allow the new statement to be associated with the FakeRootMethod,
-            // yet still work in either online or offline registration mode.
-            this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, m));
+            // We present that the allocation for this object occurs in the entry point.
+            NewStatement stmt = stmtFactory.newForGeneratedException(ex, exClass, this.entryPoint);
+            this.addStatement(stmt);
 
         }
         return ex;
@@ -1078,10 +1051,6 @@ public class StatementRegistrar {
     }
 
     private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
-        if (!this.visitedMethods.add(m)) {
-            // Already handled
-            return;
-        }
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m, rvFactory);
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
@@ -1201,4 +1170,22 @@ public class StatementRegistrar {
             return this.instruction.equals(other.instruction);
         }
     }
+
+    public interface StatementListener {
+        /**
+         * Called when a new statement is added to the registrar.
+         *
+         * @param stmt
+         */
+        void newStatement(PointsToStatement stmt);
+    }
+
+    public void setStatementListener(StatementListener stmtListener) {
+        this.stmtListener = stmtListener;
+    }
+
+    public IMethod getEntryPoint() {
+        return this.entryPoint;
+    }
+
 }

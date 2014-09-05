@@ -168,6 +168,12 @@ public class PointsToGraph {
     private final DependencyRecorder depRecorder;
 
 
+    /**
+     * Is the graph still being constructed, or is it finished? Certain operations should be called only once the graph
+     * has finished being constructed.
+     */
+    private boolean graphFinished = false;
+
     private int outputLevel = 0;
 
     public static boolean DEBUG = false;
@@ -486,8 +492,14 @@ public class PointsToGraph {
      * @param n
      * @return
      */
-    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, StmtAndContext origninator) {
-        return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), origninator));
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n) {
+        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
+        return pointsToIterator(n, null);
+    }
+
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, StmtAndContext originator) {
+        assert this.graphFinished || originator != null;
+        return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), originator));
     }
 
     public int graphNodeToInt(PointsToGraphNode n) {
@@ -716,6 +728,7 @@ public class PointsToGraph {
      * @return call graph
      */
     public CallGraph getCallGraph() {
+        assert graphFinished;
         if (this.callGraph != null) {
             return this.callGraph;
         }
@@ -746,7 +759,6 @@ public class PointsToGraph {
 
             for (IMethod entryPoint : this.entryPoints) {
                 callGraph.registerEntrypoint(callGraph.findOrCreateNode(entryPoint, initialContext));
-
             }
 
             for (IMethod classInit : this.classInitializers) {
@@ -834,8 +846,7 @@ public class PointsToGraph {
             }
         }
         // Should always be true
-        assert cgChanged : "Reached the end of the loop without adding any clinits "
-        + classInits;
+        assert cgChanged : "Reached the end of the loop without adding any clinits " + classInits;
         return cgChanged;
     }
 
@@ -1373,4 +1384,8 @@ public class PointsToGraph {
 
     }
 
+    public void constructionFinished() {
+        this.graphFinished = true;
+
+    }
 }

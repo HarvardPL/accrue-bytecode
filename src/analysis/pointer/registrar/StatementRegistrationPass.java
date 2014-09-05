@@ -1,22 +1,25 @@
 package analysis.pointer.registrar;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
-import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
-import analysis.pointer.registrar.StatementRegistrar.InstructionInfo;
-import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 
@@ -40,22 +43,10 @@ public class StatementRegistrationPass {
     /**
      * Initialize the queue using the defined entry points
      */
-    private void init(WorkQueue<InstructionInfo> q) {
-        addFromMethod(q, AnalysisUtil.getFakeRoot());
+    private void init(WorkQueue<IMethod> q) {
+        q.add(AnalysisUtil.getFakeRoot());
     }
 
-    /**
-     * Add instructions to the work queue for the given method, if this method has not already been processed.
-     *
-     * @param q
-     *            work queue containing instructions to be processed
-     * @param m
-     *            method to process
-     * @return true if this method has been added yet, false otherwise
-     */
-    private boolean addFromMethod(WorkQueue<InstructionInfo> q, IMethod m) {
-        return q.addAll(registrar.getFromMethod(m));
-    }
 
     /**
      * Add statements given class initializers
@@ -69,12 +60,12 @@ public class StatementRegistrationPass {
      *            element j is a super class of element j+1)
      * @return true if any new class initializer was seen
      */
-    private boolean addClassInitializers(WorkQueue<InstructionInfo> q, List<IMethod> clinits) {
+    private boolean addClassInitializers(WorkQueue<IMethod> q, List<IMethod> clinits) {
         assert !clinits.isEmpty();
         boolean added = false;
         for (int j = clinits.size() - 1; j >= 0; j--) {
             IMethod clinit = clinits.get(j);
-            boolean oneAdded = addFromMethod(q, clinit);
+            boolean oneAdded = q.add(clinit);
             if (oneAdded && PointsToAnalysis.outputLevel >= 2) {
                 System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass()) + " initializer");
             }
@@ -88,33 +79,77 @@ public class StatementRegistrationPass {
      */
     public void run() {
         long start = System.currentTimeMillis();
-        final WorkQueue<InstructionInfo> q = new WorkQueue<>();
+        final WorkQueue<IMethod> q = new WorkQueue<>();
+
+        // the classes for which we have registered an instance methods.
+        // These are the classes that might have instances when we execute
+        Set<IClass> seenInstancesOf = new HashSet<>();
+        Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
+
         init(q);
 
         while (!q.isEmpty()) {
-            InstructionInfo info = q.poll();
-            SSAInstruction i = info.instruction;
-            IR ir = info.ir;
+            IMethod m = q.poll();
 
-            List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
-            if (!inits.isEmpty()) {
-                addClassInitializers(q, inits);
-            }
+            // Register all the instructions in the method.
+            registrar.registerMethod(m);
 
-            if (i instanceof SSAInvokeInstruction) {
-                // This is an invocation, add statements for callee to work queue
-                SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
-                Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
-                for (IMethod m : targets) {
-                    if (PointsToAnalysis.outputLevel >= 2) {
-                        System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "
-                                                        + PrettyPrinter.methodString(ir.getMethod()));
+            if (!m.isStatic()) {
+                // it is an instance method!
+                if (seenInstancesOf.add(m.getDeclaringClass())) {
+                    // this is the first instance method we have seen for this class
+                    // Add any methods that were waiting on registration.
+                    Collection<IMethod> waiting = waitingForInstances.remove(m.getDeclaringClass());
+                    if (waiting != null) {
+                        q.addAll(waiting);
                     }
-                    addFromMethod(q, m);
                 }
             }
 
-            registrar.handle(info);
+            // now also go through each instruction, and see if we need to add anything else to the
+            // workqueue
+            IR ir = AnalysisUtil.getIR(m);
+            if (ir != null) {
+                for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                    for (SSAInstruction i : bb) {
+                        List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
+                        if (!inits.isEmpty()) {
+                            addClassInitializers(q, inits);
+                        }
+
+                        if (i instanceof SSAInvokeInstruction) {
+                            // This is an invocation, add statements for callee to work queue
+                            SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
+                            Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
+                            if (inv.isSpecial() || inv.isStatic()) {
+                                // it is a special or a static method, so add the target(s) to the queue
+                                q.addAll(targets);
+                            }
+                            else {
+                                // only add the ones for which we have seen an instance of the delcaring class.
+                                for (IMethod target : targets) {
+                                    assert !target.isStatic() && !target.isPrivate();
+                                    IClass container = target.getDeclaringClass();
+                                    if (seenInstancesOf.contains(container)) {
+                                        q.add(target);
+                                    }
+                                    else {
+                                        // haven't seen an instance yet...
+                                        Collection<IMethod> c = waitingForInstances.get(container);
+                                        if (c == null) {
+                                            c = new HashSet<>();
+                                            waitingForInstances.put(container, c);
+                                        }
+                                        c.add(target);
+                                    }
+                                }
+
+                            }
+                        }
+
+                    }
+                }
+            }
         }
         if (PointsToAnalysis.outputLevel >= 1) {
             System.err.println("Registered " + registrar.size() + " statements.");
@@ -127,11 +162,6 @@ public class StatementRegistrationPass {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        }
-        for (IMethod m : registrar.getRegisteredMethods()) {
-            Set<PointsToStatement> oldStatements = registrar.getStatementsForMethod(m);
-            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            registrar.replaceStatementsForMethod(m, newStatements);
         }
     }
 

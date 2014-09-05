@@ -24,6 +24,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
@@ -179,6 +180,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
+        if (registerOnline) {
+            StatementListener stmtListener = new StatementListener() {
+
+                @Override
+                public void newStatement(PointsToStatement stmt) {
+                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
+                        // it's a new special instruction. Let's make sure it gets evaluated.
+                        noDeltaQueue.add(new StmtAndContext(stmt, haf.initialContext()));
+                    }
+
+                }
+
+            };
+            registrar.setStatementListener(stmtListener);
+        }
+
         this.lastTime = this.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()) {
@@ -258,6 +275,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                            + " nodes");
 
         this.processAllStatements(g, registrar);
+        g.constructionFinished();
         return g;
     }
 
@@ -355,8 +373,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private boolean processAllStatements(PointsToGraph g,
                                          StatementRegistrar registrar) {
         boolean changed = false;
-        System.err.println("Processing all statements for good luck: "
-                + registrar.size());
+        System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
+                + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {

@@ -255,7 +255,7 @@ public class AccrueAnalysisMain {
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf, boolean isOnline) {
-        //        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
+        //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;
