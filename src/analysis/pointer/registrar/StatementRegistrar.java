@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -105,7 +104,7 @@ public class StatementRegistrar {
     /**
      * Methods we have already added statements for
      */
-    private final Set<IMethod> visitedMethods = AnalysisUtil.createConcurrentSet();
+    private final Set<IMethod> registeredMethods = AnalysisUtil.createConcurrentSet();
     /**
      * Factory for finding and creating reference variable (local variable and static fields)
      */
@@ -136,25 +135,59 @@ public class StatementRegistrar {
      * @param m method to register points-to statements for
      */
     public synchronized void registerMethod(IMethod m) {
-        Set<InstructionInfo> instructions = this.getFromMethod(m);
-        for (InstructionInfo info : instructions) {
-            this.handle(info);
+        if (m.isAbstract()) {
+            // Don't need to register abstract methods
+            return;
         }
-        if (!instructions.isEmpty()) {
-            if (!duplicatesRemoved.add(m)) {
-                throw new RuntimeException("Processing the same method twice " + PrettyPrinter.methodString(m));
+        if (this.registeredMethods.add(m)) {
+            // we need to register the method.
+
+            IR ir = AnalysisUtil.getIR(m);
+            if (ir == null) {
+                // Native method with no signature
+                assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
+                this.registerNative(m, this.rvFactory);
+                return;
             }
 
+            TypeRepository types = new TypeRepository(ir);
+            PrettyPrinter pp = new PrettyPrinter(ir);
+
+            // Add edges from formal summary nodes to the local variables representing the method parameters
+            this.registerFormalAssignments(ir, this.rvFactory, pp);
+
+            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                for (SSAInstruction ins : bb) {
+                    handleInstruction(ins, ir, bb, types, pp);
+                }
+            }
+
+            // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
             int startSize = oldStatements.size();
             Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
             removed += startSize - newStatements.size();
             this.replaceStatementsForMethod(m, newStatements);
+
+
+            if (PointsToAnalysis.outputLevel >= 1) {
+                System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
+                CFGWriter.writeToFile(ir);
+                System.err.println();
+            }
+
+            if (PointsToAnalysis.outputLevel >= 6) {
+                try (Writer writer = new StringWriter()) {
+                    PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+                    System.err.print(writer.toString());
+                }
+                catch (IOException e) {
+                    throw new RuntimeException();
+                }
+            }
         }
+
     }
-
-    private static final Set<IMethod> duplicatesRemoved = new HashSet<>();
-
     /**
      * A listener that will get notified of newly created statements.
      */
@@ -165,13 +198,13 @@ public class StatementRegistrar {
     /**
      * Get points-to statements for the given method if this method has not already been processed. (Does not
      * recursively get statements for callees.)
-     *
+     * 
      * @param m method to get instructions for
      * @return set of new instructions, empty if the method is abstract, or has already been processed
      */
-    Set<InstructionInfo> getFromMethod(IMethod m) {
+    Set<InstructionInfo> getFromMethodXXX(IMethod m) {
 
-        if (this.visitedMethods.contains(m)) {
+        if (this.registeredMethods.contains(m)) {
             if (PointsToAnalysis.outputLevel >= 2) {
                 System.err.println("\tAlready added " + PrettyPrinter.methodString(m));
             }
@@ -191,7 +224,7 @@ public class StatementRegistrar {
             this.registerNative(m, this.rvFactory);
             return Collections.emptySet();
         }
-        this.visitedMethods.add(m);
+        this.registeredMethods.add(m);
 
         TypeRepository types = new TypeRepository(ir);
         PrettyPrinter pp = new PrettyPrinter(ir);
@@ -226,16 +259,17 @@ public class StatementRegistrar {
 
     /**
      * Handle a particular instruction, this dispatches on the type of the instruction
-     *
+     * 
+     * @param pp
+     * @param types2
+     * @param bb2
+     * @param ir2
+     * @param ins
+     * 
      * @param info information about the instruction to handle
      */
-    protected void handle(InstructionInfo info) {
-        SSAInstruction i = info.instruction;
-        IR ir = info.ir;
-        ISSABasicBlock bb = info.basicBlock;
-        TypeRepository types = info.typeRepository;
-        PrettyPrinter printer = info.prettyPrinter;
-
+    protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types,
+                                     PrettyPrinter printer) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         // Add statements for any string literals in the instruction
@@ -244,7 +278,7 @@ public class StatementRegistrar {
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
         this.findAndRegisterGeneratedExceptions(i, bb, ir, this.rvFactory, types, printer);
 
-        List<IMethod> inits = ClassInitFinder.getClassInitializers(info.instruction);
+        List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
         if (!inits.isEmpty()) {
             this.registerClassInitializers(i, ir, inits);
         }
@@ -1076,7 +1110,7 @@ public class StatementRegistrar {
     }
 
     private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
-        if (!this.visitedMethods.add(m)) {
+        if (!this.registeredMethods.add(m)) {
             // Already handled
             return;
         }
