@@ -330,7 +330,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         boolean castAlwaysSucceeds = true;
         IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getDeclaredResultTypes()[0]);
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            Iterator<InstanceKey> iter = ptg.pointsToIterator(interProc.getReplica(i.getVal(), currentNode), null);
+            Iterator<? extends InstanceKey> iter = ptg.pointsToIterator(interProc.getReplica(i.getVal(), currentNode));
             while (iter.hasNext()) {
                 InstanceKey  hContext = iter.next();
                 IClass actual = hContext.getConcreteType();

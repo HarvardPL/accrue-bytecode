@@ -16,6 +16,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -68,12 +69,13 @@ public class LocalToLocalStatement extends PointsToStatement {
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(context, this.programPoint().post());
         // don't need to use delta, as this just adds a subset edge
         if (filter) {
             TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());
             return g.copyFilteredEdges(r, typeFilter, l);
         }
-        return g.copyEdges(r, l);
+        return g.copyEdges(r, l, ippr);
     }
 
     @Override

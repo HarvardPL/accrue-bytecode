@@ -92,6 +92,7 @@ public class StatementRegistrationPass {
 
             // Register all the instructions in the method.
             if (!registrar.registerMethod(m)) {
+                // we have already registered it.
                 continue;
             }
 

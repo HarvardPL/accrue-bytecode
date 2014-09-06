@@ -198,7 +198,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
 
         boolean castAlwaysSucceeds = true;
         boolean castAlwaysFails = true;
-        Iterator<InstanceKey> iter = ptg.pointsToIterator(getReplica(i.getRef(), currentNode), null);
+        Iterator<? extends InstanceKey> iter = ptg.pointsToIterator(getReplica(i.getRef(), currentNode));
         while (iter.hasNext()) {
             InstanceKey  hContext = iter.next();
             if (!(castAlwaysSucceeds || castAlwaysFails)) {

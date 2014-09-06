@@ -5,10 +5,10 @@ import java.util.Iterator;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
-import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
@@ -26,13 +26,14 @@ public class GraphDelta {
 
     /**
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
-     * ints). These are the flow-insensitive facts.
+     * ints). These are the flow-insensitive facts, i.e., they hold true at all program points.
      */
     private final IntMap<MutableIntSet> deltaFI;
 
     /**
      * Map from PointsToGraphNode to InstanceKeys, including the program points (actually, the interprogrampoint
-     * replicas) at which they are valid. These are the flow sensitive points to information.
+     * replicas) at which they are valid. These are the flow sensitive points to information. if (s,t,ps) \in deltaFS,
+     * and p \in ps, then s points to t at program point p.
      */
     private final IntMap<IntMap<ProgramPointSet>> deltaFS;
 
@@ -46,30 +47,29 @@ public class GraphDelta {
 
 
     /**
-     * Add some points to info to a flow-insensitive pointstographnode.
+     * Add some points to info to a pointstographnode.
      *
      * @param n
      * @param set
      * @return
      */
-    protected boolean addAllToSet(/*PointsToGraphNode*/int n, IntSet set) {
-        assert !g.isFlowSensitivePointsToGraphNode(n);
+    protected boolean addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive, ProgramPointSet ppsToAdd,
+                                  IntSet set) {
         if (set.isEmpty()) {
             return false;
         }
-        return getOrCreateFISet(n, setSizeBestGuess(set)).addAll(set);
-    }
-    protected boolean addAllToSet(/*PointsToGraphNode*/int n, IntSet set, ProgramPointSet pps) {
-        assert g.isFlowSensitivePointsToGraphNode(n);
-        if (set.isEmpty()) {
-            return false;
+
+        if (!nIsFlowSensitive) {
+            // flow insensitive!
+            return getOrCreateFISet(n, setSizeBestGuess(set)).addAll(set);
         }
+        // flow sensitive
         boolean changed = false;
         IntMap<ProgramPointSet> m = getOrCreateFSMap(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, to, pps);
+            changed |= addProgramPoints(m, to, ppsToAdd);
         }
         return changed;
     }
@@ -83,13 +83,14 @@ public class GraphDelta {
         return s;
     }
 
-    private boolean addProgramPoints(IntMap<ProgramPointSet> m, /*PointsToGraphNode*/int to, ProgramPointSet pps) {
+    private static boolean addProgramPoints(IntMap<ProgramPointSet> m, /*PointsToGraphNode*/int to,
+                                            ProgramPointSet toAdd) {
         ProgramPointSet p = m.get(to);
         if (p == null) {
             p = new ProgramPointSet();
             m.put(to, p);
         }
-        return p.addAll(pps);
+        return p.addAll(toAdd);
     }
 
     private MutableIntSet getOrCreateFISet(/*PointsToGraphNode*/int src, Integer initialSize) {
@@ -209,8 +210,8 @@ public class GraphDelta {
         return sb.toString();
     }
 
-    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n) {
-        return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n)));
+    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
+        return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n), ippr));
     }
 
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr) {
@@ -231,7 +232,7 @@ public class GraphDelta {
         do {
             IntMap<ProgramPointSet> s = deltaFS.get(node);
             if (s != null) {
-                iterators.add(XXX);
+                iterators.add(g.new ProgramPointIntIterator(s, ippr));
             }
             node = g.getImmediateRepresentative(node);
         } while (node != null);
