@@ -498,7 +498,10 @@ public class PointsToGraph {
     }
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext originator) {
         n = this.getRepresentative(n);
-        this.recordRead(n, originator);
+        if (originator != null) {
+            // If the originating statement is null then the graph is finished and there is no need to record this read
+            this.recordRead(n, originator);
+        }
         return this.pointsToSet(n).intIterator();
     }
 

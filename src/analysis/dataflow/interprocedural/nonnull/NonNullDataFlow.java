@@ -60,7 +60,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
     /**
      * Intra-procedural part of an inter-procedural non-null analysis
-     * 
+     *
      * @param currentNode
      *            call graph node to analyze
      * @param interProc
@@ -245,7 +245,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     /**
      * The values for the local variables (in the caller) passed into the procedure can be changed by the callee. This
      * method copies the new value into the variable context.
-     * 
+     *
      * @param newActualValues
      *            abstract values for the local variables passed in after analyzing a procedure call
      * @param actuals
@@ -510,9 +510,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        assert getNumSuccs(current, cfg) == 2 : "Not two successors for a conditional branch: " + i + " has "
-                                        + getNumSuccs(current, cfg);
-
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
 
         // By default both branches are the same as the input
@@ -551,8 +548,14 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 falseContext = in.setLocal(i.getUse(0), NonNullAbsVal.MAY_BE_NULL);
             }
 
-            out.put(getTrueSuccessor(current, cfg), trueContext);
-            out.put(getFalseSuccessor(current, cfg), falseContext);
+            ISSABasicBlock trueSucc = getTrueSuccessor(current, cfg);
+            ISSABasicBlock falseSucc = getFalseSuccessor(current, cfg);
+            if (trueSucc != null) {
+                out.put(getTrueSuccessor(current, cfg), trueContext);
+            }
+            if (falseSucc != null) {
+                out.put(getFalseSuccessor(current, cfg), falseContext);
+            }
         }
 
         return out;
@@ -734,7 +737,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
     /**
      * Get the abstract value for a local variable
-     * 
+     *
      * @param i
      *            value number for the local
      * @param c

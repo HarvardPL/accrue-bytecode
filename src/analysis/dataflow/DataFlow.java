@@ -31,7 +31,7 @@ import com.ibm.wala.util.graph.traverse.SCCIterator;
 
 /**
  * Base class for a context-sensitive, flow-sensitive, path-sensitive intra-procedural data-flow analysis
- * 
+ *
  * @param <F>
  *            type for the data-flow facts propagated by this analysis, must have hashCode and equals defined
  */
@@ -52,7 +52,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Create a new intra-procedural data-flow
-     * 
+     *
      * @param ir
      *            Code for the method the data-flow is performed over
      */
@@ -63,7 +63,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Perform the dataflow on the given IR
-     * 
+     *
      * @param ir
      *            code for the method to perform the dataflow for
      */
@@ -197,7 +197,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Determine whether existing analysis results can be reused.
-     * 
+     *
      * @param newInput
      *            new input items
      * @param previousResults
@@ -213,7 +213,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Perform any data-flow specific operations after analyzing the procedure
-     * 
+     *
      * @param ir
      *            procedure being analyzed
      */
@@ -222,7 +222,7 @@ public abstract class DataFlow<F> {
     /**
      * Transfer function for the data-flow, takes a set of facts and produces a new fact (possibly different for each
      * successor) after analyzing the given basic block.
-     * 
+     *
      * @param inItems
      *            data-flow facts on input edges
      * @param cfg
@@ -240,7 +240,7 @@ public abstract class DataFlow<F> {
     /**
      * Get all successors of the given basic block. If this is a forward analysis these will be the successors in the
      * control flow graph. If this is a backward analysis then these will be the predecessors in the control flow graph.
-     * 
+     *
      * @param bb
      *            basic block to get the successors for
      * @param cfg
@@ -256,7 +256,7 @@ public abstract class DataFlow<F> {
      * Get all normal (i.e. non-exceptional) successors of the given basic block. If this is a forward analysis these
      * will be the successors in the control flow graph. If this is a backward analysis then these will be the normal
      * predecessors in the control flow graph.
-     * 
+     *
      * @param bb
      *            basic block to get the successors for
      * @param cfg
@@ -272,7 +272,7 @@ public abstract class DataFlow<F> {
      * Get all exceptional successors of the given basic block. If this is a forward analysis these will be the
      * successors in the control flow graph. If this is a backward analysis then these will be the exceptional
      * predecessors in the control flow graph.
-     * 
+     *
      * @param bb
      *            basic block to get the successors for
      * @param cfg
@@ -287,7 +287,7 @@ public abstract class DataFlow<F> {
     /**
      * Get an unmodifiable mapping from each successor of the given basic block to a single data-flow fact. This is used
      * when analyzing a basic block that sends the same item to each of its successors.
-     * 
+     *
      * @param fact
      *            data-flow fact to associate with each successor
      * @param bb
@@ -308,7 +308,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Get a modifiable mapping from each successor of the given basic block to a single data-flow fact.
-     * 
+     *
      * @param fact
      *            fact to associate with each successor
      * @param bb
@@ -330,7 +330,7 @@ public abstract class DataFlow<F> {
     /**
      * Get a mapping from each successor of the given basic block to data-flow facts. There will be a single fact for
      * all normal successors and another (possibly different) fact for exceptional successors.
-     * 
+     *
      * @param normalItem
      *            fact to associate with each normal successor
      * @param exceptionalItem
@@ -361,7 +361,7 @@ public abstract class DataFlow<F> {
      * Get all predecessors for the given basic block. If this is a forward analysis this will be the predecessors in
      * the control flow graph. If this is a backward analysis then this will be the successors in the control flow
      * graph.
-     * 
+     *
      * @param bb
      *            basic block to get the predecessors for
      * @param cfg
@@ -377,7 +377,7 @@ public abstract class DataFlow<F> {
      * Get number of predecessors for the given basic block. If this is a forward analysis this will be the predecessors
      * in the control flow graph. If this is a backward analysis then this will be the successors in the control flow
      * graph.
-     * 
+     *
      * @param bb
      *            basic block to get the number of predecessors for
      * @param cfg
@@ -392,7 +392,7 @@ public abstract class DataFlow<F> {
      * Get number of successors for the given basic block. If this is a forward analysis this will be the successors in
      * the control flow graph. If this is a backward analysis then this will be the predecessors in the control flow
      * graph.
-     * 
+     *
      * @param bb
      *            basic block to get the number of successors for
      * @param cfg
@@ -405,7 +405,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Associate a basic block with a record of analysis results
-     * 
+     *
      * @param basic
      *            basic block
      * @param record
@@ -418,10 +418,10 @@ public abstract class DataFlow<F> {
     /**
      * Get a record for a previously run analysis for the given basic block, returns null if the block has never been
      * analyzed
-     * 
+     *
      * @param bb
      *            basic block to get the record for
-     * 
+     *
      * @return input and output data-flow facts for the basic block
      */
     protected final AnalysisRecord<F> getAnalysisRecord(ISSABasicBlock bb) {
@@ -431,7 +431,7 @@ public abstract class DataFlow<F> {
     /**
      * Get the first block to be analyzed in the data-flow. For a forward analysis this is the entry block and for a
      * backward analysis this is the exit block.
-     * 
+     *
      * @param cfg
      *            control flow graph the data-flow is performed over
      * @return the initial node to analyze
@@ -443,12 +443,10 @@ public abstract class DataFlow<F> {
     /**
      * Get the control-flow successor on the "true" edge leaving a branch. Note that for a backward analysis this is a
      * data-flow predecessor.
-     * 
-     * @param bb
-     *            branching basic block
-     * @param cfg
-     *            control-flow graph
-     * @return basic block on the outgoing "true" edge
+     *
+     * @param bb branching basic block
+     * @param cfg control-flow graph
+     * @return basic block on the outgoing "true" edge (could be null)
      */
     public static final ISSABasicBlock getTrueSuccessor(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
@@ -458,12 +456,10 @@ public abstract class DataFlow<F> {
     /**
      * Get the control-flow successor on the "false" edge leaving a branch. Note that for a backward analysis this is a
      * data-flow predecessor.
-     * 
-     * @param bb
-     *            branching basic block
-     * @param cfg
-     *            control-flow graph
-     * @return basic block on the outgoing "false" edge
+     *
+     * @param bb branching basic block
+     * @param cfg control-flow graph
+     * @return basic block on the outgoing "false" edge (could be null)
      */
     public static final ISSABasicBlock getFalseSuccessor(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
@@ -472,18 +468,19 @@ public abstract class DataFlow<F> {
 
     /**
      * Get the control-flow successors on the "true" and "false" edges leaving a branch
-     * 
-     * @param bb
-     *            branching basic block
-     * @param cfg
-     *            control-flow graph
-     * @return pair of basic block for "true" successor and "false" successor in that order
+     *
+     * @param bb branching basic block
+     * @param cfg control-flow graph
+     * @return pair of basic block for "true" successor and "false" successor in that order, either could be null if
+     *         that branch doesn't exist (this is rare and is probably due to some compiler optimization).
      */
     private static final OrderedPair<ISSABasicBlock, ISSABasicBlock> getTrueFalseSuccessors(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         if (cfg.getSuccNodeCount(bb) != 2) {
-            throw new RuntimeException("Branches have exactly 2 successors. This has " + cfg.getSuccNodeCount(bb));
+            System.err.println("WARNING: Conditional branch, BB" + bb.getNumber() + ", has " + cfg.getSuccNodeCount(bb)
+                    + " successor(s) in method " + PrettyPrinter.methodString(cfg.getMethod()));
         }
+
         ISSABasicBlock trueBranch = null;
         ISSABasicBlock falseBranch = null;
         int falseBranchNum = bb.getGraphNodeId() + 1;
@@ -498,14 +495,13 @@ public abstract class DataFlow<F> {
             }
         }
 
-        assert falseBranch != null && trueBranch != null;
         return new OrderedPair<>(trueBranch, falseBranch);
     }
 
     /**
      * Determine whether a data-flow edge is unreachable, e.g. it could be the normal edge leaving a call that can only
      * throw an exception
-     * 
+     *
      * @param source
      *            edge source
      * @param target
@@ -518,7 +514,7 @@ public abstract class DataFlow<F> {
      * <p>
      * This set is computed conservatively (i.e. this may report reachable successors that are not actually reachable at
      * run-time).
-     * 
+     *
      * @param exType
      *            exception type
      * @param cfg
@@ -575,7 +571,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Set the level of output
-     * 
+     *
      * @param level
      *            level of the output, higher means more output
      */
@@ -585,7 +581,7 @@ public abstract class DataFlow<F> {
 
     /**
      * Get the output level
-     * 
+     *
      * @return integer verbosity level
      */
     protected int getOutputLevel() {
@@ -598,7 +594,7 @@ public abstract class DataFlow<F> {
      * There are "null" instructions inserted into the SSA basic blocks to keep the instruction indexes the same as for
      * WALA's stack-based Shrike intermediate language, so we cannot just call bb.getLastInstruction() as this might
      * return null if the instruction at the last Shrike index was translated away when compiling to SSA.
-     * 
+     *
      * @param bb
      *            basic block to get the last instruction for
      * @return the last instruction of the basic block, null if the basic block contains no instructions (e.g. if it is
@@ -638,7 +634,7 @@ public abstract class DataFlow<F> {
 
         /**
          * Create a new record of analysis results for a particular basic block
-         * 
+         *
          * @param input
          *            Input facts
          * @param output
@@ -651,7 +647,7 @@ public abstract class DataFlow<F> {
 
         /**
          * Input facts
-         * 
+         *
          * @return Set of data-flow input facts
          */
         public Set<Fact> getInput() {
@@ -660,7 +656,7 @@ public abstract class DataFlow<F> {
 
         /**
          * Output facts, one for each successor
-         * 
+         *
          * @return Output facts, one for each successor
          */
         public Map<ISSABasicBlock, Fact> getOutput() {
