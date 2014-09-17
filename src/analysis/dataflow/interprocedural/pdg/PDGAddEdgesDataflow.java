@@ -165,6 +165,12 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         ISSABasicBlock exit = ir.getExitBlock();
         ProcedureSummaryPDGNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(currentNode);
 
+        // Add edges from the summary nodes to the nodes for the local variables
+        for (int i = 0; i < ir.getNumberOfParameters(); i++) {
+            PDGNode param = PDGNodeFactory.findOrCreateLocal(ir.getParameter(i), currentNode, pp);
+            addEdge(summary.getFormal(i), param, PDGEdgeType.COPY);
+        }
+
         PDGContext exExit = summary.getExceptionalExitContext();
         for (ISSABasicBlock pred : ir.getControlFlowGraph().getExceptionalPredecessors(exit)) {
             if (!isUnreachable(pred, exit)) {

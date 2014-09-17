@@ -34,6 +34,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = new SimpleConcurrentIntMap<>();
+    /**
+     * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
+     * are no changes.
+     */
+    private static boolean paranoidMode = false;
 
     int numThreads() {
         //return 1;
@@ -156,8 +161,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
         System.err.println("\n\n");
 
-        // check that nothing went wrong, and that we have indeed reached a fixed point.
-        this.processAllStatements(g, registrar);
+        if (paranoidMode) {
+            // check that nothing went wrong, and that we have indeed reached a fixed point.
+            this.processAllStatements(g, registrar);
+        }
         g.constructionFinished();
         return g;
     }
@@ -379,4 +386,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         return new MutableIntSetFromMap(new SimpleConcurrentIntMap<Boolean>());
     }
 
+    /**
+     * Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.
+     *
+     * @param reprocessAllStatements if true then reprocess all statements after reaching a fixed point
+     */
+    public static void setParanoidMode(boolean reprocessAllStatements) {
+        paranoidMode = reprocessAllStatements;
+    }
 }
