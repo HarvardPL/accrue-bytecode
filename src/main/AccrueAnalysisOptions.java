@@ -22,8 +22,27 @@ public final class AccrueAnalysisOptions {
      */
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
+    /**
+     * Flag for printing useage information
+     */
     @Parameter(names = { "-h", "-help", "-useage", "--help" }, description = "Print useage information")
     private boolean help = false;
+
+    /**
+     * Flag for running the pointer analysis single-threaded after reaching a fixed point in the multi-threaded analysis
+     */
+    @Parameter(
+        names = { "-paranoidPointerAnalysis" },
+        description = "If set, Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.")
+    private boolean paranoidPointerAnalysis = false;
+
+    /**
+     * Flag for redundant variable names
+     */
+    @Parameter(
+        names = { "-udn", "-useDebugNames" },
+        description = "If set, use both names from source code (when available) and numerical values for variables, otherwise just use names from source code.")
+    private boolean useDebugNames = false;
 
     /**
      * Level of output
@@ -138,6 +157,24 @@ public final class AccrueAnalysisOptions {
         AccrueAnalysisOptions o = new AccrueAnalysisOptions();
         new JCommander(o, args);
         return o;
+    }
+
+    /**
+     * Should we print numerical variable names as well as names from the souce
+     *
+     * @return true if we should print both types of variable names
+     */
+    public boolean useDebugVariableNames() {
+        return useDebugNames;
+    }
+
+    /**
+     * If set, Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.
+     *
+     * @return true if we want to double check the multi-threaded pointer analysis results
+     */
+    public boolean isParanoidPointerAnalysis() {
+        return paranoidPointerAnalysis;
     }
 
     public Integer getOutputLevel() {

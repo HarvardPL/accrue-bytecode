@@ -52,6 +52,12 @@ import com.ibm.wala.types.TypeReference;
 public class PrettyPrinter {
 
     /**
+     * If set, use both names from source code (when available) and numerical values for variables, otherwise just use
+     * names from source code (when available).
+     */
+    private static boolean useDebugVariableNames = false;
+
+    /**
      * canonical copies of strings
      */
     private static final Map<String, String> stringMemo = new HashMap<>();
@@ -877,14 +883,24 @@ public class PrettyPrinter {
                 // the boolean case does not trigger, they are just integers
                 assert false;
             }
-            name = getCanonical(c + "{v" + valueNumber + "}");
+            if (useDebugVariableNames) {
+                name = getCanonical(c + "{v" + valueNumber + "}");
+            }
+            else {
+                name = getCanonical(c);
+            }
             locals.put(valueNumber, name);
             return name;
         }
 
         String ret = getActualName(valueNumber);
         if (ret != null) {
-            name = getCanonical(ret + "{v" + valueNumber + "}");
+            if (useDebugVariableNames) {
+                name = getCanonical(ret + "{v" + valueNumber + "}");
+            }
+            else {
+                name = getCanonical(ret);
+            }
             locals.put(valueNumber, name);
             return name;
         }
@@ -913,5 +929,14 @@ public class PrettyPrinter {
             stringMemo.put(canonical, canonical);
         }
         return canonical;
+    }
+
+    /**
+     * Set a flag to print numerical variable names as well as those from the source code.
+     *
+     * @param useDebugVariableNames whether to print both types of names
+     */
+    public static void setUseDebugVariableNames(boolean useDebugVariableNames) {
+        PrettyPrinter.useDebugVariableNames = useDebugVariableNames;
     }
 }
