@@ -1,2 +1,6 @@
 classes/*
 /classes
+.DS_Store
+.idea/
+out/
+*.iml
