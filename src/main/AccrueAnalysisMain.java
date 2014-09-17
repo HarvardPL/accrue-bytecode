@@ -208,6 +208,9 @@ public class AccrueAnalysisMain {
                 System.err.println(v + " = " + res.get(v));
             }
             break;
+        case "string-constraint":
+            // TODO(louisli)
+            break;
         default:
             assert false;
             throw new RuntimeException("The options parser should prevent reaching this point");
