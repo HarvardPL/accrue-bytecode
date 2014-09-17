@@ -24,6 +24,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
@@ -48,12 +49,6 @@ import com.ibm.wala.util.intset.IntIterator;
  * constraints, {@link PointsToStatement}s, compute the fixed point.
  */
 public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
-
-    /**
-     * If true then a debug pass will be run after the analysis reaches a fixed
-     * point
-     */
-    public static boolean DEBUG_SOLVED = false;
 
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a
@@ -138,13 +133,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void recordCollapsedNodes(int n, int rep) {
-                // now update the interesting dependencies.
+            public void startCollapseNode(int n, int rep) {
+                // add the new dependencies.
                 Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
                 if (deps != null) {
                     for (StmtAndContext depSac : deps) {
                         PointsToAnalysisSingleThreaded.this.addInterestingDependency(rep, depSac);
                     }
+                }
+            }
+
+            @Override
+            public void finishCollapseNode(int n, int rep) {
+                // remove the old dependency.
+                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
+                if (deps != null) {
                     PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
                 }
             }
@@ -175,6 +178,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     noDeltaQueue.add(sac);
                 }
             }
+        }
+
+        if (registerOnline) {
+            StatementListener stmtListener = new StatementListener() {
+
+                @Override
+                public void newStatement(PointsToStatement stmt) {
+                    if (stmt.getMethod().equals(registrar.getEntryPoint())) {
+                        // it's a new special instruction. Let's make sure it gets evaluated.
+                        noDeltaQueue.add(new StmtAndContext(stmt, haf.initialContext()));
+                    }
+
+                }
+
+            };
+            registrar.setStatementListener(stmtListener);
         }
 
         this.lastTime = this.startTime;
@@ -256,12 +275,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                            + " nodes");
 
         this.processAllStatements(g, registrar);
-        if (outputLevel >= 5) {
-            System.err.println("****************************** CHECKING ******************************");
-            PointsToGraph.DEBUG = true;
-            DEBUG_SOLVED = true;
-            this.processAllStatements(g, registrar);
-        }
+        g.constructionFinished();
         return g;
     }
 
@@ -320,8 +334,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             } while (currTime > this.nextMilestone);
 
             System.err.println("PROCESSED: " + this.numProcessed + " in "
-                    + (currTime - this.startTime) / 1000 + "s;  graph="
-                    + g.getBaseNodes().size() + " base nodes; cycles removed "
+ + (currTime - this.startTime) / 1000
+                    + "s; number of source node " + g.numPointsToGraphNodes() + "; cycles removed "
  + g.cycleRemovalCount()
                     + " nodes ; queue=" + currentQueue.size() + "nextQueue=" + nextQueue.size() + "noDeltaQueue="
                     + noDeltaQueue.size()
@@ -359,8 +373,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private boolean processAllStatements(PointsToGraph g,
                                          StatementRegistrar registrar) {
         boolean changed = false;
-        System.err.println("Processing all statements for good luck: "
-                + registrar.size());
+        System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
+                + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {

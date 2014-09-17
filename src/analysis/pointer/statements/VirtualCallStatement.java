@@ -110,17 +110,20 @@ public class VirtualCallStatement extends CallStatement {
 
     protected IMethod resolveMethod(IClass receiverConcreteType, TypeReference receiverExpectedType) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-        IMethod resolvedCallee = cha.resolveMethod(receiverConcreteType, this.callee.getSelector());
-        if (resolvedCallee == null) {
-            // XXX Try the type of the reference variable instead
-            // This is probably a variable created for the return of a native method, then cast down
-            if (PointsToAnalysis.outputLevel >= 1) {
-                System.err.println("Could not resolve " + receiverConcreteType + " " + this.callee.getSelector());
-                System.err.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
+        // XXXX possible point of contention...!@!
+        synchronized (cha) {
+            IMethod resolvedCallee = cha.resolveMethod(receiverConcreteType, this.callee.getSelector());
+            if (resolvedCallee == null) {
+                // XXX Try the type of the reference variable instead
+                // This is probably a variable created for the return of a native method, then cast down
+                if (PointsToAnalysis.outputLevel >= 1) {
+                    System.err.println("Could not resolve " + receiverConcreteType + " " + this.callee.getSelector());
+                    System.err.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
+                }
+                resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverExpectedType), this.callee.getSelector());
             }
-            resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverExpectedType), this.callee.getSelector());
+            return resolvedCallee;
         }
-        return resolvedCallee;
     }
 
     @Override

@@ -53,7 +53,7 @@ public class CFGWriter {
 
     /**
      * Create a writer for the given IR
-     * 
+     *
      * @param ir
      *            IR for the method to be printed
      * @param writer
@@ -67,7 +67,7 @@ public class CFGWriter {
 
     /**
      * Write out the pretty printed code to the given writer
-     * 
+     *
      * @param writer
      *            writer to write the code to
      * @param prefix
@@ -93,7 +93,7 @@ public class CFGWriter {
     /**
      * Write the cfg for the given IR to a dot file in the "tests" directory with the filename equal to the method name
      * prepended with "cfg_"
-     * 
+     *
      * @param ir
      *            to write
      */
@@ -112,7 +112,7 @@ public class CFGWriter {
     /**
      * Write the cfg for the given method to a dot file in the "tests" directory with the filename equal to the method
      * name prepended with "cfg_"
-     * 
+     *
      * @param m
      *            method to write CFG for
      */
@@ -122,7 +122,7 @@ public class CFGWriter {
 
     /**
      * Write the cfg for the given IR to a dot file in the tests directory with the given name
-     * 
+     *
      * @param ir
      *            to write
      * @param filename
@@ -142,7 +142,7 @@ public class CFGWriter {
 
     /**
      * Write the cfg for the given method to a dot file in the tests directory with the given name
-     * 
+     *
      * @param m
      *            to write CFG for
      * @param filename
@@ -154,7 +154,7 @@ public class CFGWriter {
 
     /**
      * Write out the control flow graph in graphviz dot format with the code for the basic block written on each node.
-     * 
+     *
      * @param writer
      *            writer to write the code to
      * @param prefix
@@ -171,7 +171,7 @@ public class CFGWriter {
 
     /**
      * Write all the edges in the CFG to the given writer
-     * 
+     *
      * @param writer
      *            writer to write the graph to
      * @throws IOException
@@ -209,7 +209,7 @@ public class CFGWriter {
 
     /**
      * Get the string representation of the basic block
-     * 
+     *
      * @param bb
      *            basic block to get a string for
      * @return string for <code>bb</code>
@@ -242,7 +242,7 @@ public class CFGWriter {
 
     /**
      * Properly escape the string so it will be properly formatted in dot
-     * 
+     *
      * @param s
      *            string to escape
      * @return dot-safe string
@@ -253,7 +253,7 @@ public class CFGWriter {
 
     /**
      * Can be overridden by subclass
-     * 
+     *
      * @param i
      * @return
      */
@@ -263,7 +263,7 @@ public class CFGWriter {
 
     /**
      * Can be overridden by subclass
-     * 
+     *
      * @param i
      * @return
      */
@@ -273,7 +273,7 @@ public class CFGWriter {
 
     /**
      * Can be overridden by subclass
-     * 
+     *
      * @param bb
      * @param cfg
      * @return
@@ -286,7 +286,7 @@ public class CFGWriter {
 
     /**
      * Can be overridden by subclass
-     * 
+     *
      * @param source
      * @param target
      * @param ir
@@ -299,7 +299,7 @@ public class CFGWriter {
 
     /**
      * Can be overridden by subclass
-     * 
+     *
      * @param source
      * @param target
      * @param ir
@@ -309,9 +309,10 @@ public class CFGWriter {
         if (DataFlow.getLastInstruction(source) instanceof SSAConditionalBranchInstruction) {
             ISSABasicBlock trueSucc = DataFlow.getTrueSuccessor(source, ir.getControlFlowGraph());
             ISSABasicBlock falseSucc = DataFlow.getFalseSuccessor(source, ir.getControlFlowGraph());
-            if (target.equals(trueSucc)) {
+            if (trueSucc != null && target.equals(trueSucc)) {
                 return "TRUE";
-            } else if (target.equals(falseSucc)) {
+            }
+            else if (falseSucc != null && target.equals(falseSucc)) {
                 return "FALSE";
             } else {
                 throw new RuntimeException("Something besides a true or false successor for a branch.");

@@ -30,11 +30,16 @@ public abstract class PointsToAnalysis {
      */
     public static int outputLevel = 0;
 
+
     /**
      * Create a new analysis with the given abstraction
      */
     public PointsToAnalysis(HeapAbstractionFactory haf) {
         this.haf = haf;
+    }
+
+    public HeapAbstractionFactory heapAbstractionFactory() {
+        return haf;
     }
 
     /**

@@ -1,24 +1,28 @@
 package analysis.pointer.registrar;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
-import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
-import analysis.pointer.registrar.StatementRegistrar.InstructionInfo;
-import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.types.MethodReference;
 
 /**
  * Collect pointer analysis constraints with a pass over the code
@@ -40,41 +44,25 @@ public class StatementRegistrationPass {
     /**
      * Initialize the queue using the defined entry points
      */
-    private void init(WorkQueue<InstructionInfo> q) {
-        addFromMethod(q, AnalysisUtil.getFakeRoot());
-    }
-
-    /**
-     * Add instructions to the work queue for the given method, if this method has not already been processed.
-     *
-     * @param q
-     *            work queue containing instructions to be processed
-     * @param m
-     *            method to process
-     * @return true if this method has been added yet, false otherwise
-     */
-    private boolean addFromMethod(WorkQueue<InstructionInfo> q, IMethod m) {
-        return q.addAll(registrar.getFromMethod(m));
+    private static void init(WorkQueue<IMethod> q) {
+        q.add(AnalysisUtil.getFakeRoot());
     }
 
     /**
      * Add statements given class initializers
      *
-     * @param trigger
-     *            instruction that triggered the clinit
-     * @param containingCode
-     *            code containing the instruction that triggered the clinit
-     * @param clinits
-     *            class initialization methods that might need to be called in the order they need to be called (i.e.
-     *            element j is a super class of element j+1)
+     * @param trigger instruction that triggered the clinit
+     * @param containingCode code containing the instruction that triggered the clinit
+     * @param clinits class initialization methods that might need to be called in the order they need to be called
+     *            (i.e. element j is a super class of element j+1)
      * @return true if any new class initializer was seen
      */
-    private boolean addClassInitializers(WorkQueue<InstructionInfo> q, List<IMethod> clinits) {
+    private static boolean addClassInitializers(WorkQueue<IMethod> q, List<IMethod> clinits) {
         assert !clinits.isEmpty();
         boolean added = false;
         for (int j = clinits.size() - 1; j >= 0; j--) {
             IMethod clinit = clinits.get(j);
-            boolean oneAdded = addFromMethod(q, clinit);
+            boolean oneAdded = q.add(clinit);
             if (oneAdded && PointsToAnalysis.outputLevel >= 2) {
                 System.err.println("Adding: " + PrettyPrinter.typeString(clinit.getDeclaringClass()) + " initializer");
             }
@@ -88,34 +76,96 @@ public class StatementRegistrationPass {
      */
     public void run() {
         long start = System.currentTimeMillis();
-        final WorkQueue<InstructionInfo> q = new WorkQueue<>();
+        final WorkQueue<IMethod> q = new WorkQueue<>();
+
+        // the classes for which we have registered an instance methods.
+        // These are the classes that might have instances when we execute
+        Set<IClass> seenInstancesOf = new HashSet<>();
+        Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
+
+        Set<MethodReference> alreadyDispatched = new HashSet<>();
+
         init(q);
 
         while (!q.isEmpty()) {
-            InstructionInfo info = q.poll();
-            SSAInstruction i = info.instruction;
-            IR ir = info.ir;
+            IMethod m = q.poll();
 
-            List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
-            if (!inits.isEmpty()) {
-                addClassInitializers(q, inits);
+            // Register all the instructions in the method.
+            if (!registrar.registerMethod(m)) {
+                continue;
             }
 
-            if (i instanceof SSAInvokeInstruction) {
-                // This is an invocation, add statements for callee to work queue
-                SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
-                Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
-                for (IMethod m : targets) {
-                    if (PointsToAnalysis.outputLevel >= 2) {
-                        System.err.println("Adding: " + PrettyPrinter.methodString(m) + " from "
-                                                        + PrettyPrinter.methodString(ir.getMethod()));
+            if (m.isInit()) {
+                // it is an instance initialization method!
+                processInstanceClass(seenInstancesOf, m.getDeclaringClass(), waitingForInstances, q);
+            }
+
+            // now also go through each instruction, and see if we need to add anything else to the
+            // workqueue
+            IR ir = AnalysisUtil.getIR(m);
+            if (ir == null) {
+                // Native method with no signature.
+
+                // Assume that the return object was constructed by the method (and thus methods can be called on the return type)
+                if (!m.getReturnType().isPrimitiveType()) {
+                    IClass retType = AnalysisUtil.getClassHierarchy().lookupClass(m.getReturnType());
+                    processInstanceClass(seenInstancesOf, retType, waitingForInstances, q);
+                }
+
+                // There are no instructions to process.
+                continue;
+            }
+
+            // Process all instructions looking for methods that have not yet been handled
+            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                for (SSAInstruction i : bb) {
+                    List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
+                    if (!inits.isEmpty()) {
+                        addClassInitializers(q, inits);
                     }
-                    addFromMethod(q, m);
+
+                    if (!(i instanceof SSAInvokeInstruction)) {
+                        // This loop only processes invocations to add statements for new methods.
+                        continue;
+                    }
+
+                    // This is an invocation, add statements for callee to work queue
+                    SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
+
+                    if (!alreadyDispatched.add(inv.getDeclaredTarget())) {
+                        // we have seen this declared target before, no need to process again
+                        continue;
+                    }
+
+                    Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
+                    if (inv.isSpecial() || inv.isStatic()) {
+                        // it is a special or a static method, so add the target(s) to the queue
+                        q.addAll(targets);
+                    }
+                    else {
+                        // only add the targets for which we have seen an instance of the declaring class.
+                        for (IMethod target : targets) {
+                            assert !target.isStatic() && !target.isPrivate();
+                            IClass container = target.getDeclaringClass();
+                            if (seenInstancesOf.contains(container)) {
+                                q.add(target);
+                            }
+                            else {
+                                // haven't seen an instance yet...
+                                Collection<IMethod> c = waitingForInstances.get(container);
+                                if (c == null) {
+                                    c = new HashSet<>();
+                                    waitingForInstances.put(container, c);
+                                }
+                                c.add(target);
+                            }
+                        }
+                    }
                 }
             }
 
-            registrar.handle(info);
         }
+
         if (PointsToAnalysis.outputLevel >= 1) {
             System.err.println("Registered " + registrar.size() + " statements.");
             System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
@@ -124,14 +174,33 @@ public class StatementRegistrationPass {
             System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             try {
                 System.in.read();
-            } catch (IOException e) {
+            }
+            catch (IOException e) {
                 e.printStackTrace();
             }
         }
-        for (IMethod m : registrar.getRegisteredMethods()) {
-            Set<PointsToStatement> oldStatements = registrar.getStatementsForMethod(m);
-            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            registrar.replaceStatementsForMethod(m, newStatements);
+    }
+
+    /**
+     * When encountering a virtual method call we only want to add statements for the bodies of methods that the type
+     * system allows. We approximate this by assuming that receiver of the method can be any type that is constructed in
+     * the code. This could be made more precise if run together with the pointer analysis (supported by Accrue as the
+     * online statement registration) when we have more precise type information for the receiver.
+     *
+     * @param seenInstancesOf set of classes that have already been seen in the code
+     * @param instanceClass current class to process
+     * @param waitingForInstances Map from classes to methods that need to be processed if that class is instantiated
+     * @param q work queue of methods to register statements for
+     */
+    public static void processInstanceClass(Set<IClass> seenInstancesOf, IClass instanceClass,
+                                  Map<IClass, Collection<IMethod>> waitingForInstances, WorkQueue<IMethod> q) {
+        if (seenInstancesOf.add(instanceClass)) {
+            // this is the first instance method we have seen for this class
+            // Add any methods that were waiting on registration.
+            Collection<IMethod> waiting = waitingForInstances.remove(instanceClass);
+            if (waiting != null) {
+                q.addAll(waiting);
+            }
         }
     }
 

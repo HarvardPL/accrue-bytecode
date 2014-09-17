@@ -56,3 +56,5 @@ TODO only create PC merge nodes when the PC will not be restored from a post-dom
 WALA-BUG: Call sites are not unique even within a single IR/CGNode due to duplication of finally blocks :(
 
 TODO Separate check cast from formal assignment. The latter does not need to be filtered.
+
+XXX What to do when there is only one successor of a conditional branch? Right now it assumes the single branch is "false"

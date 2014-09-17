@@ -61,7 +61,7 @@ public class Signatures {
 
     /**
      * Check whether the given method has a signature
-     * 
+     *
      * @param actualMethod
      *            method to check
      * @return true if a signature exists for the given method
@@ -93,7 +93,7 @@ public class Signatures {
 
     /**
      * Get the IR for a method that has a signature
-     * 
+     *
      * @param actualMethod
      *            method to find the signature for
      * @return the signature IR or null if no signature is found
@@ -105,7 +105,7 @@ public class Signatures {
                 // already determined that there is no signature
                 return null;
             }
-            IR sig = signatures.get(actualMethod).get();
+            IR sig = sigRef.get();
             if (sig != null) {
                 // Already computed the signature return it
                 return sig;
@@ -134,12 +134,17 @@ public class Signatures {
         }
 
         IR sigIR = AnalysisUtil.getIR(resolvedSig);
-        IR newIR = rewriteIR(sigIR, actualMethod);
-        if (newIR != null) {
-            System.err.println("USING SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
+        if (sigIR != null) {
+            sigIR = rewriteIR(sigIR, actualMethod);
+            if (sigIR != null) {
+                System.err.println("USING SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
+            }
+            signatures.put(actualMethod, new SoftReference<>(sigIR));
         }
-        signatures.put(actualMethod, new SoftReference<>(newIR));
-        return newIR;
+        else {
+            signatures.put(actualMethod, null);
+        }
+        return sigIR;
     }
 
     private static TypeReference getSigTypeForRealType(TypeName realType) {
@@ -178,7 +183,7 @@ public class Signatures {
     /**
      * If the receiver types for method invocations and field accesses are signature types, replace them with "real"
      * types if they exist. Also swap the method in the IR for the "real" method
-     * 
+     *
      * @param sigIR
      *            IR for the signature method
      * @param actualMethod
@@ -257,7 +262,7 @@ public class Signatures {
 
     /**
      * If the receiver type is a signature type then replace it with the corresponding "real" type if there is one
-     * 
+     *
      * @param i
      *            instruction to potentially replace
      * @return new instruction (or same instruction if no changes were made)
@@ -300,7 +305,7 @@ public class Signatures {
     /**
      * If the receiver type or return type is a signature type then replace it with the corresponding "real" type if
      * there is one
-     * 
+     *
      * @param i
      *            instruction to potentially replace
      * @return new instruction (or same instruction if no changes were made)
@@ -350,7 +355,7 @@ public class Signatures {
 
     /**
      * If the receiver type is a signature type then replace it with the corresponding "real" type if there is one
-     * 
+     *
      * @param i
      *            instruction to potentially replace
      * @return new instruction (or same instruction if no changes were made)
@@ -391,7 +396,7 @@ public class Signatures {
 
     /**
      * If the new object is a signature object and the real one exists then change this to the real one
-     * 
+     *
      * @param i
      *            instruction to potentially replace
      * @return new instruction (or same instruction if no changes were made)
@@ -420,7 +425,7 @@ public class Signatures {
     /**
      * Given a signature type, find the corresponding "real" type that exists in the type hierarchy, returns null if no
      * valid type is found
-     * 
+     *
      * @param signatureType
      *            type of class from signature library
      * @return Type for the real class corresponding to the given type from the signature library, null if there is no
@@ -447,7 +452,7 @@ public class Signatures {
 
     /**
      * Check whether a given type is from the signature library
-     * 
+     *
      * @param type
      *            type to check
      * @return true if the class is from the signature library. False otherwise
