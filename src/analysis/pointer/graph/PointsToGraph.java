@@ -359,8 +359,10 @@ public class PointsToGraph {
      * @param target
      * @return
      */
-    public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target, InterProgramPointReplica ippr) {
+    public GraphDelta copyEdges(PointsToGraphNode source, InterProgramPointReplica sourceIppr,
+                                PointsToGraphNode target, InterProgramPointReplica targetIppr) {
         assert !(source.isFlowSensitive() && source.isFlowSensitive()) : "At most one of the source and target should be flow sensitive";
+
         int s = this.getRepresentative(lookupDictionary(source));
         int t = this.getRepresentative(lookupDictionary(target));
 
@@ -380,6 +382,10 @@ public class PointsToGraph {
         else {
             // exactly one of source and target is flow sensitive.
             assert !(source.isFlowSensitive() && target.isFlowSensitive());
+
+            // Choose the ippr to be the source or the target ippr, based on which is flow sensitive.
+            InterProgramPointReplica ippr = source.isFlowSensitive() ? sourceIppr : targetIppr;
+
             ProgramPointSet pps = isFlowSensSubsetOf.forward(s).get(t);
             if (pps == null || !pps.contains(ippr)) {
                 // this is a new subset relation!
