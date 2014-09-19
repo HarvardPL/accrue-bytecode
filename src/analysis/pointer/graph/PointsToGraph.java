@@ -1642,4 +1642,17 @@ public class PointsToGraph {
         this.graphFinished = true;
 
     }
+
+    /**
+     * Modify the points to graph to add additional program points that from point to to.
+     *
+     * @param from
+     * @param to
+     * @param programPointSet
+     * @return
+     */
+    public GraphDelta propagateProgramPoints(int from, int to, ProgramPointSet programPointSet) {
+        // NOTE: make sure to return the changes to the graph, and only return the *changes*, i.e., the things that got added.
+        // NOTE 2: representation of ProgramPointSet....
+    }
 }

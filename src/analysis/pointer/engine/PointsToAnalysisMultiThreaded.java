@@ -10,12 +10,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import util.intmap.ConcurrentIntMap;
+import util.intmap.IntMap;
 import util.intmap.MutableIntSetFromMap;
 import util.intmap.SimpleConcurrentIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ProgramPointSet;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -169,9 +171,17 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
 
+        handleChanges(changes, execService);
+
+    }
+
+    private void handleChanges(GraphDelta changes, ExecutorServiceCounter execService) {
         if (changes.isEmpty()) {
+            // nothing to do.
             return;
         }
+        execService.submitPropagateFlowSensitive(changes);
+
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
@@ -179,7 +189,26 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 execService.submitTask(depSaC, changes);
             }
         }
+    }
 
+    /**
+     * This is responsible for propagating all the flow sensitive points to facts in delta
+     * based on the successor relations.
+     * @param delta
+     * @param execService
+     */
+    void propagateFlowSensitive(GraphDelta delta, ExecutorServiceCounter execService) {
+        IntIterator iter = delta.flowSensitiveDomainIterator();
+        while (iter.hasNext()) {
+            int from = iter.next();
+            IntMap<ProgramPointSet> m = delta.flowSensitivePointsTo(from);
+            IntIterator iterTo = m.keyIterator();
+            while (iterTo.hasNext()) {
+                int to = iterTo.next();
+                GraphDelta changes = execService.g.propagateProgramPoints(from, to, m.get(to));
+                handleChanges(changes, execService);
+            }
+        }
     }
 
 
@@ -198,13 +227,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private AtomicLong totalTasksNoDelta;
         private AtomicLong totalTasksWithDelta;
+        private AtomicLong totalPropagateTasks;
 
         public ExecutorServiceCounter(ExecutorService exec) {
             this.exec = exec;
             this.numTasks = new AtomicLong(0);
             this.totalTasksNoDelta = new AtomicLong(0);
             this.totalTasksWithDelta = new AtomicLong(0);
+            this.totalPropagateTasks = new AtomicLong(0);
         }
+
 
         public void setGraphAndRegistrar(PointsToGraph g, StatementRegistrar registrar) {
             this.g = g;
@@ -240,6 +272,15 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 this.totalTasksWithDelta.incrementAndGet();
             }
             exec.execute(new RunnableStmtAndContext(sac, delta));
+        }
+
+        public void submitPropagateFlowSensitive(GraphDelta delta) {
+            assert delta != null;
+            this.numTasks.incrementAndGet();
+            this.totalPropagateTasks.incrementAndGet();
+
+            exec.execute(new RunnablePropagateFlowSensitive(delta));
+
         }
 
         public void finishedTask() {
@@ -286,6 +327,29 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             public void run() {
                 try {
                     processSaC(sac, delta, ExecutorServiceCounter.this);
+                    ExecutorServiceCounter.this.finishedTask();
+                }
+                catch (ConcurrentModificationException e) {
+                    System.err.println("ConcurrentModificationException!!!");
+                    e.printStackTrace();
+                    System.exit(0);
+                    // No seriously DIE!
+                    Runtime.getRuntime().halt(0);
+                }
+            }
+        }
+
+        public class RunnablePropagateFlowSensitive implements Runnable {
+\            private final GraphDelta delta;
+
+            public RunnablePropagateFlowSensitive(GraphDelta delta) {
+                this.delta = delta;
+            }
+
+            @Override
+            public void run() {
+                try {
+                    propagateFlowSensitive(delta, ExecutorServiceCounter.this);
                     ExecutorServiceCounter.this.finishedTask();
                 }
                 catch (ConcurrentModificationException e) {

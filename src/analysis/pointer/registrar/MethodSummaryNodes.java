@@ -6,6 +6,7 @@ import java.util.List;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.ProgramPoint;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.TypeReference;
@@ -27,6 +28,11 @@ public class MethodSummaryNodes {
      * Formal argument nodes
      */
     private final List<ReferenceVariable> formals;
+
+    private final ProgramPoint entryPP;
+    private final ProgramPoint normalExitPP;
+    private final ProgramPoint exceptionExitPP;
+
     /**
      * String for method
      */
@@ -34,7 +40,7 @@ public class MethodSummaryNodes {
 
     /**
      * Create nodes for formals and return values
-     * 
+     *
      * @param registrar
      *            points-to statement registrar
      * @param method
@@ -62,6 +68,10 @@ public class MethodSummaryNodes {
         }
 
         exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
+
+        this.entryPP = new ProgramPoint(method, "entryPP");
+        this.normalExitPP = new ProgramPoint(method, "normalExitPP");
+        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP");
     }
 
     public ReferenceVariable getReturn() {
@@ -74,7 +84,7 @@ public class MethodSummaryNodes {
 
     /**
      * Get the summary reference variable for the ith formal argument
-     * 
+     *
      * @param i
      *            argument index (by convention the 0th formal is "this" for non-static methods
      * @return Reference variable for the ith formal
@@ -100,28 +110,37 @@ public class MethodSummaryNodes {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         MethodSummaryNodes other = (MethodSummaryNodes) obj;
         if (exception == null) {
-            if (other.exception != null)
+            if (other.exception != null) {
                 return false;
-        } else if (!exception.equals(other.exception))
+            }
+        } else if (!exception.equals(other.exception)) {
             return false;
+        }
         if (name == null) {
-            if (other.name != null)
+            if (other.name != null) {
                 return false;
-        } else if (!name.equals(other.name))
+            }
+        } else if (!name.equals(other.name)) {
             return false;
+        }
         if (returnNode == null) {
-            if (other.returnNode != null)
+            if (other.returnNode != null) {
                 return false;
-        } else if (!returnNode.equals(other.returnNode))
+            }
+        } else if (!returnNode.equals(other.returnNode)) {
             return false;
+        }
         return true;
     }
 }

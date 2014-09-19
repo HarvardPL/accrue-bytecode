@@ -267,4 +267,11 @@ public class GraphDelta {
         return g.new SortedIntSetUnionIterator(deltaFI.keyIterator(), deltaFS.keyIterator());
     }
 
+    public IntIterator flowSensitiveDomainIterator() {
+        return deltaFS.keyIterator();
+    }
+
+    public IntMap<ProgramPointSet> flowSensitivePointsTo(/*PointsToGraphNode*/int n) {
+        return deltaFS.get(n);
+    }
 }
