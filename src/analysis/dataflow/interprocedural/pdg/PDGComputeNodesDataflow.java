@@ -195,10 +195,10 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     /**
      * If this node is an immediate post dominator, then return the PC node of the appropriate post dominated node.
      * Returns null otherwise.
-     * 
+     *
      * @param bb
      *            Basic block the post dominator for
-     * 
+     *
      * @return The PC node of the post dominated node, null if this node is not a post-dominator
      */
     private PDGNode handlePostDominators(ISSABasicBlock bb) {
@@ -285,6 +285,10 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      * {@inheritDoc}
      */
     protected PDGContext confluence(Set<PDGContext> facts, ISSABasicBlock bb) {
+        if (bb.isExitBlock()) {
+            // No need to merge contexts for the exit block. The summary nodes will be used instead.
+            return null;
+        }
         assert !facts.isEmpty() : "Empty facts in confluence entering BB" + bb.getNumber() + " IN "
                                         + PrettyPrinter.cgNodeString(currentNode);
         if (confluenceMemo.containsKey(new OrderedPair<>(facts, bb))) {
@@ -582,7 +586,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Compute exit PDG nodes for a procedure invocation
-     * 
+     *
      * @param i
      *            invoke instruction
      * @param previousItems
@@ -756,11 +760,18 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     @Override
     protected Map<ISSABasicBlock, PDGContext> flowThrow(SSAThrowInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        // Can throw NPE, but this does not affect the control flow so no need
-        // to account for that
+        // Can throw NPE if the exception is null
         PDGContext in = confluence(previousItems, current);
+        String desc = pp.valString(i.getException()) + " == null";
+        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                    in,
+                                                                    desc,
+                                                                    current);
+        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
+        PDGContext normal = afterEx.get(ExitType.NORMAL);
         PDGNode exception = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
-        return factToMap(new PDGContext(null, exception, in.getPCNode()), current, cfg);
+
+        return factsToMapWithExceptions(new PDGContext(null, exception, normal.getPCNode()), npe, current, cfg);
     }
 
     @Override
@@ -771,29 +782,30 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     /**
      * Determine whether a exception of the given type can be thrown and create nodes and edges in the PDG to capture
      * the dependencies when an exception is thrown by the JVM (e.g. a {@link NullPointerException}).
-     * 
-     * @param exType
-     *            type of exception being thrown
-     * @param beforeException
-     *            context (including the PC ndoe) immediately before the exception is thrown
-     * @param branchDescription
-     *            description of the condition that causes the exception. The condition being true should result in the
-     *            exception. (e.g. o == null for an NPE, index > a.length for an ArrayIndexOutOfBoundsException).
-     * @param bb
-     *            basic block that could throw the exception
+     *
+     * @param exType type of exception being thrown
+     * @param beforeException context (including the PC ndoe) immediately before the exception is thrown
+     * @param reasonForException description of the condition that causes the exception. The condition being true should
+     *            result in the exception. (e.g. o == null for an NPE, index > a.length for an
+     *            ArrayIndexOutOfBoundsException).
+     * @param bb basic block that could throw the exception
      * @return Two PDG contexts one for when the exception is not thrown and one for when it is thrown. If the exception
      *         cannot be thrown then the exceptional context will be null.
      */
     private Map<ExitType, PDGContext> handlePossibleException(TypeReference exType, PDGContext beforeException,
-                                    String branchDescription, ISSABasicBlock bb) {
+                                                              String reasonForException, ISSABasicBlock bb) {
         SSAInstruction i = getLastInstruction(bb);
         if (interProc.getPreciseExceptionResults().canThrowException(exType, bb, currentNode)) {
             Map<ExitType, PDGContext> out = new LinkedHashMap<>();
-            PDGNode truePC = PDGNodeFactory.findOrCreateOther(branchDescription, PDGNodeType.BOOLEAN_TRUE_PC,
-                                            currentNode, i);
+            PDGNode truePC = PDGNodeFactory.findOrCreateOther(reasonForException,
+                                                              PDGNodeType.BOOLEAN_TRUE_PC,
+                                                              currentNode,
+                                                              new OrderedPair<>(i, exType));
 
-            PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + branchDescription + ")",
-                                            PDGNodeType.BOOLEAN_FALSE_PC, currentNode, i);
+            PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + reasonForException + ")",
+                                                               PDGNodeType.BOOLEAN_FALSE_PC,
+                                                               currentNode,
+                                                               new OrderedPair<>(i, exType));
             PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
 
             PDGContext ex = new PDGContext(null, exceptionValue, truePC);
@@ -809,7 +821,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Record the contexts computed for the false and true branches of an (implicit) exception throw
-     * 
+     *
      * @param exType
      *            type of exception being thrown
      * @param ex
@@ -837,7 +849,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Merge contexts and add appropriate edges to the PDG.
-     * 
+     *
      * @param disambuationKey
      *            key used to distinguish nodes (in addition to the call graph node and node type)
      * @param contexts
@@ -875,7 +887,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Create a new merge node if the input set has size bigger than 1
-     * 
+     *
      * @param nodesToMerge
      *            nodes to be merged if necessary
      * @param mergeNodeDesc
@@ -904,7 +916,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Get the input context for the each instruction, this is unsound until after the analysis completes
-     * 
+     *
      * @return Map from instruction to input context
      */
     protected Map<SSAInstruction, PDGContext> getInstructionInput() {
@@ -922,7 +934,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Get the input contexts for the each basic block, this is unsound until after the analysis completes
-     * 
+     *
      * @return Map from basic block to input contexts
      */
     protected Map<ISSABasicBlock, Set<PDGContext>> getInputContexts() {
@@ -938,7 +950,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
     /**
      * Get a map from basic block to PDGContexts for successor blocks
-     * 
+     *
      * @return map from basic block to output items
      */
     private Map<ISSABasicBlock, Map<ISSABasicBlock, PDGContext>> getOutputContexts() {
