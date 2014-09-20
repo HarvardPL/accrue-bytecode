@@ -3,6 +3,7 @@ package analysis.dataflow.interprocedural.pdg.graph.node;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.dataflow.util.AbstractLocation;
 
@@ -29,7 +30,7 @@ public class PDGNodeFactory {
     /**
      * Find the unique node for the local variable or constant used by instruction, <code>i</code>, in position
      * <code>useNumber</code>. Create if necessary.
-     * 
+     *
      * @param i
      *            instruction with at least <code>useNumber</code> + 1 uses
      * @param useNumber
@@ -48,7 +49,7 @@ public class PDGNodeFactory {
 
     /**
      * Find the unique node for the local variable or constant given by the value number. Create if necessary.
-     * 
+     *
      * @param valueNumber
      *            value number for the local variable
      * @param cgNode
@@ -73,7 +74,7 @@ public class PDGNodeFactory {
      * Find the unique node with the given type in the code and context given by the call graph node, <code>n</code>. In
      * order to ensure that this node is unique a disambiguation key must be specified to distinguish different nodes
      * created with the same type in the same call graph node. If no such node exists one will be created.
-     * 
+     *
      * @param description
      *            human readable description of the node, will not be used to disambiguate nodes and may later be
      *            changed
@@ -99,7 +100,7 @@ public class PDGNodeFactory {
     /**
      * Find the unique node for the generated exception of the given type thrown by <code>i</code> in the code and
      * context given by the call graph node.
-     * 
+     *
      * @param type
      *            type of the generated exception
      * @param n
@@ -109,13 +110,16 @@ public class PDGNodeFactory {
      * @return PDG node for the generated exception
      */
     public static PDGNode findOrCreateGeneratedException(TypeReference type, CGNode n, SSAInstruction i) {
-        return findOrCreateOther("Gen-" + PrettyPrinter.typeString(type), PDGNodeType.BASE_VALUE, n, i);
+        return findOrCreateOther("Gen-" + PrettyPrinter.typeString(type),
+                                 PDGNodeType.BASE_VALUE,
+                                 n,
+                                 new OrderedPair<>(i, type));
     }
 
     /**
      * Find a the unique node corresponding to the (first) local variable defined by the instruction, <code>i</code>.
      * Create this node if it does not already exist.
-     * 
+     *
      * @param i
      *            instruction that defines a local variable
      * @param n
@@ -139,7 +143,7 @@ public class PDGNodeFactory {
      * Nodes at the edges of and intra-procedural dependence graph representing formal arguments, returns, exceptions
      * and control flow into and out of the method (and context) represented by the call graph node. Create if
      * necessary.
-     * 
+     *
      * @param n
      *            call graph node
      * @return summary nodes
@@ -176,25 +180,33 @@ public class PDGNodeFactory {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            if (this == obj) {
                 return true;
-            if (obj == null)
+            }
+            if (obj == null) {
                 return false;
-            if (getClass() != obj.getClass())
+            }
+            if (getClass() != obj.getClass()) {
                 return false;
+            }
             ExpressionNodeKey other = (ExpressionNodeKey) obj;
             if (disambuationKey == null) {
-                if (other.disambuationKey != null)
+                if (other.disambuationKey != null) {
                     return false;
-            } else if (!disambuationKey.equals(other.disambuationKey))
+                }
+            } else if (!disambuationKey.equals(other.disambuationKey)) {
                 return false;
+            }
             if (n == null) {
-                if (other.n != null)
+                if (other.n != null) {
                     return false;
-            } else if (!n.equals(other.n))
+                }
+            } else if (!n.equals(other.n)) {
                 return false;
-            if (type != other.type)
+            }
+            if (type != other.type) {
                 return false;
+            }
             return true;
         }
     }
