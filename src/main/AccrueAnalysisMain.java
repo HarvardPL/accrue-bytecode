@@ -181,14 +181,12 @@ public class AccrueAnalysisMain {
             nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
             preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
             ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
-            // r2.writeAllToFiles();
             ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, rvCache);
             pdg.printDetailedCounts();
             String fullName = "tests/pdg_" + fileName + ".json";
-            FileWriter file = new FileWriter(fullName);
-            pdg.writeJSON(file);
-            // pdg.writeDot(file, true, 1);
-            file.close();
+            try (FileWriter file = new FileWriter(fullName)) {
+                pdg.writeJSON(file);
+            }
             System.err.println("JSON written to " + fullName);
             if (fileLevel >= 1) {
                 printAllCFG(g);
@@ -196,9 +194,17 @@ public class AccrueAnalysisMain {
             }
 
             if (fileLevel >= 2) {
-                r.writeAllToFiles();
+                r2.writeAllToFiles();
                 nonNull.writeAllToFiles(r);
                 preciseEx.writeAllToFiles(r);
+            }
+
+            if (options.shouldWriteDotPDG()) {
+                String dotName = "tests/pdg_" + fileName + ".dot";
+                try (FileWriter dotfile = new FileWriter(dotName)) {
+                    pdg.writeDot(dotfile, true, 1);
+                }
+                System.err.println("DOT written to " + dotName);
             }
             break;
         case "android-cfg":

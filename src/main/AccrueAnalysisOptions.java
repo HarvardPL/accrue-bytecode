@@ -40,9 +40,17 @@ public final class AccrueAnalysisOptions {
      * Flag for redundant variable names
      */
     @Parameter(
-        names = { "-udn", "-useDebugNames" },
+        names = { "-useDebugNames" },
         description = "If set, use both names from source code (when available) and numerical values for variables, otherwise just use names from source code.")
     private boolean useDebugNames = false;
+
+    /**
+     * Flag for writing the PDG to a graphviz "dot" file as well as a JSON file
+     */
+    @Parameter(
+        names = { "-writeDotPDG" },
+        description = "If set, write a graphviz .dot file for the PDG in addition to a JSON file")
+    private boolean writeDotPDG = false;
 
     /**
      * Level of output
@@ -105,6 +113,9 @@ public final class AccrueAnalysisOptions {
                 return;
             }
             if (value.equals("string-main")) {
+                return;
+            }
+            if (value.equals("reachability")) {
                 return;
             }
             System.err.println("Invalid analysis name: " + value);
@@ -344,6 +355,10 @@ public final class AccrueAnalysisOptions {
         sb.append("\tfull - Full Object Sensitive analyis (default parameter 2 allocation sites -- always 1H)\n");
         sb.append("\t(OTHER) - specify the full class name or simple class name if it is in the analysis.pointer.analyses package plus any integer parameters\n");
         return sb.toString();
+    }
+
+    public boolean shouldWriteDotPDG() {
+        return writeDotPDG;
     }
 
 }
