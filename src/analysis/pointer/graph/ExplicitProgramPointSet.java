@@ -28,19 +28,6 @@ public class ExplicitProgramPointSet implements Iterable<InterProgramPointReplic
         return this.points.addAll(pps.points);
     }
 
-    //    /**
-    //     * Does this set contain all of the program points in pps?
-    //     */
-    //    public boolean containsAll(ExplicitProgramPointSet pps) {
-    //        assert (pps.node == this.node);
-    //        for (InterProgramPointReplica s : pps.sources) {
-    //            if (!this.contains(s)) {
-    //                return false;
-    //            }
-    //        }
-    //        return true;
-    //    }
-
     /**
      * Does this set contain of the program points ippr?
      */
