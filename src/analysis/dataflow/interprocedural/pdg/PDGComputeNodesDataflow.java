@@ -447,7 +447,10 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
                                         desc, current);
 
-        exContexts.put(TypeReference.JavaLangNullPointerException, afterNPE.get(ExitType.EXCEPTIONAL));
+        if (afterNPE.get(ExitType.EXCEPTIONAL) != null) {
+            // The null pointer exception could occur
+            exContexts.put(TypeReference.JavaLangNullPointerException, afterNPE.get(ExitType.EXCEPTIONAL));
+        }
         PDGContext normal = afterNPE.get(ExitType.NORMAL);
 
         // If no NPE is thrown then this may throw an
@@ -455,16 +458,21 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         String isOOB = pp.valString(i.getIndex()) + " >= " + pp.valString(i.getArrayRef()) + ".length";
         Map<ExitType, PDGContext> afterAIOOB = handlePossibleException(
                                         TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current);
-        exContexts.put(TypeReference.JavaLangArrayIndexOutOfBoundsException, afterAIOOB.get(ExitType.EXCEPTIONAL));
+        if (afterAIOOB.get(ExitType.EXCEPTIONAL) != null) {
+            // The IOOB exception could occur
+            exContexts.put(TypeReference.JavaLangArrayIndexOutOfBoundsException, afterAIOOB.get(ExitType.EXCEPTIONAL));
+        }
         normal = afterAIOOB.get(ExitType.NORMAL);
 
-        // If no ArrayIndexOutOfBoundsException is thrown then this may throw an
-        // ArrayStoreException
+        // If no ArrayIndexOutOfBoundsException is thrown then this may throw an ArrayStoreException
         String arrayStoreDesc = "!" + pp.valString(i.getValue()) + " instanceof " + pp.valString(i.getArrayRef())
                                         + ".elementType";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangArrayStoreException, normal,
                                         arrayStoreDesc, current);
-        exContexts.put(TypeReference.JavaLangArrayStoreException, afterEx.get(ExitType.EXCEPTIONAL));
+        if (afterEx.get(ExitType.EXCEPTIONAL) != null) {
+            // The array store exception could occur
+            exContexts.put(TypeReference.JavaLangArrayStoreException, afterEx.get(ExitType.EXCEPTIONAL));
+        }
         normal = afterEx.get(ExitType.NORMAL);
 
         Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
@@ -472,6 +480,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
             if (!isUnreachable(current, succ)) {
+                // Note that exContexts must be non-empty here or the succ would be unreachable
+                assert !exContexts.isEmpty();
                 Set<TypeReference> exes = pe.getExceptions(current, succ, currentNode);
                 PDGContext[] toMerge = new PDGContext[exes.size()];
                 int j = 0;
@@ -767,11 +777,24 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                                                     in,
                                                                     desc,
                                                                     current);
-        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
-        PDGNode exception = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
+        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
+        PDGNode throwExpr = getNodeForThrowExpression(i, current, currentNode, pp);
 
-        return factsToMapWithExceptions(new PDGContext(null, exception, normal.getPCNode()), npe, current, cfg);
+        PDGContext afterThrow = new PDGContext(null, throwExpr, normal.getPCNode());
+
+        PDGContext exitContext;
+        if (npe != null) {
+            // Merge the context for the npe with the one for the thrown exception
+            exitContext = mergeContexts(new OrderedPair<>(i, "exception merge"), afterThrow, npe);
+        }
+        else {
+            // The exception cannot be null and thus never throws an NPE
+            exitContext = afterThrow;
+        }
+
+
+        return factsToMapWithExceptions(null, exitContext, current, cfg);
     }
 
     @Override
@@ -968,5 +991,18 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected Map<ISSABasicBlock, PDGContext> flowEmptyBlock(Set<PDGContext> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return factToMap(confluence(inItems, current), current, cfg);
+    }
+
+    /**
+     * Get the node for the actual throw expression in a given throw instruction
+     *
+     * @return node for the throw (e.g. "throw foo")
+     */
+    protected static PDGNode getNodeForThrowExpression(SSAThrowInstruction i, ISSABasicBlock bb, CGNode node,
+                                                       PrettyPrinter pp) {
+        return PDGNodeFactory.findOrCreateOther(pp.instructionString(i),
+                                                PDGNodeType.OTHER_EXPRESSION,
+                                                node,
+                                                bb.getNumber());
     }
 }
