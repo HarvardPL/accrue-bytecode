@@ -169,7 +169,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
 
+        handleChanges(changes, execService);
+
+    }
+
+    private void handleChanges(GraphDelta changes, ExecutorServiceCounter execService) {
         if (changes.isEmpty()) {
+            // nothing to do.
             return;
         }
         IntIterator iter = changes.domainIterator();
@@ -179,7 +185,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 execService.submitTask(depSaC, changes);
             }
         }
-
     }
 
 
@@ -198,13 +203,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private AtomicLong totalTasksNoDelta;
         private AtomicLong totalTasksWithDelta;
+        private AtomicLong totalPropagateTasks;
 
         public ExecutorServiceCounter(ExecutorService exec) {
             this.exec = exec;
             this.numTasks = new AtomicLong(0);
             this.totalTasksNoDelta = new AtomicLong(0);
             this.totalTasksWithDelta = new AtomicLong(0);
+            this.totalPropagateTasks = new AtomicLong(0);
         }
+
 
         public void setGraphAndRegistrar(PointsToGraph g, StatementRegistrar registrar) {
             this.g = g;
@@ -297,7 +305,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 }
             }
         }
-
     }
 
     /**

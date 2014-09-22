@@ -35,7 +35,7 @@ public class GraphDelta {
      * replicas) at which they are valid. These are the flow sensitive points to information. if (s,t,ps) \in deltaFS,
      * and p \in ps, then s points to t at program point p.
      */
-    private final IntMap<IntMap<ProgramPointSet>> deltaFS;
+    private final IntMap<IntMap<ProgramPointSetClosure>> deltaFS;
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
@@ -53,7 +53,8 @@ public class GraphDelta {
      * @param set
      * @return
      */
-    protected boolean addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive, ProgramPointSet ppsToAdd,
+    protected boolean addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
+                                  ExplicitProgramPointSet ppsToAdd,
                                   IntSet set) {
         if (set.isEmpty()) {
             return false;
@@ -65,7 +66,7 @@ public class GraphDelta {
         }
         // flow sensitive
         boolean changed = false;
-        IntMap<ProgramPointSet> m = getOrCreateFSMap(n);
+        IntMap<ProgramPointSetClosure> m = getOrCreateFSMap(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
@@ -74,8 +75,8 @@ public class GraphDelta {
         return changed;
     }
 
-    private IntMap<ProgramPointSet> getOrCreateFSMap(/*PointsToGraphNode*/int src) {
-        IntMap<ProgramPointSet> s = deltaFS.get(src);
+    private IntMap<ProgramPointSetClosure> getOrCreateFSMap(/*PointsToGraphNode*/int src) {
+        IntMap<ProgramPointSetClosure> s = deltaFS.get(src);
         if (s == null) {
             s = new SparseIntMap();
             deltaFS.put(src, s);
@@ -83,11 +84,21 @@ public class GraphDelta {
         return s;
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSet> m, /*PointsToGraphNode*/int to,
-                                            ProgramPointSet toAdd) {
-        ProgramPointSet p = m.get(to);
+    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int to,
+                                            ExplicitProgramPointSet toAdd) {
+        ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSet();
+            p = new ProgramPointSetClosure(to);
+            m.put(to, p);
+        }
+        return p.addAll(toAdd);
+    }
+
+    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int to,
+                                            ProgramPointSetClosure toAdd) {
+        ProgramPointSetClosure p = m.get(to);
+        if (p == null) {
+            p = new ProgramPointSetClosure(to);
             m.put(to, p);
         }
         return p.addAll(toAdd);
@@ -115,11 +126,11 @@ public class GraphDelta {
     protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
         MutableIntSet oldFI = deltaFI.remove(n);
         assert oldFI == null || oldFI.isSubset(deltaFI.get(rep));
-        IntMap<ProgramPointSet> oldFS = deltaFS.remove(n);
+        IntMap<ProgramPointSetClosure> oldFS = deltaFS.remove(n);
         assert (oldFS == null || containsAll(deltaFS.get(rep), oldFS));
     }
 
-    private static boolean containsAll(IntMap<ProgramPointSet> superset, IntMap<ProgramPointSet> subset) {
+    private static boolean containsAll(IntMap<ProgramPointSetClosure> superset, IntMap<ProgramPointSetClosure> subset) {
         IntIterator iter = subset.keyIterator();
         while (iter.hasNext()) {
             int key = iter.next();
@@ -155,8 +166,8 @@ public class GraphDelta {
             IntIterator keysFS = d.deltaFI.keyIterator();
             while (keysFS.hasNext()) {
                 int src = keysFS.next();
-                IntMap<ProgramPointSet> srcSet = d.deltaFS.get(src);
-                IntMap<ProgramPointSet> m = this.getOrCreateFSMap(src);
+                IntMap<ProgramPointSetClosure> srcSet = d.deltaFS.get(src);
+                IntMap<ProgramPointSetClosure> m = this.getOrCreateFSMap(src);
                 IntIterator srcKeys = srcSet.keyIterator();
                 while (srcKeys.hasNext()) {
                     int k = srcKeys.next();
@@ -196,7 +207,7 @@ public class GraphDelta {
         }
         while (iter.hasNext()) {
             int i = iter.next();
-            IntMap<ProgramPointSet> s = deltaFS.get(i);
+            IntMap<ProgramPointSetClosure> s = deltaFS.get(i);
             sb.append(i);
             sb.append(":");
             sb.append(s);
@@ -230,7 +241,7 @@ public class GraphDelta {
 
         node = n;
         do {
-            IntMap<ProgramPointSet> s = deltaFS.get(node);
+            IntMap<ProgramPointSetClosure> s = deltaFS.get(node);
             if (s != null) {
                 iterators.add(g.new ProgramPointIntIterator(s, ippr));
             }
@@ -267,4 +278,11 @@ public class GraphDelta {
         return g.new SortedIntSetUnionIterator(deltaFI.keyIterator(), deltaFS.keyIterator());
     }
 
+    public IntIterator flowSensitiveDomainIterator() {
+        return deltaFS.keyIterator();
+    }
+
+    public IntMap<ProgramPointSetClosure> flowSensitivePointsTo(/*PointsToGraphNode*/int n) {
+        return deltaFS.get(n);
+    }
 }
