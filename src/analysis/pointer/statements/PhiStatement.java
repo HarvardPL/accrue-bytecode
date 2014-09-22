@@ -53,14 +53,15 @@ public class PhiStatement extends PointsToStatement {
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
-        InterProgramPointReplica ippr = InterProgramPointReplica.create(context, this.programPoint().post());
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
 
         GraphDelta changed = new GraphDelta(g);
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
             // no need to use delta, as this just adds subset relations.
-            GraphDelta d1 = g.copyEdges(n, a, ippr);
+            GraphDelta d1 = g.copyEdges(n, pre, a, post);
 
             changed = changed.combine(d1);
         }

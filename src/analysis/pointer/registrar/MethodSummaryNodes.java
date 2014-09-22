@@ -82,6 +82,18 @@ public class MethodSummaryNodes {
         return exception;
     }
 
+    public ProgramPoint getEntryPP() {
+        return entryPP;
+    }
+
+    public ProgramPoint getNormalExitPP() {
+        return normalExitPP;
+    }
+
+    public ProgramPoint getExceptionExitPP() {
+        return exceptionExitPP;
+    }
+
     /**
      * Get the summary reference variable for the ith formal argument
      *

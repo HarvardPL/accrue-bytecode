@@ -69,13 +69,14 @@ public class LocalToLocalStatement extends PointsToStatement {
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right);
-        InterProgramPointReplica ippr = InterProgramPointReplica.create(context, this.programPoint().post());
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
         // don't need to use delta, as this just adds a subset edge
         if (filter) {
             TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());
             return g.copyFilteredEdges(r, typeFilter, l);
         }
-        return g.copyEdges(r, l, ippr);
+        return g.copyEdges(r, pre, l, post);
     }
 
     @Override

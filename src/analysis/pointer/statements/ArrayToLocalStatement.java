@@ -16,6 +16,7 @@ import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
@@ -58,15 +59,18 @@ public class ArrayToLocalStatement extends PointsToStatement {
         // TODO filter only arrays with assignable base types
         // Might have to subclass InstanceKey to keep more info about arrays
 
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
+
         if (delta == null) {
             // let's do the normal processing
-            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, originator); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents =
                         new ObjectField(arrHeapContext,
                                         PointsToGraph.ARRAY_CONTENTS,
                                         baseType);
-                GraphDelta d1 = g.copyEdges(contents, v);
+                GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }
@@ -75,13 +79,13 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // we have a delta. Let's be smart about how we use it.
             // Statement is v = a[i]. First check if a points to anything new. If it does now point to some new abstract
             // object k, add everything that k[i] points to to v's set.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents =
                         new ObjectField(arrHeapContext,
                                         PointsToGraph.ARRAY_CONTENTS,
                                         baseType);
-                GraphDelta d1 = g.copyEdges(contents, v);
+                GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }

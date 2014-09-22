@@ -18,6 +18,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.graph.TypeFilter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -86,13 +87,14 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             r = new ReferenceVariableReplica(context, this.thrown);
         }
 
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
+
         // don't need to use delta, as this just adds a subset edge
         if (this.filter == null) {
-            return g.copyEdges(r, l);
+            return g.copyEdges(r, pre, l, post);
         }
-        else {
-            return g.copyFilteredEdges(r, this.filter, l);
-        }
+        return g.copyFilteredEdges(r, this.filter, l);
 
     }
 

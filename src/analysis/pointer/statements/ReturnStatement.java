@@ -12,6 +12,7 @@ import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -54,8 +55,11 @@ public class ReturnStatement extends PointsToStatement {
         ReferenceVariableReplica summaryRes =
                 new ReferenceVariableReplica(context, returnSummary);
 
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
+
         // don't need to use delta, as this just adds a subset edge
-        return g.copyEdges(returnRes, summaryRes);
+        return g.copyEdges(returnRes, pre, summaryRes, post);
 
     }
 

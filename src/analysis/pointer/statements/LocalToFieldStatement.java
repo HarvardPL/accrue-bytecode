@@ -66,29 +66,29 @@ public class LocalToFieldStatement extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
         PointsToGraphNode local =
                 new ReferenceVariableReplica(context, this.localVar);
-        InterProgramPointReplica ippr_pre = InterProgramPointReplica.create(context, this.programPoint().pre());
-        InterProgramPointReplica ippr_post = InterProgramPointReplica.create(context, this.programPoint().post());
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
 
         GraphDelta changed = new GraphDelta(g);
 
         if (delta == null) {
             // no delta, let's do some simple processing
-            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, ippr_pre, originator); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
 
                 ObjectField of = new ObjectField(recHeapContext, this.field);
                 // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyEdges(local, of, ippr_post);
+                GraphDelta d1 = g.copyEdges(local, pre, of, post);
                 changed = changed.combine(d1);
             }
         }
         else {
             // We check if o has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, ippr_pre); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 ObjectField of = new ObjectField(recHeapContext, this.field);
-                GraphDelta d1 = g.copyEdges(local, of, ippr_post);
+                GraphDelta d1 = g.copyEdges(local, pre, of, post);
                 changed = changed.combine(d1);
             }
         }
