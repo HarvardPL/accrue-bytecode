@@ -51,8 +51,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode a = new ReferenceVariableReplica(context, array);
-        PointsToGraphNode v = new ReferenceVariableReplica(context, value);
+        PointsToGraphNode a = new ReferenceVariableReplica(context, array, haf);
+        PointsToGraphNode v = new ReferenceVariableReplica(context, value, haf);
 
         GraphDelta changed = new GraphDelta(g);
         // TODO filter only arrays with assignable base types
@@ -116,13 +116,13 @@ public class ArrayToLocalStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array);
+        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
         return Collections.singleton(a);
     }
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, value));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, value, haf));
     }
 }

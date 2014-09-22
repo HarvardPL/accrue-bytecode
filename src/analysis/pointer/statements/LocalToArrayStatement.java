@@ -62,8 +62,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode a = new ReferenceVariableReplica(context, array);
-        PointsToGraphNode v = new ReferenceVariableReplica(context, value);
+        PointsToGraphNode a = new ReferenceVariableReplica(context, array, haf);
+        PointsToGraphNode v = new ReferenceVariableReplica(context, value, haf);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -128,8 +128,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array);
-        ReferenceVariableReplica v = new ReferenceVariableReplica(ctxt, value);
+        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
+        ReferenceVariableReplica v = new ReferenceVariableReplica(ctxt, value, haf);
         List<ReferenceVariableReplica> uses = new ArrayList<>(2);
         uses.add(a);
         uses.add(v);

@@ -623,94 +623,14 @@ public class PointsToGraph {
         return Collections.unmodifiableSet(this.reachableContexts.get(m));
     }
 
-    //
-    // /**
-    // * Print the graph in graphviz dot format to a file
-    // *
-    // * @param filename
-    // * name of the file, the file is put in tests/filename.dot
-    // * @param addDate
-    // * if true then the date will be added to the filename
-    // */
-    // public void dumpPointsToGraphToFile(String filename, boolean addDate) {
-    // String dir = "tests";
-    // String file = filename;
-    // if (addDate) {
-    // SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
-    // Date dateNow = new Date();
-    // String now = dateFormat.format(dateNow);
-    // file += now;
-    // }
-    // String fullFilename = dir + "/" + file + ".dot";
-    // try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-    // dumpPointsToGraph(out);
-    // System.err.println("\nDOT written to: " + fullFilename);
-    // } catch (IOException e) {
-    // System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-    // }
-    // }
-    //
-    // private static String escape(String s) {
-    // return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    // }
-    //
-    // private Writer dumpPointsToGraph(Writer writer) throws IOException {
-    // double spread = 1.0;
-    // writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
-    // + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
-    // + "edge [fontsize=10]" + ";\n");
-    //
-    // Map<String, Integer> dotToCount = new HashMap<>();
-    // Map<PointsToGraphNode, String> n2s = new HashMap<>();
-    // Map<InstanceKey, String> k2s = new HashMap<>();
-    //
-    // // Need to differentiate between different nodes with the same string
-    // for (PointsToGraphNode n : graph.keySet()) {
-    // String nStr = escape(n.toString());
-    // Integer count = dotToCount.get(nStr);
-    // if (count == null) {
-    // dotToCount.put(nStr, 1);
-    // } else {
-    // dotToCount.put(nStr, count + 1);
-    // nStr += " (" + count + ")";
-    // }
-    // n2s.put(n, nStr);
-    // }
-    // for (InstanceKey k : getAllHContexts()) {
-    // String kStr = escape(k.toString());
-    // Integer count = dotToCount.get(kStr);
-    // if (count == null) {
-    // dotToCount.put(kStr, 1);
-    // } else {
-    // dotToCount.put(kStr, count + 1);
-    // kStr += " (" + count + ")";
-    // }
-    // k2s.put(k, kStr);
-    // }
-    //
-    // for (PointsToGraphNode n : graph.keySet()) {
-    // for (InstanceKey ik : graph.get(n)) {
-    // writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
-    // }
-    // }
-    //
-    // writer.write("\n};\n");
-    // return writer;
-    // }
-
-    // /**
-    // * Set containing all Heap contexts. This is really expensive. Don't do it unless debugging small graphs.
-    // *
-    // * @return set with all the Heap contexts
-    // */
-    // public IntSet getAllHContexts() {
-    // IntSet all = new HashSet<>();
-    //
-    // for (IntSet s : graph.values()) {
-    // all.addAll(s);
-    // }
-    // return all;
-    // }
+    /**
+     * Get the heap abstraction factory used to compute contexts for this points to graph
+     *
+     * @return heap abstraction factory for this pointer analysis
+     */
+    public HeapAbstractionFactory getHaf() {
+        return haf;
+    }
 
     /**
      * Get the procedure call graph

@@ -67,9 +67,8 @@ public class FieldToLocalStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode left =
-                new ReferenceVariableReplica(context, this.assignee);
-        PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
+        PointsToGraphNode left = new ReferenceVariableReplica(context, this.assignee, haf);
+        PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -132,7 +131,7 @@ public class FieldToLocalStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
         ReferenceVariableReplica rec =
-                new ReferenceVariableReplica(ctxt, this.receiver);
+ new ReferenceVariableReplica(ctxt, this.receiver, haf);
 
         List<Object> uses = new ArrayList<>(2);
         uses.add(rec);
@@ -144,7 +143,6 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt,
-                                                                  this.assignee));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, this.assignee, haf));
     }
 }

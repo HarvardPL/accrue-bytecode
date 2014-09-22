@@ -71,7 +71,7 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver);
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -183,10 +183,10 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
         List<Object> uses = new ArrayList<>(this.getActuals().size() + 2);
-        uses.add(new ReferenceVariableReplica(ctxt, this.receiver));
+        uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
         for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use);
+                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
                 uses.add(n);
             }
         }
@@ -202,10 +202,10 @@ public class VirtualCallStatement extends CallStatement {
         List<Object> defs = new ArrayList<>(3);
 
         if (this.getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getResult()));
+            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
         }
         if (this.getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getException()));
+            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
         }
         // Add the callee Selector, so we can get dependences from this
         // to the summary nodes of the callees.

@@ -508,7 +508,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
      */
     public ReferenceVariableReplica getReplica(int local, CGNode n) {
         ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getMethod());
-        return new ReferenceVariableReplica(n.getContext(), rv);
+        return new ReferenceVariableReplica(n.getContext(), rv, ptg.getHaf());
     }
 
     /**

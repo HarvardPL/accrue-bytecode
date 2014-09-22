@@ -62,9 +62,8 @@ public class LocalToFieldStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
-        PointsToGraphNode local =
-                new ReferenceVariableReplica(context, this.localVar);
+        PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
+        PointsToGraphNode local = new ReferenceVariableReplica(context, this.localVar, haf);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -129,9 +128,9 @@ public class LocalToFieldStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
         ReferenceVariableReplica rec =
-                new ReferenceVariableReplica(ctxt, this.receiver);
+ new ReferenceVariableReplica(ctxt, this.receiver, haf);
         ReferenceVariableReplica var =
-                new ReferenceVariableReplica(ctxt, this.localVar);
+ new ReferenceVariableReplica(ctxt, this.localVar, haf);
         List<Object> uses = new ArrayList<>(2);
         uses.add(rec);
         uses.add(var);

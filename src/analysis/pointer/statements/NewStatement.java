@@ -82,8 +82,7 @@ public class NewStatement extends PointsToStatement {
         InstanceKey newHeapContext = haf.record(alloc, context);
         assert newHeapContext != null;
 
-        ReferenceVariableReplica r =
-                new ReferenceVariableReplica(context, result);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(context, result, haf);
         return g.addEdge(r, newHeapContext);
     }
 
@@ -116,6 +115,6 @@ public class NewStatement extends PointsToStatement {
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, result));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
     }
 }

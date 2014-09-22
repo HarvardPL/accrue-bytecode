@@ -33,7 +33,7 @@ public class PhiStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
-     * 
+     *
      * @param v
      *            value assigned into
      * @param xs
@@ -52,12 +52,12 @@ public class PhiStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
+        PointsToGraphNode a = new ReferenceVariableReplica(context, assignee, haf);
 
         GraphDelta changed = new GraphDelta(g);
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
-            PointsToGraphNode n = new ReferenceVariableReplica(context, use);
+            PointsToGraphNode n = new ReferenceVariableReplica(context, use, haf);
             // no need to use delta, as this just adds subset relations.
             GraphDelta d1 = g.copyEdges(n, a);
 
@@ -100,7 +100,7 @@ public class PhiStatement extends PointsToStatement {
         List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
         for (ReferenceVariable use : uses) {
             ReferenceVariableReplica n =
-                    new ReferenceVariableReplica(ctxt, use);
+ new ReferenceVariableReplica(ctxt, use, haf);
             l.add(n);
         }
         return l;
@@ -109,8 +109,7 @@ public class PhiStatement extends PointsToStatement {
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt,
-                                                                  assignee));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, assignee, haf));
     }
 
 }

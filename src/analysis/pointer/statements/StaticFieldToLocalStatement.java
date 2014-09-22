@@ -32,15 +32,12 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
 
     /**
      * Statement for an assignment from a static field to a local, local = ClassName.staticField
-     * 
-     * @param local
-     *            points-to graph node for the assigned value
-     * @param staticField
-     *            points-to graph node for assignee
+     *
+     * @param local points-to graph node for the assigned value
+     * @param staticField points-to graph node for assignee
      * @param m
      */
-    protected StaticFieldToLocalStatement(ReferenceVariable local,
-            ReferenceVariable staticField, IMethod m) {
+    protected StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, IMethod m) {
         super(m);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
@@ -50,12 +47,11 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
 
-        PointsToGraphNode l = new ReferenceVariableReplica(context, local);
-        PointsToGraphNode r =
-                new ReferenceVariableReplica(haf.initialContext(), staticField);
+        PointsToGraphNode l = new ReferenceVariableReplica(context, local, haf);
+        PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
 
         // don't need to use delta, as this just adds a subset edge
         return g.copyEdges(r, l);
@@ -68,7 +64,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
 
     /**
      * Reference variable for the static field being accessed
-     * 
+     *
      * @return variable for the static field
      */
     public ReferenceVariable getStaticField() {
@@ -91,16 +87,13 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(),
-                                                                  staticField));
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local);
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(l);
     }
 }

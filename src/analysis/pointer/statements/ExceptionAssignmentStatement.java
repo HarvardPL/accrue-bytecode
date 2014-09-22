@@ -37,7 +37,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
-     * 
+     *
      * @param thrown
      *            reference variable for the exception being thrown
      * @param caught
@@ -74,25 +74,22 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught);
+        PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught, haf);
         PointsToGraphNode r;
         if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown);
+            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown, haf);
         }
         else {
-            r = new ReferenceVariableReplica(context, this.thrown);
+            r = new ReferenceVariableReplica(context, this.thrown, haf);
         }
 
         // don't need to use delta, as this just adds a subset edge
         if (this.filter == null) {
             return g.copyEdges(r, l);
         }
-        else {
-            return g.copyFilteredEdges(r, this.filter, l);
-        }
-
+        return g.copyFilteredEdges(r, this.filter, l);
     }
 
     @Override
@@ -130,7 +127,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     /**
      * Get the exception being assigned to (either the catch formal or the procedure exit exception summary)
-     * 
+     *
      * @return variable for exception being assigned to
      */
     public ReferenceVariable getCaughtException() {
@@ -144,10 +141,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown);
+            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown, haf);
         }
         else {
-            r = new ReferenceVariableReplica(ctxt, this.thrown);
+            r = new ReferenceVariableReplica(ctxt, this.thrown, haf);
         }
         return Collections.singleton(r);
     }
@@ -155,8 +152,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
                                               HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt,
-                                                                  this.caught);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, this.caught, haf);
         if (this.isToMethodSummaryVariable && !this.getMethod().isStatic()) {
             List<Object> defs = new ArrayList<>(3);
             defs.add(r);
@@ -169,9 +165,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             }
             return defs;
         }
-        else {
-            return Collections.singleton(r);
-        }
+        return Collections.singleton(r);
     }
 
 }

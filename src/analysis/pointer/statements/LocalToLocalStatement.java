@@ -42,7 +42,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     /**
      * Statement for a local assignment, left = right
-     * 
+     *
      * @param left
      *            points-to graph node for assignee
      * @param right
@@ -64,8 +64,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode l = new ReferenceVariableReplica(context, left);
-        PointsToGraphNode r = new ReferenceVariableReplica(context, right);
+        PointsToGraphNode l = new ReferenceVariableReplica(context, left, haf);
+        PointsToGraphNode r = new ReferenceVariableReplica(context, right, haf);
         // don't need to use delta, as this just adds a subset edge
         if (filter) {
             TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());
@@ -98,7 +98,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right, haf);
 
         if (!isFromMethodSummaryVariable) {
             return Collections.singleton(r);
@@ -122,6 +122,6 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, left));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, left, haf));
     }
 }

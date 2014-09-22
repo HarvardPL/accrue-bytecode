@@ -603,7 +603,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public ReferenceVariableReplica getReplica(int local, CGNode n) {
         ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getMethod());
-        return new ReferenceVariableReplica(n.getContext(), rv);
+        return new ReferenceVariableReplica(n.getContext(), rv, ptg.getHaf());
     }
 
     /**

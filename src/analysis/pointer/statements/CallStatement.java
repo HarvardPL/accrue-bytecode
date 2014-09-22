@@ -39,7 +39,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     * 
+     *
      * @param callSite
      *            Method call site
      * @param caller
@@ -64,7 +64,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Process a call for a particular receiver and resolved method
-     * 
+     *
      * @param callerContext
      *            Calling context for the caller
      * @param receiver
@@ -101,11 +101,10 @@ public abstract class CallStatement extends PointsToStatement {
         // If the result Node is null then either this is void return, there is
         // no assignment after the call, or the return type is not a reference
         if (result != null) {
-            ReferenceVariableReplica resultRep =
-                    new ReferenceVariableReplica(callerContext, result);
-            ReferenceVariableReplica calleeReturn =
-                    new ReferenceVariableReplica(calleeContext,
-                                                 calleeSummary.getReturn());
+            ReferenceVariableReplica resultRep = new ReferenceVariableReplica(callerContext, result, haf);
+            ReferenceVariableReplica calleeReturn = new ReferenceVariableReplica(calleeContext,
+                                                                                 calleeSummary.getReturn(),
+                                                                                 haf);
 
             // Check whether the types match up appropriately
             assert checkTypes(resultRep, calleeReturn);
@@ -122,7 +121,8 @@ public abstract class CallStatement extends PointsToStatement {
         if (!callee.isStatic()) {
             ReferenceVariableReplica thisRep =
                     new ReferenceVariableReplica(calleeContext,
-                                                 calleeSummary.getFormal(0));
+                                                                            calleeSummary.getFormal(0),
+                                                                            haf);
             GraphDelta receiverChange = g.addEdge(thisRep, receiver);
             changed = changed.combine(receiverChange);
         }
@@ -139,12 +139,11 @@ public abstract class CallStatement extends PointsToStatement {
                 // Not a reference type or null actual
                 continue;
             }
-            ReferenceVariableReplica actualRep =
-                    new ReferenceVariableReplica(callerContext, actual);
+            ReferenceVariableReplica actualRep = new ReferenceVariableReplica(callerContext, actual, haf);
 
-            ReferenceVariableReplica formalRep =
-                    new ReferenceVariableReplica(calleeContext,
-                                                 calleeSummary.getFormal(i));
+            ReferenceVariableReplica formalRep = new ReferenceVariableReplica(calleeContext,
+                                                                              calleeSummary.getFormal(i),
+                                                                              haf);
 
             // Check whether the types match up appropriately
             assert checkTypes(formalRep, actualRep);
@@ -156,11 +155,10 @@ public abstract class CallStatement extends PointsToStatement {
 
         // ///////////////// Exceptions //////////////////
 
-        ReferenceVariableReplica callerEx =
-                new ReferenceVariableReplica(callerContext, exception);
-        ReferenceVariableReplica calleeEx =
-                new ReferenceVariableReplica(calleeContext,
-                                             calleeSummary.getException());
+        ReferenceVariableReplica callerEx = new ReferenceVariableReplica(callerContext, exception, haf);
+        ReferenceVariableReplica calleeEx = new ReferenceVariableReplica(calleeContext,
+                                                                         calleeSummary.getException(),
+                                                                         haf);
 
         // The exception in the caller can point to anything the summary node in the callee can point to
         GraphDelta exChange = g.copyEdges(calleeEx, callerEx);
@@ -171,7 +169,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Result of the call if any, null if void or primitive return or if the return result is not assigned
-     * 
+     *
      * @return return result node (in the caller)
      */
     protected final ReferenceVariable getResult() {
@@ -180,7 +178,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Actual arguments to the call (if the type is primitive or it is a null literal then the entry will be null)
-     * 
+     *
      * @return list of actual parameters
      */
     protected final List<ReferenceVariable> getActuals() {
@@ -190,7 +188,7 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Reference variable for any exceptions thrown by this call (including a NullPointerException due to the receiver
      * being null)
-     * 
+     *
      * @return exception reference variable
      */
     public ReferenceVariable getException() {
@@ -200,7 +198,7 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * (Unresolved) Method being called. The actual method depends on the run-time type of the receiver, which is
      * approximated by the pointer analysis.
-     * 
+     *
      * @return callee
      */
     public MethodReference getCallee() {
@@ -209,7 +207,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Replace the variable for an actual argument with the given variable
-     * 
+     *
      * @param argNum
      *            index of the argument to replace
      * @param newVariable

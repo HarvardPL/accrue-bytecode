@@ -32,7 +32,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
 
     /**
      * Statement for an assignment from a local into a static field, ClassName.staticField = local
-     * 
+     *
      * @param staticField
      *            points-to graph node for the assigned value
      * @param local
@@ -52,9 +52,8 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode l =
-                new ReferenceVariableReplica(haf.initialContext(), staticField);
-        PointsToGraphNode r = new ReferenceVariableReplica(context, local);
+        PointsToGraphNode l = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
+        PointsToGraphNode r = new ReferenceVariableReplica(context, local, haf);
         // don't need to use delta, as this just adds a subset edge
         return g.copyEdges(r, l);
     }
@@ -85,14 +84,13 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, local);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(r);
     }
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(),
-                                                                  staticField));
+        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
 }

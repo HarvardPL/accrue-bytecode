@@ -1,5 +1,6 @@
 package analysis.pointer.graph;
 
+import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.ipa.callgraph.Context;
@@ -14,17 +15,31 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
     private final ReferenceVariable l;
     private final int memoizedHashCode;
 
-    public ReferenceVariableReplica(Context context, ReferenceVariable rv) {
+    /**
+     * Create a replica of a given reference variable. This represents a local variable or static field in a particular
+     * context.
+     *
+     * @param context context the reference variable occurs in (if the reference variable is a singleton then this will
+     *            be ignored in favor of the "initial" or "empty" context)
+     * @param rv reference variable for the local variable or static field
+     * @param haf heap abstraction factory (used to get the "initial context" for singleton reference variables)
+     */
+    public ReferenceVariableReplica(Context context, ReferenceVariable rv, HeapAbstractionFactory haf) {
         assert rv != null;
         assert context != null;
         l = rv;
-        this.context = context;
+        if (rv.isSingleton()) {
+            this.context = haf.initialContext();
+        }
+        else {
+            this.context = context;
+        }
         memoizedHashCode = computeHashCode();
     }
 
     /**
      * Memoize hash code
-     * 
+     *
      * @return hash code
      */
     private int computeHashCode() {
@@ -43,12 +58,22 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null) return false;
-        if (!(obj instanceof ReferenceVariableReplica)) return false;
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof ReferenceVariableReplica)) {
+            return false;
+        }
         ReferenceVariableReplica other = (ReferenceVariableReplica) obj;
-        if (!context.equals(other.context)) return false;
-        if (!l.equals(other.l)) return false;
+        if (!context.equals(other.context)) {
+            return false;
+        }
+        if (!l.equals(other.l)) {
+            return false;
+        }
         return true;
     }
 
