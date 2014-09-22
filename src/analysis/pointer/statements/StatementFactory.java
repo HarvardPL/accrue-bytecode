@@ -306,7 +306,7 @@ public class StatementFactory {
      * @param m method
      * @return a statement representing the allocation for a native method with no signature
      */
-    private NewStatement newForGeneratedObject(ReferenceVariable v, IClass allocatedClass, IMethod m, String description) {
+    public NewStatement newForGeneratedObject(ReferenceVariable v, IClass allocatedClass, IMethod m, String description) {
         assert v != null;
         assert allocatedClass != null;
         assert m != null;

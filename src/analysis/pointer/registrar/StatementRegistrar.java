@@ -109,7 +109,7 @@ public class StatementRegistrar {
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
-    private final ConcurrentMap<TypeReference, ReferenceVariable> singletonExceptions;
+    private final ConcurrentMap<TypeReference, ReferenceVariable> singletonReferenceVariables;
 
     /**
      * Methods we have already added statements for
@@ -137,7 +137,7 @@ public class StatementRegistrar {
     public StatementRegistrar(StatementFactory factory) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
-        this.singletonExceptions = AnalysisUtil.createConcurrentHashMap();
+        this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryPoint = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
@@ -581,7 +581,8 @@ public class StatementRegistrar {
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
-            this.addStatement(stmtFactory.localToLocal(a, getOrCreateSingleton(resultType), ir.getMethod(), false));
+            ReferenceVariable rv = getOrCreateSingleton(resultType);
+            this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod(), false));
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
@@ -626,12 +627,14 @@ public class StatementRegistrar {
         if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE
                 && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
-            this.addStatement(stmtFactory.localToLocal(result, getOrCreateSingleton(allocType), ir.getMethod(), false));
+            ReferenceVariable rv = getOrCreateSingleton(allocType);
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
 
         }
         else if (USE_SINGLE_ALLOC_FOR_STRINGS && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
-            this.addStatement(stmtFactory.localToLocal(result, getOrCreateSingleton(allocType), ir.getMethod(), false));
+            ReferenceVariable rv = getOrCreateSingleton(allocType);
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
 
         }
         else {
@@ -884,7 +887,7 @@ public class StatementRegistrar {
                 // flow sensitive
 
                 // add points to statements to simulate the allocation
-                this.registerStringLiteral(newStringLit, use, ir.getMethod(), rvFactory, pp);
+                this.registerStringLiteral(newStringLit, use, ir.getMethod(), pp);
             }
         }
 
@@ -897,15 +900,11 @@ public class StatementRegistrar {
      * @param local local variable value number for the literal
      * @param m Method where the literal is created
      */
-    private void registerStringLiteral(ReferenceVariable stringLit, int local, IMethod m,
-                                       ReferenceVariableFactory rvFactory, PrettyPrinter pp) {
+    private void registerStringLiteral(ReferenceVariable stringLit, int local, IMethod m, PrettyPrinter pp) {
         if (USE_SINGLE_ALLOC_FOR_STRINGS) {
             // v = string
-            this.addStatement(stmtFactory.localToLocal(stringLit,
-                                                       getOrCreateSingleton(AnalysisUtil.getStringClass()
-                                                                                        .getReference()),
-                                                       m,
-                                                       false));
+            ReferenceVariable rv = getOrCreateSingleton(AnalysisUtil.getStringClass().getReference());
+            this.addStatement(stmtFactory.localToLocal(stringLit, rv, m, false));
         }
         else {
             // v = new String
@@ -913,7 +912,7 @@ public class StatementRegistrar {
             for (IField f : AnalysisUtil.getStringClass().getAllFields()) {
                 if (f.getName().toString().equals("value")) {
                     // This is the value field of the String
-                    ReferenceVariable stringValue = rvFactory.createStringLitField(local, m);
+                    ReferenceVariable stringValue = ReferenceVariableFactory.createStringLitField();
                     this.addStatement(stmtFactory.newForStringField(stringValue, m));
                     this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, m));
                 }
@@ -951,26 +950,31 @@ public class StatementRegistrar {
     }
 
     /**
-     * get or create a singleton reference variable based on the type.
+     * Get or create a singleton reference variable based on the type.
+     *
+     * @param varType type we want a singleton for
      */
-    private ReferenceVariable getOrCreateSingleton(TypeReference exType) {
-        ReferenceVariable ex = this.singletonExceptions.get(exType);
-        if (ex == null) {
-            ex = rvFactory.createSingletonReferenceVariable(exType);
-            ReferenceVariable existing = this.singletonExceptions.putIfAbsent(exType, ex);
+    private ReferenceVariable getOrCreateSingleton(TypeReference varType) {
+        ReferenceVariable rv = this.singletonReferenceVariables.get(varType);
+        if (rv == null) {
+            rv = rvFactory.createSingletonReferenceVariable(varType);
+            ReferenceVariable existing = this.singletonReferenceVariables.putIfAbsent(varType, rv);
             if (existing != null) {
-                ex = existing;
+                rv = existing;
             }
 
-            IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
-            assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
+            IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(varType);
+            assert klass != null : "No class found for " + PrettyPrinter.typeString(varType);
 
             // We present that the allocation for this object occurs in the entry point.
-            NewStatement stmt = stmtFactory.newForGeneratedException(ex, exClass, this.entryPoint);
+            NewStatement stmt = stmtFactory.newForGeneratedObject(rv,
+                                                                  klass,
+                                                                  this.entryPoint,
+                                                                  PrettyPrinter.typeString(varType));
             this.addStatement(stmt);
 
         }
-        return ex;
+        return rv;
     }
 
     /**
@@ -1076,7 +1080,7 @@ public class StatementRegistrar {
             if (exceptions != null) {
                 for (TypeReference exType : exceptions) {
                     // Allocation of exception of a particular type
-                    ReferenceVariable ex = rvFactory.createNativeException(exType, m);
+                    ReferenceVariable ex = ReferenceVariableFactory.createNativeException(exType, m);
                     this.addStatement(stmtFactory.exceptionAssignment(ex,
                                                                       methodSummary.getException(),
                                                                       Collections.<IClass> emptySet(),
@@ -1096,7 +1100,8 @@ public class StatementRegistrar {
         // e.g. if the actual native method would throw a NullPointerException and NullPointerException is caught in the
         // caller, but a node is only created for a RunTimeException then the catch block will be bypassed
         if (!containsRTE) {
-            ReferenceVariable ex = rvFactory.createNativeException(TypeReference.JavaLangRuntimeException, m);
+            ReferenceVariable ex = ReferenceVariableFactory.createNativeException(TypeReference.JavaLangRuntimeException,
+                                                                                  m);
             this.addStatement(stmtFactory.exceptionAssignment(ex,
                                                               methodSummary.getException(),
                                                               Collections.<IClass> emptySet(),
