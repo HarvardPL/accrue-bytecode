@@ -1,10 +1,13 @@
 package test.instruction;
 
 public class ArrayLoad {
-    static int[] x = new int[4];
-    static int y;
+    static ArrayLoad[] x;
+    static ArrayLoad y;
+    static int z;
 
     public static void main(String[] args) {
-        y = x[0];
+        x = new ArrayLoad[4];
+        x[2] = new ArrayLoad();
+        y = x[2];
     }
 }
