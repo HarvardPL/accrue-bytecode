@@ -7,6 +7,7 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
+import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.statements.StatementFactory;
@@ -141,7 +142,7 @@ public class ReferenceVariableFactory {
     /**
      * Create a singleton node for a type. This can be used to decrease the size of the points-to graph and the run-time
      * of the pointer analysis at the cost of less precision. This should only be called once for any given type.
-     * 
+     *
      * @param type type of the objects pointed to by the singleton node
      * @return singleton reference variable for the given type
      */
@@ -264,8 +265,8 @@ public class ReferenceVariableFactory {
      *
      * @return Cache of reference variables for each local variable
      */
-    public ReferenceVariableCache getAllLocals() {
-        return new ReferenceVariableCache(locals);
+    public ReferenceVariableCache getAllLocals(Map<IMethod, VariableIndex> replacementMap) {
+        return new ReferenceVariableCache(locals, replacementMap);
     }
 
     /**

@@ -5,20 +5,24 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import types.TypeRepository;
 import util.InstructionType;
+import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.duplicates.RemoveDuplicateStatements;
+import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -119,6 +123,10 @@ public class StatementRegistrar {
      * factory used to create points-to statements
      */
     private final StatementFactory stmtFactory;
+    /**
+     * Map from method to index mapping replaced variables to their replacements
+     */
+    private final Map<IMethod, VariableIndex> replacedVariableMap = new LinkedHashMap<>();
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -172,7 +180,9 @@ public class StatementRegistrar {
             // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
             int oldSize = oldStatements.size();
-            Set<PointsToStatement> newStatements = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            Set<PointsToStatement> newStatements = duplicateResults.fst();
+            replacedVariableMap.put(m, duplicateResults.snd());
             int newSize = newStatements.size();
 
             removed += (oldSize - newSize);
@@ -1117,7 +1127,7 @@ public class StatementRegistrar {
      * @return map from local variable to unique reference variable
      */
     public ReferenceVariableCache getAllLocals() {
-        return this.rvFactory.getAllLocals();
+        return this.rvFactory.getAllLocals(replacedVariableMap);
     }
 
     /**
@@ -1190,5 +1200,4 @@ public class StatementRegistrar {
     public IMethod getEntryPoint() {
         return this.entryPoint;
     }
-
 }
