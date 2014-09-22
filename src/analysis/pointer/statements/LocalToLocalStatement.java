@@ -67,8 +67,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode l = new ReferenceVariableReplica(context, left);
-        PointsToGraphNode r = new ReferenceVariableReplica(context, right);
+        PointsToGraphNode l = new ReferenceVariableReplica(context, left, haf);
+        PointsToGraphNode r = new ReferenceVariableReplica(context, right, haf);
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
         // don't need to use delta, as this just adds a subset edge
@@ -103,7 +103,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right, haf);
 
         if (!isFromMethodSummaryVariable) {
             return Collections.singleton(r);
@@ -127,6 +127,6 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, left));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, left, haf));
     }
 }

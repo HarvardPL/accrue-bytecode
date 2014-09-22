@@ -154,6 +154,14 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     protected void post(IR ir) {
         Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachable = new LinkedHashSet<>();
         for (ISSABasicBlock source : ir.getControlFlowGraph()) {
+            if (getAnalysisRecord(source) == null) {
+                // source is unreachable from the entry, it is an unneccessary catch block
+                assert ir.getControlFlowGraph().getPredNodeCount(source) == 0;
+                System.err.println("WARNING: null record for " + source + " in "
+                        + PrettyPrinter.methodString(ir.getMethod()));
+                assert source.isCatchBlock();
+                continue;
+            }
             Map<ISSABasicBlock, ReachabilityAbsVal> output = getAnalysisRecord(source).getOutput();
             for (ISSABasicBlock target : output.keySet()) {
                 if (output.get(target).isUnreachable()) {

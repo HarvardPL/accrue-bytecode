@@ -96,23 +96,24 @@ public class StatementRegistrationPass {
                 continue;
             }
 
-            if (!m.isStatic()) {
-                // it is an instance method!
-                if (seenInstancesOf.add(m.getDeclaringClass())) {
-                    // this is the first instance method we have seen for this class
-                    // Add any methods that were waiting on registration.
-                    Collection<IMethod> waiting = waitingForInstances.remove(m.getDeclaringClass());
-                    if (waiting != null) {
-                        q.addAll(waiting);
-                    }
-                }
+            if (m.isInit()) {
+                // it is an instance initialization method!
+                processInstanceClass(seenInstancesOf, m.getDeclaringClass(), waitingForInstances, q);
             }
 
             // now also go through each instruction, and see if we need to add anything else to the
             // workqueue
             IR ir = AnalysisUtil.getIR(m);
             if (ir == null) {
-                // Native method with no signature. There are no instructions to process.
+                // Native method with no signature.
+
+                // Assume that the return object was constructed by the method (and thus methods can be called on the return type)
+                if (!m.getReturnType().isPrimitiveType()) {
+                    IClass retType = AnalysisUtil.getClassHierarchy().lookupClass(m.getReturnType());
+                    processInstanceClass(seenInstancesOf, retType, waitingForInstances, q);
+                }
+
+                // There are no instructions to process.
                 continue;
             }
 
@@ -177,6 +178,29 @@ public class StatementRegistrationPass {
             }
             catch (IOException e) {
                 e.printStackTrace();
+            }
+        }
+    }
+
+    /**
+     * When encountering a virtual method call we only want to add statements for the bodies of methods that the type
+     * system allows. We approximate this by assuming that receiver of the method can be any type that is constructed in
+     * the code. This could be made more precise if run together with the pointer analysis (supported by Accrue as the
+     * online statement registration) when we have more precise type information for the receiver.
+     *
+     * @param seenInstancesOf set of classes that have already been seen in the code
+     * @param instanceClass current class to process
+     * @param waitingForInstances Map from classes to methods that need to be processed if that class is instantiated
+     * @param q work queue of methods to register statements for
+     */
+    public static void processInstanceClass(Set<IClass> seenInstancesOf, IClass instanceClass,
+                                  Map<IClass, Collection<IMethod>> waitingForInstances, WorkQueue<IMethod> q) {
+        if (seenInstancesOf.add(instanceClass)) {
+            // this is the first instance method we have seen for this class
+            // Add any methods that were waiting on registration.
+            Collection<IMethod> waiting = waitingForInstances.remove(instanceClass);
+            if (waiting != null) {
+                q.addAll(waiting);
             }
         }
     }

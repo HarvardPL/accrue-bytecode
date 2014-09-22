@@ -37,7 +37,7 @@ public class ProcedureSummaryPDGNodes {
     /**
      * Create the summary nodes for the method and context for the given call
      * graph node
-     * 
+     *
      * @param n
      *            call graph node
      */
@@ -67,7 +67,9 @@ public class ProcedureSummaryPDGNodes {
         // since it won't get added to the PDG unless there is an edge to it
         // (meaning that there is an exception).
         PDGNode ex = PDGNodeFactory.findOrCreateOther("EX-EXIT " + PrettyPrinter.methodString(n.getMethod()),
-                                        PDGNodeType.EXIT_SUMMARY, n, ExitType.NORMAL);
+                                                      PDGNodeType.EXIT_SUMMARY,
+                                                      n,
+                                                      ExitType.EXCEPTIONAL);
         exExit = new PDGContext(null, ex, PDGNodeFactory.findOrCreateOther(
                                         "EX-EXIT-PC " + PrettyPrinter.methodString(n.getMethod()),
                                         PDGNodeType.EXIT_PC_SUMMARY, n, ExitType.EXCEPTIONAL));
@@ -75,7 +77,7 @@ public class ProcedureSummaryPDGNodes {
 
     /**
      * Get the PDG node for the jth formal
-     * 
+     *
      * @param j
      *            formal number
      * @return jth formal summary node
@@ -87,7 +89,7 @@ public class ProcedureSummaryPDGNodes {
 
     /**
      * Get the PDG nodes for the formal arguments
-     * 
+     *
      * @return formal summary nodes
      */
     public List<PDGNode> getFormals() {
@@ -96,7 +98,7 @@ public class ProcedureSummaryPDGNodes {
 
     /**
      * Get the context for the program point just before the entry
-     * 
+     *
      * @return the context before entering the method
      */
     public PDGContext getEntryContext() {
@@ -105,7 +107,7 @@ public class ProcedureSummaryPDGNodes {
 
     /**
      * Get the context for the program point just after normal termination
-     * 
+     *
      * @return the context after normal exit
      */
     public PDGContext getNormalExitContext() {
@@ -114,7 +116,7 @@ public class ProcedureSummaryPDGNodes {
 
     /**
      * Get the context for the program point just after exceptional termination
-     * 
+     *
      * @return the context after exceptional exit
      */
     public PDGContext getExceptionalExitContext() {

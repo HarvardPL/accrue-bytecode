@@ -22,8 +22,35 @@ public final class AccrueAnalysisOptions {
      */
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
+    /**
+     * Flag for printing useage information
+     */
     @Parameter(names = { "-h", "-help", "-useage", "--help" }, description = "Print useage information")
     private boolean help = false;
+
+    /**
+     * Flag for running the pointer analysis single-threaded after reaching a fixed point in the multi-threaded analysis
+     */
+    @Parameter(
+        names = { "-paranoidPointerAnalysis" },
+        description = "If set, Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.")
+    private boolean paranoidPointerAnalysis = false;
+
+    /**
+     * Flag for redundant variable names
+     */
+    @Parameter(
+        names = { "-useDebugNames" },
+        description = "If set, use both names from source code (when available) and numerical values for variables, otherwise just use names from source code.")
+    private boolean useDebugNames = false;
+
+    /**
+     * Flag for writing the PDG to a graphviz "dot" file as well as a JSON file
+     */
+    @Parameter(
+        names = { "-writeDotPDG" },
+        description = "If set, write a graphviz .dot file for the PDG in addition to a JSON file")
+    private boolean writeDotPDG = false;
 
     /**
      * Level of output
@@ -88,6 +115,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("string-main")) {
                 return;
             }
+            if (value.equals("reachability")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);
@@ -138,6 +168,24 @@ public final class AccrueAnalysisOptions {
         AccrueAnalysisOptions o = new AccrueAnalysisOptions();
         new JCommander(o, args);
         return o;
+    }
+
+    /**
+     * Should we print numerical variable names as well as names from the souce
+     *
+     * @return true if we should print both types of variable names
+     */
+    public boolean useDebugVariableNames() {
+        return useDebugNames;
+    }
+
+    /**
+     * If set, Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.
+     *
+     * @return true if we want to double check the multi-threaded pointer analysis results
+     */
+    public boolean isParanoidPointerAnalysis() {
+        return paranoidPointerAnalysis;
     }
 
     public Integer getOutputLevel() {
@@ -307,6 +355,10 @@ public final class AccrueAnalysisOptions {
         sb.append("\tfull - Full Object Sensitive analyis (default parameter 2 allocation sites -- always 1H)\n");
         sb.append("\t(OTHER) - specify the full class name or simple class name if it is in the analysis.pointer.analyses package plus any integer parameters\n");
         return sb.toString();
+    }
+
+    public boolean shouldWriteDotPDG() {
+        return writeDotPDG;
     }
 
 }

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import util.InstructionType;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
@@ -37,7 +38,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 
 /**
  * Data-flow that dispatched based on the type of instruction being processed
- * 
+ *
  * <F> Type of data-flow facts this analysis computes
  */
 public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
@@ -48,7 +49,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Data-flow that dispatches based on instruction type
-     * 
+     *
      * @param forward
      */
     public InstructionDispatchDataFlow(boolean forward) {
@@ -59,10 +60,10 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     /**
      * Get a record for a previously run analysis for the given instruction,
      * returns null if the block has never been analyzed
-     * 
+     *
      * @param i
      *            instruction to get the record for
-     * 
+     *
      * @return input and output data-flow facts for the instruction
      */
     protected AnalysisRecord<F> getAnalysisRecord(SSAInstruction i) {
@@ -105,7 +106,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Data-flow transfer function for an instruction
-     * 
+     *
      * @param i
      *            instruction
      * @param inItems
@@ -142,7 +143,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Data-flow transfer function for an instruction with only one successor
-     * 
+     *
      * @param i
      *            instruction
      * @param inItems
@@ -206,7 +207,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     /**
      * Data-flow transfer function for the last, possibly branching, instruction
      * of a basic block
-     * 
+     *
      * @param i
      *            instruction
      * @param inItems
@@ -301,6 +302,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
         for (ISSABasicBlock exceptionalSucc : getExceptionalSuccs(justProcessed, cfg)) {
             if (outItems.get(exceptionalSucc) == null && !isUnreachable(justProcessed, exceptionalSucc)) {
+                CFGWriter.writeToFile(justProcessed.getMethod());
                 throw new RuntimeException("No fact for exceptional successor from BB" + justProcessed.getGraphNodeId()
                                                 + " to BB" + exceptionalSucc.getGraphNodeId() + "\n" + justProcessed);
             }
@@ -310,7 +312,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     /**
      * binary operation on primitives, binary operator {@link IOperator}: ADD,
      * SUB, MUL, DIV, REM, AND, OR, XOR
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -326,7 +328,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Comparison for equality between floats, longs, or doubles
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -342,7 +344,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Converts one primitive type to another primitive type
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -358,7 +360,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Entry to catch block assigning an exception to a local variable
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -374,7 +376,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Assign from a static field to a local variable, x = ClassName.f
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -390,7 +392,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Dynamic type check
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -409,7 +411,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * function is created at a join point in the control flow graph. The
      * function chooses one of its arguments based on which branch was taken
      * into the join point.
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -425,7 +427,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Assign from a local variable into a static field, ClassName.f = x
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -441,7 +443,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Negation of a primitive value
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -457,7 +459,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Get the length of an array, a.length
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -473,7 +475,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Assignment from an array entry into a local variable, x = a[i]
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -490,7 +492,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Assignment from a local variable into an array entry, a[i] = x
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -509,7 +511,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * binary operation on primitives that may throw an arithmetic exception,
      * the operator ({@link IOperator}) is either DIV or REM and the type is an
      * integer type.
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -526,7 +528,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Dynamic type cast
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -545,7 +547,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * Comparison that branches based on the results, tests two values according
      * to an operator (EQ, NE, LT, GE, GT, or LE). The targets of the branches
      * must be retrieved from the control flow graph.
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -563,7 +565,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Assignment from a non-static field to a local variable, x = o.f
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -580,7 +582,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Call to an interface method
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -599,7 +601,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
      * Call to a "special" method, this is either an instance initializer, a
      * call to "super", or a private method, the target of a "special" call is
      * known statically
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -616,7 +618,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Call to a static method
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -633,7 +635,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Call to virtual method
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -651,7 +653,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     /**
      * Unconditional jump. The target must be retrieved from the control flow
      * graph.
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -668,7 +670,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Call to some reflection thing, like loadClass
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -685,7 +687,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Entrance or exit for a monitor (used to implement synchronized)
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -702,7 +704,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * New array, possibly with many dimensions, a = new ClassName[][]
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -720,7 +722,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
     /**
      * Allocation of a new object, x = new Foo. The instance initializer
      * (constructor) will be called using a later instruction.
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -737,7 +739,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Assign from a local variable into a non-static field, o.f = x
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -754,7 +756,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Return statement
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -771,7 +773,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Switch statement
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -788,7 +790,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Unconditional exception throw
-     * 
+     *
      * @param i
      *            instruction
      * @param previousItems
@@ -805,7 +807,7 @@ public abstract class InstructionDispatchDataFlow<F> extends DataFlow<F> {
 
     /**
      * Compute output facts for an empty basic block
-     * 
+     *
      * @param inItems
      *            input data-flow facts
      * @param cfg

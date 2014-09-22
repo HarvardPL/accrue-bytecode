@@ -579,8 +579,8 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
         Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
-            System.err.println("Array doesn't point to anything. " + getReplica(array, n) + " METHOD: "
-                                            + PrettyPrinter.methodString(n.getMethod()));
+            System.err.println("Array doesn't point to anything. v" + array + " in " + PrettyPrinter.cgNodeString(n));
+            System.err.println("\tReplica was " + getReplica(array, n));
         }
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
@@ -603,7 +603,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      */
     public ReferenceVariableReplica getReplica(int local, CGNode n) {
         ReferenceVariable rv = rvCache.getReferenceVariable(local, n.getMethod());
-        return new ReferenceVariableReplica(n.getContext(), rv);
+        return new ReferenceVariableReplica(n.getContext(), rv, ptg.getHaf());
     }
 
     /**

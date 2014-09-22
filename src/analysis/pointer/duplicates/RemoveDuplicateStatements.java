@@ -65,6 +65,11 @@ public class RemoveDuplicateStatements {
     private final Set<PointsToStatement> allStatements;
 
     /**
+     * Mapping from variables to their replacement
+     */
+    private final VariableIndex variableIndex = new VariableIndex();
+
+    /**
      * Create analysis that will find and remove duplicate points-to statements in the given set
      *
      * @param statements
@@ -133,7 +138,7 @@ public class RemoveDuplicateStatements {
      *            set of points-to statements (will be modified)
      * @return set with duplicate statements removed
      */
-    public static Set<PointsToStatement> removeDuplicates(Set<PointsToStatement> statements) {
+    public static OrderedPair<Set<PointsToStatement>, VariableIndex> removeDuplicates(Set<PointsToStatement> statements) {
         long startTime = System.currentTimeMillis();
         int startSize = statements.size();
 
@@ -166,7 +171,7 @@ public class RemoveDuplicateStatements {
             System.err.println("Finished removing " + (startSize - analysis.allStatements.size()) + " duplicates: "
                                             + (System.currentTimeMillis() - startTime) + "ms");
         }
-        return analysis.allStatements;
+        return new OrderedPair<>(analysis.allStatements, analysis.variableIndex);
     }
 
     private boolean handleExceptions() {
@@ -383,7 +388,9 @@ public class RemoveDuplicateStatements {
      * @param replacement
      *            replacement variable
      */
+    @SuppressWarnings("synthetic-access")
     private void replaceVariable(ReferenceVariable replaced, ReferenceVariable replacement) {
+        variableIndex.recordReplacement(replaced, replacement);
         Set<OrderedPair<PointsToStatement, Integer>> pairs = this.useIndex.get(replaced);
         if (pairs == null) {
             // There are no uses of that variable
@@ -407,5 +414,35 @@ public class RemoveDuplicateStatements {
         }
         // We do not need the set of uses for the replaced variable as it no longer exists
         this.useIndex.remove(replaced);
+    }
+
+    /**
+     * Index mapping reference variable to other reference variables that have the same points-to sets. This allows us
+     * to only compute the points-to sets once for (logically) duplicate statements.
+     */
+    public static class VariableIndex {
+        private final Map<ReferenceVariable, ReferenceVariable> index = new LinkedHashMap<>();
+
+        private void recordReplacement(ReferenceVariable replaced, ReferenceVariable replacement) {
+            index.put(replaced, replacement);
+        }
+
+        /**
+         * Get the reference variable the points-to analysis is using for the given reference variable. This may be the
+         * same as the reference variable passed in or may be a variable that has the same points-to set.
+         *
+         * @param rv non-null reference variable to look up
+         * @return reference variable with the same points-to set as <code>rv</code>
+         */
+        public ReferenceVariable lookup(ReferenceVariable rv) {
+            ReferenceVariable replacement = index.get(rv);
+            while (replacement != null) {
+                rv = replacement;
+                replacement = index.get(rv);
+            }
+            assert rv != null;
+            return rv;
+        }
+
     }
 }

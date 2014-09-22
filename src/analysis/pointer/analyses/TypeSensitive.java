@@ -40,7 +40,7 @@ public class TypeSensitive extends HeapAbstractionFactory {
      * Create an nType+mH analysis
      * <p>
      * There is no benefit to having n > m + 1
-     * 
+     *
      * @param n
      *            depth of calling context stack
      * @param m
@@ -107,12 +107,23 @@ public class TypeSensitive extends HeapAbstractionFactory {
 
         @Override
         public int hashCode() {
-            return c.hashCode();
+            return 31 + c.hashCode();
         }
+
 
         @Override
         public boolean equals(Object obj) {
-            return c == ((ClassWrapper) obj).c;
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            ClassWrapper other = (ClassWrapper) obj;
+            return c == other.c;
         }
     }
 }

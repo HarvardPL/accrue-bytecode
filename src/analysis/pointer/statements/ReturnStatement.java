@@ -51,9 +51,9 @@ public class ReturnStatement extends PointsToStatement {
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica returnRes =
-                new ReferenceVariableReplica(context, result);
+ new ReferenceVariableReplica(context, result, haf);
         ReferenceVariableReplica summaryRes =
-                new ReferenceVariableReplica(context, returnSummary);
+ new ReferenceVariableReplica(context, returnSummary, haf);
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
@@ -87,15 +87,14 @@ public class ReturnStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, result);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, result, haf);
         return Collections.singleton(r);
     }
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt,
-                                                                  returnSummary));
+        return Collections.singleton(new ReferenceVariableReplica(ctxt, returnSummary, haf));
     }
 
 }
