@@ -5,10 +5,10 @@ import java.util.Iterator;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
@@ -210,7 +210,7 @@ public class GraphDelta {
         return sb.toString();
     }
 
-    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
         return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n), ippr));
     }
 

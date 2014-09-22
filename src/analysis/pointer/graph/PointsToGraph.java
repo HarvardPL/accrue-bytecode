@@ -31,7 +31,6 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.collections.IntStack;
@@ -682,7 +681,7 @@ public class PointsToGraph {
     //        return pointsToIterator(n, ippr, null);
     //    }
     //
-    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr,
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr,
                                                             StmtAndContext originator) {
         assert this.graphFinished || originator != null;
         return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), ippr, originator));

@@ -13,6 +13,7 @@ import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -55,8 +56,10 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
         PointsToGraphNode l =
                 new ReferenceVariableReplica(haf.initialContext(), staticField);
         PointsToGraphNode r = new ReferenceVariableReplica(context, local);
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(context, this.programPoint().post());
+
         // don't need to use delta, as this just adds a subset edge
-        return g.copyEdges(r, l);
+        return g.copyEdges(r, l, ippr);
     }
 
     @Override

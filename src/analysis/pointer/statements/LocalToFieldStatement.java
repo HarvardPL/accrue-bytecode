@@ -17,6 +17,7 @@ import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.FieldReference;
@@ -65,28 +66,29 @@ public class LocalToFieldStatement extends PointsToStatement {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver);
         PointsToGraphNode local =
                 new ReferenceVariableReplica(context, this.localVar);
+        InterProgramPointReplica ippr_pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        InterProgramPointReplica ippr_post = InterProgramPointReplica.create(context, this.programPoint().post());
 
         GraphDelta changed = new GraphDelta(g);
 
         if (delta == null) {
             // no delta, let's do some simple processing
-            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, ippr_pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
 
-                ObjectField f = new ObjectField(recHeapContext, this.field);
+                ObjectField of = new ObjectField(recHeapContext, this.field);
                 // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyEdges(local, f);
-
+                GraphDelta d1 = g.copyEdges(local, of, ippr_post);
                 changed = changed.combine(d1);
             }
         }
         else {
             // We check if o has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, ippr_pre); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-                ObjectField contents = new ObjectField(recHeapContext, this.field);
-                GraphDelta d1 = g.copyEdges(local, contents);
+                ObjectField of = new ObjectField(recHeapContext, this.field);
+                GraphDelta d1 = g.copyEdges(local, of, ippr_post);
                 changed = changed.combine(d1);
             }
         }

@@ -14,6 +14,7 @@ import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -52,13 +53,14 @@ public class PhiStatement extends PointsToStatement {
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee);
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(context, this.programPoint().post());
 
         GraphDelta changed = new GraphDelta(g);
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use);
             // no need to use delta, as this just adds subset relations.
-            GraphDelta d1 = g.copyEdges(n, a);
+            GraphDelta d1 = g.copyEdges(n, a, ippr);
 
             changed = changed.combine(d1);
         }

@@ -14,6 +14,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -84,7 +85,8 @@ public class NewStatement extends PointsToStatement {
 
         ReferenceVariableReplica r =
                 new ReferenceVariableReplica(context, result);
-        return g.addEdge(r, newHeapContext);
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(context, this.programPoint().post());
+        return g.addEdge(r, newHeapContext, ippr);
     }
 
     @Override
