@@ -846,6 +846,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         PDGNode result = PDGNodeFactory.findOrCreateOther(resultDesc, PDGNodeType.OTHER_EXPRESSION, currentNode,
                                         new OrderedPair<>(i, "RESULT"));
         addEdge(value, result, PDGEdgeType.COPY);
+        addEdge(receiver, result, PDGEdgeType.POINTER);
         addEdge(normal.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
         // Add edge from the assignment to the field
