@@ -2,7 +2,7 @@ package test.instruction;
 
 public class GetField {
 
-    int x;
+    int x = 0;
 
     public static void main(String[] args) {
         GetField gf = new GetField();
