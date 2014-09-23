@@ -48,7 +48,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
     /**
      * Add an edge to the PDG
-     * 
+     *
      * @param source
      *            source of the edge (non-null)
      * @param target
@@ -62,7 +62,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
     /**
      * Add an edge to the PDG (to/from a summary node)
-     * 
+     *
      * @param source
      *            source of the edge
      * @param target
@@ -87,7 +87,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
     /**
      * Get the number of edges in the PDG
-     * 
+     *
      * @return number of edges
      */
     public int numEdges() {
@@ -100,7 +100,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
     /**
      * Get the number of nodes in the PDG
-     * 
+     *
      * @return number of nodes
      */
     public int numNodes() {
@@ -142,7 +142,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
     /**
      * Write the graph in graphviz dot format
-     * 
+     *
      * @param writer
      *            writer to write to
      * @param cluster
@@ -224,7 +224,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
     /**
      * Write the graph in graphviz dot format
-     * 
+     *
      * @param writer
      *            writer to write to
      * @param cluster
@@ -302,7 +302,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                         auxNodes1.put(cg2, setAux1);
                     }
                     setAux1.add(e.target);
-                    
+
                     // Add to the aux node set for cg2
                     Map<CGNode, Set<PDGNode>> auxNodes2 = auxNodes.get(cg2);
                     if (auxNodes2 == null) {
@@ -315,7 +315,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                         auxNodes2.put(cg1, setAux2);
                     }
                     setAux2.add(e.source);
-                    
+
                 }
             }
         }
@@ -333,6 +333,11 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                                                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
                                                 + "edge [fontsize=10]" + ";\n" + "label=\"" + label + "\";\n");
 
+                String mainClusterLabel = PrettyPrinter.methodString(cg.getMethod())
+                                                       .replace("\"", "")
+                                                       .replace("\\", "\\\\");
+                writer.write("\tsubgraph \"cluster_" + mainClusterLabel + "\"{\n");
+                writer.write("\tlabel=\"" + mainClusterLabel + "\";\n");
                 for (PDGNode n : cgNodeToNodes.get(cg)) {
                     String nodeLabel = "";
                     if (n.getNodeType().isPathCondition()) {
@@ -340,6 +345,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                     }
                     writer.write("\t\t\"" + nodeToDot.get(n) + "\" " + nodeLabel + "\n");
                 }
+                writer.write("\t}\n"); // subgraph close
 
                 Map<CGNode, Set<PDGNode>> aux = auxNodes.get(cg);
                 if (aux != null) {
@@ -409,7 +415,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
         /**
          * Create an edge to the PDG (to/from a summary node)
-         * 
+         *
          * @param source
          *            source of the edge
          * @param target
@@ -444,30 +450,40 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            if (this == obj) {
                 return true;
-            if (obj == null)
+            }
+            if (obj == null) {
                 return false;
-            if (getClass() != obj.getClass())
+            }
+            if (getClass() != obj.getClass()) {
                 return false;
+            }
             PDGEdge other = (PDGEdge) obj;
             if (label == null) {
-                if (other.label != null)
+                if (other.label != null) {
                     return false;
-            } else if (!label.equals(other.label))
+                }
+            } else if (!label.equals(other.label)) {
                 return false;
+            }
             if (source == null) {
-                if (other.source != null)
+                if (other.source != null) {
                     return false;
-            } else if (!source.equals(other.source))
+                }
+            } else if (!source.equals(other.source)) {
                 return false;
+            }
             if (target == null) {
-                if (other.target != null)
+                if (other.target != null) {
                     return false;
-            } else if (!target.equals(other.target))
+                }
+            } else if (!target.equals(other.target)) {
                 return false;
-            if (type != other.type)
+            }
+            if (type != other.type) {
                 return false;
+            }
             return true;
         }
 
