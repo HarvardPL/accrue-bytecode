@@ -240,7 +240,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         PDGContext in = instructionInput.get(i);
 
-        addEdge(converted, result, PDGEdgeType.COPY);
+        addEdge(converted, result, PDGEdgeType.EXP);
         addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
         return Unit.VALUE;
@@ -437,14 +437,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         addEdge(index, arrayAccess, PDGEdgeType.EXP);
         addEdge(normal.getPCNode(), arrayAccess, PDGEdgeType.IMPLICIT);
 
-        // Add edges from the array contents to the access
-        Set<PDGNode> locNodes = new LinkedHashSet<>();
-        for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
-            locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
-        }
-        PDGNode locMerge = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
-        addEdge(locMerge, arrayAccess, PDGEdgeType.COPY);
-
         // If a NPE is NOT thrown then this may throw an
         // ArrayIndexOutOfBoundsException
         String isOOB = pp.valString(i.getIndex()) + " >= " + pp.valString(i.getArrayRef()) + ".length";
@@ -452,8 +444,16 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                         isOOB, current);
 
         // The only way the value gets assigned is if no exception is thrown
-        addEdge(arrayAccess, result, PDGEdgeType.COPY);
+        addEdge(arrayAccess, result, PDGEdgeType.EXP);
         addEdge(normal.getPCNode(), result, PDGEdgeType.IMPLICIT);
+
+        // Add edges from the array contents to the access
+        Set<PDGNode> locNodes = new LinkedHashSet<>();
+        for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
+            locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+        }
+        PDGNode locMerge = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+        addEdge(locMerge, result, PDGEdgeType.EXP);
 
         return factToMap(Unit.VALUE, current, cfg);
     }
@@ -854,7 +854,9 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                         currentNode)) {
             locs.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
         }
-        mergeIfNecessary(locs, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+        PDGNode locationMerge = mergeIfNecessary(locs, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+
+        addEdge(result, locationMerge, PDGEdgeType.MERGE);
 
         return factToMap(Unit.VALUE, current, cfg);
     }
