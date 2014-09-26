@@ -14,13 +14,11 @@ import util.print.PrettyPrinter;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
-import analysis.dataflow.interprocedural.pdg.PDGAddEdgesDataflow;
-import analysis.dataflow.interprocedural.pdg.PDGContext;
-import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeFactory;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.util.Unit;
+import analysis.pointer.statements.ProgramPoint;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -54,15 +52,15 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Data-flow that computes program points
  */
-public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PDGContext> {
+public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<ProgramPoint> {
 
     private final CGNode currentNode;
     private final IR ir;
-    private final Map<OrderedPair<Set<PDGContext>, ISSABasicBlock>, PDGContext> confluenceMemo;
-    private final Map<ISSABasicBlock, PDGContext> mostRecentConfluence;
+    private final Map<OrderedPair<Set<ProgramPoint>, ISSABasicBlock>, ProgramPoint> confluenceMemo;
+    private final Map<ISSABasicBlock, ProgramPoint> mostRecentConfluence;
     private final PrettyPrinter pp;
 
-    public ComputeProgramPointsDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc) {
+    public ComputeProgramPointsDataflow(CGNode currentNode) {
         super(true);
         this.currentNode = currentNode;
         this.ir = currentNode.getIR();
@@ -82,9 +80,9 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flow(Set<PDGContext> inItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flow(Set<ProgramPoint> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        Set<PDGContext> flowInput = inItems;
+        Set<ProgramPoint> flowInput = inItems;
         if (current.isEntryBlock()) {
             flowInput = Collections.singleton(PDGNodeFactory.findOrCreateProcedureSummary(currentNode)
                                             .getEntryContext());
@@ -96,82 +94,15 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
 
     @Override
     protected void post(IR ir) {
-        // Add edges after finishing this analysis. This allows the set of nodes
-        // to reach a fixed point before adding edges.
-        if (getOutputLevel() >= 4) {
-            System.err.println("ADDING EDGES for " + PrettyPrinter.cgNodeString(currentNode));
-        }
-
-        // Make sure there are outputs for all the predecessors of the exit node
-        ISSABasicBlock exit = ir.getExitBlock();
-        for (ISSABasicBlock pred : ir.getControlFlowGraph().getExceptionalPredecessors(exit)) {
-            if (!isUnreachable(pred, exit)) {
-                assert getOutputContexts().get(pred) != null;
-                assert getOutputContexts().get(pred).get(exit) != null;
-            }
-        }
-
-        for (ISSABasicBlock pred : ir.getControlFlowGraph().getNormalPredecessors(exit)) {
-            if (!isUnreachable(pred, exit)) {
-                assert getOutputContexts().get(pred) != null;
-                assert getOutputContexts().get(pred).get(exit) != null;
-            }
-        }
-
-        PDGAddEdgesDataflow edgeDF = new PDGAddEdgesDataflow(currentNode, interProc, mergeNodes, trueExceptionContexts,
-                                        falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
-                                        getInstructionInput());
-        edgeDF.setOutputLevel(getOutputLevel());
-        edgeDF.dataflow();
+        // TODO Compile the results in some usable format
     }
 
     @Override
     protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
-                                    Map<ISSABasicBlock, PDGContext> outItems) {
+                                  Map<ISSABasicBlock, ProgramPoint> outItems) {
         super.postBasicBlock(cfg, justProcessed, outItems);
 
-        // 1. Make sure that the exception node is non-null iff the successor is
-        // an exceptional successor
-
-        // 2. Make sure that the return node is non-null iff this method is
-        // non-void and the successor is the exit
-
-        // 3. Make sure the PC node is never null
-
-        for (ISSABasicBlock succ : getExceptionalSuccs(justProcessed, cfg)) {
-            if (!isUnreachable(justProcessed, succ)) {
-                PDGContext out = outItems.get(succ);
-                assert out.getExceptionNode() != null : "null exception node on exception edge. "
-                                                + justProcessed.getNumber() + "TO" + succ.getNumber() + "IN "
-                                                + PrettyPrinter.cgNodeString(currentNode);
-                assert out.getReturnNode() == null : "non-null return node on exception edge. "
-                                                + justProcessed.getNumber() + "TO" + succ.getNumber() + "IN "
-                                                + PrettyPrinter.cgNodeString(currentNode);
-                assert out.getPCNode() != null : "null PC node on exception edge. " + justProcessed.getNumber() + "TO"
-                                                + succ.getNumber() + "IN " + PrettyPrinter.cgNodeString(currentNode);
-            }
-        }
-
-        for (ISSABasicBlock succ : getNormalSuccs(justProcessed, cfg)) {
-            if (!isUnreachable(justProcessed, succ)) {
-                PDGContext out = outItems.get(succ);
-                assert out.getExceptionNode() == null : "non-null exception node on non-void normal edge. "
-                                                + justProcessed.getNumber() + "TO" + succ.getNumber() + "IN "
-                                                + PrettyPrinter.cgNodeString(currentNode);
-                if (succ.equals(cfg.exit()) && ir.getMethod().getReturnType() != TypeReference.Void) {
-                    // entering the exit block of a non-void method
-                    assert out.getReturnNode() != null : "non-null return node on void normal edge. "
-                                                    + justProcessed.getNumber() + "TO" + succ.getNumber() + "IN "
-                                                    + PrettyPrinter.cgNodeString(currentNode);
-                } else {
-                    assert out.getReturnNode() == null : "null return node on non-void normal edge."
-                                                    + justProcessed.getNumber() + "TO" + succ.getNumber() + "IN "
-                                                    + PrettyPrinter.cgNodeString(currentNode);
-                }
-                assert out.getPCNode() != null : "null PC node on normal edge. " + justProcessed.getNumber() + "TO"
-                                                + succ.getNumber() + "IN " + PrettyPrinter.cgNodeString(currentNode);
-            }
-        }
+        // TODO check invariants here!
     }
 
     /**
@@ -244,9 +175,9 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
             ISSABasicBlock postDominated = postdominated.iterator().next();
 
             assert !postDominated.equals(bb);
-            AnalysisRecord<PDGContext> rec = getAnalysisRecord(postDominated);
+            AnalysisRecord<ProgramPoint> rec = getAnalysisRecord(postDominated);
             if (rec != null) {
-                PDGContext postDomContext = mostRecentConfluence.get(postDominated);
+                ProgramPoint postDomContext = mostRecentConfluence.get(postDominated);
                 assert postDomContext != null;
                 return postDomContext.getPCNode();
             }
@@ -266,7 +197,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      * <p>
      * {@inheritDoc}
      */
-    protected PDGContext confluence(Set<PDGContext> facts, ISSABasicBlock bb) {
+    protected ProgramPoint confluence(Set<ProgramPoint> facts, ISSABasicBlock bb) {
         if (bb.isExitBlock()) {
             // No need to merge contexts for the exit block. The summary nodes will be used instead.
             return null;
@@ -277,17 +208,17 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
             return confluenceMemo.get(new OrderedPair<>(facts, bb));
         }
 
-        PDGContext c;
+        ProgramPoint c;
         if (facts.size() == 1) {
             c = facts.iterator().next();
         } else {
-            c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
+            c = mergeContexts("confluence", facts.toArray(new ProgramPoint[facts.size()]));
         }
 
         PDGNode restorePC = handlePostDominators(bb);
         if (restorePC != null) {
             // restore the PC of a post dominator
-            c = new PDGContext(c.getReturnNode(), c.getExceptionNode(), restorePC);
+            c = new ProgramPoint(c.getReturnNode(), c.getExceptionNode(), restorePC);
         }
 
         assert c != null;
@@ -297,98 +228,101 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     @Override
-    protected PDGContext flowBinaryOp(SSABinaryOpInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowBinaryOp(SSABinaryOpInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowComparison(SSAComparisonInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowComparison(SSAComparisonInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowConversion(SSAConversionInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowConversion(SSAConversionInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
-        return new PDGContext(null, null, in.getPCNode());
+        ProgramPoint in = confluence(previousItems, current);
+        return new ProgramPoint(null, null, in.getPCNode());
     }
 
     @Override
-    protected PDGContext flowGetStatic(SSAGetInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowGetStatic(SSAGetInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowInstanceOf(SSAInstanceofInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowInstanceOf(SSAInstanceofInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowPhi(SSAPhiInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowPhi(SSAPhiInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowPutStatic(SSAPutInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowPutStatic(SSAPutInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected PDGContext flowUnaryNegation(SSAUnaryOpInstruction i, Set<PDGContext> previousItems,
+    protected ProgramPoint flowUnaryNegation(SSAUnaryOpInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return confluence(previousItems, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowArrayLength(SSAArrayLengthInstruction i,
-                                    Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowArrayLength(SSAArrayLengthInstruction i,
+                                                                Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getArrayRef()) + " == null";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                      in,
                                         desc, current);
 
-        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint npe = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowArrayLoad(SSAArrayLoadInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowArrayLoad(SSAArrayLoadInstruction i,
+                                                              Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
 
         // Possibly throw NPE
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getArrayRef()) + " == null";
-        Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+        Map<ExitType, ProgramPoint> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                       in,
                                         desc, current);
 
-        PDGContext npe = afterNPE.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterNPE.get(ExitType.NORMAL);
+        ProgramPoint npe = afterNPE.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterNPE.get(ExitType.NORMAL);
 
         // If no NPE is thrown then this may throw an
         // ArrayIndexOutOfBoundsException
         String isOOB = pp.valString(i.getIndex()) + " >= " + pp.valString(i.getArrayRef()) + ".length";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(
                                         TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current);
 
-        PDGContext aioob = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint aioob = afterEx.get(ExitType.EXCEPTIONAL);
         normal = afterEx.get(ExitType.NORMAL);
 
-        Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
+        Map<ISSABasicBlock, ProgramPoint> out = new LinkedHashMap<>();
         PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
 
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
@@ -418,27 +352,29 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowArrayStore(SSAArrayStoreInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowArrayStore(SSAArrayStoreInstruction i,
+                                                               Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Map from type of exception to context on edges where it is thrown
-        Map<TypeReference, PDGContext> exContexts = new LinkedHashMap<>();
+        Map<TypeReference, ProgramPoint> exContexts = new LinkedHashMap<>();
 
         // Possibly throw NPE
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getArrayRef()) + " == null";
-        Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+        Map<ExitType, ProgramPoint> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                       in,
                                         desc, current);
 
         if (afterNPE.get(ExitType.EXCEPTIONAL) != null) {
             // The null pointer exception could occur
             exContexts.put(TypeReference.JavaLangNullPointerException, afterNPE.get(ExitType.EXCEPTIONAL));
         }
-        PDGContext normal = afterNPE.get(ExitType.NORMAL);
+        ProgramPoint normal = afterNPE.get(ExitType.NORMAL);
 
         // If no NPE is thrown then this may throw an
         // ArrayIndexOutOfBoundsException
         String isOOB = pp.valString(i.getIndex()) + " >= " + pp.valString(i.getArrayRef()) + ".length";
-        Map<ExitType, PDGContext> afterAIOOB = handlePossibleException(
+        Map<ExitType, ProgramPoint> afterAIOOB = handlePossibleException(
                                         TypeReference.JavaLangArrayIndexOutOfBoundsException, normal, isOOB, current);
         if (afterAIOOB.get(ExitType.EXCEPTIONAL) != null) {
             // The IOOB exception could occur
@@ -449,7 +385,8 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
         // If no ArrayIndexOutOfBoundsException is thrown then this may throw an ArrayStoreException
         String arrayStoreDesc = "!" + pp.valString(i.getValue()) + " instanceof " + pp.valString(i.getArrayRef())
                                         + ".elementType";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangArrayStoreException, normal,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangArrayStoreException,
+                                                                      normal,
                                         arrayStoreDesc, current);
         if (afterEx.get(ExitType.EXCEPTIONAL) != null) {
             // The array store exception could occur
@@ -457,7 +394,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
         }
         normal = afterEx.get(ExitType.NORMAL);
 
-        Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
+        Map<ISSABasicBlock, ProgramPoint> out = new LinkedHashMap<>();
         PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
 
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
@@ -465,7 +402,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
                 // Note that exContexts must be non-empty here or the succ would be unreachable
                 assert !exContexts.isEmpty();
                 Set<TypeReference> exes = pe.getExceptions(current, succ, currentNode);
-                PDGContext[] toMerge = new PDGContext[exes.size()];
+                ProgramPoint[] toMerge = new ProgramPoint[exes.size()];
                 int j = 0;
                 for (TypeReference exType : exes) {
                     toMerge[j] = exContexts.get(exType);
@@ -485,39 +422,43 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowBinaryOpWithException(SSABinaryOpInstruction i,
-                                    Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                                                          Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getUse(1)) + " == 0";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangArithmeticException, in,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangArithmeticException,
+                                                                      in,
                                         desc, current);
 
-        PDGContext ex = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint ex = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, ex, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowCheckCast(SSACheckCastInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowCheckCast(SSACheckCastInstruction i,
+                                                              Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Possibly throw ClassCastException
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = "!" + pp.valString(i.getVal()) + " instanceof "
                                         + PrettyPrinter.typeString(i.getDeclaredResultTypes()[0]);
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassCastException, in, desc,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangClassCastException,
+                                                                      in,
+                                                                      desc,
                                         current);
 
-        PDGContext classCast = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint classCast = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, classCast, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowConditionalBranch(SSAConditionalBranchInstruction i,
-                                    Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowConditionalBranch(SSAConditionalBranchInstruction i,
+                                                                      Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         String cond = pp.valString(i.getUse(0)) + " " + PrettyPrinter.conditionalOperatorString(i.getOperator()) + " "
                                         + pp.valString(i.getUse(1));
@@ -525,53 +466,57 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
         PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + cond + ")", PDGNodeType.BOOLEAN_FALSE_PC,
                                         currentNode, i);
 
-        Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
+        Map<ISSABasicBlock, ProgramPoint> out = new LinkedHashMap<>();
 
         ISSABasicBlock trueSucc = getTrueSuccessor(current, cfg);
-        out.put(trueSucc, new PDGContext(null, null, truePC));
+        out.put(trueSucc, new ProgramPoint(null, null, truePC));
 
         ISSABasicBlock falseSucc = getFalseSuccessor(current, cfg);
-        out.put(falseSucc, new PDGContext(null, null, falsePC));
+        out.put(falseSucc, new ProgramPoint(null, null, falsePC));
 
         return out;
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowGetField(SSAGetInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowGetField(SSAGetInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
 
         String desc = pp.valString(i.getRef()) + " == null";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                      in,
                                         desc, current);
 
-        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint npe = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowInvokeInterface(SSAInvokeInstruction i,
-                                    Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeInterface(SSAInvokeInstruction i,
+                                                                    Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowInvokeVirtual(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowInvokeSpecial(SSAInvokeInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeSpecial(SSAInvokeInstruction i,
+                                                                  Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowInvokeVirtual(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowInvokeStatic(SSAInvokeInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeStatic(SSAInvokeInstruction i,
+                                                                 Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowInvoke(i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowInvokeVirtual(SSAInvokeInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeVirtual(SSAInvokeInstruction i,
+                                                                  Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowInvoke(i, previousItems, cfg, current);
     }
@@ -589,15 +534,16 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      *            basic block containing the invocation
      * @return exit PDG nodes for each of the output edges
      */
-    private Map<ISSABasicBlock, PDGContext> flowInvoke(SSAInvokeInstruction i, Set<PDGContext> previousItems,
+    private Map<ISSABasicBlock, ProgramPoint> flowInvoke(SSAInvokeInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
 
-        PDGContext npe = null;
+        ProgramPoint npe = null;
         if (!i.isStatic()) {
             // Could throw NPE
             String desc = pp.valString(i.getReceiver()) + " == null";
-            Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+            Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                          in,
                                             desc, current);
 
             npe = afterEx.get(ExitType.EXCEPTIONAL);
@@ -628,10 +574,10 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
                                         new OrderedPair<>(i, ExitType.EXCEPTIONAL));
 
         PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode, pp);
-        PDGContext exContext = new PDGContext(null, exValue, exExitPC);
+        ProgramPoint exContext = new ProgramPoint(null, exValue, exExitPC);
         calleeExceptionContexts.put(i, exContext);
 
-        PDGContext npeExitContext = npe;
+        ProgramPoint npeExitContext = npe;
         if (npe != null && canCalleeThrowNPE) {
             // The receiver could be null AND the callee may throw an NPE. Need
             // to merge the contexts to use on NPE exit edges.
@@ -639,7 +585,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
         }
 
         PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
-        Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
+        Map<ISSABasicBlock, ProgramPoint> out = new LinkedHashMap<>();
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
             if (!isUnreachable(current, succ)) {
                 boolean hasNPE = pe.getExceptions(current, succ, currentNode).contains(
@@ -655,7 +601,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
 
         for (ISSABasicBlock succ : getNormalSuccs(current, cfg)) {
             if (!isUnreachable(current, succ)) {
-                out.put(succ, new PDGContext(null, null, normalExitPC));
+                out.put(succ, new ProgramPoint(null, null, normalExitPC));
             }
         }
 
@@ -663,109 +609,112 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowGoto(SSAGotoInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowGoto(SSAGotoInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return factToMap(confluence(previousItems, current), current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowLoadMetadata(SSALoadMetadataInstruction i,
-                                    Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowLoadMetadata(SSALoadMetadataInstruction i,
+                                                                 Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // TODO load metadata can throw a ClassNotFoundException, but this could be known statically if all the class
         // files were known (closed world).
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = PrettyPrinter.typeString(i.getType()) + " not found";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassNotFoundException, in,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangClassNotFoundException,
+                                                                      in,
                                         desc, current);
 
-        PDGContext cnf = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint cnf = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, cnf, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowMonitor(SSAMonitorInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowMonitor(SSAMonitorInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getRef()) + " == null";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                      in,
                                         desc, current);
 
-        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint npe = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowNewArray(SSANewInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowNewArray(SSANewInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNegativeArraySizeException,
+        ProgramPoint in = confluence(previousItems, current);
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangNegativeArraySizeException,
                                         in, "size < 0", current);
 
-        PDGContext negArraySize = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint negArraySize = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, negArraySize, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowNewObject(SSANewInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowNewObject(SSANewInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return factToMap(confluence(previousItems, current), current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowPutField(SSAPutInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowPutField(SSAPutInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Possibly throw NPE
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getRef()) + " == null";
-        Map<ExitType, PDGContext> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
+        Map<ExitType, ProgramPoint> afterNPE = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                                       in,
                                         desc, current);
 
-        PDGContext npe = afterNPE.get(ExitType.EXCEPTIONAL);
-        PDGContext normal = afterNPE.get(ExitType.NORMAL);
+        ProgramPoint npe = afterNPE.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterNPE.get(ExitType.NORMAL);
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowReturn(SSAReturnInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowReturn(SSAReturnInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         PDGNode returnValue = i.getResult() > 0 ? PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp) : null;
-        return factToMap(new PDGContext(returnValue, null, in.getPCNode()), current, cfg);
+        return factToMap(new ProgramPoint(returnValue, null, in.getPCNode()), current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowSwitch(SSASwitchInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowSwitch(SSASwitchInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGNode newPC = PDGNodeFactory.findOrCreateOther("switch-PC in " + PrettyPrinter.methodString(ir.getMethod()),
                                         PDGNodeType.PC_OTHER, currentNode, i);
-        return factToMap(new PDGContext(null, null, newPC), current, cfg);
+        return factToMap(new ProgramPoint(null, null, newPC), current, cfg);
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowThrow(SSAThrowInstruction i, Set<PDGContext> previousItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowThrow(SSAThrowInstruction i, Set<ProgramPoint> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Can throw NPE if the exception is null
-        PDGContext in = confluence(previousItems, current);
+        ProgramPoint in = confluence(previousItems, current);
         String desc = pp.valString(i.getException()) + " == null";
-        Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
+        Map<ExitType, ProgramPoint> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException,
                                                                     in,
                                                                     desc,
                                                                     current);
-        PDGContext normal = afterEx.get(ExitType.NORMAL);
-        PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
+        ProgramPoint normal = afterEx.get(ExitType.NORMAL);
+        ProgramPoint npe = afterEx.get(ExitType.EXCEPTIONAL);
         PDGNode throwExpr = getNodeForThrowExpression(i, current, currentNode, pp);
 
-        PDGContext afterThrow = new PDGContext(null, throwExpr, normal.getPCNode());
+        ProgramPoint afterThrow = new ProgramPoint(null, throwExpr, normal.getPCNode());
 
-        PDGContext exitContext;
+        ProgramPoint exitContext;
         if (npe != null) {
             // Merge the context for the npe with the one for the thrown exception
             exitContext = mergeContexts(new OrderedPair<>(i, "exception merge"), afterThrow, npe);
@@ -797,11 +746,11 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      * @return Two PDG contexts one for when the exception is not thrown and one for when it is thrown. If the exception
      *         cannot be thrown then the exceptional context will be null.
      */
-    private Map<ExitType, PDGContext> handlePossibleException(TypeReference exType, PDGContext beforeException,
+    private Map<ExitType, ProgramPoint> handlePossibleException(TypeReference exType, ProgramPoint beforeException,
                                                               String reasonForException, ISSABasicBlock bb) {
         SSAInstruction i = getLastInstruction(bb);
         if (interProc.getPreciseExceptionResults().canThrowException(exType, bb, currentNode)) {
-            Map<ExitType, PDGContext> out = new LinkedHashMap<>();
+            Map<ExitType, ProgramPoint> out = new LinkedHashMap<>();
             PDGNode truePC = PDGNodeFactory.findOrCreateOther(reasonForException,
                                                               PDGNodeType.BOOLEAN_TRUE_PC,
                                                               currentNode,
@@ -813,8 +762,8 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
                                                                new OrderedPair<>(i, exType));
             PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
 
-            PDGContext ex = new PDGContext(null, exceptionValue, truePC);
-            PDGContext normal = new PDGContext(null, null, falsePC);
+            ProgramPoint ex = new ProgramPoint(null, exceptionValue, truePC);
+            ProgramPoint normal = new ProgramPoint(null, null, falsePC);
 
             recordExceptionContexts(exType, ex, normal, bb);
             out.put(ExitType.NORMAL, normal);
@@ -836,15 +785,15 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      * @param bb
      *            basic block that throws the exception
      */
-    private void recordExceptionContexts(TypeReference exType, PDGContext ex, PDGContext normal, ISSABasicBlock bb) {
-        Map<TypeReference, PDGContext> trueExes = trueExceptionContexts.get(bb);
+    private void recordExceptionContexts(TypeReference exType, ProgramPoint ex, ProgramPoint normal, ISSABasicBlock bb) {
+        Map<TypeReference, ProgramPoint> trueExes = trueExceptionContexts.get(bb);
         if (trueExes == null) {
             trueExes = new HashMap<>();
             trueExceptionContexts.put(bb, trueExes);
         }
         trueExes.put(exType, ex);
 
-        Map<TypeReference, PDGContext> falseExes = falseExceptionContexts.get(bb);
+        Map<TypeReference, ProgramPoint> falseExes = falseExceptionContexts.get(bb);
         if (falseExes == null) {
             falseExes = new HashMap<>();
             falseExceptionContexts.put(bb, falseExes);
@@ -861,10 +810,10 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      *            non-null contexts to merge (array cannot be empty)
      * @return merged context
      */
-    private PDGContext mergeContexts(Object disambiguationKey, PDGContext... contexts) {
+    private ProgramPoint mergeContexts(Object disambiguationKey, ProgramPoint... contexts) {
         assert contexts.length > 0 : "empty context array in mergeContexts " + "\n\tIN "
                                         + PrettyPrinter.cgNodeString(currentNode) + "\nKEY: " + disambiguationKey;
-        assert !(disambiguationKey instanceof PDGContext) : "Missing disambiguation key.";
+        assert !(disambiguationKey instanceof ProgramPoint) : "Missing disambiguation key.";
         if (contexts.length == 1) {
             return contexts[0];
         }
@@ -872,7 +821,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
         Set<PDGNode> exceptions = new LinkedHashSet<>();
         Set<PDGNode> returns = new LinkedHashSet<>();
         Set<PDGNode> pcs = new LinkedHashSet<>();
-        for (PDGContext c : contexts) {
+        for (ProgramPoint c : contexts) {
             assert c != null : "null context in mergeContexts " + "\n\tIN " + PrettyPrinter.cgNodeString(currentNode)
                                             + "\nKEY: " + disambiguationKey;
             if (c.getExceptionNode() != null) {
@@ -887,7 +836,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
         PDGNode newEx = mergeIfNecessary(exceptions, "EX MERGE", PDGNodeType.EXCEPTION_MERGE, disambiguationKey);
         PDGNode newRet = mergeIfNecessary(returns, "RETURN MERGE", PDGNodeType.OTHER_EXPRESSION, disambiguationKey);
         PDGNode newPC = mergeIfNecessary(pcs, "PC MERGE", PDGNodeType.PC_MERGE, disambiguationKey);
-        return new PDGContext(newRet, newEx, newPC);
+        return new ProgramPoint(newRet, newEx, newPC);
     }
 
     /**
@@ -924,11 +873,11 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      *
      * @return Map from instruction to input context
      */
-    protected Map<SSAInstruction, PDGContext> getInstructionInput() {
-        Map<SSAInstruction, PDGContext> res = new LinkedHashMap<>();
+    protected Map<SSAInstruction, ProgramPoint> getInstructionInput() {
+        Map<SSAInstruction, ProgramPoint> res = new LinkedHashMap<>();
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
             for (SSAInstruction i : bb) {
-                AnalysisRecord<PDGContext> rec = getAnalysisRecord(i);
+                AnalysisRecord<ProgramPoint> rec = getAnalysisRecord(i);
                 if (rec != null) {
                     res.put(i, confluence(rec.getInput(), bb));
                 }
@@ -942,10 +891,10 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
      *
      * @return Map from basic block to input contexts
      */
-    protected Map<ISSABasicBlock, Set<PDGContext>> getInputContexts() {
-        Map<ISSABasicBlock, Set<PDGContext>> res = new LinkedHashMap<>();
+    protected Map<ISSABasicBlock, Set<ProgramPoint>> getInputContexts() {
+        Map<ISSABasicBlock, Set<ProgramPoint>> res = new LinkedHashMap<>();
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-            AnalysisRecord<PDGContext> rec = getAnalysisRecord(bb);
+            AnalysisRecord<ProgramPoint> rec = getAnalysisRecord(bb);
             if (rec != null) {
                 res.put(bb, rec.getInput());
             }
@@ -954,14 +903,14 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     /**
-     * Get a map from basic block to PDGContexts for successor blocks
+     * Get a map from basic block to ProgramPoints for successor blocks
      *
      * @return map from basic block to output items
      */
-    private Map<ISSABasicBlock, Map<ISSABasicBlock, PDGContext>> getOutputContexts() {
-        Map<ISSABasicBlock, Map<ISSABasicBlock, PDGContext>> res = new LinkedHashMap<>();
+    private Map<ISSABasicBlock, Map<ISSABasicBlock, ProgramPoint>> getOutputContexts() {
+        Map<ISSABasicBlock, Map<ISSABasicBlock, ProgramPoint>> res = new LinkedHashMap<>();
         for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-            AnalysisRecord<PDGContext> rec = getAnalysisRecord(bb);
+            AnalysisRecord<ProgramPoint> rec = getAnalysisRecord(bb);
             if (rec != null) {
                 res.put(bb, rec.getOutput());
             }
@@ -970,7 +919,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<PD
     }
 
     @Override
-    protected Map<ISSABasicBlock, PDGContext> flowEmptyBlock(Set<PDGContext> inItems,
+    protected Map<ISSABasicBlock, ProgramPoint> flowEmptyBlock(Set<ProgramPoint> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return factToMap(confluence(inItems, current), current, cfg);
     }
