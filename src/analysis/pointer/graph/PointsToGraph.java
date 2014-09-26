@@ -266,6 +266,24 @@ public class PointsToGraph {
     }
 
     /**
+     * Return the int for the InstanceKeyRecency for the base node of the PointsToGraphNode n, if n is an ObjectField
+     * with a flow-sensitive base. Otherwise return -1.
+     *
+     * @param n
+     * @return
+     */
+    protected/*InstanceKeyRecency*/int baseNodeForPointsToGraphNode(int/*PointsToGaphNode*/n) {
+        PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
+        if (fromGraphNode instanceof ObjectField) {
+            ObjectField of = (ObjectField) fromGraphNode;
+            if (of.isFlowSensitive()) {
+                return this.reverseInstanceKeyDictionary.get(of.receiver());
+            }
+        }
+        return -1;
+    }
+
+    /**
      * Add an edge from node to heapContext in the graph.
      *
      * @param node
@@ -340,6 +358,10 @@ public class PointsToGraph {
         }
     }
 
+    protected PointsToGraphNode lookupPointsToGraphNodeDictionary(int node) {
+        return this.graphNodeDictionary.get(node);
+
+    }
     protected int lookupDictionary(PointsToGraphNode node) {
         Integer n = this.reverseGraphNodeDictionary.get(node);
         if (n == null) {
@@ -753,7 +775,6 @@ public class PointsToGraph {
 
         this.recordReachableContext(callee, calleeContext);
 
-        // XXX!@!
         // set up reverse call graph map.
         Set<OrderedPair<CallSiteProgramPoint, Context>> t = this.callGraphReverseMap.get(calleePair);
         if (t == null) {
@@ -1478,14 +1499,7 @@ public class PointsToGraph {
             return pointsToSetFI(n).addAll(set);
         }
         // flow sensitive!
-        int fromBase = -1;
-        PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
-        if (fromGraphNode instanceof ObjectField) {
-            ObjectField of = (ObjectField) fromGraphNode;
-            if (of.isFlowSensitive()) {
-                fromBase = this.reverseInstanceKeyDictionary.get(of.receiver());
-            }
-        }
+        int fromBase = this.baseNodeForPointsToGraphNode(n);
         boolean changed = false;
         IntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
         IntIterator iter = set.intIterator();

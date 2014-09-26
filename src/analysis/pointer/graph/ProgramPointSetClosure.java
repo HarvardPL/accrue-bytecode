@@ -20,6 +20,9 @@ public class ProgramPointSetClosure {
      */
     private final Set<InterProgramPointReplica> sources;
 
+    /**
+     * If this is a ProgramPointSetClosure for the edge from fromBase.f to toNode, this is the fromBase. Otherwise -1.
+     */
     private final/*InstanceKeyRecency*/int fromBase; // -1 if no relevant from node
     private final/*PointsToGraphNode*/int toNode;
 
@@ -77,6 +80,10 @@ public class ProgramPointSetClosure {
             }
         }
         return true;
+    }
+
+    public /*InstanceKeyRecency*/int getFromBase() {
+        return fromBase;
     }
 
 }

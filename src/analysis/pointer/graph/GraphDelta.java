@@ -65,12 +65,13 @@ public class GraphDelta {
             return getOrCreateFISet(n, setSizeBestGuess(set)).addAll(set);
         }
         // flow sensitive
+        int fromBase = this.g.baseNodeForPointsToGraphNode(n);
         boolean changed = false;
         IntMap<ProgramPointSetClosure> m = getOrCreateFSMap(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, to, ppsToAdd);
+            changed |= addProgramPoints(m, fromBase, to, ppsToAdd);
         }
         return changed;
     }
@@ -84,21 +85,23 @@ public class GraphDelta {
         return s;
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int to,
+    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase, /*PointsToGraphNode*/
+                                            int to,
                                             ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(to);
+            p = new ProgramPointSetClosure(fromBase, to);
             m.put(to, p);
         }
         return p.addAll(toAdd);
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int to,
+    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase, /*PointsToGraphNode*/
+                                            int to,
                                             ProgramPointSetClosure toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(to);
+            p = new ProgramPointSetClosure(fromBase, to);
             m.put(to, p);
         }
         return p.addAll(toAdd);
@@ -171,7 +174,8 @@ public class GraphDelta {
                 IntIterator srcKeys = srcSet.keyIterator();
                 while (srcKeys.hasNext()) {
                     int k = srcKeys.next();
-                    addProgramPoints(m, k, srcSet.get(k));
+                    ProgramPointSetClosure ss = srcSet.get(k);
+                    addProgramPoints(m, ss.getFromBase(), k, ss);
                 }
             }
 
