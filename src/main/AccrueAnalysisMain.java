@@ -1,12 +1,16 @@
 package main;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPOutputStream;
 
 import org.json.JSONException;
 
@@ -184,10 +188,12 @@ public class AccrueAnalysisMain {
             ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, rvCache);
             pdg.printDetailedCounts();
             String fullName = "tests/pdg_" + fileName + ".json";
-            try (FileWriter file = new FileWriter(fullName)) {
-                pdg.writeJSON(file);
+            GZIPOutputStream gzip = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(fullName + ".gz")));
+            try (Writer writer = new BufferedWriter(new OutputStreamWriter(gzip))) {
+                pdg.writeJSON(writer);
+                System.err.println("JSON written to " + fullName + ".gz");
             }
-            System.err.println("JSON written to " + fullName);
+
             if (fileLevel >= 1) {
                 printAllCFG(g);
                 pdg.intraProcDotToFile(1);
