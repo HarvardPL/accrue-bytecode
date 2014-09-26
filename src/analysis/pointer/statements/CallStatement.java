@@ -83,8 +83,7 @@ public abstract class CallStatement extends PointsToStatement {
         GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
-        g.addCall(programPoint().getReference(),
-                  getMethod(),
+        g.addCall(programPoint(),
                   callerContext,
                   callee,
                   calleeContext);

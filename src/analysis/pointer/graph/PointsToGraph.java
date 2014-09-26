@@ -24,9 +24,9 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.AnnotatedIntRelation.SetAnnotatedIntRelation;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -188,7 +188,13 @@ public class PointsToGraph {
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+
+    /**
+     * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
+     * HafCallGraph later.
+     */
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> callGraphReverseMap = new ConcurrentHashMap<>();
 
     private HafCallGraph callGraph = null;
 
@@ -729,22 +735,22 @@ public class PointsToGraph {
      *
      */
     @SuppressWarnings("deprecation")
-    public boolean addCall(CallSiteReference callSite, IMethod caller,
+    public boolean addCall(CallSiteProgramPoint callSite,
                            Context callerContext, IMethod callee,
                            Context calleeContext) {
-        OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
+        OrderedPair<CallSiteProgramPoint, Context> callerPair = new OrderedPair<>(callSite, callerContext);
         OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
 
-        ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
-        if (m == null) {
-            m = AnalysisUtil.createConcurrentHashMap();
-            ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair,
-                                                                                                                     m);
+        Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair,
+                                                                                                                     s);
             if (existing != null) {
-                m = existing;
+                s = existing;
             }
         }
-        m.putIfAbsent(callSite, calleePair);
+        s.add(calleePair);
 
         this.recordReachableContext(callee, calleeContext);
         return true;
@@ -856,20 +862,19 @@ public class PointsToGraph {
         HafCallGraph callGraph = new HafCallGraph(this.haf);
         this.callGraph = callGraph;
         try {
-            for (OrderedPair<IMethod, Context> callerPair : this.callGraphMap.keySet()) {
-                IMethod caller = callerPair.fst();
+            for (OrderedPair<CallSiteProgramPoint, Context> callerPair : this.callGraphMap.keySet()) {
+                CallSiteProgramPoint caller = callerPair.fst();
                 Context callerContext = callerPair.snd();
-                CGNode src = callGraph.findOrCreateNode(caller, callerContext);
-                ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
-                for (CallSiteReference callSite : m.keySet()) {
-                    OrderedPair<IMethod, Context> calleePair = m.get(callSite);
+                CGNode src = callGraph.findOrCreateNode(caller.containingProcedure(), callerContext);
+                Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
+                for (OrderedPair<IMethod, Context> calleePair : s) {
                     IMethod callee = calleePair.fst();
                     Context calleeContext = calleePair.snd();
 
                     CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
 
                     // We are building a call graph so it is safe to call this "deprecated" method
-                    src.addTarget(callSite, dst);
+                    src.addTarget(caller.getReference(), dst);
 
                 }
             }
