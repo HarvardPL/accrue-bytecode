@@ -744,19 +744,28 @@ public class PointsToGraph {
         Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair,
-                                                                                                                     s);
+            Set<OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair, s);
             if (existing != null) {
                 s = existing;
             }
         }
-        s.add(calleePair);
+        boolean changed = s.add(calleePair);
 
         this.recordReachableContext(callee, calleeContext);
 
         // XXX!@!
         // set up reverse call graph map.
-        return true;
+        Set<OrderedPair<CallSiteProgramPoint, Context>> t = this.callGraphReverseMap.get(calleePair);
+        if (t == null) {
+            t = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<CallSiteProgramPoint, Context>> existing = this.callGraphReverseMap.putIfAbsent(calleePair,
+                                                                                                            t);
+            if (existing != null) {
+                t = existing;
+            }
+        }
+        t.add(callerPair);
+        return changed;
     }
 
     /**
