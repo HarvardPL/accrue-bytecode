@@ -5,6 +5,7 @@ public class InvokeInterface {
     static InvokeInterfaceInterface x;
 
     public static void main(String[] args) {
+        x = new InvokeInterfaceSub();
         x.foo(5);
     }
 
@@ -12,7 +13,7 @@ public class InvokeInterface {
         void foo(int x);
     }
 
-    class InvokeInterfaceSub implements InvokeInterfaceInterface {
+    static class InvokeInterfaceSub implements InvokeInterfaceInterface {
 
         static final int y = 90;
 
