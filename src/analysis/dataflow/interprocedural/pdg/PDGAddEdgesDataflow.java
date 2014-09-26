@@ -771,6 +771,20 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Map<ISSABasicBlock, Unit> flowLoadMetadata(SSALoadMetadataInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        PDGContext in = instructionInput.get(i);
+        String desc;
+        if (i.getToken() instanceof TypeReference) {
+            desc = PrettyPrinter.typeString((TypeReference) i.getToken());
+        }
+        else {
+            desc = "metadata " + i.getToken();
+        }
+        PDGNode ref = PDGNodeFactory.findOrCreateOther("load " + desc, PDGNodeType.OTHER_EXPRESSION, currentNode, i);
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
+
+        addEdge(ref, result, PDGEdgeType.EXP);
+
+        handlePossibleException(TypeReference.JavaLangClassNotFoundException, ref, in, desc + " not found", current);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
