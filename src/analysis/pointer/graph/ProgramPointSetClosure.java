@@ -20,11 +20,13 @@ public class ProgramPointSetClosure {
      */
     private final Set<InterProgramPointReplica> sources;
 
-    private final/*PointsToGraphNode*/int node;
+    private final/*InstanceKeyRecency*/int fromBase; // -1 if no relevant from node
+    private final/*PointsToGraphNode*/int toNode;
 
-    public ProgramPointSetClosure(/*PointsToGraphNode*/int node) {
+    public ProgramPointSetClosure(/*InstanceKeyRecency*/int fromBase, /*PointsToGraphNode*/int toNode) {
         this.sources = PointsToAnalysisMultiThreaded.makeConcurrentSet();
-        this.node = node;
+        this.fromBase = fromBase;
+        this.toNode = toNode;
     }
 
     public boolean add(InterProgramPointReplica ippr) {
@@ -40,7 +42,7 @@ public class ProgramPointSetClosure {
     }
 
     public boolean addAll(ProgramPointSetClosure toAdd) {
-        assert (toAdd.node == this.node);
+        assert (toAdd.toNode == this.toNode);
         return this.sources.addAll(toAdd.sources);
     }
 
@@ -68,7 +70,7 @@ public class ProgramPointSetClosure {
     }
 
     public boolean containsAll(ProgramPointSetClosure pps) {
-        assert this.node == pps.node;
+        assert this.toNode == pps.toNode;
         for (InterProgramPointReplica ippr : pps.sources) {
             if (!this.sources.contains(ippr) && !this.contains(ippr)) {
                 return false;

@@ -753,6 +753,9 @@ public class PointsToGraph {
         s.add(calleePair);
 
         this.recordReachableContext(callee, calleeContext);
+
+        // XXX!@!
+        // set up reverse call graph map.
         return true;
     }
 
@@ -1466,21 +1469,29 @@ public class PointsToGraph {
             return pointsToSetFI(n).addAll(set);
         }
         // flow sensitive!
+        int fromBase = -1;
+        PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
+        if (fromGraphNode instanceof ObjectField) {
+            ObjectField of = (ObjectField) fromGraphNode;
+            if (of.isFlowSensitive()) {
+                fromBase = this.reverseInstanceKeyDictionary.get(of.receiver());
+            }
+        }
         boolean changed = false;
         IntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, to, ppsToAdd);
+            changed |= addProgramPoints(m, fromBase, to, ppsToAdd);
         }
         return changed;
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int to,
-                                            ExplicitProgramPointSet toAdd) {
+    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase,
+    /*PointsToGraphNode*/int to, ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(to);
+            p = new ProgramPointSetClosure(fromBase, to);
             m.put(to, p);
         }
         return p.addAll(toAdd);
