@@ -693,7 +693,13 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         // TODO load metadata can throw a ClassNotFoundException, but this could be known statically if all the class
         // files were known (closed world).
         PDGContext in = confluence(previousItems, current);
-        String desc = PrettyPrinter.typeString(i.getType()) + " not found";
+        String desc;
+        if (i.getToken() instanceof TypeReference) {
+            desc = PrettyPrinter.typeString((TypeReference) i.getToken()) + " not found";
+        }
+        else {
+            desc = "loadmetadata " + i.getToken() + " not possible";
+        }
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassNotFoundException, in,
                                         desc, current);
 
