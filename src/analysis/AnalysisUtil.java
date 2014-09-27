@@ -147,10 +147,10 @@ public class AnalysisUtil {
 
     /**
      * Create a pass which will generate points-to statements
-     * 
+     *
      * @param classPath Java class path to load class filed from with entries separated by ":"
      * @param entryPoint entry point main method, e.g mypackage.mysubpackage.MyClass
-     * 
+     *
      * @throws IOException Thrown when the analysis scope is invalid
      * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
      *             class path and for other reasons see {@link ClassHierarchy}
@@ -163,7 +163,8 @@ public class AnalysisUtil {
             classPath = DEFAULT_CLASSPATH;
         }
 
-        AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME, EXCLUSIONS_FILE,
+        AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
+                                                                EXCLUSIONS_FILE,
                                                                 AnalysisUtil.class.getClassLoader());
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
@@ -173,9 +174,16 @@ public class AnalysisUtil {
         System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
 
-        // Add L to the name to indicate that this is a class name
-        Iterable<Entrypoint> entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, cha, "L"
-                + entryPoint.replace(".", "/"));
+        Iterable<Entrypoint> entrypoints;
+        if (entryPoint == null) {
+            entrypoints = Collections.emptySet();
+        }
+        else {
+            // Add L to the name to indicate that this is a class name
+            entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope,
+                                                                                   cha,
+                                                                                   "L" + entryPoint.replace(".", "/"));
+        }
         options = new AnalysisOptions(scope, entrypoints);
 
         addEntriesToRootMethod();
@@ -222,7 +230,7 @@ public class AnalysisUtil {
 
     /**
      * Cache of various analysis artifacts, contains the SSA IR
-     * 
+     *
      * @return WALA analysis cache
      */
     public static AnalysisCache getCache() {
@@ -231,7 +239,7 @@ public class AnalysisUtil {
 
     /**
      * WALA analysis options, contains the entry-point
-     * 
+     *
      * @return WALA analysis options
      */
     public static AnalysisOptions getOptions() {
@@ -240,7 +248,7 @@ public class AnalysisUtil {
 
     /**
      * WALA's class hierarchy
-     * 
+     *
      * @return class hierarchy
      */
     public static IClassHierarchy getClassHierarchy() {
@@ -249,7 +257,7 @@ public class AnalysisUtil {
 
     /**
      * The root method that calls the entry-points
-     * 
+     *
      * @return WALA fake root method (sets up and calls actual entry points)
      */
     public static AbstractRootMethod getFakeRoot() {
@@ -258,7 +266,7 @@ public class AnalysisUtil {
 
     /**
      * Get the IR for the given method, returns null for native methods without signatures
-     * 
+     *
      * @param resolvedMethod method to get the IR for
      * @return the code for the given method, null for native methods
      */
@@ -278,7 +286,7 @@ public class AnalysisUtil {
 
     /**
      * Get the def-use results for the given method, returns null for native methods without signatures
-     * 
+     *
      * @param resolvedMethod method to get the def-use results for
      * @return the def-use for the given method, null for native methods
      */
@@ -298,7 +306,7 @@ public class AnalysisUtil {
 
     /**
      * Get the IR for the method represented by the call graph node, returns null for native methods without signatures
-     * 
+     *
      * @param n call graph node
      * @return the code for the given call graph node, null for native methods without signatures
      */
@@ -308,7 +316,7 @@ public class AnalysisUtil {
 
     /**
      * Get the canonical class for java.lang.String
-     * 
+     *
      * @return class
      */
     public static IClass getStringClass() {
@@ -317,7 +325,7 @@ public class AnalysisUtil {
 
     /**
      * Get the canonical class for java.lang.Objecy
-     * 
+     *
      * @return class
      */
     public static IClass getObjectClass() {
@@ -326,7 +334,7 @@ public class AnalysisUtil {
 
     /**
      * Get the canonical class for java.lang.Throwable
-     * 
+     *
      * @return class
      */
     public static IClass getThrowableClass() {
@@ -335,7 +343,7 @@ public class AnalysisUtil {
 
     /**
      * Get the canonical class for java.lang.Error
-     * 
+     *
      * @return class
      */
     public static IClass getErrorClass() {
@@ -352,7 +360,7 @@ public class AnalysisUtil {
 
     /**
      * Check whether the given method has a signature
-     * 
+     *
      * @param m method to check
      * @return true if the method has a signature implementation
      */
