@@ -277,6 +277,26 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Unit flowInstanceOf(SSAInstanceofInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
+        PDGNode refNode = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
+
+        PDGContext in = instructionInput.get(i);
+
+        addEdge(refNode, result, PDGEdgeType.EXP);
+        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
+
+        return Unit.VALUE;
+    }
+
+    /**
+     * Can it be statically determined that an instanceof check always passes or always fails, and thus does not depend
+     * on the dynamic input.
+     *
+     * @param i instruction to check
+     * @return true if we can determine statically that the instanceof check always returns true or false
+     */
+    @SuppressWarnings("unused")
+    private boolean isInstanceOfConstant(SSAInstanceofInstruction i) {
         boolean instanceOfAlwaysFalse = true;
         boolean instanceOfAlwaysTrue = true;
 
@@ -291,7 +311,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             IClass actual = hContext.getConcreteType();
             if (AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                 instanceOfAlwaysFalse = false;
-            } else {
+            }
+            else {
                 instanceOfAlwaysTrue = false;
             }
 
@@ -300,19 +321,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             }
         }
 
-        PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
-        PDGNode refNode = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
-
-        PDGContext in = instructionInput.get(i);
-
-        if (!instanceOfAlwaysFalse && !instanceOfAlwaysTrue) {
-            // This check does not always return the same value so the result
-            // depends on the input.
-            addEdge(refNode, result, PDGEdgeType.EXP);
-        }
-        addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
-
-        return Unit.VALUE;
+        return instanceOfAlwaysFalse || instanceOfAlwaysTrue;
     }
 
     @Override
