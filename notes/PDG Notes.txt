@@ -4,14 +4,14 @@ XXX PC MERGE nodes in the same context, but for different program points are get
 
 TODO no need for {v1} after "this" for variable names
 
-XXX What should the PDG look like for Exceptions when they are unique, what about calls on these exceptions, they should have a receiver even if it is init(), yes?
+XXX Gen exceptions should carry the PC? They didn't in Infoflow, fix this
 
-XXX Gen exceptions should carry the PC? They didn't in Infoflow
-
-XXX Should array.length be treated like a normal field (an edge from the pointer to the "length" field) or just have an edge from the array?
-
-XXX USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS isn't working right, probably the same reason as the exception thing
-
-TODO What if we are using singletons and a statement is processed before the "new" meaning that the reference variable for the local is the standard RV rather that the special singleton value?
+OK TODO Should array.length be treated like a normal field (an edge from the pointer to the "length" field) or just have an edge from the array?
 
 TODO if we are not careful two different threads could get two different reference variables for a string literal field, in general the ReferenceVariableFactory is not threadsafe
+
+TODO signature for getClassLoader() etc
+
+TODO why are there so many more nodes and edges
+
+TODO mark Native nodes as "estimated type"
