@@ -626,6 +626,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         PDGNode locMerge = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
         addEdge(locMerge, result, PDGEdgeType.COPY);
         addEdge(normal.getPCNode(), result, PDGEdgeType.IMPLICIT);
+        addEdge(target, result, PDGEdgeType.POINTER);
 
         return factToMap(Unit.VALUE, current, cfg);
     }
