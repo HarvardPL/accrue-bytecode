@@ -71,6 +71,14 @@ public final class AccrueAnalysisOptions {
     private String entryPoint;
 
     /**
+     * Name of class to print CFG for if cfg-for-class analysis is being run
+     */
+    @Parameter(
+        names = { "-cn", "-classname" },
+        description = "Name of class to print CFGs for if cfg-for-class analysis is being run")
+    private String className;
+
+    /**
      * If false then register points-to statements during the points-to analysis. If true then register them before the
      * points-to analysis. The latter will register many more statements since there is less information about the types
      * of the receivers of virtual methods.
@@ -116,6 +124,9 @@ public final class AccrueAnalysisOptions {
                 return;
             }
             if (value.equals("reachability")) {
+                return;
+            }
+            if (value.equals("cfg-for-class")) {
                 return;
             }
             System.err.println("Invalid analysis name: " + value);
@@ -359,6 +370,18 @@ public final class AccrueAnalysisOptions {
 
     public boolean shouldWriteDotPDG() {
         return writeDotPDG;
+    }
+
+    /**
+     * Get the class name to write control graphs for when cfg-for-class analysis is selected
+     *
+     * @return name name of class to write CFG files for
+     */
+    public String getClassNameForCFG() {
+        if (className == null) {
+            throw new RuntimeException("Specify the class name to print CFGs for with the -cn or -className options");
+        }
+        return className;
     }
 
 }
