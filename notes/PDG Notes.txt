@@ -15,3 +15,7 @@ TODO signature for getClassLoader() etc
 TODO why are there so many more nodes and edges
 
 TODO mark Native nodes as "estimated type"
+
+TODO remove trailing semicolon from callgraph
+
+XXX Policy 2 for tax doesn't work, we can get explicit flows, but not PC flows. Same with the infoflow version, not sure when it broke, I thought I reran everything before CCS
