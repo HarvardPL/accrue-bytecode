@@ -32,6 +32,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.collections.IntStack;
@@ -708,17 +709,16 @@ public class PointsToGraph {
      * @param n
      * @return
      */
-    //XXX Can uncomment this after development
-    //    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n) {
-    //        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
-    //        return pointsToIterator(n, null, null);
-    //    }
-    //
-    //    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
-    //        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
-    //        return pointsToIterator(n, ippr, null);
-    //    }
-    //
+    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
+        return pointsToIterator(n, null, null);
+    }
+
+    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
+        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
+        return pointsToIterator(n, ippr, null);
+    }
+
     public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr,
                                                             StmtAndContext originator) {
         assert this.graphFinished || originator != null;
