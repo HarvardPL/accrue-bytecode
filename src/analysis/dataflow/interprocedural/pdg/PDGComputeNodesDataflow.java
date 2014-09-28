@@ -299,7 +299,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         if (facts.size() == 1) {
             c = facts.iterator().next();
         } else {
-            c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
+            c = mergeContexts(new OrderedPair<>("confluence", bb), facts.toArray(new PDGContext[facts.size()]));
         }
 
         PDGNode restorePC = handlePostDominators(bb);
