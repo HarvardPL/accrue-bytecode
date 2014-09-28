@@ -51,7 +51,7 @@ public class TypeRepository {
 
     /**
      * Create a new type repository for the given IR
-     * 
+     *
      * @param ir
      *            ir to get types for
      */
@@ -61,7 +61,7 @@ public class TypeRepository {
 
     /**
      * Get the type for the variable with the given value number
-     * 
+     *
      * @param valNum
      *            value number for the variable
      * @return the type of the variable with the given value number
@@ -88,7 +88,7 @@ public class TypeRepository {
     /**
      * Get value numbers for exceptions thrown by other methods called in the IR. These sometimes to not have exact
      * types after type inference, but we know they are at least Throwable.
-     * 
+     *
      * @param ir
      *            code for the method we are getting exceptions for
      * @return value numbers for the exceptions thrown by methods called by the method the IR is for
@@ -109,7 +109,7 @@ public class TypeRepository {
 
     /**
      * Get the types of exceptions that the method can thrown
-     * 
+     *
      * @return set of exception types the method could throw
      */
     public Set<TypeReference> getThrowTypes() {
@@ -144,7 +144,7 @@ public class TypeRepository {
      * Compute and print the types for local variables in the given method
      * <p>
      * This is expensive and should be used for debugging only
-     * 
+     *
      * @param m
      *            method to get the types
      */
@@ -158,13 +158,13 @@ public class TypeRepository {
      * Compute and print the types for local variables in the given method
      * <p>
      * This is expensive and should be used for debugging only
-     * 
+     *
      * @param m
      *            method to get the types
      */
     public static void printToFile(IMethod m) {
         TypeInference ti = TypeInference.make(AnalysisUtil.getIR(m), true);
-        
+
         String dir = "tests";
         String fullFilename = dir + "/types_" + PrettyPrinter.methodString(m) + ".txt";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
@@ -181,7 +181,7 @@ public class TypeRepository {
      * The results are memoized, so only call this if this check will be performed many times with the same classes,
      * otherwise use {@link IClassHierarchy#isAssignableFrom(IClass, IClass)} directly. This is useful for checking
      * exception sub-typing as the same types show up over and over.
-     * 
+     *
      * @param supertype
      *            assignee
      * @param subtype
@@ -189,6 +189,8 @@ public class TypeRepository {
      * @return true if c1 = c2 type checks
      */
     public static boolean isAssignableFrom(IClass supertype, IClass subtype) {
+        assert supertype != null;
+        assert subtype != null;
         // shortcut a common case.
         if (supertype.equals(subtype)) {
             return true;
