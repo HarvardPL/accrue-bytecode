@@ -165,6 +165,10 @@ public class StatementRegistrar {
                 return true;
             }
 
+            // First, run a dataflow to find the program points.
+            ComputeProgramPointsDataflow df = new ComputeProgramPointsDataflow(ir, this, this.rvFactory);
+            df.dataflow();
+
             TypeRepository types = new TypeRepository(ir);
             PrettyPrinter pp = new PrettyPrinter(ir);
 
