@@ -25,6 +25,7 @@ import analysis.dataflow.util.Unit;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ssa.IR;
@@ -456,7 +457,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         addEdge(arrayAccess, result, PDGEdgeType.EXP);
         addEdge(normal.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
-        // Add edges from the array contents to the access
+        // Add edges from the array contents to the result
         Set<PDGNode> locNodes = new LinkedHashSet<>();
         for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
             locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
@@ -848,7 +849,66 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         addEdge(allocNode, result, PDGEdgeType.COPY);
         addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
+        // Add edges from a containing field to the allocation node for certain immutable objects
+        // (e.g. java.lang.String, java.lang.Integer)
+        addEdgesForNewHack(i, allocNode);
+
         return factToMap(Unit.VALUE, current, cfg);
+    }
+
+    /**
+     * Hack that makes new objects (i.e. pointers) depend on a field inside them
+     *
+     */
+    private void addEdgesForNewHack(SSANewInstruction newInstruction, PDGNode newObj) {
+
+        TypeReference stringType = TypeReference.JavaLangString;
+        TypeReference doubleType = TypeReference.JavaLangDouble;
+        TypeReference floatType = TypeReference.JavaLangFloat;
+        TypeReference integerType = TypeReference.JavaLangInteger;
+        TypeReference booleanType = TypeReference.JavaLangBoolean;
+
+        TypeReference newType = newInstruction.getConcreteType();
+        if (newType.equals(stringType)) {
+            addEdgesForNewHack(newInstruction, "data", newObj);
+        }
+
+        if (newType.equals(integerType)) {
+            addEdgesForNewHack(newInstruction, "value", newObj);
+        }
+
+        if (newType.equals(floatType)) {
+            addEdgesForNewHack(newInstruction, "value", newObj);
+        }
+
+        if (newType.equals(doubleType)) {
+            addEdgesForNewHack(newInstruction, "value", newObj);
+        }
+
+        if (newType.equals(booleanType)) {
+            addEdgesForNewHack(newInstruction, "value", newObj);
+        }
+    }
+
+    /**
+     * Hack that makes new objects (i.e. pointers) depend on a field inside them
+     *
+     */
+    private void addEdgesForNewHack(SSANewInstruction i, String fieldName, PDGNode newObjectNode) {
+        IClass newClass = AnalysisUtil.getClassHierarchy().lookupClass(i.getConcreteType());
+        for (IField f : newClass.getAllInstanceFields()) {
+            if (f.getName().toString().equals(fieldName)) {
+                // Add edges from the field to the result
+                Set<PDGNode> locNodes = new LinkedHashSet<>();
+                for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getDef(),
+                                                                                    f.getReference(),
+                                                                                    currentNode)) {
+                    locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+                }
+                PDGNode locMerge = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+                addEdge(locMerge, newObjectNode, PDGEdgeType.EXP);
+            }
+        }
     }
 
     @Override
