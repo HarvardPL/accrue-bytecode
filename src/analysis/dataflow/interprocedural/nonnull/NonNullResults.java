@@ -40,7 +40,7 @@ public class NonNullResults implements AnalysisResults {
      * @return true if the variable represented by the value number is definitely not null
      */
     public boolean isNonNull(int valNum, SSAInstruction i, CGNode containingNode, TypeRepository types) {
-        if (types.getType(valNum).isPrimitiveType()) {
+        if (types != null && types.getType(valNum).isPrimitiveType()) {
             // All primitives are non-null
             return true;
         }
