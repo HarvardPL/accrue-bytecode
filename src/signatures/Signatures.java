@@ -45,7 +45,7 @@ public class Signatures {
      * If this flag is set then the control flow graph (with instructions) will be printed for all signatures before and
      * after being rewritten.
      */
-    private static final boolean PRINT_ALL_SIGNATURES = true;
+    private static final boolean PRINT_ALL_SIGNATURES = false;
     /**
      * Class loader to use when making new types to find classes for
      */
