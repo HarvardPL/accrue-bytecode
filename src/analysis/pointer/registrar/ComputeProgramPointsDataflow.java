@@ -155,6 +155,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
                                                                ISSABasicBlock current) {
         assert !inItems.isEmpty();
 
+        // XXX This assertion is false - Andrew
         assert current.isEntryBlock() || current.isExitBlock();
 
         OrderedPair<ISSABasicBlock, SSAInstruction> memoKey = new OrderedPair<>(current, null);
