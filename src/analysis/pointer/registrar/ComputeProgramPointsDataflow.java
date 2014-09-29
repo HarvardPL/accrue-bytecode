@@ -71,36 +71,26 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
 
     @Override
     protected void post(IR ir) {
+
         // record the program point successors.
 
         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg = ir.getControlFlowGraph();
         // iterate over every basic block
         for (ISSABasicBlock bb : cfg) {
             // go other every instruction in the basic block, and add a successor edge.
-            int firstInst = bb.getFirstInstructionIndex();
-            if (firstInst >= 0) {
-                // XXX ANDREW: is this how the instruction indices work?
-                for (int i = firstInst; i < bb.getLastInstructionIndex(); i++) {
-                    // add a successor edge from i to i+1, if needed
-                    OrderedPair<ISSABasicBlock, SSAInstruction> memoKey = new OrderedPair<>(bb, ir.getInstructions()[i]);
-                    ProgramPoint pp = this.mostRecentProgramPoint.get(memoKey);
-                    ProgramPoint nextPP = this.mostRecentProgramPoint.get(new OrderedPair<>(bb,
-                                                                                            ir.getInstructions()[i + 1]));
-                    // add nextPP as a successor to pp
-                    addSucc(pp, nextPP);
+            ProgramPoint previousPP = null;
+            for (SSAInstruction current : bb){
+                ProgramPoint currentPP = this.mostRecentProgramPoint.get(new OrderedPair<>(bb, current));
+                if (previousPP != null) {
+                    addSucc(previousPP, currentPP);
                 }
+                previousPP = currentPP;
             }
 
             // add successor edges from the program point of the last instruction of the basic block to
             // the program point of the first instruction of the successor basic blocks.
-            ProgramPoint lastPPofBB;
-            int lastInst = bb.getLastInstructionIndex();
-            if (lastInst >= 0) {
-                lastPPofBB = this.mostRecentProgramPoint.get(new OrderedPair<>(bb, ir.getInstructions()[lastInst]));
-            }
-            else {
-                lastPPofBB = this.mostRecentProgramPoint.get(new OrderedPair<>(bb, null));
-            }
+            SSAInstruction last = getLastInstruction(bb);
+            ProgramPoint lastPPofBB = this.mostRecentProgramPoint.get(new OrderedPair<>(bb, last));
             for (ISSABasicBlock succBB : cfg.getNormalSuccessors(bb)) {
                 addSucc(lastPPofBB, bbEntryProgramPoint(succBB, true));
             }
@@ -129,25 +119,22 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
      * @return
      */
     private ProgramPoint bbEntryProgramPoint(ISSABasicBlock bb, boolean isExceptionEdge) {
-        int firstInst = bb.getFirstInstructionIndex();
-        if (firstInst >= 0) {
-            return this.mostRecentProgramPoint.get(new OrderedPair<>(bb, ir.getInstructions()[firstInst]));
-        }
-        else if (bb.isExitBlock()) {
+        if (bb.isExitBlock()) {
             MethodSummaryNodes summary = this.registrar.findOrCreateMethodSummary(this.ir.getMethod(),
                                                                                   this.rvFactory);
             if (isExceptionEdge) {
                 return summary.getExceptionExitPP();
             }
-            else {
-                return summary.getNormalExitPP();
-            }
-        }
-        else {
-            // an empty non-exit block. Can this case actually happen? XXX
-            return this.mostRecentProgramPoint.get(new OrderedPair<>(bb, null));
+            return summary.getNormalExitPP();
         }
 
+        // Not the exit block
+        if (!bb.iterator().hasNext()) {
+            // Empty block, pass in null as the instruction @see flowEmptyBlock
+            this.mostRecentProgramPoint.get(new OrderedPair<>(bb, null));
+        }
+        SSAInstruction firstInst = bb.iterator().next();
+        return this.mostRecentProgramPoint.get(new OrderedPair<>(bb, firstInst));
     }
 
     @Override
