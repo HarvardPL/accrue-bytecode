@@ -22,7 +22,6 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.shrikeBT.IBinaryOpInstruction.IOperator;
@@ -46,7 +45,7 @@ public class PreciseExceptionResults implements AnalysisResults {
     /**
      * Get the set of exceptions that can be thrown by the given basic block in
      * the method and context of the given call graph node.
-     * 
+     *
      * @param bb
      *            basic block to get exceptions for
      * @param successor
@@ -65,14 +64,14 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     /**
      * Check whether a basic block can throw exceptions of the given type
-     * 
+     *
      * @param type
      *            type to check
      * @param bb
      *            basic block
      * @param n
      *            call graph node containing the basic block
-     * 
+     *
      * @return true if the basic block can throw the given exception type
      */
     public boolean canThrowException(TypeReference type, ISSABasicBlock bb, CGNode n) {
@@ -88,7 +87,7 @@ public class PreciseExceptionResults implements AnalysisResults {
     /**
      * Check whether a method (in a particular context) can throw exceptions of
      * the given type
-     * 
+     *
      * @param type
      *            type to check
      * @param n
@@ -97,7 +96,7 @@ public class PreciseExceptionResults implements AnalysisResults {
      */
     public boolean canProcedureThrowException(TypeReference type, CGNode n) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-        
+
         if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             IClass exClass = cha.lookupClass(type);
             if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass)) {
@@ -131,7 +130,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     /**
      * Check whether a basic block can throw exceptions
-     * 
+     *
      * @param bb
      *            basic block to check
      * @param n
@@ -150,7 +149,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     /**
      * Check whether a method (in a particular context) can throw exceptions
-     * 
+     *
      * @param n
      *            method and context to check
      * @return true if the call graph node can throw any exception
@@ -199,7 +198,7 @@ public class PreciseExceptionResults implements AnalysisResults {
         /**
          * Replace the exception types for the edge from i to the successor
          * basic block
-         * 
+         *
          * @param throwTypes
          * @param bb
          * @param successor
@@ -212,7 +211,7 @@ public class PreciseExceptionResults implements AnalysisResults {
         /**
          * Get the set of exceptions that can be thrown on the edge to the given
          * successor basic block
-         * 
+         *
          * @param bb
          *            basic block to get exceptions for
          * @return set of exceptions thrown by the basic block to the given
@@ -243,7 +242,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
         /**
          * Create a key into the exception map
-         * 
+         *
          * @param i
          *            instruction
          * @param succNum
@@ -265,23 +264,30 @@ public class PreciseExceptionResults implements AnalysisResults {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            if (this == obj) {
                 return true;
-            if (obj == null)
+            }
+            if (obj == null) {
                 return false;
-            if (getClass() != obj.getClass())
+            }
+            if (getClass() != obj.getClass()) {
                 return false;
+            }
             CFGEdge other = (CFGEdge) obj;
             if (bb == null) {
-                if (other.bb != null)
+                if (other.bb != null) {
                     return false;
-            } else if (!bb.equals(other.bb))
+                }
+            } else if (!bb.equals(other.bb)) {
                 return false;
+            }
             if (successor == null) {
-                if (other.successor != null)
+                if (other.successor != null) {
                     return false;
-            } else if (!successor.equals(other.successor))
+                }
+            } else if (!successor.equals(other.successor)) {
                 return false;
+            }
             return true;
         }
     }
@@ -322,10 +328,10 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     /**
      * Get the exceptions that may be implicitly thrown by this instruction
-     * 
+     *
      * @param i
      *            instruction
-     * 
+     *
      * @return collection of implicit exception types
      */
     public static Collection<TypeReference> implicitExceptions(SSAInstruction i) {
@@ -399,20 +405,20 @@ public class PreciseExceptionResults implements AnalysisResults {
 
     /**
      * Will write the results for the first context for the given method
-     * 
+     *
      * @param writer
      *            writer to write to
      * @param m
      *            method to write the results for
      * @param reachable
      *            results of a reachability analysis
-     * 
+     *
      * @throws IOException
      *             issues with the writer
      */
-    public void writeResultsForMethod(Writer writer, IMethod m, ReachabilityResults reachable) throws IOException {
+    public void writeResultsForMethod(Writer writer, String m, ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            if (n.getMethod().equals(m)) {
+            if (PrettyPrinter.methodString(n.getMethod()).contains(m)) {
                 writeResultsForNode(writer, n, reachable);
                 return;
             }

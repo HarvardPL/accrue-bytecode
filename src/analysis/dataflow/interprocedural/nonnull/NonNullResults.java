@@ -17,7 +17,6 @@ import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -31,7 +30,7 @@ public class NonNullResults implements AnalysisResults {
 
     /**
      * Whether the variable with the given value number is non-null just <i>before</i> executing the given instruction
-     * 
+     *
      * @param valNum
      *            variable value number
      * @param i
@@ -69,7 +68,7 @@ public class NonNullResults implements AnalysisResults {
     /**
      * Record that the variables with the given value numbers are non-null just <i>before</i> executing the given
      * instruction in the given call graph node
-     * 
+     *
      * @param nonNullValues
      *            variable value numbers for non-null values
      * @param i
@@ -101,7 +100,7 @@ public class NonNullResults implements AnalysisResults {
         /**
          * Whether the variable with the given value number is non-null just <i>before</i> executing the given
          * instruction
-         * 
+         *
          * @param valNum
          *            variable value number
          * @param i
@@ -118,7 +117,7 @@ public class NonNullResults implements AnalysisResults {
 
         /**
          * Get value numbers for all non-null variables right before executing i
-         * 
+         *
          * @param i
          *            instruction
          * @return set of non-null value numbers
@@ -134,7 +133,7 @@ public class NonNullResults implements AnalysisResults {
         /**
          * Record that the variable with the given value number is non-null just <i>before</i> executing the given
          * instruction, replace the current set of values if there are any
-         * 
+         *
          * @param nonNullValues
          *            variable value number for non-null value
          * @param i
@@ -154,36 +153,41 @@ public class NonNullResults implements AnalysisResults {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            if (this == obj) {
                 return true;
-            if (obj == null)
+            }
+            if (obj == null) {
                 return false;
-            if (getClass() != obj.getClass())
+            }
+            if (getClass() != obj.getClass()) {
                 return false;
+            }
             ResultsForNode other = (ResultsForNode) obj;
             if (results == null) {
-                if (other.results != null)
+                if (other.results != null) {
                     return false;
-            } else if (!results.equals(other.results))
+                }
+            } else if (!results.equals(other.results)) {
                 return false;
+            }
             return true;
         }
     }
 
     /**
      * Will write the results for the first context for the given method
-     * 
+     *
      * @param writer
      *            writer to write to
      * @param m
      *            method to write the results for
-     * 
+     *
      * @throws IOException
      *             issues with the writer
      */
-    public void writeResultsForMethod(Writer writer, IMethod m, ReachabilityResults reachable) throws IOException {
+    public void writeResultsForMethod(Writer writer, String m, ReachabilityResults reachable) throws IOException {
         for (CGNode n : allResults.keySet()) {
-            if (n.getMethod().equals(m)) {
+            if (PrettyPrinter.methodString(n.getMethod()).contains(m)) {
                 writeResultsForNode(writer, n, reachable);
                 return;
             }
