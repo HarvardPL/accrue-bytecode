@@ -15,6 +15,7 @@ import org.json.JSONObject;
 
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.AnalysisResults;
+import analysis.dataflow.interprocedural.pdg.graph.node.AbstractLocationPDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedurePDGNode;
@@ -241,6 +242,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
         Map<CGNode, Set<PDGEdge>> cgNodeToEdges = new LinkedHashMap<>();
         // Nodes from other CGNodes that touch nodes from the key CGNode
         Map<CGNode, Map<CGNode, Set<PDGNode>>> auxNodes = new LinkedHashMap<>();
+        Map<CGNode, Set<AbstractLocationPDGNode>> heapNodes = new LinkedHashMap<>();
 
         for (PDGNode n : nodes) {
             String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
@@ -312,6 +314,42 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
                 }
             }
+            else {
+                // either the source or target is a HEAP node
+                if (e.source instanceof ProcedurePDGNode && e.target instanceof AbstractLocationPDGNode) {
+                    CGNode cg1 = ((ProcedurePDGNode) e.source).getCGNode();
+                    Set<PDGEdge> es1 = cgNodeToEdges.get(cg1);
+                    if (es1 == null) {
+                        es1 = new LinkedHashSet<>();
+                        cgNodeToEdges.put(cg1, es1);
+                    }
+                    es1.add(e);
+
+                    Set<AbstractLocationPDGNode> heap = heapNodes.get(cg1);
+                    if (heap == null) {
+                        heap = new LinkedHashSet<>();
+                        heapNodes.put(cg1, heap);
+                    }
+                    heap.add((AbstractLocationPDGNode) e.target);
+                }
+
+                if (e.source instanceof AbstractLocationPDGNode && e.target instanceof ProcedurePDGNode) {
+                    CGNode cg2 = ((ProcedurePDGNode) e.target).getCGNode();
+                    Set<PDGEdge> es1 = cgNodeToEdges.get(cg2);
+                    if (es1 == null) {
+                        es1 = new LinkedHashSet<>();
+                        cgNodeToEdges.put(cg2, es1);
+                    }
+                    es1.add(e);
+
+                    Set<AbstractLocationPDGNode> heap = heapNodes.get(cg2);
+                    if (heap == null) {
+                        heap = new LinkedHashSet<>();
+                        heapNodes.put(cg2, heap);
+                    }
+                    heap.add((AbstractLocationPDGNode) e.source);
+                }
+            }
         }
 
         Set<IMethod> visited = new HashSet<>();
@@ -349,8 +387,9 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                 if (aux != null) {
                     for (CGNode cg2 : aux.keySet()) {
 
-                        String clusterLabel = PrettyPrinter.methodString(cg2.getMethod()).replace("\"", "")
-                                                        .replace("\\", "\\\\");
+                        String clusterLabel = PrettyPrinter.methodString(cg2.getMethod())
+                                                           .replace("\"", "")
+                                                           .replace("\\", "\\\\");
                         writer.write("\tsubgraph \"cluster_" + clusterLabel + "\"{\n");
                         writer.write("\tlabel=\"" + clusterLabel + "\";\n");
                         for (PDGNode n : aux.get(cg2)) {
