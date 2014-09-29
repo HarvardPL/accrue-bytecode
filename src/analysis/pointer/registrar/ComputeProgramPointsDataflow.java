@@ -2,6 +2,7 @@ package analysis.pointer.registrar;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,6 +46,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
     private final IR ir;
     private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPoint> memoizedProgramPoints;
     private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPoint> mostRecentProgramPoint;
+    private final Set<ProgramPoint> modifiesPointsToGraph;
     private final StatementRegistrar registrar;
     private final ReferenceVariableFactory rvFactory;
 
@@ -57,6 +59,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
 
         this.memoizedProgramPoints = new HashMap<>();
         this.mostRecentProgramPoint = new HashMap<>();
+        this.modifiesPointsToGraph = new HashSet<>();
     }
 
     /**
@@ -168,20 +171,9 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
                                                                ISSABasicBlock current) {
         assert !inItems.isEmpty();
 
-        assert current.isEntryBlock() || current.isExitBlock();
-
-        OrderedPair<ISSABasicBlock, SSAInstruction> memoKey = new OrderedPair<>(current, null);
-        ProgramPoint pp;
-        if (inItems.size() == 1) {
-            pp = inItems.iterator().next();
-        }
-        else {
-            // we need a new program point
-            pp = getOrCreateProgramPoint(memoKey);
-        }
-
-        mostRecentProgramPoint.put(memoKey, pp);
-
+        // we have an empty block, so we can't associate a ProgramPoint with an instruction.
+        // We will associate it with a "null" instruction.
+        ProgramPoint pp = flowImpl(false, null, inItems, cfg, current);
         return factToMap(pp, current, cfg);
     }
 
@@ -409,25 +401,30 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
                                              Set<ProgramPoint> previousItems,
                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                              ISSABasicBlock current) {
-        assert !previousItems.isEmpty() : "Empty facts in confluence entering BB" + current.getNumber() + " IN "
+        assert !previousItems.isEmpty() : "Empty facts for BB" + current.getNumber() + " IN "
                 + PrettyPrinter.methodString(ir.getMethod());
-        assert i != null;
 
-        assert !current.isEntryBlock() && !current.isExitBlock();
-
+        // i may be null.
         OrderedPair<ISSABasicBlock, SSAInstruction> memoKey = new OrderedPair<>(current, i);
 
         ProgramPoint pp;
-        if (mayChangePointsToGraph || previousItems.size() > 1) {
-            // we need a new program point.
+        if (mayChangePointsToGraph || previousItems.size() > 1
+                || (previousItems.size() == 1 && this.modifiesPointsToGraph.contains(previousItems.iterator().next()))) {
+            // we need a new program point: either this instruction may change the points to graph, or
+            // the previous instruction changed the points to graph, or there are multiple distinct
+            // predecessor program points.
             pp = getOrCreateProgramPoint(memoKey);
         }
         else {
+            assert previousItems.size() == 1;
             pp = previousItems.iterator().next();
         }
 
         mostRecentProgramPoint.put(memoKey, pp);
 
+        if (mayChangePointsToGraph) {
+            this.modifiesPointsToGraph.add(pp);
+        }
 
         return pp;
 
