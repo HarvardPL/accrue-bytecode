@@ -223,19 +223,13 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
     }
 
     /**
-     * Write the graph in graphviz dot format
+     * Write the PDG for the given method name in graphviz dot format
      *
-     * @param writer
-     *            writer to write to
-     * @param cluster
-     *            if true then the graph will contain subgraphs for each procedure, one for the heap, and other
-     *            subgraphs for each
-     * @param spread
-     *            Separation between nodes in inches different
-     * @throws IOException
-     *             writer issues
+     * @param spread Separation between nodes in inches different
+     *
+     * @throws IOException writer issues
      */
-    public void intraProcDotToFile(double spread) throws IOException {
+    public void intraProcDotToFile(double spread, String methodName) throws IOException {
         Set<PDGEdge> edgeSet = new LinkedHashSet<>();
         for (PDGEdgeType t : edges.keySet()) {
             edgeSet.addAll(edges.get(t));
@@ -322,6 +316,10 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
 
         Set<IMethod> visited = new HashSet<>();
         for (CGNode cg : cgNodeToNodes.keySet()) {
+            if (!PrettyPrinter.methodString(cg.getMethod()).contains(methodName)) {
+                // This is not the method we are looking for
+                continue;
+            }
             if (visited.contains(cg.getMethod())) {
                 // Different methods should be identical
                 continue;

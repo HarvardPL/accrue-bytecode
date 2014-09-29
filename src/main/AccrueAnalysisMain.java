@@ -217,11 +217,11 @@ public class AccrueAnalysisMain {
             }
 
             if (fileLevel >= 1) {
-                printAllCFG(g);
-                pdg.intraProcDotToFile(1);
+                pdg.intraProcDotToFile(1, "");
             }
 
             if (fileLevel >= 2) {
+                printAllCFG(g);
                 r2.writeAllToFiles();
                 nonNull.writeAllToFiles(r);
                 preciseEx.writeAllToFiles(r);
@@ -233,6 +233,22 @@ public class AccrueAnalysisMain {
                     pdg.writeDot(dotfile, true, 1);
                 }
                 System.err.println("DOT written to " + dotName);
+                // Also write out the PDG for "main"
+                pdg.intraProcDotToFile(1, "main");
+
+                // Also the non null results for main
+                String nullfileName = "tests/nonnull_main_" + fileName + ".dot";
+                try (Writer w = new FileWriter(nullfileName)) {
+                    nonNull.writeResultsForMethod(w, "main", r);
+                    System.err.println("DOT written to " + nullfileName);
+                }
+
+                // Also the precise exceptions results for main
+                String preciseExFileName = "tests/preciseEx_main_" + fileName + ".dot";
+                try (Writer w = new FileWriter(preciseExFileName)) {
+                    preciseEx.writeResultsForMethod(w, "main", r);
+                    System.err.println("DOT written to " + preciseExFileName);
+                }
             }
             break;
         case "android-cfg":
