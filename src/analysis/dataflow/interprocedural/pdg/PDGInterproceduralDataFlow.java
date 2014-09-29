@@ -10,6 +10,7 @@ import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
 import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.pdg.graph.node.PDGNode;
@@ -27,17 +28,30 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     private final ProgramDependenceGraph pdg;
     private final PreciseExceptionResults preciseEx;
+    private final NonNullResults nonNull;
     private static final Map<ExitType, Unit> UNIT_MAP = new HashMap<>();
     static {
         UNIT_MAP.put(ExitType.EXCEPTIONAL, Unit.VALUE);
         UNIT_MAP.put(ExitType.NORMAL, Unit.VALUE);
     }
 
+    /**
+     * Analysis that creates a program dependence graph for the entire program (with a call graph described by the
+     * points-to graph)
+     *
+     * @param ptg points-to graph
+     * @param preciseEx results of a precise exceptions analysis
+     * @param reachable results of a reachability analysis
+     * @param nonNull results of a non-null analysis
+     * @param rvCache mapping of local variables to reference variables (used by the points-to graph)
+     */
     public PDGInterproceduralDataFlow(PointsToGraph ptg, PreciseExceptionResults preciseEx,
-                                    ReachabilityResults reachable, ReferenceVariableCache rvCache) {
+                                      ReachabilityResults reachable, NonNullResults nonNull,
+                                      ReferenceVariableCache rvCache) {
         super(ptg, reachable, rvCache);
         this.pdg = new ProgramDependenceGraph();
         this.preciseEx = preciseEx;
+        this.nonNull = nonNull;
     }
 
     @Override
@@ -103,11 +117,15 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         return preciseEx;
     }
 
+    public NonNullResults getNonNullResults() {
+        return nonNull;
+    }
+
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
     }
-    
+
     /**
      * Map from exit type to unit
      */

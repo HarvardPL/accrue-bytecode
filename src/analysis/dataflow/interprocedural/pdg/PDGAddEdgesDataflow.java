@@ -202,6 +202,21 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     }
 
     @Override
+    protected Map<ISSABasicBlock, Unit> flowInstruction(SSAInstruction i, Set<Unit> inItems,
+                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                        ISSABasicBlock current) {
+        for (int j = 0; j < i.getNumberOfUses(); j++) {
+            int use = i.getUse(j);
+            if (ir.getSymbolTable().isStringConstant(use)) {
+                // Add an edge from the "data" field of the string literal to the node for the String object
+                PDGNode stringLit = PDGNodeFactory.findOrCreateLocal(use, currentNode, pp);
+                addEdgesForNewHack(use, TypeReference.JavaLangString, "count", stringLit, new OrderedPair<>(i, use));
+            }
+        }
+        return super.flowInstruction(i, inItems, cfg, current);
+    }
+
+    @Override
     protected Unit flowBinaryOp(SSABinaryOpInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGNode v0 = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
@@ -672,8 +687,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         PDGContext in = instructionInput.get(i);
 
         PDGContext normal = in;
-        if (!i.isStatic()) {
-            // Could throw NPE
+        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
+            // Could throw NPE due to null receiver
             String desc = pp.valString(i.getReceiver()) + " == null";
             normal = handlePossibleException(TypeReference.JavaLangNullPointerException, params.get(0), in, desc,
                                             current);
@@ -860,7 +875,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      * Hack that makes new objects (i.e. pointers) depend on a field inside them
      *
      */
-    private void addEdgesForNewHack(SSANewInstruction newInstruction, PDGNode newObj) {
+    private void addEdgesForNewHack(SSANewInstruction i, PDGNode newObj) {
 
         TypeReference stringType = TypeReference.JavaLangString;
         TypeReference doubleType = TypeReference.JavaLangDouble;
@@ -868,25 +883,25 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         TypeReference integerType = TypeReference.JavaLangInteger;
         TypeReference booleanType = TypeReference.JavaLangBoolean;
 
-        TypeReference newType = newInstruction.getConcreteType();
+        TypeReference newType = i.getConcreteType();
         if (newType.equals(stringType)) {
-            addEdgesForNewHack(newInstruction, "data", newObj);
+            addEdgesForNewHack(i.getDef(), stringType, "count", newObj, i);
         }
 
         if (newType.equals(integerType)) {
-            addEdgesForNewHack(newInstruction, "value", newObj);
+            addEdgesForNewHack(i.getDef(), integerType, "value", newObj, i);
         }
 
         if (newType.equals(floatType)) {
-            addEdgesForNewHack(newInstruction, "value", newObj);
+            addEdgesForNewHack(i.getDef(), floatType, "value", newObj, i);
         }
 
         if (newType.equals(doubleType)) {
-            addEdgesForNewHack(newInstruction, "value", newObj);
+            addEdgesForNewHack(i.getDef(), doubleType, "value", newObj, i);
         }
 
         if (newType.equals(booleanType)) {
-            addEdgesForNewHack(newInstruction, "value", newObj);
+            addEdgesForNewHack(i.getDef(), booleanType, "value", newObj, i);
         }
     }
 
@@ -894,18 +909,22 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      * Hack that makes new objects (i.e. pointers) depend on a field inside them
      *
      */
-    private void addEdgesForNewHack(SSANewInstruction i, String fieldName, PDGNode newObjectNode) {
-        IClass newClass = AnalysisUtil.getClassHierarchy().lookupClass(i.getConcreteType());
+    private void addEdgesForNewHack(int newObjectValNum, TypeReference type, String fieldName, PDGNode newObjectNode,
+                                    Object disambiguationKey) {
+        IClass newClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
         for (IField f : newClass.getAllInstanceFields()) {
             if (f.getName().toString().equals(fieldName)) {
                 // Add edges from the field to the result
                 Set<PDGNode> locNodes = new LinkedHashSet<>();
-                for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getDef(),
+                for (AbstractLocation loc : interProc.getLocationsForNonStaticField(newObjectValNum,
                                                                                     f.getReference(),
                                                                                     currentNode)) {
                     locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
                 }
-                PDGNode locMerge = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+                PDGNode locMerge = mergeIfNecessary(locNodes,
+                                                    "ABS LOC MERGE",
+                                                    PDGNodeType.LOCATION_SUMMARY,
+                                                    disambiguationKey);
                 addEdge(locMerge, newObjectNode, PDGEdgeType.EXP);
             }
         }

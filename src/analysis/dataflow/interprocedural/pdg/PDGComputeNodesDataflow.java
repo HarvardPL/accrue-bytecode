@@ -612,8 +612,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
 
         PDGContext npe = null;
-        if (!i.isStatic()) {
-            // Could throw NPE
+        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
+            // Could throw NPE due to null receiver
             String desc = pp.valString(i.getReceiver()) + " == null";
             Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
                                             desc, current);

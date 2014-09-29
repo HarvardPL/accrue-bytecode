@@ -207,7 +207,7 @@ public class AccrueAnalysisMain {
             nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
             preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
             ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
-            ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, rvCache);
+            ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, nonNull, rvCache);
             pdg.printDetailedCounts();
             String fullName = "tests/pdg_" + fileName + ".json";
             GZIPOutputStream gzip = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(fullName + ".gz")));
@@ -429,11 +429,13 @@ public class AccrueAnalysisMain {
      * @param g points-to graph
      * @param r results of a reachability analysis
      * @param preciseEx results of a precise exceptions analysis
+     * @param nonNull results of a non-null analysis
      * @return the program dependence graph
      */
     private static ProgramDependenceGraph runPDG(int outputLevel, PointsToGraph g, ReachabilityResults r,
-                                                 PreciseExceptionResults preciseEx, ReferenceVariableCache rvCache) {
-        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, rvCache);
+                                                 PreciseExceptionResults preciseEx, NonNullResults nonNull,
+                                                 ReferenceVariableCache rvCache) {
+        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, nonNull, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
