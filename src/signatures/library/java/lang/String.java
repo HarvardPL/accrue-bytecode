@@ -19,80 +19,6 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     int count;
     private static final long serialVersionUID = -6849794470754667710L;
 
-    static class StringCheats {
-        static native int intFunctionOf(char[] a);
-
-        static native int intFunctionOf(char[] a, int x, int y);
-
-        static native int intFunctionOf(char[] a, int x, int y, int z);
-
-        static native int intFunctionOf(char[] a, int x, int y, int z, int w);
-
-        static native int intFunctionOf(char[] a, char[] b, int x, int y, int z, int w, int u);
-
-        static native int intFunctionOf(byte[] a, int x, int y);
-
-        static native int intFunctionOf(byte[] a, int x, int y, int z);
-
-        static native int intFunctionOf(byte[] a, int x, int y, String z);
-
-        static native int intFunctionOf(byte[] a, int x, int y, Charset z);
-
-        static native int intFunctionOf(StringBuffer a);
-
-        static native int intFunctionOf(StringBuilder a);
-
-        static native int intFunctionOf(int x, CharSequence a, CharSequence b);
-
-        static native int intFunctionOf(int x, int y, char[] a);
-
-        static native int intFunctionOf(int x);
-
-        static native int intFunctionOf(int x, int y);
-
-        static native int intFunctionOf(int x, int y, int z);
-
-        static native int intFunctionOf(int x, int y, int z, int w);
-
-        static native int intFunctionOf(int x, Object y);
-
-        static native int intFunctionOf(int x, Object z, Object w);
-
-        static native int intFunctionOf(int x, int y, Object z, Object w);
-
-        static native int intFunctionOf(int[] x, int y, int z);
-
-        static native int intFunctionOf(Object o, int offset, int length);
-
-        static native boolean booleanFunctionOf(byte[] a, int x, int y, int z);
-
-        static native boolean booleanFunctionOf(int x);
-
-        static native boolean booleanFunctionOf(int x, int y);
-
-        static native boolean booleanFunctionOf(int x, int y, int z);
-
-        static native boolean booleanFunctionOf(int x, int y, int z, int w);
-
-        static native boolean booleanFunctionOf(int x, int y, int z, int w, int u);
-
-        static native boolean booleanFunctionOf(int x, int y, int z, int w, int u, boolean b);
-
-        static native boolean booleanFunctionOf(int x, Object y);
-
-        static native char charFunctionOf(int x, int y);
-
-        static native char[] charArrayFunctionOf(int x);
-
-        static native byte[] byteArrayFunctionOf(int x, int y, int z, byte[] a, int w);
-
-        static native byte[] byteArrayFunctionOf(int x, int y);
-
-        static native byte[] byteArrayFunctionOf(int x);
-
-        static native byte[] byteArrayFunctionOf(int x, Object y);
-    }
-
     public String() {
         count = 0;
     }
@@ -102,25 +28,25 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     }
 
     public String(char value[]) {
-        count = StringCheats.intFunctionOf(value);
+        count = MockNativeMethods.intFunctionOf(value[0]);
     }
 
     public String(char value[], int offset, int count) {
-        count = StringCheats.intFunctionOf(value, offset, count);
+        count = MockNativeMethods.intFunctionOf(value[0], offset, count);
     }
 
     public String(int[] codePoints, int offset, int count) {
-        count = StringCheats.intFunctionOf(codePoints, offset, count);
+        count = MockNativeMethods.intFunctionOf(codePoints[0], offset, count);
     }
 
     @Deprecated
     public String(byte ascii[], int hibyte, int offset, int count) {
-        count = StringCheats.intFunctionOf(ascii, hibyte, offset, count);
+        count = MockNativeMethods.intFunctionOf(ascii[0], hibyte, offset, count);
     }
 
     @Deprecated
     public String(byte ascii[], int hibyte) {
-        this(ascii, hibyte, 0, ascii.length);
+        this(ascii, hibyte, 0, ascii[0]);
     }
 
     public String(byte bytes[], int offset, int length, String charsetName)
@@ -129,17 +55,17 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         if (charsetName == null) {
             throw new NullPointerException("charsetName");
         }
-        if (StringCheats.booleanFunctionOf(bytes, charsetName.count, offset, length)) {
+        if (MockNativeMethods.booleanFunctionOf(bytes[0], charsetName.count, offset, length)) {
             throw new UnsupportedEncodingException();
         }
-        count = StringCheats.intFunctionOf(bytes, charsetName.count, offset, length);
+        count = MockNativeMethods.intFunctionOf(bytes[0], charsetName.count, offset, length);
     }
 
     public String(byte bytes[], int offset, int length, Charset charset) {
         if (charset == null) {
             throw new NullPointerException("charset");
         }
-        count = StringCheats.intFunctionOf(bytes, offset, length, charset);
+        count = MockNativeMethods.intFunctionOf(bytes[0], offset, length, charset);
     }
 
     public String(byte bytes[], String charsetName)
@@ -153,12 +79,12 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     }
 
     public String(byte bytes[], int offset, int length) {
-        count = StringCheats.intFunctionOf(bytes, offset, length);
+        count = MockNativeMethods.intFunctionOf(bytes[0], offset, length);
     }
 
     // TODO WALA screws up the arrays so that they show up as Objects, should fix this bug some time
     public String(Object o, int offset, int length) {
-        count = StringCheats.intFunctionOf(o, offset, length);
+        count = MockNativeMethods.intFunctionOf(valueOf(o).count, offset, length);
     }
 
     public String(byte bytes[]) {
@@ -166,111 +92,110 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     }
 
     public String(StringBuffer buffer) {
-        count = StringCheats.intFunctionOf(buffer);
+        count = MockNativeMethods.intFunctionOf(valueOf(buffer.toString()).count);
     }
 
     public String(StringBuilder builder) {
-        count = StringCheats.intFunctionOf(builder);
+        count = MockNativeMethods.intFunctionOf(valueOf(builder.toString()).count);
     }
 
     String(int offset, int count, char value[]) {
-        count = StringCheats.intFunctionOf(offset, count, value);
+        count = MockNativeMethods.intFunctionOf(offset, count, value[0]);
     }
 
     @Override
     public int length() {
-        return count;
+        return MockNativeMethods.intFunctionOf(count);
     }
 
     public boolean isEmpty() {
-        return StringCheats.booleanFunctionOf(count);
+        return MockNativeMethods.booleanFunctionOf(count);
     }
 
     @Override
     public char charAt(int index) {
-        return StringCheats.charFunctionOf(count, index);
+        return (char) MockNativeMethods.intFunctionOf(count, index);
     }
 
     public int codePointAt(int index) {
-        return StringCheats.intFunctionOf(count, index);
+        return MockNativeMethods.intFunctionOf(count, index);
     }
 
     public int codePointBefore(int index) {
-        return StringCheats.intFunctionOf(count, index);
+        return MockNativeMethods.intFunctionOf(count, index);
     }
 
     public int codePointCount(int beginIndex, int endIndex) {
-        return StringCheats.intFunctionOf(count, beginIndex, endIndex);
+        return MockNativeMethods.intFunctionOf(count, beginIndex, endIndex);
     }
 
     public int offsetByCodePoints(int index, int codePointOffset) {
-        return StringCheats.intFunctionOf(count, index, codePointOffset);
+        return MockNativeMethods.intFunctionOf(count, index, codePointOffset);
     }
 
     void getChars(char dst[], int dstBegin) {
-        dst[0] = (char) StringCheats.intFunctionOf(count, dstBegin);
+        dst[0] = (char) MockNativeMethods.intFunctionOf(count, dstBegin);
     }
 
     public void getChars(int srcBegin, int srcEnd, char dst[], int dstBegin) {
-        dst[0] = (char) StringCheats.intFunctionOf(count, srcBegin, srcEnd, dstBegin);
+        dst[0] = (char) MockNativeMethods.intFunctionOf(count, srcBegin, srcEnd, dstBegin);
     }
 
     void copyChars(int srcBegin, int len, char dst[], int dstBegin) {
-        dst[0] = (char) StringCheats.intFunctionOf(count, srcBegin, len, dstBegin);
+        dst[0] = (char) MockNativeMethods.intFunctionOf(count, srcBegin, len, dstBegin);
     }
 
     int copyBytes(int srcBegin, int len, byte dst[], int dstBegin) {
-        dst[0] = (byte) StringCheats.intFunctionOf(count, srcBegin, len, dstBegin);
-        return StringCheats.intFunctionOf(count, srcBegin, len, dstBegin);
+        dst[0] = (byte) MockNativeMethods.intFunctionOf(count, srcBegin, len, dstBegin);
+        return MockNativeMethods.intFunctionOf(count, srcBegin, len, dstBegin);
     }
 
     @Deprecated
     public void getBytes(int srcBegin, int srcEnd, byte dst[], int dstBegin) {
-        dst = StringCheats.byteArrayFunctionOf(count, srcBegin, srcEnd, dst, dstBegin);
+        dst[0] = (byte) MockNativeMethods.intFunctionOf(count, srcBegin, srcEnd, dstBegin);
     }
 
     public byte[] getBytes(String charsetName) throws UnsupportedEncodingException {
         if (charsetName == null) {
             throw new NullPointerException();
         }
-        if (StringCheats.booleanFunctionOf(count, charsetName.count)) {
+        if (MockNativeMethods.booleanFunctionOf(count, charsetName.count)) {
             throw new UnsupportedEncodingException();
         }
-        return StringCheats.byteArrayFunctionOf(count, charsetName.count);
+        return new byte[] { (byte) MockNativeMethods.intFunctionOf(count, charsetName.count) };
     }
 
     public byte[] getBytes(Charset charset) {
         if (charset == null) {
             throw new NullPointerException();
         }
-        return StringCheats.byteArrayFunctionOf(count, charset);
+        return new byte[] { (byte) MockNativeMethods.intFunctionOf(count, valueOf(charset).count) };
     }
 
     public byte[] getBytes() {
-        return StringCheats.byteArrayFunctionOf(count);
+        return new byte[] { (byte) MockNativeMethods.intFunctionOf(count) };
     }
 
     @Override
     public boolean equals(Object anObject) {
-        return StringCheats.booleanFunctionOf(count, anObject);
+        return MockNativeMethods.booleanFunctionOf(count, valueOf(anObject).count);
     }
 
-    // TODO synchronized was removed
     public boolean contentEquals(StringBuffer sb) {
         return contentEquals((CharSequence) sb);
     }
 
     public boolean contentEquals(CharSequence cs) {
-        return StringCheats.booleanFunctionOf(count, cs);
+        return MockNativeMethods.booleanFunctionOf(count, valueOf(cs).count);
     }
 
     public boolean equalsIgnoreCase(String anotherString) {
-        return StringCheats.booleanFunctionOf(count, anotherString.count);
+        return MockNativeMethods.booleanFunctionOf(count, anotherString.count);
     }
 
     @Override
     public int compareTo(String anotherString) {
-        return StringCheats.intFunctionOf(count, anotherString.count);
+        return MockNativeMethods.intFunctionOf(count, anotherString.count);
     }
 
     public static final Comparator<String> CASE_INSENSITIVE_ORDER = new CaseInsensitiveComparator();
@@ -284,7 +209,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
         @Override
         public int compare(String s1, String s2) {
-            return StringCheats.intFunctionOf(s1.count, s2.count);
+            return MockNativeMethods.intFunctionOf(s1.count, s2.count);
         }
     }
 
@@ -294,29 +219,29 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
     public boolean regionMatches(int toffset, String other, int ooffset,
             int len) {
-        return StringCheats.booleanFunctionOf(count, toffset, other.count, ooffset, len);
+        return MockNativeMethods.booleanFunctionOf(count, toffset, other.count, ooffset, len);
     }
 
     public boolean regionMatches(boolean ignoreCase, int toffset,
             String other, int ooffset, int len) {
-        return StringCheats.booleanFunctionOf(count, toffset, other.count, ooffset, len, ignoreCase);
+        return MockNativeMethods.booleanFunctionOf(count, toffset, other.count, ooffset, len, ignoreCase);
     }
 
     public boolean startsWith(String prefix, int toffset) {
-        return StringCheats.booleanFunctionOf(count, prefix.count, toffset);
+        return MockNativeMethods.booleanFunctionOf(count, prefix.count, toffset);
     }
 
     public boolean startsWith(String prefix) {
-        return StringCheats.booleanFunctionOf(count, prefix.count);
+        return MockNativeMethods.booleanFunctionOf(count, prefix.count);
     }
 
     public boolean endsWith(String suffix) {
-        return StringCheats.booleanFunctionOf(count, suffix.count);
+        return MockNativeMethods.booleanFunctionOf(count, suffix.count);
     }
 
     @Override
     public int hashCode() {
-        return StringCheats.intFunctionOf(count);
+        return MockNativeMethods.intFunctionOf(count);
     }
 
     public int indexOf(int ch) {
@@ -324,70 +249,58 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     }
 
     public int indexOf(int ch, int fromIndex) {
-        return StringCheats.intFunctionOf(count, ch, fromIndex);
+        return MockNativeMethods.intFunctionOf(count, ch, fromIndex);
     }
 
     public int lastIndexOf(int ch) {
-        return StringCheats.intFunctionOf(count, ch);
+        return MockNativeMethods.intFunctionOf(count, ch);
     }
 
     public int lastIndexOf(int ch, int fromIndex) {
-        return StringCheats.intFunctionOf(count, ch, fromIndex);
+        return MockNativeMethods.intFunctionOf(count, ch, fromIndex);
     }
 
     public int indexOf(String str) {
-        return StringCheats.intFunctionOf(count, str.count);
+        return MockNativeMethods.intFunctionOf(count, str.count);
     }
 
     public int indexOf(String str, int fromIndex) {
-        return StringCheats.intFunctionOf(count, str.count, fromIndex);
+        return MockNativeMethods.intFunctionOf(count, str.count, fromIndex);
     }
 
     int indexOf(char[] source, int sourceOffset, int sourceCount,
             int fromIndex) {
-        return StringCheats.intFunctionOf(source, sourceOffset, sourceCount, fromIndex, count);
-    }
-
-    static int indexOf(char[] source, int sourceOffset, int sourceCount,
-            char[] target, int targetOffset, int targetCount,
-            int fromIndex) {
-        return StringCheats.intFunctionOf(source, target, sourceOffset, sourceCount, targetOffset, targetCount, fromIndex);
+        return MockNativeMethods.intFunctionOf(source[0], sourceOffset, sourceCount, fromIndex, count);
     }
 
     public int lastIndexOf(String str) {
-        return StringCheats.intFunctionOf(count, str.count);
+        return MockNativeMethods.intFunctionOf(count, str.count);
     }
 
     public int lastIndexOf(String str, int fromIndex) {
-        return StringCheats.intFunctionOf(count, str.count, fromIndex);
+        return MockNativeMethods.intFunctionOf(count, str.count, fromIndex);
     }
 
     int lastIndexOf(char[] source, int sourceOffset, int sourceCount,
             int fromIndex) {
-        return StringCheats.intFunctionOf(source, sourceOffset, sourceCount, fromIndex, count);
-    }
-
-    static int lastIndexOf(char[] source, int sourceOffset, int sourceCount,
-            char[] target, int targetOffset, int targetCount,
-            int fromIndex) {
-        return StringCheats.intFunctionOf(source, target, sourceOffset, sourceCount, targetOffset, targetCount, fromIndex);
+        return MockNativeMethods.intFunctionOf(source[0], sourceOffset, sourceCount, fromIndex, count);
     }
 
     public String substring(int beginIndex) {
-        if (StringCheats.booleanFunctionOf(count, beginIndex)) {
-            throw new StringIndexOutOfBoundsException(StringCheats.intFunctionOf(count, beginIndex));
+        if (MockNativeMethods.booleanFunctionOf(count, beginIndex)) {
+            throw new StringIndexOutOfBoundsException(MockNativeMethods.intFunctionOf(count, beginIndex));
         }
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, beginIndex);
+        s.count = MockNativeMethods.intFunctionOf(count, beginIndex);
         return s;
     }
 
     public String substring(int beginIndex, int endIndex) {
-        if (StringCheats.booleanFunctionOf(count, beginIndex, endIndex)) {
-            throw new StringIndexOutOfBoundsException(StringCheats.intFunctionOf(count, beginIndex, endIndex));
+        if (MockNativeMethods.booleanFunctionOf(count, beginIndex, endIndex)) {
+            throw new StringIndexOutOfBoundsException(MockNativeMethods.intFunctionOf(count, beginIndex, endIndex));
         }
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, beginIndex, endIndex);
+        s.count = MockNativeMethods.intFunctionOf(count, beginIndex, endIndex);
         return s;
     }
 
@@ -398,46 +311,46 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
     public String concat(String str) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, str.count);
+        s.count = MockNativeMethods.intFunctionOf(count, str.count);
         return s;
     }
 
     public String replace(char oldChar, char newChar) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, oldChar, newChar);
+        s.count = MockNativeMethods.intFunctionOf(count, oldChar, newChar);
         return s;
     }
 
     public boolean matches(String regex) {
-        return StringCheats.booleanFunctionOf(count, regex.count);
+        return MockNativeMethods.booleanFunctionOf(count, regex.count);
     }
 
     public boolean contains(CharSequence s) {
-        return StringCheats.booleanFunctionOf(count, s);
+        return MockNativeMethods.booleanFunctionOf(count, valueOf(s).count);
     }
 
     public String replaceFirst(String regex, String replacement) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, regex.count, replacement.count);
+        s.count = MockNativeMethods.intFunctionOf(count, regex.count, replacement.count);
         return s;
     }
 
     public String replaceAll(String regex, String replacement) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, regex.count, replacement.count);
+        s.count = MockNativeMethods.intFunctionOf(count, regex.count, replacement.count);
         return s;
     }
 
     public String replace(CharSequence target, CharSequence replacement) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(count, target, replacement);
+        s.count = MockNativeMethods.intFunctionOf(count, valueOf(target).count, valueOf(replacement).count);
         return s;
     }
 
     public String[] split(String regex, int limit) {
         String[] a = new String[limit+1];
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count, regex.count);
+        s.count = MockNativeMethods.intFunctionOf(this.count, regex.count);
         a[0] = s;
         return a;
     }
@@ -445,62 +358,65 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     public String[] split(String regex) {
         String[] a = new String[1];
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count, regex.count);
+        s.count = MockNativeMethods.intFunctionOf(this.count, regex.count);
         a[0] = s;
         return a;
     }
 
     public String toLowerCase(Locale locale) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count, locale);
+        s.count = MockNativeMethods.intFunctionOf(this.count, locale);
         return s;
     }
 
     public String toLowerCase() {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count);
+        s.count = MockNativeMethods.intFunctionOf(this.count);
         return s;
     }
 
     public String toUpperCase(Locale locale) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count, locale);
+        s.count = MockNativeMethods.intFunctionOf(this.count, locale);
         return s;
     }
 
     public String toUpperCase() {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count);
+        s.count = MockNativeMethods.intFunctionOf(this.count);
         return s;
     }
 
     public String trim() {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(this.count);
+        s.count = MockNativeMethods.intFunctionOf(this.count);
         return s;
     }
 
     // No need for a signature. The real method is exactly what we want.
-    //public String toString() {return this;}
+    // public String toString() {return this;}
 
     public char[] toCharArray() {
-        return StringCheats.charArrayFunctionOf(count);
+        return new char[] { (char) count };
     }
 
     public static String format(String format, Object... args) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(format.count, args);
+        s.count = MockNativeMethods.intFunctionOf(format.count, valueOf(args[0]).count);
         return s;
     }
 
     public static String format(Locale l, String format, Object... args) {
         String s = new String();
-        s.count = StringCheats.intFunctionOf(format.count, l, args);
+        s.count = MockNativeMethods.intFunctionOf(format.count, valueOf(args[0]).count, l);
         return s;
     }
 
-    public static java.lang.String valueOf(Object obj) {
-        return (obj == null) ? "null" : obj.toString();
+    public static String valueOf(Object obj) {
+        int length = obj.toString().length();
+        String s = new String();
+        s.count = length;
+        return s;
     }
 
     public static String valueOf(char data[]) {
@@ -524,8 +440,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     }
 
     public static String valueOf(char c) {
-        char data[] = { c };
-        return new String(0, 1, data);
+        return new String(0, 1, c);
     }
 
     public static String valueOf(int i) {
@@ -536,19 +451,19 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
     public static String valueOf(long l) {
         String s = new String();
-        s.count = (int) l;
+        s.count = MockNativeMethods.intFunctionOf((int) l);
         return s;
     }
 
     public static String valueOf(float f) {
         String s = new String();
-        s.count = (int) f;
+        s.count = MockNativeMethods.intFunctionOf((int) f);
         return s;
     }
 
     public static String valueOf(double d) {
         String s = new String();
-        s.count = (int) d;
+        s.count = MockNativeMethods.intFunctionOf((int) d);
         return s;
     }
 

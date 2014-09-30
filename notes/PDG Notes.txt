@@ -23,3 +23,7 @@ TODO filename can be too long when printing out precise ex results
 TODO all flags in StatementRegistrar should be full-fleged options
 
 TODO option to not use signature for non-native methods
+
+TODO make it so the native methods used for the String signatures do not throw exceptions (at least in the PDG)
+
+TODO make sure the native methods for String don't cause issues with the context being too deep, maybe they don't count?
