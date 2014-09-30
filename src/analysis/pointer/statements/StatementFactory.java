@@ -77,7 +77,8 @@ public class StatementFactory {
 
         ClassInitStatement s = new ClassInitStatement(clinits, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
-        assert map.put(new StatementKey(clinits, i), s) == null;
+        assert map.put(new StatementKey(clinits, i), s) == null : "Duplicate classinit " + clinits + " from " + i
+                + " in " + m;
         return s;
     }
 

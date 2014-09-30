@@ -173,6 +173,11 @@ public class StatementRegistrar {
 
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
+                    if (ins.toString().contains("signatures/library/java/lang/String")
+                            && !ins.toString().contains("StringCheats")) {
+                        System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
+                                + " in " + m);
+                    }
                     handleInstruction(ins, ir, bb, types, pp);
                 }
             }
