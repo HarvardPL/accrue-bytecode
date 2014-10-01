@@ -247,6 +247,9 @@ public final class AccrueAnalysisOptions {
      *         haf                        // a single heap abstraction factory
      *       | haf "," hafs               // a cross-product heap abstraction factory
      *       | haf "x" hafs               // a cross-product heap abstraction factory
+     *       | "[" hafs "]"               // just parenthentization
+     *       | "(" hafs ")"               // just parenthentization
+     *       | "{" hafs "}"               // just parenthentization
      *
      * haf ::=
      *         hafClassName               // a heap abstraction factory class, default constructor
@@ -303,6 +306,25 @@ public final class AccrueAnalysisOptions {
     protected static OrderedPair<HeapAbstractionFactory, Integer> parseHafs(String hafString, int ind)
                                                                                                       throws ParseException {
         List<HeapAbstractionFactory> hafs = new ArrayList<>();
+
+        ind = consumeWhiteSpace(hafString, ind);
+        Character closeParen = null;
+        if (ind < hafString.length() && hafString.charAt(ind) == '(') {
+            ind++; // consume the paren
+            // set up the close paren
+            closeParen = ')';
+        }
+        else if (ind < hafString.length() && hafString.charAt(ind) == '[') {
+            ind++; // consume the paren
+            // set up the close paren
+            closeParen = ']';
+        }
+        else if (ind < hafString.length() && hafString.charAt(ind) == '{') {
+            ind++; // consume the paren
+            // set up the close paren
+            closeParen = '}';
+        }
+
         OrderedPair<HeapAbstractionFactory, Integer> op = parseBaseHaf(hafString, ind);
         hafs.add(op.fst());
         ind = op.snd();
@@ -311,6 +333,15 @@ public final class AccrueAnalysisOptions {
             OrderedPair<HeapAbstractionFactory, Integer> next = parseBaseHaf(hafString, ind);
             hafs.add(next.fst());
             ind = next.snd();
+        }
+
+        ind = consumeWhiteSpace(hafString, ind);
+        if (closeParen != null) {
+            if (!(ind < hafString.length() && hafString.charAt(ind) == closeParen.charValue())) {
+                throw new ParseException();
+            }
+            ind++; // consume the close paren
+            ind = consumeWhiteSpace(hafString, ind);
         }
 
         HeapAbstractionFactory haf = null;
