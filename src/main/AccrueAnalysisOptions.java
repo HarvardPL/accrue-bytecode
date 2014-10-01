@@ -247,9 +247,9 @@ public final class AccrueAnalysisOptions {
      *         haf                        // a single heap abstraction factory
      *       | haf "," hafs               // a cross-product heap abstraction factory
      *       | haf "x" hafs               // a cross-product heap abstraction factory
-     *       | "[" hafs "]"               // just parenthentization
-     *       | "(" hafs ")"               // just parenthentization
-     *       | "{" hafs "}"               // just parenthentization
+     *       | "[" hafs "]"               // parenthetized hafs
+     *       | "(" hafs ")"               // parenthetized hafs
+     *       | "{" hafs "}"               // parenthetized hafs
      *
      * haf ::=
      *         hafClassName               // a heap abstraction factory class, default constructor
