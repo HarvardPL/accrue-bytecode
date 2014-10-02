@@ -69,9 +69,9 @@ public class MethodSummaryNodes {
 
         exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
 
-        this.entryPP = new ProgramPoint(method, "entryPP");
-        this.normalExitPP = new ProgramPoint(method, "normalExitPP");
-        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP");
+        this.entryPP = new ProgramPoint(method, "entryPP", true, false, false);
+        this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
+        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
     }
 
     public ReferenceVariable getReturn() {

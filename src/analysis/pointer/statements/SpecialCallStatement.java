@@ -16,6 +16,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -75,8 +76,10 @@ public class SpecialCallStatement extends CallStatement {
                 new ReferenceVariableReplica(context, this.receiver);
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
-                : delta.pointsToIterator(receiverRep);
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+
+        Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
+                : delta.pointsToIterator(receiverRep, pre);
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));

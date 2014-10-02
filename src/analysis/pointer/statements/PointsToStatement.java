@@ -78,6 +78,10 @@ public abstract class PointsToStatement {
     public abstract GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g,
                                        GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator);
 
+    public PointsToGraphNode killed(Context context) {
+        return null;
+    }
+
     @Override
     public final int hashCode() {
         return System.identityHashCode(this);

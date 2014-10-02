@@ -19,6 +19,7 @@ import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -74,8 +75,10 @@ public class VirtualCallStatement extends CallStatement {
 
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
-                : delta.pointsToIterator(receiverRep);
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+
+        Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
+                : delta.pointsToIterator(receiverRep, pre);
 
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();

@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Set;
+
 import util.print.PrettyPrinter;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -14,10 +16,13 @@ public class CallSiteProgramPoint extends ProgramPoint {
      * Call site in the caller
      */
     private final CallSiteReference callSite;
+    private final IMethod caller;
 
-    public CallSiteProgramPoint(IMethod caller, CallSiteReference callSite) {
-        super(caller, PrettyPrinter.methodString(caller) + "@" + callSite.getProgramCounter());
+    public CallSiteProgramPoint(IMethod caller, CallSiteReference callSite, Set<ProgramPoint> successors,
+                                PointsToStatement stmt) {
+        super(caller, PrettyPrinter.methodString(caller) + "@" + callSite.getProgramCounter(), successors, stmt);
         this.callSite = callSite;
+        this.caller = caller;
     }
 
     /**
@@ -45,5 +50,9 @@ public class CallSiteProgramPoint extends ProgramPoint {
      */
     public CallSiteReference getReference() {
         return callSite;
+    }
+
+    public IMethod getCaller() {
+        return caller;
     }
 }

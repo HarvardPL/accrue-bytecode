@@ -29,7 +29,6 @@ import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.collections.EmptyIntIterator;
@@ -922,7 +921,7 @@ public class PointsToGraph {
      *
      * @return call graph
      */
-    public CallGraph getCallGraph() {
+    public HafCallGraph getCallGraph() {
         assert graphFinished;
         if (this.callGraph != null) {
             return this.callGraph;

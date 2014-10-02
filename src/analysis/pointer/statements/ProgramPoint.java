@@ -1,5 +1,7 @@
 package analysis.pointer.statements;
 
+import java.util.Set;
+
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -10,9 +12,24 @@ public class ProgramPoint {
     private final PostProgramPoint post;
     private final IMethod containingProcedure;
     private final String debugInfo;
+    private final Set<ProgramPoint> successors;
+    private final PointsToStatement stmt;
+
+    private final boolean isEntrySummaryNode;
+    private final boolean isNormalExitSummaryNode;
+    private final boolean isExceptionExitSummaryNode;
+
     private static int generator;
 
-    public ProgramPoint(IMethod containingProcedure, String debugInfo) {
+    public ProgramPoint(IMethod containingProcedure, String debugInfo, Set<ProgramPoint> successors,
+                        PointsToStatement stmt) {
+        this(containingProcedure, debugInfo, successors, stmt, false, false, false);
+    }
+
+    public ProgramPoint(IMethod containingProcedure, String debugInfo, Set<ProgramPoint> successors,
+                        PointsToStatement stmt,
+                        boolean isEntrySummaryNode,
+                        boolean isNormalExitSummaryNode, boolean isExceptionExitSummaryNode) {
         this.id = ++generator;
         this.containingProcedure = containingProcedure;
         this.pre = new PreProgramPoint(this);
@@ -21,6 +38,11 @@ public class ProgramPoint {
         if (containingProcedure == null) {
             throw new IllegalArgumentException("procuedure should be nonnull");
         }
+        this.successors = successors;
+        this.stmt = stmt;
+        this.isEntrySummaryNode = isEntrySummaryNode;
+        this.isNormalExitSummaryNode = isNormalExitSummaryNode;
+        this.isExceptionExitSummaryNode = isExceptionExitSummaryNode;
     }
 
     public PreProgramPoint pre() {
@@ -33,6 +55,14 @@ public class ProgramPoint {
 
     public IMethod containingProcedure() {
         return this.containingProcedure;
+    }
+
+    public Set<ProgramPoint> successors() {
+        return this.successors;
+    }
+
+    public PointsToStatement stmt() {
+        return stmt;
     }
 
     @Override
@@ -51,6 +81,18 @@ public class ProgramPoint {
 
     public String getDebugInfo() {
         return debugInfo;
+    }
+
+    public boolean isEntrySummaryNode() {
+        return isEntrySummaryNode;
+    }
+
+    public boolean isNormalExitSummaryNode() {
+        return isNormalExitSummaryNode;
+    }
+
+    public boolean isExceptionExitSummaryNode() {
+        return isExceptionExitSummaryNode;
     }
 
     @Override
