@@ -76,15 +76,15 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     @Override
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught);
+        PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught, haf);
         PointsToGraphNode r;
         if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown);
+            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown, haf);
         }
         else {
-            r = new ReferenceVariableReplica(context, this.thrown);
+            r = new ReferenceVariableReplica(context, this.thrown, haf);
         }
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
@@ -147,10 +147,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
             // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown);
+            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown, haf);
         }
         else {
-            r = new ReferenceVariableReplica(ctxt, this.thrown);
+            r = new ReferenceVariableReplica(ctxt, this.thrown, haf);
         }
         return Collections.singleton(r);
     }
@@ -158,8 +158,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
                                               HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt,
-                                                                  this.caught);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, this.caught, haf);
         if (this.isToMethodSummaryVariable && !this.getMethod().isStatic()) {
             List<Object> defs = new ArrayList<>(3);
             defs.add(r);
@@ -172,9 +171,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             }
             return defs;
         }
-        else {
-            return Collections.singleton(r);
-        }
+        return Collections.singleton(r);
     }
 
 }

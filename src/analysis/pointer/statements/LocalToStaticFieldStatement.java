@@ -51,11 +51,10 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        PointsToGraphNode l =
-                new ReferenceVariableReplica(haf.initialContext(), staticField);
-        PointsToGraphNode r = new ReferenceVariableReplica(context, local);
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
+        PointsToGraphNode l = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
+        PointsToGraphNode r = new ReferenceVariableReplica(context, local, haf);
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
 
@@ -89,14 +88,13 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     @Override
     public Collection<?> getReadDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, local);
+        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(r);
     }
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(),
-                                                                  staticField));
+        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
 }

@@ -22,10 +22,10 @@ public class ProcedurePDGNode extends PDGNode {
     /**
      * Create the node with the given type in the code and context given by the
      * call graph node, <code>n</code>.
-     * 
+     *
      * @param description
      *            human readable description of the node, may later be changed
-     * 
+     *
      * @param type
      *            type of expression node being created
      * @param n
@@ -40,7 +40,7 @@ public class ProcedurePDGNode extends PDGNode {
 
     /**
      * call graph node containing the code and context the node is created in
-     * 
+     *
      * @return call graph node
      */
     public CGNode getCGNode() {
@@ -49,6 +49,7 @@ public class ProcedurePDGNode extends PDGNode {
 
     @Override
     public String groupingName() {
+        // XXX Need to separate the grouping name from the procedure name to allow searches on just the procedure name
         return PrettyPrinter.cgNodeString(n);
     }
 

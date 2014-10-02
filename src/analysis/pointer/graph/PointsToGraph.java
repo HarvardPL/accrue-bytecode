@@ -16,6 +16,7 @@ import util.intmap.IntMap;
 import util.intmap.SimpleConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
+import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.DependencyRecorder;
@@ -23,13 +24,14 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.AnnotatedIntRelation.SetAnnotatedIntRelation;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
-import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.collections.IntStack;
@@ -186,7 +188,13 @@ public class PointsToGraph {
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+
+    /**
+     * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
+     * HafCallGraph later.
+     */
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> callGraphReverseMap = new ConcurrentHashMap<>();
 
     private HafCallGraph callGraph = null;
 
@@ -255,6 +263,24 @@ public class PointsToGraph {
             x = this.representative.get(x);
         } while (x != null);
         return rep;
+    }
+
+    /**
+     * Return the int for the InstanceKeyRecency for the base node of the PointsToGraphNode n, if n is an ObjectField
+     * with a flow-sensitive base. Otherwise return -1.
+     *
+     * @param n
+     * @return
+     */
+    protected/*InstanceKeyRecency*/int baseNodeForPointsToGraphNode(int/*PointsToGaphNode*/n) {
+        PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
+        if (fromGraphNode instanceof ObjectField) {
+            ObjectField of = (ObjectField) fromGraphNode;
+            if (of.isFlowSensitive()) {
+                return this.reverseInstanceKeyDictionary.get(of.receiver());
+            }
+        }
+        return -1;
     }
 
     /**
@@ -332,6 +358,10 @@ public class PointsToGraph {
         }
     }
 
+    protected PointsToGraphNode lookupPointsToGraphNodeDictionary(int node) {
+        return this.graphNodeDictionary.get(node);
+
+    }
     protected int lookupDictionary(PointsToGraphNode node) {
         Integer n = this.reverseGraphNodeDictionary.get(node);
         if (n == null) {
@@ -678,17 +708,16 @@ public class PointsToGraph {
      * @param n
      * @return
      */
-    //XXX Can uncomment this after development
-    //    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n) {
-    //        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
-    //        return pointsToIterator(n, null, null);
-    //    }
-    //
-    //    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
-    //        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
-    //        return pointsToIterator(n, ippr, null);
-    //    }
-    //
+    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n) {
+        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
+        return pointsToIterator(n, null, null);
+    }
+
+    public Iterator<? extends InstanceKey> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
+        assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
+        return pointsToIterator(n, ippr, null);
+    }
+
     public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr,
                                                             StmtAndContext originator) {
         assert this.graphFinished || originator != null;
@@ -702,7 +731,10 @@ public class PointsToGraph {
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr,
                                            StmtAndContext originator) {
         n = this.getRepresentative(n);
-        this.recordRead(n, originator);
+        if (originator != null) {
+            // If the originating statement is null then the graph is finished and there is no need to record this read
+            this.recordRead(n, originator);
+        }
         if (isFlowSensitivePointsToGraphNode(n)) {
             return new ProgramPointIntIterator(pointsToFS.get(n), ippr);
         }
@@ -724,25 +756,36 @@ public class PointsToGraph {
      *
      */
     @SuppressWarnings("deprecation")
-    public boolean addCall(CallSiteReference callSite, IMethod caller,
+    public boolean addCall(CallSiteProgramPoint callSite,
                            Context callerContext, IMethod callee,
                            Context calleeContext) {
-        OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
+        OrderedPair<CallSiteProgramPoint, Context> callerPair = new OrderedPair<>(callSite, callerContext);
         OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
 
-        ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
-        if (m == null) {
-            m = AnalysisUtil.createConcurrentHashMap();
-            ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair,
-                                                                                                                     m);
+        Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair, s);
             if (existing != null) {
-                m = existing;
+                s = existing;
             }
         }
-        m.putIfAbsent(callSite, calleePair);
+        boolean changed = s.add(calleePair);
 
         this.recordReachableContext(callee, calleeContext);
-        return true;
+
+        // set up reverse call graph map.
+        Set<OrderedPair<CallSiteProgramPoint, Context>> t = this.callGraphReverseMap.get(calleePair);
+        if (t == null) {
+            t = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<CallSiteProgramPoint, Context>> existing = this.callGraphReverseMap.putIfAbsent(calleePair,
+                                                                                                            t);
+            if (existing != null) {
+                t = existing;
+            }
+        }
+        t.add(callerPair);
+        return changed;
     }
 
     /**
@@ -827,94 +870,14 @@ public class PointsToGraph {
         return Collections.unmodifiableSet(this.reachableContexts.get(m));
     }
 
-    //
-    // /**
-    // * Print the graph in graphviz dot format to a file
-    // *
-    // * @param filename
-    // * name of the file, the file is put in tests/filename.dot
-    // * @param addDate
-    // * if true then the date will be added to the filename
-    // */
-    // public void dumpPointsToGraphToFile(String filename, boolean addDate) {
-    // String dir = "tests";
-    // String file = filename;
-    // if (addDate) {
-    // SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
-    // Date dateNow = new Date();
-    // String now = dateFormat.format(dateNow);
-    // file += now;
-    // }
-    // String fullFilename = dir + "/" + file + ".dot";
-    // try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-    // dumpPointsToGraph(out);
-    // System.err.println("\nDOT written to: " + fullFilename);
-    // } catch (IOException e) {
-    // System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
-    // }
-    // }
-    //
-    // private static String escape(String s) {
-    // return s.replace("\\", "\\\\").replace("\"", "\\\"");
-    // }
-    //
-    // private Writer dumpPointsToGraph(Writer writer) throws IOException {
-    // double spread = 1.0;
-    // writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
-    // + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
-    // + "edge [fontsize=10]" + ";\n");
-    //
-    // Map<String, Integer> dotToCount = new HashMap<>();
-    // Map<PointsToGraphNode, String> n2s = new HashMap<>();
-    // Map<InstanceKey, String> k2s = new HashMap<>();
-    //
-    // // Need to differentiate between different nodes with the same string
-    // for (PointsToGraphNode n : graph.keySet()) {
-    // String nStr = escape(n.toString());
-    // Integer count = dotToCount.get(nStr);
-    // if (count == null) {
-    // dotToCount.put(nStr, 1);
-    // } else {
-    // dotToCount.put(nStr, count + 1);
-    // nStr += " (" + count + ")";
-    // }
-    // n2s.put(n, nStr);
-    // }
-    // for (InstanceKey k : getAllHContexts()) {
-    // String kStr = escape(k.toString());
-    // Integer count = dotToCount.get(kStr);
-    // if (count == null) {
-    // dotToCount.put(kStr, 1);
-    // } else {
-    // dotToCount.put(kStr, count + 1);
-    // kStr += " (" + count + ")";
-    // }
-    // k2s.put(k, kStr);
-    // }
-    //
-    // for (PointsToGraphNode n : graph.keySet()) {
-    // for (InstanceKey ik : graph.get(n)) {
-    // writer.write("\t\"" + n2s.get(n) + "\" -> " + "\"" + k2s.get(ik) + "\";\n");
-    // }
-    // }
-    //
-    // writer.write("\n};\n");
-    // return writer;
-    // }
-
-    // /**
-    // * Set containing all Heap contexts. This is really expensive. Don't do it unless debugging small graphs.
-    // *
-    // * @return set with all the Heap contexts
-    // */
-    // public IntSet getAllHContexts() {
-    // IntSet all = new HashSet<>();
-    //
-    // for (IntSet s : graph.values()) {
-    // all.addAll(s);
-    // }
-    // return all;
-    // }
+    /**
+     * Get the heap abstraction factory used to compute contexts for this points to graph
+     *
+     * @return heap abstraction factory for this pointer analysis
+     */
+    public HeapAbstractionFactory getHaf() {
+        return haf;
+    }
 
     /**
      * Get the procedure call graph
@@ -931,20 +894,19 @@ public class PointsToGraph {
         HafCallGraph callGraph = new HafCallGraph(this.haf);
         this.callGraph = callGraph;
         try {
-            for (OrderedPair<IMethod, Context> callerPair : this.callGraphMap.keySet()) {
-                IMethod caller = callerPair.fst();
+            for (OrderedPair<CallSiteProgramPoint, Context> callerPair : this.callGraphMap.keySet()) {
+                CallSiteProgramPoint caller = callerPair.fst();
                 Context callerContext = callerPair.snd();
-                CGNode src = callGraph.findOrCreateNode(caller, callerContext);
-                ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
-                for (CallSiteReference callSite : m.keySet()) {
-                    OrderedPair<IMethod, Context> calleePair = m.get(callSite);
+                CGNode src = callGraph.findOrCreateNode(caller.containingProcedure(), callerContext);
+                Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
+                for (OrderedPair<IMethod, Context> calleePair : s) {
                     IMethod callee = calleePair.fst();
                     Context calleeContext = calleePair.snd();
 
                     CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
 
                     // We are building a call graph so it is safe to call this "deprecated" method
-                    src.addTarget(callSite, dst);
+                    src.addTarget(caller.getReference(), dst);
 
                 }
             }
@@ -1536,21 +1498,22 @@ public class PointsToGraph {
             return pointsToSetFI(n).addAll(set);
         }
         // flow sensitive!
+        int fromBase = this.baseNodeForPointsToGraphNode(n);
         boolean changed = false;
         IntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, to, ppsToAdd);
+            changed |= addProgramPoints(m, fromBase, to, ppsToAdd);
         }
         return changed;
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int to,
-                                            ExplicitProgramPointSet toAdd) {
+    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase,
+    /*PointsToGraphNode*/int to, ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(to);
+            p = new ProgramPointSetClosure(fromBase, to);
             m.put(to, p);
         }
         return p.addAll(toAdd);

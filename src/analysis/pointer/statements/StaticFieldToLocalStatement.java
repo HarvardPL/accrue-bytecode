@@ -34,6 +34,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     /**
      * Statement for an assignment from a static field to a local, local = ClassName.staticField
      *
+<<<<<<< HEAD
      * @param local
      *            points-to graph node for the assigned value
      * @param staticField
@@ -54,9 +55,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
 
-        PointsToGraphNode l = new ReferenceVariableReplica(context, local);
-        PointsToGraphNode r =
-                new ReferenceVariableReplica(haf.initialContext(), staticField);
+        PointsToGraphNode l = new ReferenceVariableReplica(context, local, haf);
+        PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
@@ -95,16 +95,13 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(),
-                                                                  staticField));
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local);
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(l);
     }
 }

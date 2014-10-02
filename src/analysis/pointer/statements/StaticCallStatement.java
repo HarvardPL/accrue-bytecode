@@ -116,19 +116,20 @@ public class StaticCallStatement extends CallStatement {
         for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
                 ReferenceVariableReplica n =
-                        new ReferenceVariableReplica(ctxt, use);
+ new ReferenceVariableReplica(ctxt, use, haf);
                 uses.add(n);
             }
         }
         Context calleeContext = haf.merge(this.programPoint(), null, ctxt);
         ReferenceVariableReplica ex = new ReferenceVariableReplica(calleeContext,
-                                                                   this.calleeSummary.getException());
+                                                                   this.calleeSummary.getException(),
+                                                                   haf);
         uses.add(ex);
         if (this.callee.getReturnType().isReferenceType()) {
             // Say that we read the return of the callee.
-            ReferenceVariableReplica n =
-                    new ReferenceVariableReplica(calleeContext,
-                                                 this.calleeSummary.getReturn());
+            ReferenceVariableReplica n = new ReferenceVariableReplica(calleeContext,
+                                                                      this.calleeSummary.getReturn(),
+                                                                      haf);
             uses.add(n);
         }
         return uses;
@@ -136,26 +137,24 @@ public class StaticCallStatement extends CallStatement {
 
     @Override
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> defs =
-                new ArrayList<>(2 + this.callee.getNumberOfParameters());
+        List<ReferenceVariableReplica> defs = new ArrayList<>(2 + this.callee.getNumberOfParameters());
 
-                if (this.getResult() != null) {
-                    defs.add(new ReferenceVariableReplica(ctxt, this.getResult()));
-                }
-                if (this.getException() != null) {
-                    defs.add(new ReferenceVariableReplica(ctxt, this.getException()));
-                }
-                // Write to the arguments of the callee.
+        if (this.getResult() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
+        }
+        if (this.getException() != null) {
+            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
+        }
+        // Write to the arguments of the callee.
         Context calleeContext = haf.merge(this.programPoint(), null, ctxt);
-                for (int i = 0; i < this.callee.getNumberOfParameters(); i++) {
-                    ReferenceVariable rv = this.calleeSummary.getFormal(i);
-                    if (rv != null) {
-                        ReferenceVariableReplica n =
-                                new ReferenceVariableReplica(calleeContext, rv);
-                        defs.add(n);
-                    }
-                }
-                return defs;
+        for (int i = 0; i < this.callee.getNumberOfParameters(); i++) {
+            ReferenceVariable rv = this.calleeSummary.getFormal(i);
+            if (rv != null) {
+                ReferenceVariableReplica n = new ReferenceVariableReplica(calleeContext, rv, haf);
+                defs.add(n);
+            }
+        }
+        return defs;
     }
 
     /**

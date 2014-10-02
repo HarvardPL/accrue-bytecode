@@ -7,6 +7,7 @@ import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
+import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.statements.StatementFactory;
@@ -167,7 +168,7 @@ public class ReferenceVariableFactory {
      * @return reference variable for a return value or an exception thrown by a method
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createMethodExit(TypeReference type,
+    protected static ReferenceVariable createMethodExit(TypeReference type,
             IMethod method, ExitType exitType) {
         ReferenceVariable rv =
                 new ReferenceVariable(PrettyPrinter.methodString(method) + "-"
@@ -187,7 +188,7 @@ public class ReferenceVariableFactory {
      *            native method
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createNativeException(TypeReference exType,
+    protected static ReferenceVariable createNativeException(TypeReference exType,
             IMethod m) {
         assert m.isNative();
         ReferenceVariable rv =
@@ -210,7 +211,7 @@ public class ReferenceVariableFactory {
      * @return reference variable for a formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createFormal(int paramNum, TypeReference type,
+    protected static ReferenceVariable createFormal(int paramNum, TypeReference type,
             IMethod method) {
         ReferenceVariable rv =
                 new ReferenceVariable(PrettyPrinter.methodString(method)
@@ -252,14 +253,10 @@ public class ReferenceVariableFactory {
     /**
      * Get a reference variable for the value field of a new String literal
      *
-     * @param local
-     *            local variable ID for the String literal
-     * @param method
-     *            Containing method
      * @return Reference variable for the value field of a String literal
      */
     @SuppressWarnings("synthetic-access")
-    protected ReferenceVariable createStringLitField(int local, IMethod method) {
+    protected static ReferenceVariable createStringLitField() {
         ReferenceVariable rv =
                 new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
                                       AnalysisUtil.STRING_VALUE_TYPE,
@@ -273,76 +270,8 @@ public class ReferenceVariableFactory {
      *
      * @return Cache of reference variables for each local variable
      */
-    public ReferenceVariableCache getAllLocals() {
-        return new ReferenceVariableCache(locals);
-    }
-
-    /**
-     * Key uniquely identifying a synthesized String.value field
-     */
-    private static class StringValueKey {
-        /**
-         * Containing method
-         */
-        private final IMethod method;
-        /**
-         * Local variable for the string literal
-         */
-        private final int local;
-        /**
-         * Compute the hashcode once
-         */
-        private final int memoizedHashCode;
-
-        /**
-         * Create a new key for the value field of a string literal
-         *
-         * @param local
-         *            local variable for the string literal
-         * @param method
-         *            Containing method
-         */
-        public StringValueKey(int local, IMethod method) {
-            assert local >= 0;
-            assert method != null;
-            this.method = method;
-            this.local = local;
-            memoizedHashCode = computeHashCode();
-        }
-
-        private int computeHashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + local;
-            result = prime * result + method.hashCode();
-            return result;
-        }
-
-        @Override
-        public int hashCode() {
-            return memoizedHashCode;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            StringValueKey other = (StringValueKey) obj;
-            if (local != other.local) {
-                return false;
-            }
-            if (!method.equals(other.method)) {
-                return false;
-            }
-            return true;
-        }
+    public ReferenceVariableCache getAllLocals(Map<IMethod, VariableIndex> replacementMap) {
+        return new ReferenceVariableCache(locals, replacementMap);
     }
 
     /**
@@ -420,107 +349,6 @@ public class ReferenceVariableFactory {
                 return false;
             }
             if (type != other.type) {
-                return false;
-            }
-            return true;
-        }
-    }
-
-    /**
-     * Key uniquely identifying a method summary node
-     */
-    private static class MethodSummaryKey {
-        /**
-         * Containing method
-         */
-        private final IMethod method;
-        /**
-         * Is this node for normal or exceptional exit
-         */
-        private final ExitType exitType;
-        /**
-         * Compute the hashcode once
-         */
-        private final int memoizedHashCode;
-        /**
-         * If this is a summary node for a formal parameter then this is the parameter number
-         */
-        private final int paramNum;
-
-        /**
-         * Create a new key for a method exit
-         *
-         * @param method
-         *            method this node is for
-         * @param exitType
-         *            normal or exceptional exit
-         */
-        public MethodSummaryKey(IMethod method, ExitType exitType) {
-            assert method != null;
-            assert exitType != null;
-            this.method = method;
-            this.exitType = exitType;
-            paramNum = -1;
-            memoizedHashCode = computeHashCode();
-        }
-
-        /**
-         * Create a new key for a formal parameter
-         *
-         * @param method
-         *            method this node is for
-         * @param paramNum
-         *            index of the formal
-         */
-        public MethodSummaryKey(IMethod method, int paramNum) {
-            assert paramNum >= 0;
-            assert method != null;
-            exitType = null;
-            this.paramNum = paramNum;
-            this.method = method;
-            memoizedHashCode = computeHashCode();
-        }
-
-        public int computeHashCode() {
-            final int prime = 31;
-            int result = 1;
-            result =
-                    prime * result
-                            + (exitType == null ? 0 : exitType.hashCode());
-            result = prime * result + method.hashCode();
-            result = prime * result + paramNum;
-            return result;
-        }
-
-        @Override
-        public int hashCode() {
-            return memoizedHashCode;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            MethodSummaryKey other = (MethodSummaryKey) obj;
-            if (exitType == null) {
-                if (other.exitType != null) {
-                    return false;
-                }
-            }
-            else if (!exitType.equals(other.exitType)) {
-                return false;
-            }
-            if (!method.equals(other.method)) {
-                return false;
-            }
-            if (paramNum != other.paramNum) {
                 return false;
             }
             return true;

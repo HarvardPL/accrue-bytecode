@@ -48,7 +48,7 @@ public class AndroidVirtualCallStatement extends VirtualCallStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext sac) {
-        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.getUses().get(0));
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.getUses().get(0), haf);
 
         // Find if there are any targets that are interesting methods and handle those specially
         Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep, sac)

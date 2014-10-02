@@ -165,6 +165,12 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         ISSABasicBlock exit = ir.getExitBlock();
         ProcedureSummaryPDGNodes summary = PDGNodeFactory.findOrCreateProcedureSummary(currentNode);
 
+        // Add edges from the summary nodes to the nodes for the local variables
+        for (int i = 0; i < ir.getNumberOfParameters(); i++) {
+            PDGNode param = PDGNodeFactory.findOrCreateLocal(ir.getParameter(i), currentNode, pp);
+            addEdge(summary.getFormal(i), param, PDGEdgeType.COPY);
+        }
+
         PDGContext exExit = summary.getExceptionalExitContext();
         for (ISSABasicBlock pred : ir.getControlFlowGraph().getExceptionalPredecessors(exit)) {
             if (!isUnreachable(pred, exit)) {
@@ -399,9 +405,9 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                         current);
 
         // The only way the value gets assigned is if no NPE is thrown
-        // TODO there is also an implicit "length" field in an array do we want
-        // an edge from that?
-        addEdge(array, result, PDGEdgeType.EXP);
+        // XXX there is also an implicit "length" field in an array do we want
+        // an edge from that? Should that live in the heap?
+        addEdge(array, result, PDGEdgeType.POINTER);
         addEdge(normal.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
         return factToMap(Unit.VALUE, current, cfg);
@@ -876,6 +882,22 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Map<ISSABasicBlock, Unit> flowThrow(SSAThrowInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        PDGNode exception = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
+
+        // Get the input context
+        PDGContext in = instructionInput.get(i);
+
+        String desc = pp.valString(i.getException()) + " == null";
+        PDGContext normal = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                                    exception,
+                                                    in,
+                                                    desc,
+                                                    current);
+
+        PDGNode throwExpr = PDGComputeNodesDataflow.getNodeForThrowExpression(i, current, currentNode, pp);
+        addEdge(exception, throwExpr, PDGEdgeType.COPY);
+        addEdge(normal.getPCNode(), throwExpr, PDGEdgeType.IMPLICIT);
+
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -988,9 +1010,12 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
             assert trueExceptionContexts.get(bb) != null;
             assert trueExceptionContexts.get(bb).get(exType) != null;
-            PDGNode truePC = trueExceptionContexts.get(bb).get(exType).getPCNode();
+            PDGContext trueContext = trueExceptionContexts.get(bb).get(exType);
+            PDGNode truePC = trueContext.getPCNode();
             addEdge(branch, truePC, PDGEdgeType.TRUE);
             addEdge(beforeException.getPCNode(), truePC, PDGEdgeType.CONJUNCTION);
+            // The exception is only created if the truePC is triggered
+            addEdge(truePC, trueContext.getExceptionNode(), PDGEdgeType.IMPLICIT);
 
             PDGContext falseContext = falseExceptionContexts.get(bb).get(exType);
             addEdge(branch, falseContext.getPCNode(), PDGEdgeType.FALSE);
