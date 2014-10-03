@@ -136,6 +136,15 @@ public class TestOptions extends TestCase {
         assertEquals(true, o4.shouldPrintUseage());
     }
 
+    public static void testHaf2() {
+
+        String[] args = { "-haf", "[scs(2) x type(2,1) x FilterStringBuilder]" };
+        AccrueAnalysisOptions o = AccrueAnalysisOptions.getOptions(args);
+        assertTrue(o.getHaf() instanceof CrossProduct);
+        assertEquals("scs(2) x 2Type+1H x filter(2FullObjSens+1H, java.lang.AbstractStringBuilder)", o.getHaf()
+                                                                                                       .toString());
+    }
+
     /**
      * Test all the ways of specifying a HeapAbstractionFactory
      */
@@ -194,5 +203,16 @@ public class TestOptions extends TestCase {
         AccrueAnalysisOptions o11 = AccrueAnalysisOptions.getOptions(args11);
         assertTrue(o11.getHaf() instanceof TypeSensitive);
         assertEquals("20Type+11H", o11.getHaf().toString());
+
+        String[] args12 = { "-haf", "[scs(2) x type(2,1)]" };
+        AccrueAnalysisOptions o12 = AccrueAnalysisOptions.getOptions(args12);
+        assertTrue(o12.getHaf() instanceof CrossProduct);
+        assertEquals("scs(2) x 2Type+1H", o12.getHaf().toString());
+
+        String[] args13 = { "-haf", "[scs(2) x type(2,1) x FilterStringBuilder]" };
+        AccrueAnalysisOptions o13 = AccrueAnalysisOptions.getOptions(args13);
+        assertTrue(o13.getHaf() instanceof CrossProduct);
+        assertEquals("scs(2) x 2Type+1H x filter(2FullObjSens+1H, java.lang.AbstractStringBuilder)", o13.getHaf()
+                                                                                                        .toString());
     }
 }
