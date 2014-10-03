@@ -168,8 +168,11 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
         Map<String, Set<PDGNode>> analysisUnitToNodes = new LinkedHashMap<>();
 
         for (PDGNode n : nodes) {
-            String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
-                                            .replace("\\\\t", "(tab)");
+            String nodeString = n.toString()
+                                 .replace("\"", "")
+                                 .replace("\\", "\\\\")
+                                 .replace("\n", "(newline)")
+                                 .replace("\t", "(tab)");
             Integer count = dotToCount.get(nodeString);
             if (count == null) {
                 nodeToDot.put(n, nodeString);
@@ -245,8 +248,11 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
         Map<CGNode, Set<AbstractLocationPDGNode>> heapNodes = new LinkedHashMap<>();
 
         for (PDGNode n : nodes) {
-            String nodeString = n.toString().replace("\"", "").replace("\\", "\\\\").replace("\\\\n", "(newline)")
-                                            .replace("\\\\t", "(tab)");
+            String nodeString = n.toString()
+                                 .replace("\"", "")
+                                 .replace("\\", "\\\\")
+                                 .replace("\n", "(newline)")
+                                 .replace("\t", "(tab)");
             Integer count = dotToCount.get(nodeString);
             if (count == null) {
                 nodeToDot.put(n, nodeString);
