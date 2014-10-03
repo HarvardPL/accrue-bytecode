@@ -953,14 +953,11 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         addEdge(normal.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
         // Add edge from the assignment to the field
-        Set<PDGNode> locs = new LinkedHashSet<>();
         for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
                                         currentNode)) {
-            locs.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+            PDGNode locNode = PDGNodeFactory.findOrCreateAbstractLocation(loc);
+            addEdge(result, locNode, PDGEdgeType.MERGE);
         }
-        PDGNode locationMerge = mergeIfNecessary(locs, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
-
-        addEdge(result, locationMerge, PDGEdgeType.MERGE);
 
         return factToMap(Unit.VALUE, current, cfg);
     }
