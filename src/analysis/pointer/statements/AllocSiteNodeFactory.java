@@ -53,13 +53,13 @@ public class AllocSiteNodeFactory {
     /**
      * Create a new analysis-generated allocation, (i.e. a generated exception, a string literal, a native method
      * signature). This should only be called once for each allocation
-     * 
+     *
      * @param debugString String for printing and debugging
      * @param allocatedClass class being allocated
      * @param allocatingClass class where allocation occurs
      * @param isStringLiteral true if this allocation is for a string literal, if this is true then debugString should
      *            be the literal string being allocated
-     * 
+     *
      * @return unique allocation node
      */
     protected static AllocSiteNode createGenerated(String debugString, IClass allocatedClass, IClass allocatingClass,
@@ -138,7 +138,7 @@ public class AllocSiteNodeFactory {
             if (programCounter >= 0) {
                 return debugString + "@" + programCounter;
             }
-            return (isStringLiteral ? "LITERAL " : "") + debugString;
+            return (isStringLiteral ? "LITERAL " : "") + debugString.replace("\n", "(newline)");
         }
 
         public String getStringLiteralValue() {
