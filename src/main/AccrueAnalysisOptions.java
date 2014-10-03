@@ -249,6 +249,7 @@ public final class AccrueAnalysisOptions {
 
     /**
      * Parse a Heap Abstraction Factory
+     *
      * <pre>
      * The grammar is:
      *
@@ -263,7 +264,7 @@ public final class AccrueAnalysisOptions {
      * haf ::=
      *         hafClassName               // a heap abstraction factory class, default constructor
      *       | hafClassName "(" args ")"  // a heap abstraction factory class, pass args to constructor
-
+     *
      * hafClassName ::=
      *         "type"                     // synonym for "analysis.pointer.analyses.TypeSensitive"
      *       | "scs"                      // synonym for "analysis.pointer.analyses.StaticCallSiteSensitive"
@@ -276,8 +277,10 @@ public final class AccrueAnalysisOptions {
      *
      * args ::= arg | arg "," args        // a list of arguments
      *
-     * arg ::= int | "{" hafs "}"         // an arg is either an int or a heap abstraction factory.
+     * arg ::= int | stringLiteral | "{" hafs "}"         // an arg is either an int, or a string literal or a heap abstraction factory.
+     *
      * </pre>
+     *
      * @param hafString String to parse
      * @return the HeapAbstractionFactory for the given String
      */
@@ -490,6 +493,13 @@ public final class AccrueAnalysisOptions {
             ind = consumeWhiteSpace(s, ind);
             return new OrderedPair<Object, Integer>(h.fst(), ind);
         }
+        else if (s.charAt(ind) == '"') {
+            // we have a string literal.
+            OrderedPair<String, Integer> lit = parseStringLiteral(s, ind);
+            ind = lit.snd();
+            ind = consumeWhiteSpace(s, ind);
+            return new OrderedPair<Object, Integer>(lit.fst(), ind);
+        }
         // we should have an int
         StringBuffer sb = new StringBuffer();
         while (ind < s.length() && Character.isDigit(s.charAt(ind))) {
@@ -497,6 +507,37 @@ public final class AccrueAnalysisOptions {
         }
         return new OrderedPair<Object, Integer>(Integer.valueOf(sb.toString()), ind);
 
+    }
+
+    private static OrderedPair<String, Integer> parseStringLiteral(String s, int ind) throws ParseException {
+        if (s.charAt(ind) != '"') {
+            throw new ParseException("Expecting \" for start of string literal");
+        }
+        ind++; // consume the quote
+        StringBuilder sb = new StringBuilder();
+        while (ind < s.length()) {
+            if (s.charAt(ind) == '\\') {
+                if (ind + 1 < s.length()) {
+                    throw new ParseException("Unclosed string literal");
+                }
+                // handle an escaped character
+                if (s.charAt(ind + 1) == '\"' || s.charAt(ind + 1) == '\\') {
+                    // it is an escaped backslash, or an escaped literal
+                    sb.append(s.charAt(ind + 1));
+                    ind += 2;
+                    continue;
+                }
+            }
+            if (s.charAt(ind) == '\"') {
+                // it's the end of the string literal!
+                ind++; // consume the close quote
+                return new OrderedPair<String, Integer>(sb.toString(), ind);
+            }
+            // it's just a normal character
+            sb.append(s.charAt(ind));
+            ind++;
+        }
+        throw new ParseException("Unclosed string literal");
     }
 
     private static int consumeWhiteSpace(String s, int ind) {
@@ -544,8 +585,14 @@ public final class AccrueAnalysisOptions {
             if (a instanceof Integer) {
                 argClasses[j++] = int.class;
             }
-            else {
+            else if (a instanceof String) {
+                argClasses[j++] = String.class;
+            }
+            else if (a instanceof HeapAbstractionFactory) {
                 argClasses[j++] = HeapAbstractionFactory.class;
+            }
+            else {
+                throw new RuntimeException("Unexpected argument class: " + a.getClass());
             }
         }
 
