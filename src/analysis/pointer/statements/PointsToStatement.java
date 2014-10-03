@@ -9,6 +9,7 @@ import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -78,7 +79,11 @@ public abstract class PointsToStatement {
     public abstract GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g,
                                        GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator);
 
-    public PointsToGraphNode killed(Context context) {
+    public PointsToGraphNode killed(Context context, RecencyHeapAbstractionFactory haf) {
+        return null;
+    }
+
+    public InstanceKeyRecency justAllocated(Context context, RecencyHeapAbstractionFactory haf) {
         return null;
     }
 

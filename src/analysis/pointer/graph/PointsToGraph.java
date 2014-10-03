@@ -16,7 +16,6 @@ import util.intmap.IntMap;
 import util.intmap.SimpleConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
-import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.DependencyRecorder;
@@ -26,6 +25,7 @@ import analysis.pointer.graph.AnnotatedIntRelation.SetAnnotatedIntRelation;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
+import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -50,6 +50,8 @@ import com.ibm.wala.util.intset.SparseIntSet;
 public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
+
+    public final StatementRegistrar registrar;
 
     /* ***************************************************************************
      *
@@ -91,6 +93,10 @@ public class PointsToGraph {
     private final ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = new SimpleConcurrentIntMap();
 
 
+    /* ******************
+     * Record allocation sites
+     */
+    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = new SimpleConcurrentIntMap();
 
     /* ***************************************************************************
      *
@@ -217,6 +223,8 @@ public class PointsToGraph {
 
     public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf, DependencyRecorder depRecorder) {
         this.depRecorder = depRecorder;
+
+        this.registrar = registrar;
 
         this.haf = haf;
 
@@ -356,6 +364,28 @@ public class PointsToGraph {
                 delta.collapseNodes(n, rep);
             }
         }
+    }
+
+    protected InstanceKeyRecency lookupInstanceKeyDictionary(int key) {
+        return this.instanceKeyDictionary.get(key);
+
+    }
+
+    protected int lookupDictionary(InstanceKeyRecency key) {
+        Integer n = this.reverseInstanceKeyDictionary.get(key);
+        if (n == null) {
+            // not in the dictionary yet
+            n = instanceKeyCounter.getAndIncrement();
+            Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(key, n);
+            if (existing != null) {
+                return existing;
+            }
+            else {
+                // we were the first to put it in.
+                this.instanceKeyDictionary.put(n, key);
+            }
+        }
+        return n;
     }
 
     protected PointsToGraphNode lookupPointsToGraphNodeDictionary(int node) {
@@ -718,6 +748,40 @@ public class PointsToGraph {
         return pointsToIterator(n, ippr, null);
     }
 
+    public boolean pointsTo(PointsToGraphNode from, InstanceKeyRecency to, InterProgramPointReplica ippr) {
+        int f = this.lookupDictionary(from);
+        int t = this.lookupDictionary(to);
+        return pointsTo(f, t, ippr);
+    }
+
+    // XXX TODO: get the dependencies right, so that if a StmtAndContext reads the pointsto graph of the non-most-recent
+    // then we add a dependency on the pointsto set of the most-recent. This is so that if the most-recent now points to an
+    // object just before the allocation, it will point to the non-most-recent after the allocation. We need to capture this
+    // depedency to make sure we find the correct fixed point.
+
+    public boolean pointsTo(/*PointsToGraphNode*/int from, /*InstanceKeyRecency*/int to, InterProgramPointReplica ippr) {
+        if (this.isFlowSensitivePointsToGraphNode(from)) {
+            // from is flow sensitive
+            ConcurrentIntMap<ProgramPointSetClosure> s = this.pointsToFS.get(from);
+            if (s == null) {
+                return false;
+            }
+            ProgramPointSetClosure ppsc = s.get(from);
+            if (ppsc == null) {
+                return false;
+            }
+            return ppsc.contains(ippr, this);
+        }
+        else {
+            // from is not flow sensitive
+            MutableIntSet s = this.pointsToFI.get(from);
+            if (s == null) {
+                return false;
+            }
+            return s.contains(to);
+        }
+    }
+
     public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr,
                                                             StmtAndContext originator) {
         assert this.graphFinished || originator != null;
@@ -736,7 +800,7 @@ public class PointsToGraph {
             this.recordRead(n, originator);
         }
         if (isFlowSensitivePointsToGraphNode(n)) {
-            return new ProgramPointIntIterator(pointsToFS.get(n), ippr);
+            return new ProgramPointIntIterator(pointsToFS.get(n), ippr, this);
         }
         return this.pointsToSetFI(n).intIterator();
     }
@@ -875,8 +939,26 @@ public class PointsToGraph {
      *
      * @return heap abstraction factory for this pointer analysis
      */
-    public HeapAbstractionFactory getHaf() {
+    public RecencyHeapAbstractionFactory getHaf() {
         return haf;
+    }
+
+    /**
+     * Get call graph map
+     *
+     * @return call graph map
+     */
+    public ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> getCallGraphMap() {
+        return callGraphMap;
+    }
+
+    /**
+     * Get call graph map
+     *
+     * @return reverse call graph map
+     */
+    public ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> getCallGraphReverseMap() {
+        return callGraphReverseMap;
     }
 
     /**
@@ -1155,12 +1237,14 @@ public class PointsToGraph {
         private final IntIterator iter;
         private final IntMap<ProgramPointSetClosure> ppmap;
         private final InterProgramPointReplica ippr;
+        private final PointsToGraph g;
         private int next = -1;
 
-        ProgramPointIntIterator(IntMap<ProgramPointSetClosure> ppmap, InterProgramPointReplica ippr) {
+        ProgramPointIntIterator(IntMap<ProgramPointSetClosure> ppmap, InterProgramPointReplica ippr, PointsToGraph g) {
             this.iter = ppmap == null ? EmptyIntIterator.instance() : ppmap.keyIterator();
             this.ppmap = ppmap;
             this.ippr = ippr;
+            this.g = g;
         }
 
         @Override
@@ -1168,7 +1252,7 @@ public class PointsToGraph {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 ProgramPointSetClosure pps;
-                if (ippr == null || ((pps = ppmap.get(i)) != null && pps.contains(ippr))) {
+                if (ippr == null || ((pps = ppmap.get(i)) != null && pps.contains(ippr, g))) {
                     this.next = i;
                 }
             }
@@ -1413,7 +1497,7 @@ public class PointsToGraph {
         }
         else {
             assert sourceIsFlowSensitive;
-            srcIter = new ProgramPointIntIterator(pointsToFS.get(source), ippr);
+            srcIter = new ProgramPointIntIterator(pointsToFS.get(source), ippr, this);
         }
         return this.getDifference(srcIter, target, targetIsFlowSensitive, ExplicitProgramPointSet.singleton(ippr));
 
@@ -1446,7 +1530,7 @@ public class PointsToGraph {
             while (srcIter.hasNext()) {
                 int i = srcIter.next();
                 ProgramPointSetClosure pps = m.get(i);
-                if (pps == null || !pps.containsAll(addAtPoints)) {
+                if (pps == null || !pps.containsAll(addAtPoints, this)) {
                     // we have i \not\in pointsTo(target, ippr) for some ippr \in addAtPoints
                     s.add(i);
                 }
@@ -1498,22 +1582,24 @@ public class PointsToGraph {
             return pointsToSetFI(n).addAll(set);
         }
         // flow sensitive!
-        int fromBase = this.baseNodeForPointsToGraphNode(n);
+        // int fromBase = this.baseNodeForPointsToGraphNode(n);
         boolean changed = false;
         IntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, fromBase, to, ppsToAdd);
+            InstanceKeyRecency ikr = this.lookupInstanceKeyDictionary(to);
+            changed |= addProgramPoints(m, n, to, ikr.isRecent(), ikr.isTrackingMostRecent(), ppsToAdd);
         }
         return changed;
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase,
-    /*PointsToGraphNode*/int to, ExplicitProgramPointSet toAdd) {
+    private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from,
+    /*InstanceKeyRecency*/int to, boolean toIsMostRecentObject, boolean toIsTrackingMostRecenct,
+                                            ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(fromBase, to);
+            p = new ProgramPointSetClosure(from, to, this);
             m.put(to, p);
         }
         return p.addAll(toAdd);
@@ -1606,5 +1692,46 @@ public class PointsToGraph {
     public void constructionFinished() {
         this.graphFinished = true;
 
+    }
+
+    public boolean isMostRecentObject(/*InstanceKeyRecency*/int n) {
+        return this.lookupInstanceKeyDictionary(n).isRecent();
+    }
+
+    public boolean isTrackingMostRecentObject(/*InstanceKeyRecency*/int n) {
+        return this.lookupInstanceKeyDictionary(n).isTrackingMostRecent();
+    }
+
+    public boolean recordAllocation(InstanceKeyRecency ikr, ProgramPointReplica ppr) {
+        int n = this.lookupDictionary(ikr);
+        Set<ProgramPointReplica> s = this.allocationSites.get(n);
+        if (s == null) {
+            s = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+            Set<ProgramPointReplica> ex = this.allocationSites.putIfAbsent(n, s);
+            if (ex != null) {
+                // someone beat us to it!
+                s = ex;
+            }
+        }
+        return s.add(ppr);
+    }
+
+    public Set<ProgramPointReplica> getAllocationSitesOf(/*InstanceKeyRecency*/int n) {
+        Set<ProgramPointReplica> s = this.allocationSites.get(n);
+        if (s == null) {
+            return Collections.emptySet();
+        }
+        return s;
+    }
+
+    /**
+     * XXX TODO Documentation
+     *
+     * @param n
+     * @return
+     */
+    public int mostRecentVersion(/*InstanceKeyRecency*/int n) {
+        InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
+        return this.lookupDictionary(ikr.recent(true));
     }
 }

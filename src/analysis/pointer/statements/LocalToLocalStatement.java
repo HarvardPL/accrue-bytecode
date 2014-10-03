@@ -80,6 +80,11 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public PointsToGraphNode killed(Context context, RecencyHeapAbstractionFactory haf) {
+        return left.isFlowSensitive() ? new ReferenceVariableReplica(context, left, haf) : null;
+    }
+
+    @Override
     public String toString() {
         return left + " = (" + PrettyPrinter.typeString(left.getExpectedType())
                 + ") " + right;

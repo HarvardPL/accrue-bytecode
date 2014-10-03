@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Set;
-
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -12,8 +10,6 @@ public class ProgramPoint {
     private final PostProgramPoint post;
     private final IMethod containingProcedure;
     private final String debugInfo;
-    private final Set<ProgramPoint> successors;
-    private final PointsToStatement stmt;
 
     private final boolean isEntrySummaryNode;
     private final boolean isNormalExitSummaryNode;
@@ -21,13 +17,11 @@ public class ProgramPoint {
 
     private static int generator;
 
-    public ProgramPoint(IMethod containingProcedure, String debugInfo, Set<ProgramPoint> successors,
-                        PointsToStatement stmt) {
-        this(containingProcedure, debugInfo, successors, stmt, false, false, false);
+    public ProgramPoint(IMethod containingProcedure, String debugInfo) {
+        this(containingProcedure, debugInfo, false, false, false);
     }
 
-    public ProgramPoint(IMethod containingProcedure, String debugInfo, Set<ProgramPoint> successors,
-                        PointsToStatement stmt,
+    public ProgramPoint(IMethod containingProcedure, String debugInfo,
                         boolean isEntrySummaryNode,
                         boolean isNormalExitSummaryNode, boolean isExceptionExitSummaryNode) {
         this.id = ++generator;
@@ -38,8 +32,6 @@ public class ProgramPoint {
         if (containingProcedure == null) {
             throw new IllegalArgumentException("procuedure should be nonnull");
         }
-        this.successors = successors;
-        this.stmt = stmt;
         this.isEntrySummaryNode = isEntrySummaryNode;
         this.isNormalExitSummaryNode = isNormalExitSummaryNode;
         this.isExceptionExitSummaryNode = isExceptionExitSummaryNode;
@@ -55,14 +47,6 @@ public class ProgramPoint {
 
     public IMethod containingProcedure() {
         return this.containingProcedure;
-    }
-
-    public Set<ProgramPoint> successors() {
-        return this.successors;
-    }
-
-    public PointsToStatement stmt() {
-        return stmt;
     }
 
     @Override
@@ -200,6 +184,84 @@ public class ProgramPoint {
 
     }
 
+    public static class ProgramPointReplica {
+        private ProgramPoint pp;
+        private Context cc;
+
+        public static ProgramPointReplica create(Context context, ProgramPoint pp) {
+            // XXX!@! we will eventually do memoization here.
+            if (pp == null) {
+                throw new IllegalArgumentException("Null pp");
+            }
+            return new ProgramPointReplica(context, pp);
+        }
+
+        private ProgramPointReplica(Context cc, ProgramPoint pp) {
+            this.pp = pp;
+            this.cc = cc;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + pp.toString() + ":" + cc.toString() + ")";
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((cc == null) ? 0 : cc.hashCode());
+            result = prime * result + ((pp == null) ? 0 : pp.hashCode());
+            return result;
+        }
+
+        public Context getContext() {
+            return cc;
+        }
+
+        public ProgramPoint getPP() {
+            return pp;
+        }
+
+        public InterProgramPointReplica pre() {
+            return InterProgramPointReplica.create(this.cc, pp.pre());
+        }
+
+        public InterProgramPointReplica post() {
+            return InterProgramPointReplica.create(this.cc, pp.post());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            ProgramPointReplica other = (ProgramPointReplica) obj;
+            if (cc == null) {
+                if (other.cc != null) {
+                    return false;
+                }
+            }
+            else if (!cc.equals(other.cc)) {
+                return false;
+            }
+            if (pp == null) {
+                if (other.pp != null) {
+                    return false;
+                }
+            }
+            else if (!pp.equals(other.pp)) {
+                return false;
+            }
+            return true;
+        }
+    }
     public static interface InterProgramPoint {
         public ProgramPoint getPP();
     }

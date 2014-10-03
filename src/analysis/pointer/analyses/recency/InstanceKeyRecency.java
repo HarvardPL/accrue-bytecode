@@ -10,12 +10,15 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.Pair;
 
 public class InstanceKeyRecency implements InstanceKey {
-    private InstanceKey ik;
-    private boolean recent;
+    private final InstanceKey ik;
+    private final boolean recent;
+    private final boolean isTrackingMostRecent;
 
-    public InstanceKeyRecency(InstanceKey ik, boolean recent) {
+    public InstanceKeyRecency(InstanceKey ik, boolean recent, boolean isTrackingMostRecent) {
         this.ik = ik;
         this.recent = recent;
+        this.isTrackingMostRecent = isTrackingMostRecent;
+        assert (!recent || isTrackingMostRecent) : "If this is the most recent, then we are definitely tracking the most recent";
     }
 
     public boolean isRecent() {
@@ -25,6 +28,11 @@ public class InstanceKeyRecency implements InstanceKey {
     public InstanceKey baseInstanceKey() {
         return ik;
     }
+
+    public boolean isTrackingMostRecent() {
+        return this.isTrackingMostRecent;
+    }
+
 
     @Override
     public boolean equals(Object o) {
@@ -50,6 +58,13 @@ public class InstanceKeyRecency implements InstanceKey {
     @Override
     public Iterator<Pair<CGNode, NewSiteReference>> getCreationSites(CallGraph CG) {
         return ik.getCreationSites(CG);
+    }
+
+    public InstanceKeyRecency recent(boolean recent) {
+        if (this.recent == recent) {
+            return this;
+        }
+        return RecencyHeapAbstractionFactory.create(this.ik, recent, isTrackingMostRecent);
     }
 
 }

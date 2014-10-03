@@ -29,6 +29,7 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IClass;
@@ -127,6 +128,14 @@ public class StatementRegistrar {
      * Map from method to index mapping replaced variables to their replacements
      */
     private final Map<IMethod, VariableIndex> replacedVariableMap = new LinkedHashMap<>();
+    /*
+     * Program point to statement map
+     */
+    private final Map<ProgramPoint, PointsToStatement> ppToStmtMap = new LinkedHashMap<>();
+    /*
+     * Program point successor map
+     */
+    private final Map<ProgramPoint, Set<ProgramPoint>> ppSuccMap = new LinkedHashMap<>();
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -736,6 +745,31 @@ public class StatementRegistrar {
             }
         }
         return msn;
+    }
+
+    /*
+     * Get the method summary nodes for the given method, return null if not found
+     */
+    public MethodSummaryNodes getMethodSummary(IMethod method) {
+        return this.methods.get(method);
+    }
+
+    /*
+     * Get the statement at a program point, return null is not found
+     */
+    public PointsToStatement getStmtAtPP(ProgramPoint pp) {
+        return this.ppToStmtMap.get(pp);
+    }
+
+    /*
+     * Get the successors of a program point
+     */
+    public Set<ProgramPoint> getSucc(ProgramPoint pp) {
+        Set<ProgramPoint> s = this.ppSuccMap.get(pp);
+        if (s == null) {
+            return Collections.emptySet();
+        }
+        return s;
     }
 
     /**

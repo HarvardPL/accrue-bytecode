@@ -65,13 +65,13 @@ public class GraphDelta {
             return getOrCreateFISet(n, setSizeBestGuess(set)).addAll(set);
         }
         // flow sensitive
-        int fromBase = this.g.baseNodeForPointsToGraphNode(n);
+        // int fromBase = this.g.baseNodeForPointsToGraphNode(n);
         boolean changed = false;
         IntMap<ProgramPointSetClosure> m = getOrCreateFSMap(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, fromBase, to, ppsToAdd);
+            changed |= addProgramPoints(m, n, to, ppsToAdd);
         }
         return changed;
     }
@@ -85,23 +85,23 @@ public class GraphDelta {
         return s;
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase, /*PointsToGraphNode*/
+    private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from, /*PointsToGraphNode*/
                                             int to,
                                             ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(fromBase, to);
+            p = new ProgramPointSetClosure(from, to, this.g);
             m.put(to, p);
         }
         return p.addAll(toAdd);
     }
 
-    private static boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*InstanceKeyRecency*/int fromBase, /*PointsToGraphNode*/
+    private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from, /*PointsToGraphNode*/
                                             int to,
                                             ProgramPointSetClosure toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
-            p = new ProgramPointSetClosure(fromBase, to);
+            p = new ProgramPointSetClosure(from, to, this.g);
             m.put(to, p);
         }
         return p.addAll(toAdd);
@@ -133,12 +133,12 @@ public class GraphDelta {
         assert (oldFS == null || containsAll(deltaFS.get(rep), oldFS));
     }
 
-    private static boolean containsAll(IntMap<ProgramPointSetClosure> superset, IntMap<ProgramPointSetClosure> subset) {
+    private boolean containsAll(IntMap<ProgramPointSetClosure> superset, IntMap<ProgramPointSetClosure> subset) {
         IntIterator iter = subset.keyIterator();
         while (iter.hasNext()) {
             int key = iter.next();
             if (superset.containsKey(key)) {
-                if (!superset.get(key).containsAll(subset.get(key))) {
+                if (!superset.get(key).containsAll(subset.get(key), g)) {
                     return false;
                 }
             }
@@ -175,7 +175,7 @@ public class GraphDelta {
                 while (srcKeys.hasNext()) {
                     int k = srcKeys.next();
                     ProgramPointSetClosure ss = srcSet.get(k);
-                    addProgramPoints(m, ss.getFromBase(), k, ss);
+                    addProgramPoints(m, ss.getFrom(), k, ss);
                 }
             }
 
@@ -247,7 +247,7 @@ public class GraphDelta {
         do {
             IntMap<ProgramPointSetClosure> s = deltaFS.get(node);
             if (s != null) {
-                iterators.add(g.new ProgramPointIntIterator(s, ippr));
+                iterators.add(g.new ProgramPointIntIterator(s, ippr, g));
             }
             node = g.getImmediateRepresentative(node);
         } while (node != null);

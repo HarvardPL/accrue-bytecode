@@ -17,9 +17,13 @@ public class RecencyHeapAbstractionFactory extends HeapAbstractionFactory {
     public InstanceKeyRecency record(AllocSiteNode allocationSite, Context context) {
         InstanceKey ik = haf.record(allocationSite, context);
         // A newly created object is always the most recent one...
-        InstanceKeyRecency ikr = new InstanceKeyRecency(ik, true);
-        return HeapAbstractionFactory.memoize(ikr, ik, "analysis.pointer.analyses.recency");
+        return create(ik, true, true);
 
+    }
+
+    static InstanceKeyRecency create(InstanceKey ik, boolean recent, boolean isTrackingMostRecent) {
+        InstanceKeyRecency ikr = new InstanceKeyRecency(ik, recent, isTrackingMostRecent);
+        return HeapAbstractionFactory.memoize(ikr, ik, "analysis.pointer.analyses.recency", Boolean.valueOf(recent));
     }
 
     @Override
