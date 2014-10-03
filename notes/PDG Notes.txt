@@ -27,3 +27,9 @@ TODO option to not use signature for non-native methods
 TODO make it so the native methods used for the String signatures do not throw exceptions (at least in the PDG)
 
 TODO make sure the native methods for String don't cause issues with the context being too deep, maybe they don't count?
+
+XXX Seem to be NPEs for field accesses to "this" 
+
+TODO More tests for HAF parsing
+ 
+XXX clinit sneaking in twice when we turn off "seenInstanceOf" in the registrar
