@@ -78,7 +78,7 @@ public class StatementFactory {
         ClassInitStatement s = new ClassInitStatement(clinits, pp);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(clinits, i), s) == null : "Duplicate classinit " + clinits + " from " + i
-                + " in " + m;
+                + " in " + pp;
         return s;
     }
 
@@ -293,10 +293,13 @@ public class StatementFactory {
      * @param summary Reference variable for the method summary node assigned to after being created
      * @param allocatedClass Class being allocated
      * @param m native method
+     * @param pp program point for the generated object
      * @return a statement representing the allocation for a native method with no signature
      */
-    public NewStatement newForNative(ReferenceVariable summary, IClass allocatedClass, ProgramPoint pp) {
-        assert pp.containingProcedure().isNative();
+    public NewStatement newForNative(ReferenceVariable summary, IClass allocatedClass, IMethod m, ProgramPoint pp) {
+        assert m.isNative();
+        assert pp.containingProcedure().equals(m);
+
         return newForGeneratedObject(summary,
                                      allocatedClass,
                                      pp,
@@ -306,12 +309,12 @@ public class StatementFactory {
     /**
      * Get a points-to statement representing allocation generated for a native method with no signature
      *
-     * @param summary Reference variable for the method summary node assigned to after being created
+     * @param v Reference variable for the method summary node assigned to after being created
      * @param allocatedClass Class being allocated
-     * @param m method
+     * @param pp programPoint
      * @return a statement representing the allocation for a native method with no signature
      */
-    private NewStatement newForGeneratedObject(ReferenceVariable v, IClass allocatedClass, ProgramPoint pp,
+    public NewStatement newForGeneratedObject(ReferenceVariable v, IClass allocatedClass, ProgramPoint pp,
                                                String description) {
         assert v != null;
         assert allocatedClass != null;

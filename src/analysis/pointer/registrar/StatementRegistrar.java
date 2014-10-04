@@ -3,6 +3,7 @@ package analysis.pointer.registrar;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -26,6 +27,7 @@ import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -68,7 +70,13 @@ public class StatementRegistrar {
     /**
      * Entry point for the code being analyzed
      */
-    private final IMethod entryPoint;
+    private final IMethod entryMethod;
+
+    /**
+     * List of program points for the entry method. We use these program points for initial points to statements.
+     */
+    private final List<ProgramPoint> entryMethodProgramPoints = new ArrayList<>();
+
     /**
      * Map from method to the points-to statements generated from instructions in that method
      */
@@ -148,7 +156,7 @@ public class StatementRegistrar {
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
-        this.entryPoint = AnalysisUtil.getFakeRoot();
+        this.entryMethod = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
     }
 
@@ -179,10 +187,12 @@ public class StatementRegistrar {
             df.dataflow();
 
             TypeRepository types = new TypeRepository(ir);
-            PrettyPrinter pp = new PrettyPrinter(ir);
+            PrettyPrinter pprint = new PrettyPrinter(ir);
+
+            MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
 
             // Add edges from formal summary nodes to the local variables representing the method parameters
-            this.registerFormalAssignments(ir, this.rvFactory, pp);
+            this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, pprint);
 
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
@@ -191,7 +201,7 @@ public class StatementRegistrar {
                         System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
                                 + " in " + m);
                     }
-                    handleInstruction(ins, ir, bb, types, pp);
+                    handleInstruction(ins, ir, df.getProgramPoint(ins, bb), bb, types, pprint);
                 }
             }
 
@@ -246,80 +256,86 @@ public class StatementRegistrar {
      *
      * @param info information about the instruction to handle
      */
-    protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types,
+    protected void handleInstruction(SSAInstruction i, IR ir, ProgramPoint pp, ISSABasicBlock bb, TypeRepository types,
                                      PrettyPrinter printer) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         // Add statements for any string literals in the instruction
-        this.findAndRegisterStringLiterals(i, ir, this.rvFactory, printer);
+        this.findAndRegisterStringLiterals(i, ir, pp, this.rvFactory, printer);
 
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
-        this.findAndRegisterGeneratedExceptions(i, bb, ir, this.rvFactory, types, printer);
+        this.findAndRegisterGeneratedExceptions(i, bb, ir, pp, this.rvFactory, types, printer);
 
         List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
         if (!inits.isEmpty()) {
-            this.registerClassInitializers(i, ir, inits);
+            this.registerClassInitializers(i, pp, inits);
         }
 
         InstructionType type = InstructionType.forInstruction(i);
         switch (type) {
         case ARRAY_LOAD:
             // x = v[i]
-            this.registerArrayLoad((SSAArrayLoadInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerArrayLoad((SSAArrayLoadInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case ARRAY_STORE:
             // v[i] = x
-            this.registerArrayStore((SSAArrayStoreInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerArrayStore((SSAArrayStoreInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case CHECK_CAST:
             // v = (Type) x
-            this.registerCheckCast((SSACheckCastInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerCheckCast((SSACheckCastInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case GET_FIELD:
             // v = o.f
-            this.registerGetField((SSAGetInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerGetField((SSAGetInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case GET_STATIC:
             // v = ClassName.f
-            this.registerGetStatic((SSAGetInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerGetStatic((SSAGetInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case INVOKE_INTERFACE:
         case INVOKE_SPECIAL:
         case INVOKE_STATIC:
         case INVOKE_VIRTUAL:
             // procedure calls, instance initializers
-            this.registerInvoke((SSAInvokeInstruction) i, bb, ir, this.rvFactory, types, printer);
+            this.registerInvoke((SSAInvokeInstruction) i,
+                                bb,
+                                ir,
+                                (CallSiteProgramPoint) pp,
+                                this.rvFactory,
+                                types,
+                                printer);
             return;
         case LOAD_METADATA:
             // Reflection
-            this.registerReflection((SSALoadMetadataInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerReflection((SSALoadMetadataInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case NEW_ARRAY:
-            this.registerNewArray((SSANewInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerNewArray((SSANewInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case NEW_OBJECT:
             // v = new Foo();
-            this.registerNewObject((SSANewInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerNewObject((SSANewInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case PHI:
             // v = phi(x_1,x_2)
-            this.registerPhiAssignment((SSAPhiInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerPhiAssignment((SSAPhiInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case PUT_FIELD:
             // o.f = v
-            this.registerPutField((SSAPutInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerPutField((SSAPutInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case PUT_STATIC:
             // ClassName.f = v
-            this.registerPutStatic((SSAPutInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerPutStatic((SSAPutInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case RETURN:
             // return v
-            this.registerReturn((SSAReturnInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerReturn((SSAReturnInstruction) i, ir, pp, this.rvFactory, types, printer);
             return;
         case THROW:
             // throw e
-            this.registerThrow((SSAThrowInstruction) i, bb, ir, this.rvFactory, types, printer);
+            this.registerThrow((SSAThrowInstruction) i, bb, ir, pp, this.rvFactory, types, printer);
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op
@@ -340,8 +356,8 @@ public class StatementRegistrar {
     /**
      * v = a[j], load from an array
      */
-    private void registerArrayLoad(SSAArrayLoadInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pp) {
+    private void registerArrayLoad(SSAArrayLoadInstruction i, IR ir, ProgramPoint pp,
+                                   ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
         TypeReference arrayType = types.getType(i.getArrayRef());
         TypeReference baseType = arrayType.getArrayElementType();
         assert baseType.equals(types.getType(i.getDef()));
@@ -350,16 +366,31 @@ public class StatementRegistrar {
             return;
         }
 
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), baseType, ir.getMethod(), pp);
-        ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.arrayToLocal(v, a, baseType, ir.getMethod()));
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), baseType, ir.getMethod(), pprint);
+        ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pprint);
+        this.addStatement(stmtFactory.arrayToLocal(v, a, baseType, pp));
     }
 
     /**
      * a[j] = v, store into an array
      */
-    private void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                    TypeRepository types, PrettyPrinter pp) {
+    /**
+     * @param i
+     * @param ir
+     * @param rvFactory
+     * @param types
+     * @param pprint
+     */
+    /**
+     * @param i
+     * @param ir
+     * @param rvFactory
+     * @param types
+     * @param pprint
+     */
+    private void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ProgramPoint pp,
+                                    ReferenceVariableFactory rvFactory,
+                                    TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getValue());
         if (valueType.isPrimitiveType()) {
             // Assigning from a primitive or assigning null (also no effect on points-to graph)
@@ -369,16 +400,17 @@ public class StatementRegistrar {
         TypeReference arrayType = types.getType(i.getArrayRef());
         TypeReference baseType = arrayType.getArrayElementType();
 
-        ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pp);
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getValue(), valueType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToArrayContents(a, v, baseType, ir.getMethod(), i));
+        ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pprint);
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getValue(), valueType, ir.getMethod(), pprint);
+        this.addStatement(stmtFactory.localToArrayContents(a, v, baseType, pp, i));
     }
 
     /**
      * v2 = (TypeName) v1
      */
-    private void registerCheckCast(SSACheckCastInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pp) {
+    private void registerCheckCast(SSACheckCastInstruction i, IR ir, ProgramPoint pp,
+                                   ReferenceVariableFactory rvFactory,
+                                   TypeRepository types, PrettyPrinter pprint) {
         TypeReference valType = types.getType(i.getVal());
         if (valType == TypeReference.Null) {
             // the cast value is null so no effect on pointer analysis
@@ -390,16 +422,17 @@ public class StatementRegistrar {
         ReferenceVariable v2 = rvFactory.getOrCreateLocal(i.getResult(),
                                                           i.getDeclaredResultTypes()[0],
                                                           ir.getMethod(),
-                                                          pp);
-        ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), valType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod()));
+                                                          pprint);
+        ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), valType, ir.getMethod(), pprint);
+        this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, pp));
     }
 
     /**
      * v = o.f
      */
-    private void registerGetField(SSAGetInstruction i, IR ir, ReferenceVariableFactory rvFactory, TypeRepository types,
-                                  PrettyPrinter pp) {
+    private void registerGetField(SSAGetInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                  TypeRepository types,
+                                  PrettyPrinter pprint) {
         TypeReference resultType = i.getDeclaredFieldType();
         // TODO If the class can't be found then WALA sets the type to object (why can't it be found?)
         assert resultType.getName().equals(types.getType(i.getDef()).getName())
@@ -411,17 +444,17 @@ public class StatementRegistrar {
 
         TypeReference receiverType = types.getType(i.getRef());
 
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pp);
-        ReferenceVariable o = rvFactory.getOrCreateLocal(i.getRef(), receiverType, ir.getMethod(), pp);
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pprint);
+        ReferenceVariable o = rvFactory.getOrCreateLocal(i.getRef(), receiverType, ir.getMethod(), pprint);
         FieldReference f = i.getDeclaredField();
-        this.addStatement(stmtFactory.fieldToLocal(v, o, f, ir.getMethod()));
+        this.addStatement(stmtFactory.fieldToLocal(v, o, f, pp));
     }
 
     /**
      * v = ClassName.f
      */
-    private void registerGetStatic(SSAGetInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pp) {
+    private void registerGetStatic(SSAGetInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                   TypeRepository types, PrettyPrinter pprint) {
         TypeReference resultType = i.getDeclaredFieldType();
         assert resultType.getName().equals(types.getType(i.getDef()).getName());
         if (resultType.isPrimitiveType()) {
@@ -429,16 +462,17 @@ public class StatementRegistrar {
             return;
         }
 
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pp);
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pprint);
         ReferenceVariable f = rvFactory.getOrCreateStaticField(i.getDeclaredField());
-        this.addStatement(stmtFactory.staticFieldToLocal(v, f, ir.getMethod()));
+        this.addStatement(stmtFactory.staticFieldToLocal(v, f, pp));
     }
 
     /**
      * o.f = v
      */
-    private void registerPutField(SSAPutInstruction i, IR ir, ReferenceVariableFactory rvFactory, TypeRepository types,
-                                  PrettyPrinter pp) {
+    private void registerPutField(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                  TypeRepository types,
+                                  PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
         if (valueType.isPrimitiveType()) {
             // Assigning into a primitive field, or assigning null
@@ -447,17 +481,24 @@ public class StatementRegistrar {
 
         TypeReference receiverType = types.getType(i.getRef());
 
-        ReferenceVariable o = rvFactory.getOrCreateLocal(i.getRef(), valueType, ir.getMethod(), pp);
+        ReferenceVariable o = rvFactory.getOrCreateLocal(i.getRef(), valueType, ir.getMethod(), pprint);
         FieldReference f = i.getDeclaredField();
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), receiverType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToField(o, f, v, ir.getMethod(), i));
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), receiverType, ir.getMethod(), pprint);
+        this.addStatement(stmtFactory.localToField(o, f, v, pp, i));
     }
 
     /**
      * ClassName.f = v
      */
-    private void registerPutStatic(SSAPutInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pp) {
+    /**
+     * @param i
+     * @param ir
+     * @param rvFactory
+     * @param types
+     * @param pprint
+     */
+    private void registerPutStatic(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                   TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
         if (valueType.isPrimitiveType()) {
             // Assigning into a primitive field, or assigning null
@@ -465,8 +506,8 @@ public class StatementRegistrar {
         }
 
         ReferenceVariable f = rvFactory.getOrCreateStaticField(i.getDeclaredField());
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), valueType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToStaticField(f, v, ir.getMethod(), i));
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), valueType, ir.getMethod(), pprint);
+        this.addStatement(stmtFactory.localToStaticField(f, v, pp, i));
 
     }
 
@@ -475,8 +516,9 @@ public class StatementRegistrar {
      *
      * @param bb
      */
-    private void registerInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir, ReferenceVariableFactory rvFactory,
-                                TypeRepository types, PrettyPrinter pp) {
+    private void registerInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir, CallSiteProgramPoint pp,
+                                ReferenceVariableFactory rvFactory,
+                                TypeRepository types, PrettyPrinter pprint) {
         assert i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1;
 
         // //////////// Result ////////////
@@ -485,7 +527,7 @@ public class StatementRegistrar {
         if (i.getNumberOfReturnValues() > 0) {
             TypeReference returnType = types.getType(i.getReturnValue(0));
             if (!returnType.isPrimitiveType()) {
-                result = rvFactory.getOrCreateLocal(i.getReturnValue(0), returnType, ir.getMethod(), pp);
+                result = rvFactory.getOrCreateLocal(i.getReturnValue(0), returnType, ir.getMethod(), pprint);
             }
         }
 
@@ -498,7 +540,7 @@ public class StatementRegistrar {
                 actuals.add(null);
             }
             else {
-                actuals.add(rvFactory.getOrCreateLocal(i.getUse(j), actualType, ir.getMethod(), pp));
+                actuals.add(rvFactory.getOrCreateLocal(i.getUse(j), actualType, ir.getMethod(), pprint));
             }
         }
 
@@ -512,13 +554,13 @@ public class StatementRegistrar {
         ReferenceVariable receiver = null;
         if (!i.isStatic() && !ir.getSymbolTable().isNullConstant(i.getReceiver())) {
             TypeReference receiverType = types.getType(i.getReceiver());
-            receiver = rvFactory.getOrCreateLocal(i.getReceiver(), receiverType, ir.getMethod(), pp);
+            receiver = rvFactory.getOrCreateLocal(i.getReceiver(), receiverType, ir.getMethod(), pprint);
         }
 
         if (PointsToAnalysis.outputLevel >= 2) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
             if (resolvedMethods.isEmpty()) {
-                System.err.println("No resolved methods for " + pp.instructionString(i) + " method: "
+                System.err.println("No resolved methods for " + pprint.instructionString(i) + " method: "
                         + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
                         + PrettyPrinter.methodString(ir.getMethod()));
             }
@@ -527,8 +569,8 @@ public class StatementRegistrar {
         // //////////// Exceptions ////////////
 
         TypeReference exType = types.getType(i.getException());
-        ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pp);
-        this.registerThrownException(bb, ir, exception, rvFactory, types, pp);
+        ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
+        this.registerThrownException(bb, ir, pp, exception, rvFactory, types, pprint);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -541,8 +583,7 @@ public class StatementRegistrar {
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
-            this.addStatement(stmtFactory.staticCall(i.getCallSite(),
-                                                     ir.getMethod(),
+            this.addStatement(stmtFactory.staticCall(pp,
                                                      resolvedCallee,
                                                      result,
                                                      actuals,
@@ -554,8 +595,7 @@ public class StatementRegistrar {
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
-            this.addStatement(stmtFactory.specialCall(i.getCallSite(),
-                                                      ir.getMethod(),
+            this.addStatement(stmtFactory.specialCall(pp,
                                                       resolvedCallee,
                                                       result,
                                                       receiver,
@@ -569,8 +609,7 @@ public class StatementRegistrar {
                 // Similar to the check above sometimes the receiver is a null constant
                 return;
             }
-            this.addStatement(stmtFactory.virtualCall(i.getCallSite(),
-                                                      ir.getMethod(),
+            this.addStatement(stmtFactory.virtualCall(pp,
                                                       i.getDeclaredTarget(),
                                                       result,
                                                       receiver,
@@ -589,22 +628,22 @@ public class StatementRegistrar {
      * <p>
      * Note that this is only the allocation not the initialization if there is any.
      */
-    private void registerNewArray(SSANewInstruction i, IR ir, ReferenceVariableFactory rvFactory, TypeRepository types,
-                                  PrettyPrinter pp) {
+    private void registerNewArray(SSANewInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                  TypeRepository types,
+                                  PrettyPrinter pprint) {
         // all "new" instructions are assigned to a local
         TypeReference resultType = i.getConcreteType();
         assert resultType.getName().equals(types.getType(i.getDef()).getName());
-        ReferenceVariable a = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pp);
+        ReferenceVariable a = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pprint);
 
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
             ReferenceVariable rv = getOrCreateSingleton(resultType);
-            this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(a, rv, pp, false));
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
-                                                                                       .getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(a, klass, pp, i.getNewSite().getProgramCounter()));
         }
         // Handle arrays with multiple dimensions
         ReferenceVariable outerArray = a;
@@ -617,10 +656,10 @@ public class StatementRegistrar {
             // Add an allocation for the contents
             IClass arrayklass = AnalysisUtil.getClassHierarchy().lookupClass(innerType);
             assert arrayklass != null : "No class found for " + PrettyPrinter.typeString(innerType);
-            this.addStatement(stmtFactory.newForInnerArray(innerArray, arrayklass, ir.getMethod()));
+            this.addStatement(stmtFactory.newForInnerArray(innerArray, arrayklass, pp));
 
             // Add field assign from the inner array to the array contents field of the outer array
-            this.addStatement(stmtFactory.multidimensionalArrayContents(outerArray, innerArray, ir.getMethod()));
+            this.addStatement(stmtFactory.multidimensionalArrayContents(outerArray, innerArray, pp));
 
             // The array on the next iteration will be contents of this one
             outerArray = innerArray;
@@ -632,12 +671,12 @@ public class StatementRegistrar {
      * <p>
      * Handle an allocation of the form: "new Foo". Note that this is only the allocation not the constructor call.
      */
-    private void registerNewObject(SSANewInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pp) {
+    private void registerNewObject(SSANewInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                   TypeRepository types, PrettyPrinter pprint) {
         // all "new" instructions are assigned to a local
         TypeReference resultType = i.getConcreteType();
         assert resultType.getName().equals(types.getType(i.getDef()).getName());
-        ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pp);
+        ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pprint);
 
         TypeReference allocType = i.getNewSite().getDeclaredType();
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(allocType);
@@ -646,17 +685,17 @@ public class StatementRegistrar {
                 && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
 
         }
         else if (USE_SINGLE_ALLOC_FOR_STRINGS && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
 
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
+            this.addStatement(stmtFactory.newForNormalAlloc(result, klass, pp, i.getNewSite()
                                                                                             .getProgramCounter()));
         }
     }
@@ -664,14 +703,14 @@ public class StatementRegistrar {
     /**
      * x = phi(x_1, x_2, ...)
      */
-    private void registerPhiAssignment(SSAPhiInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                       TypeRepository types, PrettyPrinter pp) {
+    private void registerPhiAssignment(SSAPhiInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                       TypeRepository types, PrettyPrinter pprint) {
         TypeReference phiType = types.getType(i.getDef());
         if (phiType.isPrimitiveType()) {
             // No pointers here
             return;
         }
-        ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(), phiType, ir.getMethod(), pp);
+        ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(), phiType, ir.getMethod(), pprint);
         List<ReferenceVariable> uses = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int arg = i.getUse(j);
@@ -680,7 +719,7 @@ public class StatementRegistrar {
                 assert !argType.isPrimitiveType() : "arg type: " + PrettyPrinter.typeString(argType)
                         + " for phi type: " + PrettyPrinter.typeString(phiType);
 
-                ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pp);
+                ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pprint);
                 uses.add(x_i);
             }
         }
@@ -689,23 +728,24 @@ public class StatementRegistrar {
             // All entries to the phi are null literals, no effect on pointer analysis
             return;
         }
-        this.addStatement(stmtFactory.phiToLocal(assignee, uses, ir.getMethod()));
+        this.addStatement(stmtFactory.phiToLocal(assignee, uses, pp));
     }
 
     /**
      * Load-metadata is used for reflective operations
      */
     @SuppressWarnings("unused")
-    private void registerReflection(SSALoadMetadataInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                    TypeRepository types, PrettyPrinter pp) {
+    private void registerReflection(SSALoadMetadataInstruction i, IR ir, ProgramPoint pp,
+                                    ReferenceVariableFactory rvFactory,
+                                    TypeRepository types, PrettyPrinter pprint) {
         // TODO statement registrar not handling reflection yet
     }
 
     /**
      * return v
      */
-    private void registerReturn(SSAReturnInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                TypeRepository types, PrettyPrinter pp) {
+    private void registerReturn(SSAReturnInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                TypeRepository types, PrettyPrinter pprint) {
         if (i.returnsVoid()) {
             // no pointers here
             return;
@@ -717,9 +757,9 @@ public class StatementRegistrar {
             return;
         }
 
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getResult(), valType, ir.getMethod(), pp);
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getResult(), valType, ir.getMethod(), pprint);
         ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
-        this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
+        this.addStatement(stmtFactory.returnStatement(v, summary, pp, i));
     }
 
     /**
@@ -727,11 +767,12 @@ public class StatementRegistrar {
      *
      * @param bb
      */
-    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ReferenceVariableFactory rvFactory,
-                               TypeRepository types, PrettyPrinter pp) {
+    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ProgramPoint pp,
+                               ReferenceVariableFactory rvFactory,
+                               TypeRepository types, PrettyPrinter pprint) {
         TypeReference throwType = types.getType(i.getException());
-        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pp);
-        this.registerThrownException(bb, ir, v, rvFactory, types, pp);
+        ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
+        this.registerThrownException(bb, ir, pp, v, rvFactory, types, pprint);
     }
 
     /**
@@ -784,7 +825,7 @@ public class StatementRegistrar {
      */
     public Set<IMethod> getInitialContextMethods() {
         Set<IMethod> ret = new LinkedHashSet<>();
-        ret.add(this.entryPoint);
+        ret.add(this.entryMethod);
         return ret;
     }
 
@@ -911,15 +952,16 @@ public class StatementRegistrar {
      * @param ir code containing the instruction
      * @param stringClass WALA representation of the java.lang.String class
      */
-    private void findAndRegisterStringLiterals(SSAInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                               PrettyPrinter pp) {
+    private void findAndRegisterStringLiterals(SSAInstruction i, IR ir, ProgramPoint pp,
+                                               ReferenceVariableFactory rvFactory,
+                                               PrettyPrinter pprint) {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int use = i.getUse(j);
             if (ir.getSymbolTable().isStringConstant(use)) {
                 ReferenceVariable newStringLit = rvFactory.getOrCreateLocal(use,
                                                                             TypeReference.JavaLangString,
                                                                             ir.getMethod(),
-                                                                            pp);
+                                                                            pprint);
                 if (this.handledStringLit.contains(newStringLit)) {
                     // Already handled this allocation
                     return;
@@ -930,7 +972,7 @@ public class StatementRegistrar {
                 // flow sensitive
 
                 // add points to statements to simulate the allocation
-                this.registerStringLiteral(newStringLit, use, ir.getMethod(), pp);
+                this.registerStringLiteral(newStringLit, use, pp, pprint);
             }
         }
 
@@ -941,23 +983,23 @@ public class StatementRegistrar {
      *
      * @param stringLit reference variable for the string literal being handled
      * @param local local variable value number for the literal
-     * @param m Method where the literal is created
+     * @param ProgramPoint where the literal is created
      */
-    private void registerStringLiteral(ReferenceVariable stringLit, int local, IMethod m, PrettyPrinter pp) {
+    private void registerStringLiteral(ReferenceVariable stringLit, int local, ProgramPoint pp, PrettyPrinter pprint) {
         if (USE_SINGLE_ALLOC_FOR_STRINGS) {
             // v = string
             ReferenceVariable rv = getOrCreateSingleton(AnalysisUtil.getStringClass().getReference());
-            this.addStatement(stmtFactory.localToLocal(stringLit, rv, m, false));
+            this.addStatement(stmtFactory.localToLocal(stringLit, rv, pp, false));
         }
         else {
             // v = new String
-            this.addStatement(stmtFactory.newForStringLiteral(pp.valString(local), stringLit, m));
+            this.addStatement(stmtFactory.newForStringLiteral(pprint.valString(local), stringLit, pp));
             for (IField f : AnalysisUtil.getStringClass().getAllFields()) {
                 if (f.getName().toString().equals("value")) {
                     // This is the value field of the String
                     ReferenceVariable stringValue = ReferenceVariableFactory.createStringLitField();
-                    this.addStatement(stmtFactory.newForStringField(stringValue, m));
-                    this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, m));
+                    this.addStatement(stmtFactory.newForStringField(stringValue, pp));
+                    this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, pp));
                 }
             }
         }
@@ -972,9 +1014,9 @@ public class StatementRegistrar {
      * @param rvFactory factory for creating new reference variables
      */
     @SuppressWarnings("unused")
-    private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir,
+    private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir, ProgramPoint pp,
                                                           ReferenceVariableFactory rvFactory, TypeRepository types,
-                                                          PrettyPrinter pp) {
+                                                          PrettyPrinter pprint) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE || USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS) {
@@ -986,9 +1028,9 @@ public class StatementRegistrar {
                 IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
 
-                this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, ir.getMethod()));
+                this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, pp));
             }
-            this.registerThrownException(bb, ir, ex, rvFactory, types, pp);
+            this.registerThrownException(bb, ir, pp, ex, rvFactory, types, pprint);
         }
     }
 
@@ -1009,10 +1051,10 @@ public class StatementRegistrar {
             IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(varType);
             assert klass != null : "No class found for " + PrettyPrinter.typeString(varType);
 
-            // We present that the allocation for this object occurs in the entry point.
+            // We pretend that the allocation for this object occurs in the entry point.
             NewStatement stmt = stmtFactory.newForGeneratedObject(rv,
                                                                   klass,
-                                                                  this.entryPoint,
+                                                                  nextEntryMethodProgramPoint(),
                                                                   PrettyPrinter.typeString(varType));
             this.addStatement(stmt);
 
@@ -1026,13 +1068,14 @@ public class StatementRegistrar {
      *
      * @param bb Basic block containing the instruction that throws the exception
      * @param ir code containing the instruction that throws
+     * @param pp Program point of the instruction that throws
      * @param thrown reference variable representing the value of the exception
      * @param types type information about local variables
-     * @param pp pretty printer for the appropriate method
+     * @param pprint pretty printer for the appropriate method
      */
-    private final void registerThrownException(ISSABasicBlock bb, IR ir, ReferenceVariable thrown,
+    private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
-                                               PrettyPrinter pp) {
+                                               PrettyPrinter pprint) {
 
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
 
@@ -1063,8 +1106,8 @@ public class StatementRegistrar {
                 boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
 
                 if (maybeCaught || definitelyCaught) {
-                    caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                    this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), false));
+                    caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pprint);
+                    this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, false));
                 }
 
                 // if we have definitely caught the exception, no need to add more exception assignment statements.
@@ -1080,7 +1123,7 @@ public class StatementRegistrar {
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
-                this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), true));
+                this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, true));
             }
         }
     }
@@ -1093,8 +1136,8 @@ public class StatementRegistrar {
      * @param clinits class initialization methods that might need to be called in the order they need to be called
      *            (i.e. element j is a super class of element j+1)
      */
-    void registerClassInitializers(SSAInstruction trigger, IR containingCode, List<IMethod> clinits) {
-        this.addStatement(stmtFactory.classInit(clinits, containingCode.getMethod(), trigger));
+    void registerClassInitializers(SSAInstruction trigger, ProgramPoint pp, List<IMethod> clinits) {
+        this.addStatement(stmtFactory.classInit(clinits, pp, trigger));
     }
 
     /**
@@ -1105,16 +1148,21 @@ public class StatementRegistrar {
      * @param type allocated type
      * @param summary summary reference variable for method exception or return
      */
-    private void registerAllocationForNative(IMethod m, TypeReference type, ReferenceVariable summary) {
+    private void registerAllocationForNative(IMethod m, ProgramPoint pp, TypeReference type,
+                                             ReferenceVariable summary) {
         IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
-        this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m));
+        this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m, pp));
     }
 
     private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m, rvFactory);
+        int ppCount = 0;
+        ProgramPoint entryPP = methodSummary.getEntryPP();
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
-            this.registerAllocationForNative(m, m.getReturnType(), methodSummary.getReturn());
+            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            this.registerAllocationForNative(m, pp, m.getReturnType(), methodSummary.getReturn());
+            pp.addSucc(methodSummary.getNormalExitPP());
         }
 
         boolean containsRTE = false;
@@ -1124,13 +1172,16 @@ public class StatementRegistrar {
                 for (TypeReference exType : exceptions) {
                     // Allocation of exception of a particular type
                     ReferenceVariable ex = ReferenceVariableFactory.createNativeException(exType, m);
+                    ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+                    this.registerAllocationForNative(m, pp, exType, ex);
+                    pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
                     this.addStatement(stmtFactory.exceptionAssignment(ex,
                                                                       methodSummary.getException(),
                                                                       Collections.<IClass> emptySet(),
-                                                                      m,
+                                                                      pp,
                                                                       true));
-                    this.registerAllocationForNative(m, exType, ex);
                     containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
+                    pp.addSucc(methodSummary.getExceptionExitPP());
                 }
             }
         }
@@ -1145,16 +1196,31 @@ public class StatementRegistrar {
         if (!containsRTE) {
             ReferenceVariable ex = ReferenceVariableFactory.createNativeException(TypeReference.JavaLangRuntimeException,
                                                                                   m);
+            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            this.registerAllocationForNative(m,
+                                             pp,
+                                             TypeReference.JavaLangRuntimeException,
+                                             methodSummary.getException());
+            pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
             this.addStatement(stmtFactory.exceptionAssignment(ex,
                                                               methodSummary.getException(),
                                                               Collections.<IClass> emptySet(),
-                                                              m,
+                                                              pp,
                                                               true));
-            this.registerAllocationForNative(m, TypeReference.JavaLangRuntimeException, methodSummary.getException());
+            pp.addSucc(methodSummary.getExceptionExitPP());
         }
+
+        // connect the entry and the exit with some kind of program point.
+
     }
 
-    private void registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory, PrettyPrinter pp) {
+    private ProgramPoint nextProgramPoint(ProgramPoint currPP, ProgramPoint nextPP) {
+        currPP.addSucc(nextPP);
+        return nextPP;
+    }
+
+    private void registerFormalAssignments(IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+                                           PrettyPrinter pprint) {
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
             TypeReference paramType = ir.getParameterType(i);
@@ -1163,8 +1229,8 @@ public class StatementRegistrar {
                 continue;
             }
             int paramNum = ir.getParameter(i);
-            ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
-            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod(), true));
+            ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pprint);
+            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), pp, true));
         }
     }
 
@@ -1195,19 +1261,19 @@ public class StatementRegistrar {
          * @param ir containing code
          * @param bb containing basic block
          * @param types results of type inference for the method
-         * @param pp Pretty printer for local variables and instructions in enclosing method
+         * @param pprint Pretty printer for local variables and instructions in enclosing method
          */
-        public InstructionInfo(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types, PrettyPrinter pp) {
+        public InstructionInfo(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types, PrettyPrinter pprint) {
             assert i != null;
             assert ir != null;
             assert types != null;
-            assert pp != null;
+            assert pprint != null;
             assert bb != null;
 
             this.instruction = i;
             this.ir = ir;
             this.typeRepository = types;
-            this.prettyPrinter = pp;
+            this.prettyPrinter = pprint;
             this.basicBlock = bb;
         }
 
@@ -1246,6 +1312,18 @@ public class StatementRegistrar {
     }
 
     public IMethod getEntryPoint() {
-        return this.entryPoint;
+        return this.entryMethod;
     }
+
+    private ProgramPoint nextEntryMethodProgramPoint() {
+        ProgramPoint pp = new ProgramPoint(getEntryPoint(), "EntryMethod-pp-" + this.entryMethodProgramPoints.size());
+        if (!this.entryMethodProgramPoints.isEmpty()) {
+            ProgramPoint lastpp = this.entryMethodProgramPoints.get(this.entryMethodProgramPoints.size() - 1);
+            lastpp.addSucc(pp);
+        }
+
+        entryMethodProgramPoints.add(pp);
+        return pp;
+    }
+
 }

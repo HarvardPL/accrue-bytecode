@@ -50,6 +50,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
     private final StatementRegistrar registrar;
     private final ReferenceVariableFactory rvFactory;
 
+    private boolean finishedDataflow = false;
     public ComputeProgramPointsDataflow(IR ir, StatementRegistrar registrar,
                                         ReferenceVariableFactory rvFactory) {
         super(true);
@@ -67,6 +68,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
      */
     protected void dataflow() {
         dataflow(ir);
+        this.finishedDataflow = true;
     }
 
     @Override
@@ -428,6 +430,11 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
             memoizedProgramPoints.put(memoKey, pp);
         }
         return pp;
+    }
+
+    public ProgramPoint getProgramPoint(SSAInstruction ins, ISSABasicBlock bb) {
+        assert finishedDataflow;
+        return this.mostRecentProgramPoint.get(new OrderedPair<>(bb, ins));
     }
 
 }
