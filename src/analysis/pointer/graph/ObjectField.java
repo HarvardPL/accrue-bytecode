@@ -143,4 +143,17 @@ public final class ObjectField implements PointsToGraphNode {
         // Be flow sensitive for the recent objects.
         return this.receiver.isRecent();
     }
+
+    /**
+     * Return an ObjectField that is identical to this one except that it has newReceiver as the receiver.
+     * 
+     * @param newReceiver
+     * @return
+     */
+    public ObjectField receiver(InstanceKeyRecency newReceiver) {
+        if (this.receiver == newReceiver || this.receiver.equals(newReceiver)) {
+            return this;
+        }
+        return new ObjectField(newReceiver, this.fieldName, this.expectedType);
+    }
 }
