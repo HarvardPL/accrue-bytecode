@@ -9,9 +9,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.MutableIntSetFromMap;
-import util.intmap.SimpleConcurrentIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -33,7 +33,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = new SimpleConcurrentIntMap<>();
+    private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
      * are no changes.
@@ -383,7 +383,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new MutableIntSetFromMap(new SimpleConcurrentIntMap<Boolean>());
+        return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
+    }
+
+    public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
+        return new ConcurrentIntHashMap<>();
     }
 
     /**
@@ -394,4 +398,5 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     public static void setParanoidMode(boolean reprocessAllStatements) {
         paranoidMode = reprocessAllStatements;
     }
+
 }

@@ -13,7 +13,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.IntMap;
-import util.intmap.SimpleConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -61,7 +60,7 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private final ConcurrentMap<Integer, InstanceKey> instanceKeyDictionary = new ConcurrentHashMap<>();
+    private final ConcurrentIntMap<InstanceKey> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
@@ -70,7 +69,7 @@ public class PointsToGraph {
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    final ConcurrentMap<Integer, IClass> concreteTypeDictionary = new ConcurrentHashMap<>();
+    final ConcurrentIntMap<IClass> concreteTypeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -105,7 +104,7 @@ public class PointsToGraph {
     /**
      * The PointsTo sets.
      */
-    private final ConcurrentIntMap<MutableIntSet> pointsTo = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> pointsTo = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * if "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
@@ -121,7 +120,7 @@ public class PointsToGraph {
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
      * cycles) and which node now represents them.
      */
-    private final ConcurrentIntMap<Integer> representative = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<Integer> representative = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
 
     /* ***************************************************************************
@@ -243,7 +242,7 @@ public class PointsToGraph {
             // try a put if absent
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(heapContext, h);
             if (existing == null) {
-                this.instanceKeyDictionary.put(h, heapContext);
+                this.instanceKeyDictionary.put(h, heapContext); // XXX there is a race here. It is possible that a thread will look up h in instanceKeyDictionary and get null. Should fix this, probably by retrying the read of instanceKeyDictionary if we get null
                 this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
             }
             else {
@@ -586,7 +585,7 @@ public class PointsToGraph {
     private <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);
         if (set == null) {
-            set = new SimpleConcurrentIntMap<>();
+            set = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
             ConcurrentIntMap<T> existing = map.putIfAbsent(key, set);
             if (existing != null) {
                 set = existing;

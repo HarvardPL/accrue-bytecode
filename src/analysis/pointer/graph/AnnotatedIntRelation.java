@@ -3,7 +3,6 @@ package analysis.pointer.graph;
 import java.util.Set;
 
 import util.intmap.ConcurrentIntMap;
-import util.intmap.SimpleConcurrentIntMap;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 
 import com.ibm.wala.util.intset.IntIterator;
@@ -12,8 +11,8 @@ import com.ibm.wala.util.intset.IntIterator;
  * Representation of a relation on ints.
  */
 public class AnnotatedIntRelation<T> {
-    private final ConcurrentIntMap<ConcurrentIntMap<Set<T>>> forwardReln = new SimpleConcurrentIntMap<>();
-    private final ConcurrentIntMap<ConcurrentIntMap<Set<T>>> backReln = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<ConcurrentIntMap<Set<T>>> forwardReln = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<ConcurrentIntMap<Set<T>>> backReln = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     boolean add(int from, int to, T annotation) {
         boolean changed = getOrCreateSet(from, true, to).add(annotation);
@@ -46,7 +45,7 @@ public class AnnotatedIntRelation<T> {
 
         ConcurrentIntMap<Set<T>> s = m.get(n);
         if (s == null) {
-            s = new SimpleConcurrentIntMap<>();
+            s = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
             ConcurrentIntMap<Set<T>> existing = m.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;
