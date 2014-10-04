@@ -66,7 +66,7 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private final ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = new SimpleConcurrentIntMap();
+    private final ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
@@ -75,7 +75,7 @@ public class PointsToGraph {
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    final ConcurrentIntMap<IClass> concreteTypeDictionary = new SimpleConcurrentIntMap();
+    final ConcurrentIntMap<IClass> concreteTypeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -123,14 +123,14 @@ public class PointsToGraph {
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints). These are the flow-insensitive facts, i.e., they hold true at all program points.
      */
-    private final ConcurrentIntMap<MutableIntSet> pointsToFI = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> pointsToFI = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * Map from PointsToGraphNode to InstanceKeys, including the program points (actually, the interprogrampoint
      * replicas) at which they are valid. These are the flow sensitive points to information. if (s,t,ps) \in deltaFS,
      * and p \in ps, then s points to t at program point p.
      */
-    private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * if "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
@@ -165,7 +165,7 @@ public class PointsToGraph {
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
      * cycles) and which node now represents them.
      */
-    private final ConcurrentIntMap<Integer> representative = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<Integer> representative = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
 
     /* ***************************************************************************
@@ -315,7 +315,7 @@ public class PointsToGraph {
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(heapContext, h);
             if (existing == null) {
                 // we succeeded, and h is now the number for heapcontext.
-                this.instanceKeyDictionary.put(h, heapContext);
+                this.instanceKeyDictionary.put(h, heapContext); // XXX there is a race here. It is possible that a thread will look up h in instanceKeyDictionary and get null. Should fix this, probably by retrying the read of instanceKeyDictionary if we get null
                 this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
             }
             else {
@@ -897,7 +897,7 @@ public class PointsToGraph {
     private <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);
         if (set == null) {
-            set = new SimpleConcurrentIntMap<>();
+            set = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
             ConcurrentIntMap<T> existing = map.putIfAbsent(key, set);
             if (existing != null) {
                 set = existing;

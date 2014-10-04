@@ -18,7 +18,9 @@ import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.classLoader.NewSiteReference;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSACheckCastInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
+import com.ibm.wala.ssa.SSAInstanceofInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInstructionFactory;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
@@ -148,10 +150,22 @@ public class Signatures {
     }
 
     private static TypeReference getSigTypeForRealType(TypeName realType) {
+        if (realType.isArrayType()) {
+            return TypeReference.findOrCreate(CLASS_LOADER, "[Lsignatures/library/" + realType.toString().substring(2));
+        }
         return TypeReference.findOrCreate(CLASS_LOADER, "Lsignatures/library/" + realType.toString().substring(1));
     }
 
+    /**
+     * Try to find a signature method with declaring type <code>sigTarget</code> and the given name and descriptor
+     *
+     * @param sigTarget Declaring class type
+     * @param name name of the method to look for
+     * @param descriptor argument and return types
+     * @return the signature method if found, otherwise returns null
+     */
     private static IMethod resolveSignatureMethod(TypeReference sigTarget, Atom name, Descriptor descriptor) {
+
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
 
         MethodReference mr = MethodReference.findOrCreate(sigTarget, name, descriptor);
@@ -164,10 +178,20 @@ public class Signatures {
             IClass resolvedReturn = cha.lookupClass(sigReturn);
             if (resolvedReturn != null) {
                 // There is a signature for the return type try to use it
-                descriptor = Descriptor.findOrCreate(descriptor.getParameters(), sigReturn.getName());
-                mr = MethodReference.findOrCreate(sigTarget, name, descriptor);
+                Descriptor newDescriptor = Descriptor.findOrCreate(descriptor.getParameters(), sigReturn.getName());
+                mr = MethodReference.findOrCreate(sigTarget, name, newDescriptor);
                 resolved = cha.resolveMethod(mr);
+
+                if (resolved == null) {
+                    // try replacing the argument types as well
+                    resolved = replaceParamsWithSigTypes(sigTarget, name, newDescriptor);
+                }
             }
+        }
+
+        if (resolved == null) {
+            // nothing found yet try replacing only the argument types with signature types
+            resolved = replaceParamsWithSigTypes(sigTarget, name, descriptor);
         }
 
         if (resolved != null && !isSigType(resolved.getDeclaringClass().getReference())) {
@@ -178,6 +202,80 @@ public class Signatures {
         }
 
         return resolved;
+    }
+
+    /**
+     * Replace all signature types in the list with real types if any can be found
+     *
+     * @param types names of types to replace
+     * @return new array of types
+     */
+    private static TypeName[] replaceAllTypeNamesWithReal(TypeName[] types) {
+        if (types == null) {
+            // probably the arguments to a method with no args
+            return null;
+        }
+        TypeName[] newTypes = new TypeName[types.length];
+        for (int i = 0; i < types.length; i++) {
+            newTypes[i] = types[i];
+            TypeReference type_i = TypeReference.findOrCreate(CLASS_LOADER, types[i]);
+            if (isSigType(type_i)) {
+                TypeReference realParam = findRealTypeForSigType(TypeReference.findOrCreate(CLASS_LOADER, types[i]));
+                if (realParam != null) {
+                    newTypes[i] = realParam.getName();
+                }
+            }
+        }
+        return newTypes;
+    }
+
+    /**
+     * Replace all the types in the list with signature types if any can be found
+     *
+     * @param types names of types to replace
+     * @return new array of types
+     */
+    private static TypeName[] replaceAllTypeNamesWithSig(TypeName[] types) {
+        if (types == null) {
+            // probably the arguments to a method with no args
+            return null;
+        }
+        TypeName[] newParams = new TypeName[types.length];
+        for (int i = 0; i < types.length; i++) {
+            TypeReference sigParam = getSigTypeForRealType(types[i]);
+            IClass resolvedParam = AnalysisUtil.getClassHierarchy().lookupClass(sigParam);
+            if (resolvedParam != null) {
+                newParams[i] = resolvedParam.getName();
+            }
+            else {
+                newParams[i] = types[i];
+            }
+        }
+        return newParams;
+    }
+
+    /**
+     * Try to find a signature method by replacing the argument types (in the descriptor) with signature types. Return
+     * null if none is found or if there are no arguments.
+     *
+     * @param sigTarget Declaring class type
+     * @param name name of the method to look for
+     * @param descriptor argument and return types (the argument types are what this replace and try)
+     * @return the signature method if found, otherwise returns null
+     */
+    private static IMethod replaceParamsWithSigTypes(TypeReference sigTarget, Atom name, Descriptor descriptor) {
+        if (descriptor.getNumberOfParameters() > 0) {
+            // No signature found check if the arguments have an associated signature type, if so try again with that
+            // version
+            TypeName[] params = descriptor.getParameters();
+            TypeName[] newParams = replaceAllTypeNamesWithSig(params);
+
+            // There is a signature for at least one parameter try to use it
+            descriptor = Descriptor.findOrCreate(newParams, descriptor.getReturnType());
+            MethodReference mr = MethodReference.findOrCreate(sigTarget, name, descriptor);
+            return AnalysisUtil.getClassHierarchy().resolveMethod(mr);
+        }
+        return null;
     }
 
     /**
@@ -216,7 +314,6 @@ public class Signatures {
             case GOTO:
             case LOAD_METADATA:
             case MONITOR:
-            case NEW_ARRAY:
             case PHI:
             case RETURN:
             case SWITCH:
@@ -225,11 +322,16 @@ public class Signatures {
                 // These all refer only to local variables so there is nothing to fix
                 continue;
             case CHECK_CAST:
-            case INSTANCE_OF:
-                // These involve types, but we will assume they are the indended types
+                updated = handleCheckCast((SSACheckCastInstruction) i);
+                allInstructions[j] = updated;
                 continue;
+            case INSTANCE_OF:
+                updated = handleInstanceOf((SSAInstanceofInstruction) i);
+                allInstructions[j] = updated;
+                continue;
+            case NEW_ARRAY:
             case NEW_OBJECT:
-                updated = handleNewObject((SSANewInstruction) i);
+                updated = handleNew((SSANewInstruction) i);
                 allInstructions[j] = updated;
                 continue;
             case PUT_FIELD:
@@ -261,10 +363,59 @@ public class Signatures {
     }
 
     /**
+     * If the checked type is a signature type, try to replace it with a real one
+     *
+     * @param i instruction to change
+     * @return new instruction if the type changed or the same instruction if it doesn't
+     */
+    private static SSAInstruction handleInstanceOf(SSAInstanceofInstruction i) {
+        TypeReference checkedType = i.getCheckedType();
+        if (isSigType(checkedType)) {
+            // This is an instanceof check on an type in the signatures package
+            // Check to see if there is a "real" type out there that the signature type is emulating.
+            TypeReference real = findRealTypeForSigType(checkedType);
+            if (real != null) {
+                // Found a real type
+                SSAInstruction ii = I_FACTORY.InstanceofInstruction(i.getDef(), i.getRef(), real);
+                if (PointsToAnalysis.outputLevel >= 5) {
+                    System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
+                }
+                return ii;
+            }
+        }
+        // This a check of a real class or a signature class with no real counterpart
+        return i;
+    }
+
+    /**
+     * If the checked type is a signature type, try to replace it with a real one
+     *
+     * @param i instruction to change
+     * @return new instruction if the type changed or the same instruction if it doesn't
+     */
+    private static SSAInstruction handleCheckCast(SSACheckCastInstruction i) {
+        TypeReference checkedType = i.getDeclaredResultTypes()[0];
+        if (isSigType(checkedType)) {
+            // This is a cast to a type in the signatures package
+            // Check to see if there is a "real" type out there that the signature type is emulating.
+            TypeReference real = findRealTypeForSigType(checkedType);
+            if (real != null) {
+                // Found a real type
+                SSAInstruction ii = I_FACTORY.CheckCastInstruction(i.getResult(), i.getVal(), real, i.isPEI());
+                if (PointsToAnalysis.outputLevel >= 5) {
+                    System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
+                }
+                return ii;
+            }
+        }
+        // This a check of a real class or a signature class with no real counterpart
+        return i;
+    }
+
+    /**
      * If the receiver type is a signature type then replace it with the corresponding "real" type if there is one
      *
-     * @param i
-     *            instruction to potentially replace
+     * @param i instruction to potentially replace
      * @return new instruction (or same instruction if no changes were made)
      */
     private static SSAInstruction handleGet(SSAGetInstruction i) {
@@ -314,20 +465,22 @@ public class Signatures {
         TypeReference receiverType = i.getDeclaredTarget().getDeclaringClass();
         TypeReference returnType = i.getDeclaredResultType();
 
-        TypeReference realReturn = null;
+        TypeReference realReturn = returnType;
         if (isSigType(returnType)) {
             realReturn = findRealTypeForSigType(returnType);
         }
+
+        TypeName[] realParams = replaceAllTypeNamesWithReal(i.getDeclaredTarget()
+                                                        .getSelector()
+                                                        .getDescriptor()
+                                                        .getParameters());
 
         if (isSigType(receiverType)) {
             TypeReference real = findRealTypeForSigType(receiverType);
             if (real != null) {
                 Selector s = i.getDeclaredTarget().getSelector();
-                if (realReturn != null) {
-                    // Swap out the return value
-                    Descriptor d = Descriptor.findOrCreate(s.getDescriptor().getParameters(), realReturn.getName());
-                    s = new Selector(s.getName(), d);
-                }
+                Descriptor d = Descriptor.findOrCreate(realParams, realReturn.getName());
+                s = new Selector(s.getName(), d);
 
                 MethodReference newMR = MethodReference.findOrCreate(real, s);
                 IMethod newMethod = AnalysisUtil.getClassHierarchy().resolveMethod(newMR);
@@ -401,7 +554,7 @@ public class Signatures {
      *            instruction to potentially replace
      * @return new instruction (or same instruction if no changes were made)
      */
-    private static SSAInstruction handleNewObject(SSANewInstruction i) {
+    private static SSAInstruction handleNew(SSANewInstruction i) {
         TypeReference allocatedType = i.getConcreteType();
         if (isSigType(allocatedType)) {
             // This is an allocation of an object in the signatures package
@@ -411,7 +564,17 @@ public class Signatures {
                 // Found a real object
                 NewSiteReference site = i.getNewSite();
                 NewSiteReference newSite = new NewSiteReference(site.getProgramCounter(), real);
-                SSAInstruction ii = I_FACTORY.NewInstruction(i.getDef(), newSite);
+                SSAInstruction ii;
+                if (real.isArrayType()) {
+                    int[] dimensions = new int[i.getNumberOfUses()];
+                    for (int j = 0; j < i.getNumberOfUses(); j++) {
+                        dimensions[j] = i.getUse(j);
+                    }
+                    ii = I_FACTORY.NewInstruction(i.getDef(), newSite, dimensions);
+                }
+                else {
+                    ii = I_FACTORY.NewInstruction(i.getDef(), newSite);
+                }
                 if (PointsToAnalysis.outputLevel >= 5) {
                     System.err.println("SIGNATURE REPLACED: " + i + " with " + ii);
                 }
@@ -457,7 +620,7 @@ public class Signatures {
      *            type to check
      * @return true if the class is from the signature library. False otherwise
      */
-    private static boolean isSigType(TypeReference type) {
+    public static boolean isSigType(TypeReference type) {
         return type.toString().contains("Lsignatures/library/");
     }
 }

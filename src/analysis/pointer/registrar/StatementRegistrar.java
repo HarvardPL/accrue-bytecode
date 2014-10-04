@@ -104,7 +104,7 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
      * (and speed up the points-to analysis), but result in a loss of precision for strings.
      */
-    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = true;
+    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = false;
 
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
@@ -186,6 +186,11 @@ public class StatementRegistrar {
 
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
+                    if (ins.toString().contains("signatures/library/java/lang/String")
+                            || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
+                        System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
+                                + " in " + m);
+                    }
                     handleInstruction(ins, ir, bb, types, pp);
                 }
             }

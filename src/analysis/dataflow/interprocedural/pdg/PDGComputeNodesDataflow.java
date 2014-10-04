@@ -299,7 +299,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         if (facts.size() == 1) {
             c = facts.iterator().next();
         } else {
-            c = mergeContexts("confluence", facts.toArray(new PDGContext[facts.size()]));
+            c = mergeContexts(new OrderedPair<>("confluence", bb), facts.toArray(new PDGContext[facts.size()]));
         }
 
         PDGNode restorePC = handlePostDominators(bb);
@@ -465,8 +465,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         normal = afterAIOOB.get(ExitType.NORMAL);
 
         // If no ArrayIndexOutOfBoundsException is thrown then this may throw an ArrayStoreException
-        String arrayStoreDesc = "!" + pp.valString(i.getValue()) + " instanceof " + pp.valString(i.getArrayRef())
-                                        + ".elementType";
+        String arrayStoreDesc = "!(" + pp.valString(i.getValue()) + " instanceof " + pp.valString(i.getArrayRef())
+                + ".elementType" + ")";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangArrayStoreException, normal,
                                         arrayStoreDesc, current);
         if (afterEx.get(ExitType.EXCEPTIONAL) != null) {
@@ -522,8 +522,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         // Possibly throw ClassCastException
         PDGContext in = confluence(previousItems, current);
-        String desc = "!" + pp.valString(i.getVal()) + " instanceof "
-                                        + PrettyPrinter.typeString(i.getDeclaredResultTypes()[0]);
+        String desc = "!(" + pp.valString(i.getVal()) + " instanceof "
+                + PrettyPrinter.typeString(i.getDeclaredResultTypes()[0]) + ")";
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassCastException, in, desc,
                                         current);
 
@@ -612,8 +612,8 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext in = confluence(previousItems, current);
 
         PDGContext npe = null;
-        if (!i.isStatic()) {
-            // Could throw NPE
+        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
+            // Could throw NPE due to null receiver
             String desc = pp.valString(i.getReceiver()) + " == null";
             Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangNullPointerException, in,
                                             desc, current);
@@ -693,7 +693,13 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         // TODO load metadata can throw a ClassNotFoundException, but this could be known statically if all the class
         // files were known (closed world).
         PDGContext in = confluence(previousItems, current);
-        String desc = PrettyPrinter.typeString(i.getType()) + " not found";
+        String desc;
+        if (i.getToken() instanceof TypeReference) {
+            desc = PrettyPrinter.typeString((TypeReference) i.getToken()) + " not found";
+        }
+        else {
+            desc = "loadmetadata " + i.getToken() + " not possible";
+        }
         Map<ExitType, PDGContext> afterEx = handlePossibleException(TypeReference.JavaLangClassNotFoundException, in,
                                         desc, current);
 
@@ -825,7 +831,14 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                                               currentNode,
                                                               new OrderedPair<>(i, exType));
 
-            PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + reasonForException + ")",
+            String falseReason;
+            if (reasonForException.startsWith("!")) {
+                falseReason = reasonForException.substring(1);
+            }
+            else {
+                falseReason = "!(" + reasonForException + ")";
+            }
+            PDGNode falsePC = PDGNodeFactory.findOrCreateOther(falseReason,
                                                                PDGNodeType.BOOLEAN_FALSE_PC,
                                                                currentNode,
                                                                new OrderedPair<>(i, exType));

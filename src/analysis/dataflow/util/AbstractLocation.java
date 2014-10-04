@@ -1,8 +1,10 @@
 package analysis.dataflow.util;
 
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.graph.PointsToGraph;
 
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
 
@@ -18,7 +20,7 @@ public class AbstractLocation {
     /**
      * field this location represents
      */
-    private final FieldReference field;
+    private final IField field;
     /**
      * true if this location represents the contents of an array
      */
@@ -26,13 +28,13 @@ public class AbstractLocation {
 
     /**
      * Create an abstract location for a field
-     * 
+     *
      * @param receiverContext
      *            receiver heap context (null for static fields)
      * @param field
      *            field this location represents
      */
-    private AbstractLocation(InstanceKey receiverContext, FieldReference field, boolean isArrayContents) {
+    private AbstractLocation(InstanceKey receiverContext, IField field, boolean isArrayContents) {
         this.receiverContext = receiverContext;
         this.field = field;
         this.isArrayContents = isArrayContents;
@@ -40,19 +42,21 @@ public class AbstractLocation {
 
     /**
      * Create an abstract location for a non-static field
-     * 
+     *
      * @param receiverContext
      *            receiver heap context
      * @param field
      *            field this location represents
      */
     public static AbstractLocation createNonStatic(InstanceKey receiverContext, FieldReference field) {
-        return new AbstractLocation(receiverContext, field, false);
+        IField f = AnalysisUtil.getClassHierarchy().resolveField(receiverContext.getConcreteType(), field);
+        AbstractLocation a = new AbstractLocation(receiverContext, f, false);
+        return a;
     }
 
     /**
      * Create an abstract location representing the contents of an array
-     * 
+     *
      * @param array
      *            array heap context
      */
@@ -62,17 +66,18 @@ public class AbstractLocation {
 
     /**
      * Create an abstract location for a non-static field
-     * 
+     *
      * @param field
      *            field this location represents
      */
     public static AbstractLocation createStatic(FieldReference field) {
-        return new AbstractLocation(null, field, false);
+        IField f = AnalysisUtil.getClassHierarchy().resolveField(field);
+        return new AbstractLocation(null, f, false);
     }
 
     /**
      * Get the heap context for the receiver. Will be null if this represents a static field.
-     * 
+     *
      * @return Heap context (null for static)
      */
     public InstanceKey getReceiverContext() {
@@ -91,25 +96,33 @@ public class AbstractLocation {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         AbstractLocation other = (AbstractLocation) obj;
         if (field == null) {
-            if (other.field != null)
+            if (other.field != null) {
                 return false;
-        } else if (!field.equals(other.field))
+            }
+        } else if (!field.equals(other.field)) {
             return false;
-        if (isArrayContents != other.isArrayContents)
+        }
+        if (isArrayContents != other.isArrayContents) {
             return false;
+        }
         if (receiverContext == null) {
-            if (other.receiverContext != null)
+            if (other.receiverContext != null) {
                 return false;
-        } else if (!receiverContext.equals(other.receiverContext))
+            }
+        } else if (!receiverContext.equals(other.receiverContext)) {
             return false;
+        }
         return true;
     }
 

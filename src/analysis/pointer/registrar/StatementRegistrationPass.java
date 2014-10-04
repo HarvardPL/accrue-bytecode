@@ -18,11 +18,13 @@ import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.MethodReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Collect pointer analysis constraints with a pass over the code
@@ -111,6 +113,21 @@ public class StatementRegistrationPass {
                 if (!m.getReturnType().isPrimitiveType()) {
                     IClass retType = AnalysisUtil.getClassHierarchy().lookupClass(m.getReturnType());
                     processInstanceClass(seenInstancesOf, retType, waitingForInstances, q);
+                }
+
+                // Also assume that the exception object was constructed by the method
+                try {
+                    TypeReference[] exceptions = m.getDeclaredExceptions();
+                    if (exceptions != null) {
+                        for (TypeReference exType : exceptions) {
+                            // Record the "initialization" of the exception type
+                            IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
+                            processInstanceClass(seenInstancesOf, exClass, waitingForInstances, q);
+                        }
+                    }
+                }
+                catch (UnsupportedOperationException | InvalidClassFileException e) {
+                    throw new RuntimeException(e);
                 }
 
                 // There are no instructions to process.

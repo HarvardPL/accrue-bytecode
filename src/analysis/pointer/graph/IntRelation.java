@@ -1,7 +1,6 @@
 package analysis.pointer.graph;
 
 import util.intmap.ConcurrentIntMap;
-import util.intmap.SimpleConcurrentIntMap;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 
 import com.ibm.wala.util.intset.EmptyIntSet;
@@ -13,8 +12,8 @@ import com.ibm.wala.util.intset.MutableIntSet;
  * Representation of a relation on ints.
  */
 public class IntRelation {
-    private final ConcurrentIntMap<MutableIntSet> forwardReln = new SimpleConcurrentIntMap<>();
-    private final ConcurrentIntMap<MutableIntSet> backReln = new SimpleConcurrentIntMap<>();
+    private final ConcurrentIntMap<MutableIntSet> forwardReln = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<MutableIntSet> backReln = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     boolean add(int from, int to) {
         boolean changed = getOrCreateSet(from, true).add(to);

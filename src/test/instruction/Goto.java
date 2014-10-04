@@ -2,7 +2,7 @@ package test.instruction;
 
 public class Goto {
     static int x;
-    static boolean y;
+    static boolean y = true;
 
     public static void main(String[] args) {
 
@@ -11,6 +11,6 @@ public class Goto {
                 break label;
             }
         }
-
+        x = 4;
     }
 }

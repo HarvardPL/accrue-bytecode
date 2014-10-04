@@ -1,12 +1,17 @@
 package main;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPOutputStream;
 
 import org.json.JSONException;
 
@@ -39,12 +44,15 @@ import analysis.string.StringAnalysisResults;
 import analysis.string.StringVariableFactory;
 import analysis.string.StringVariableFactory.StringVariable;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
 import com.ibm.wala.properties.WalaProperties;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.types.ClassLoaderReference;
+import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.WalaException;
 
 /**
@@ -55,14 +63,10 @@ public class AccrueAnalysisMain {
     /**
      * Run one of the selected tests
      *
-     * @param args
-     *            options and parameters see useage (pass in "-h") for details
-     * @throws IOException
-     *             file writing issues
-     * @throws ClassHierarchyException
-     *             issues reading class files
-     * @throws JSONException
-     *             issues writing JSON file
+     * @param args options and parameters see useage (pass in "-h") for details
+     * @throws IOException file writing issues
+     * @throws ClassHierarchyException issues reading class files
+     * @throws JSONException issues writing JSON file
      */
     public static void main(String[] args) throws IOException, ClassHierarchyException, JSONException {
         AccrueAnalysisOptions options = AccrueAnalysisOptions.getOptions(args);
@@ -172,6 +176,28 @@ public class AccrueAnalysisMain {
             g = results.fst();
             printAllCFG(g);
             break;
+        case "cfg-for-class":
+            AnalysisUtil.init(classPath, null);
+            String name = "L" + options.getClassNameForCFG().replace(".", "/");
+            System.err.println("Printing CFGs for " + name);
+            TypeReference type = TypeReference.findOrCreate(ClassLoaderReference.Application, name);
+            System.err.println("Found type " + type);
+            IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(type);
+            System.err.println("Found class " + klass);
+            for (IMethod m : klass.getAllMethods()) {
+                System.err.println("MR " + m.getReference());
+                System.err.println("\tSelector " + m.getSelector());
+                System.err.println("\tDescriptor " + m.getDescriptor());
+                System.err.println("\tParams " + Arrays.toString(m.getDescriptor().getParameters()));
+                IR methodIR = AnalysisUtil.getIR(m);
+                if (methodIR != null) {
+                    CFGWriter.writeToFile(m);
+                }
+                else {
+                    System.err.println("Did not print CFG for (native) method: " + PrettyPrinter.methodString(m));
+                }
+            }
+            break;
         case "pdg":
             AnalysisUtil.init(classPath, entryPoint);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
@@ -181,19 +207,21 @@ public class AccrueAnalysisMain {
             nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
             preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
             ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
-            ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, rvCache);
+            ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, nonNull, rvCache);
             pdg.printDetailedCounts();
             String fullName = "tests/pdg_" + fileName + ".json";
-            try (FileWriter file = new FileWriter(fullName)) {
-                pdg.writeJSON(file);
+            GZIPOutputStream gzip = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(fullName + ".gz")));
+            try (Writer writer = new BufferedWriter(new OutputStreamWriter(gzip))) {
+                pdg.writeJSON(writer);
+                System.err.println("JSON written to " + fullName + ".gz");
             }
-            System.err.println("JSON written to " + fullName);
+
             if (fileLevel >= 1) {
-                printAllCFG(g);
-                pdg.intraProcDotToFile(1);
+                pdg.intraProcDotToFile(1, "");
             }
 
             if (fileLevel >= 2) {
+                printAllCFG(g);
                 r2.writeAllToFiles();
                 nonNull.writeAllToFiles(r);
                 preciseEx.writeAllToFiles(r);
@@ -205,6 +233,22 @@ public class AccrueAnalysisMain {
                     pdg.writeDot(dotfile, true, 1);
                 }
                 System.err.println("DOT written to " + dotName);
+                // Also write out the PDG for "main"
+                pdg.intraProcDotToFile(1, "main");
+
+                // Also the non null results for main
+                String nullfileName = "tests/nonnull_main_" + fileName + ".dot";
+                try (Writer w = new FileWriter(nullfileName)) {
+                    nonNull.writeResultsForMethod(w, "main", r);
+                    System.err.println("DOT written to " + nullfileName);
+                }
+
+                // Also the precise exceptions results for main
+                String preciseExFileName = "tests/preciseEx_main_" + fileName + ".dot";
+                try (Writer w = new FileWriter(preciseExFileName)) {
+                    preciseEx.writeResultsForMethod(w, "main", r);
+                    System.err.println("DOT written to " + preciseExFileName);
+                }
             }
             break;
         case "android-cfg":
@@ -236,8 +280,7 @@ public class AccrueAnalysisMain {
     /**
      * Print the control flow graph for all procedures in the call graph
      *
-     * @param g
-     *            points to graph
+     * @param g points to graph
      */
     private static void printAllCFG(PointsToGraph g) {
         Set<IMethod> printed = new LinkedHashSet<>();
@@ -253,7 +296,8 @@ public class AccrueAnalysisMain {
                 IR ir = AnalysisUtil.getIR(m);
                 if (ir != null) {
                     printSingleCFG(ir, fileName);
-                } else {
+                }
+                else {
                     System.err.println("No CFG for " + PrettyPrinter.cgNodeString(n) + " it "
                             + (m.isNative() ? "was" : "wasn't") + " native");
                 }
@@ -264,16 +308,14 @@ public class AccrueAnalysisMain {
     /**
      * Generate the full points-to graph, print statistics, and save it to a file.
      *
-     * @param outputLevel
-     *            print level
-     * @param haf
-     *            Definition of the abstraction for heap locations
-     * @param online
-     *            if true then points-to statements are registered during pointer analysis, rather than before
+     * @param outputLevel print level
+     * @param haf Definition of the abstraction for heap locations
+     * @param online if true then points-to statements are registered during pointer analysis, rather than before
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
-                                                                                            HeapAbstractionFactory haf, boolean isOnline) {
+                                                                                            HeapAbstractionFactory haf,
+                                                                                            boolean isOnline) {
         //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
@@ -300,7 +342,7 @@ public class AccrueAnalysisMain {
                 }
             }
         }
-//        System.err.println(g.getNodes().size() + " PTG nodes.");
+        //        System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
         System.err.println(g.clinitCount + " Class initializers.");
 
@@ -311,10 +353,8 @@ public class AccrueAnalysisMain {
     /**
      * Print the control flow graph for the given method
      *
-     * @param IR
-     *            code for the method to be printed
-     * @param fileName
-     *            file to save the results
+     * @param IR code for the method to be printed
+     * @param fileName file to save the results
      */
     private static void printSingleCFG(IR ir, String fileName) {
         CFGWriter cfg = new CFGWriter(ir);
@@ -323,7 +363,8 @@ public class AccrueAnalysisMain {
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             cfg.writeVerbose(out, "", "\\l");
             System.err.println("DOT written to: " + fullFilename);
-        } catch (IOException e) {
+        }
+        catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
     }
@@ -331,12 +372,9 @@ public class AccrueAnalysisMain {
     /**
      * Run the non-null analysis and return the results
      *
-     * @param method
-     *            method to print the results for
-     * @param g
-     *            points-to graph
-     * @param r
-     *            results of a reachability analysis
+     * @param method method to print the results for
+     * @param g points-to graph
+     * @param r results of a reachability analysis
      * @return the results of the non-null analysis
      */
     private static NonNullResults runNonNull(int outputLevel, PointsToGraph g, ReachabilityResults r,
@@ -350,19 +388,18 @@ public class AccrueAnalysisMain {
     /**
      * Run a precise exceptions analysis
      *
-     * @param outputLevel
-     *            level of logging
-     * @param g
-     *            points-to graph
-     * @param r
-     *            results of a reachability analysis
-     * @param nonNull
-     *            results of a non-null analysis
+     * @param outputLevel level of logging
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @param nonNull results of a non-null analysis
      * @return the results of the precise exceptions analysis
      */
     private static PreciseExceptionResults runPreciseExceptions(int outputLevel, PointsToGraph g,
-                                                                ReachabilityResults r, NonNullResults nonNull, ReferenceVariableCache rvCache) {
-        PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g, nonNull, r,
+                                                                ReachabilityResults r, NonNullResults nonNull,
+                                                                ReferenceVariableCache rvCache) {
+        PreciseExceptionInterproceduralDataFlow analysis = new PreciseExceptionInterproceduralDataFlow(g,
+                                                                                                       nonNull,
+                                                                                                       r,
                                                                                                        rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
@@ -372,14 +409,10 @@ public class AccrueAnalysisMain {
     /**
      * Run the inter-procedural reachability analysis
      *
-     * @param outputLevel
-     *            logging level
-     * @param g
-     *            points-to graph
-     * @param rvCache
-     *            cache of points-to analysis reference variables
-     * @param preciseEx
-     *            results of a precise exceptions analysis or null if none has been run yet
+     * @param outputLevel logging level
+     * @param g points-to graph
+     * @param rvCache cache of points-to analysis reference variables
+     * @param preciseEx results of a precise exceptions analysis or null if none has been run yet
      */
     private static ReachabilityResults runReachability(int outputLevel, PointsToGraph g,
                                                        ReferenceVariableCache rvCache, PreciseExceptionResults preciseEx) {
@@ -392,19 +425,17 @@ public class AccrueAnalysisMain {
     /**
      * Run an inter-procedural analysis that generates a program dependence graph
      *
-     * @param outputLevel
-     *            logging level
-     * @param g
-     *            points-to graph
-     * @param r
-     *            results of a reachability analysis
-     * @param preciseEx
-     *            results of a precise exceptions analysis
+     * @param outputLevel logging level
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @param preciseEx results of a precise exceptions analysis
+     * @param nonNull results of a non-null analysis
      * @return the program dependence graph
      */
     private static ProgramDependenceGraph runPDG(int outputLevel, PointsToGraph g, ReachabilityResults r,
-                                                 PreciseExceptionResults preciseEx, ReferenceVariableCache rvCache) {
-        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, rvCache);
+                                                 PreciseExceptionResults preciseEx, NonNullResults nonNull,
+                                                 ReferenceVariableCache rvCache) {
+        PDGInterproceduralDataFlow analysis = new PDGInterproceduralDataFlow(g, preciseEx, r, nonNull, rvCache);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
@@ -413,10 +444,8 @@ public class AccrueAnalysisMain {
     /**
      * Run the analysis to determine which locals are boolean constants and print the results
      *
-     * @param entryPoint
-     *            full name of class to print results for contained methods
-     * @param outputLevel
-     *            amount of debugging
+     * @param entryPoint full name of class to print results for contained methods
+     * @param outputLevel amount of debugging
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel, haf, true);

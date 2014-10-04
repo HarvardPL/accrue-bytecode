@@ -2,13 +2,13 @@ package main;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import util.OrderedPair;
 import analysis.pointer.analyses.CrossProduct;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.parser.HeapAbstractionFactoryParser;
 
 import com.beust.jcommander.IParameterValidator;
 import com.beust.jcommander.JCommander;
@@ -71,6 +71,14 @@ public final class AccrueAnalysisOptions {
     private String entryPoint;
 
     /**
+     * Name of class to print CFG for if cfg-for-class analysis is being run
+     */
+    @Parameter(
+        names = { "-cn", "-classname" },
+        description = "Name of class to print CFGs for if cfg-for-class analysis is being run")
+    private String className;
+
+    /**
      * If false then register points-to statements during the points-to analysis. If true then register them before the
      * points-to analysis. The latter will register many more statements since there is less information about the types
      * of the receivers of virtual methods.
@@ -118,6 +126,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("reachability")) {
                 return;
             }
+            if (value.equals("cfg-for-class")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);
@@ -143,7 +154,7 @@ public final class AccrueAnalysisOptions {
         public void validate(String name, String value) throws ParameterException {
             // validate by attempting to construct the heap abstraction factory.
             // This will unfortunately end up creating the heap abstraction factory multiple times
-            constructHaf(value);
+            parseHaf(value);
         }
     }
 
@@ -160,13 +171,16 @@ public final class AccrueAnalysisOptions {
     /**
      * Parse the options for the given args
      *
-     * @param args
-     * @return
+     * @param args arguments to parse
+     * @return Options object with the parsed options available via getters
      */
-    @SuppressWarnings("unused")
     public static AccrueAnalysisOptions getOptions(String[] args) {
         AccrueAnalysisOptions o = new AccrueAnalysisOptions();
-        new JCommander(o, args);
+        JCommander jc = new JCommander();
+        //        System.setProperty(JCommander.DEBUG_PROPERTY, "true");
+        //        jc.setVerbose(100);
+        jc.addObject(o);
+        jc.parse(args);
         return o;
     }
 
@@ -221,93 +235,384 @@ public final class AccrueAnalysisOptions {
         return analysisClassPath;
     }
 
-
+    /**
+     * Get the heap abstraction factory responsible for creating analysis contexts
+     *
+     * @return heap abstraction factory
+     */
     public HeapAbstractionFactory getHaf() {
         if (this.haf == null) {
-            this.haf = constructHaf(this.hafString);
+            this.haf = parseHaf(this.hafString);
         }
         return this.haf;
     }
 
-    protected static HeapAbstractionFactory constructHaf(String hafString) {
-        List<OrderedPair<String, List<Integer>>> classes;
+    /**
+     * Parse a Heap Abstraction Factory
+     *
+     * <pre>
+     * The grammar is:
+     *
+     * hafs ::=
+     *         haf                        // a single heap abstraction factory
+     *       | haf "," hafs               // a cross-product heap abstraction factory
+     *       | haf "x" hafs               // a cross-product heap abstraction factory
+     *       | "[" hafs "]"               // parenthetized hafs
+     *       | "(" hafs ")"               // parenthetized hafs
+     *       | "{" hafs "}"               // parenthetized hafs
+     *
+     * haf ::=
+     *         hafClassName               // a heap abstraction factory class, default constructor
+     *       | hafClassName "(" args ")"  // a heap abstraction factory class, pass args to constructor
+     *
+     * hafClassName ::=
+     *         "type"                     // synonym for "analysis.pointer.analyses.TypeSensitive"
+     *       | "scs"                      // synonym for "analysis.pointer.analyses.StaticCallSiteSensitive"
+     *       | "cs"                       // synonym for "analysis.pointer.analyses.CallSiteSensitive"
+     *       | "full"                     // synonym for "analysis.pointer.analyses.FullObjSensitive"
+     *       | cn                         // name of heap abstraction factory class. Either a fully qualified class name, or short name of a class in package analysis.pointer.analyses.
+     *
+     * cn ::= id
+     *      | cn "." id                   // a class name
+     *
+     * args ::= arg | arg "," args        // a list of arguments
+     *
+     * arg ::= int | stringLiteral | "{" hafs "}"         // an arg is either an int, or a string literal or a heap abstraction factory.
+     *
+     * </pre>
+     *
+     * @param hafString String to parse
+     * @return the HeapAbstractionFactory for the given String
+     */
+    static HeapAbstractionFactory parseHaf(String hafString) {
         try {
-            classes = HeapAbstractionFactoryParser.parse(hafString);
-        } catch (Exception e) {
+            OrderedPair<HeapAbstractionFactory, Integer> p = parseHafs(hafString, 0);
+            if (p.snd() != hafString.length()) {
+                throw new ParseException("There are " + (hafString.length() - p.snd())
+                        + " characters remaining after parsing " + hafString);
+            }
+            return p.fst();
+
+        }
+        catch (Throwable e) {
             System.err.println("Could not parse HeapAbstractionFactory name: " + hafString);
+            System.err.println("Due to " + e);
             System.err.println(heapAbstractionUsage());
             throw new ParameterException(e);
         }
+    }
 
-        List<HeapAbstractionFactory> children = new LinkedList<>();
-        for (OrderedPair<String, List<Integer>> constructor : classes) {
-            String className = constructor.fst();
-            List<Integer> args = constructor.snd();
-            Class<?> c;
-            try {
-                if (className == null) {
-                    System.err.println(hafString);
-                    System.err.println();
+    /**
+     * Exception thrown by the heap abstraction factory parser
+     */
+    private static class ParseException extends Exception {
+        private static final long serialVersionUID = -2672328694904403843L;
+
+        public ParseException(String m) {
+            super(m);
+        }
+
+    }
+
+    /**
+     * Parse a heap abstraction factory string at the given index in the given string
+     *
+     * @param hafString string to parse
+     * @param ind current place in the string
+     * @return Class corresponding to the string being parsed and position in original string.
+     * @throws ParseException parser error
+     */
+    private static OrderedPair<HeapAbstractionFactory, Integer> parseHafs(String hafString, int ind)
+                                                                                                      throws ParseException {
+        List<HeapAbstractionFactory> hafs = new ArrayList<>();
+
+        ind = consumeWhiteSpace(hafString, ind);
+        Character closeParen = null;
+        if (ind < hafString.length() && hafString.charAt(ind) == '(') {
+            ind++; // consume the paren
+            // set up the close paren
+            closeParen = ')';
+        }
+        else if (ind < hafString.length() && hafString.charAt(ind) == '[') {
+            ind++; // consume the paren
+            // set up the close paren
+            closeParen = ']';
+        }
+        else if (ind < hafString.length() && hafString.charAt(ind) == '{') {
+            ind++; // consume the paren
+            // set up the close paren
+            closeParen = '}';
+        }
+
+        OrderedPair<HeapAbstractionFactory, Integer> op = parseBaseHaf(hafString, ind);
+        hafs.add(op.fst());
+        ind = op.snd();
+        while (ind < hafString.length() && (hafString.charAt(ind) == ',' || hafString.charAt(ind) == 'x')) {
+            ind++;
+            OrderedPair<HeapAbstractionFactory, Integer> next = parseBaseHaf(hafString, ind);
+            hafs.add(next.fst());
+            ind = next.snd();
+        }
+
+        ind = consumeWhiteSpace(hafString, ind);
+        if (closeParen != null) {
+            if (!(ind < hafString.length() && hafString.charAt(ind) == closeParen.charValue())) {
+                throw new ParseException("No closing paren, '" + closeParen + "' , in " + hafString);
+            }
+            ind++; // consume the close paren
+            ind = consumeWhiteSpace(hafString, ind);
+        }
+
+        HeapAbstractionFactory haf = null;
+        for (HeapAbstractionFactory h : hafs) {
+            if (haf == null) {
+                haf = h;
+            }
+            else {
+                haf = new CrossProduct(haf, h);
+            }
+        }
+        return new OrderedPair<>(haf, ind);
+
+    }
+
+    /**
+     * Parse a single heap abstraction factory (i.e. not a cross product) at the given index in the given string
+     *
+     * @param hafString string to parse
+     * @param ind current index in the string
+     * @return parsed HeapAbstractionFactory and new index into the original string
+     * @throws ParseException parser problem
+     */
+    private static OrderedPair<HeapAbstractionFactory, Integer> parseBaseHaf(String hafString, int ind)
+                                                                                                         throws ParseException {
+        ind = consumeWhiteSpace(hafString, ind);
+        OrderedPair<String, Integer> op = parseClassName(hafString, ind);
+        if (op == null) {
+            throw new ParseException("Could not parse class name " + hafString);
+        }
+        String hafClassname = op.fst();
+        ind = op.snd();
+
+        // try to parse args
+        List<Object> args = null;
+        if (ind < hafString.length() && hafString.charAt(ind) == '(') {
+            ind++; // consume the paren
+            OrderedPair<List<Object>, Integer> argsParse = parseArgs(hafString, ind);
+            args = argsParse.fst();
+            ind = argsParse.snd();
+            if (hafString.charAt(ind) != ')') {
+                throw new ParseException("No closing paren around arguments in " + hafString);
+            }
+            ind++; // consume the close paren
+        }
+        ind = consumeWhiteSpace(hafString, ind);
+        HeapAbstractionFactory haf = constructHaf(hafClassname, args);
+        return new OrderedPair<>(haf, ind);
+    }
+
+    /**
+     * Parse a class name at the given index of the given string
+     *
+     * @param s string to parse
+     * @param ind current place in the string
+     * @return parsed classname and new place in string
+     */
+    private static OrderedPair<String, Integer> parseClassName(String s, int ind) {
+        StringBuffer cn = new StringBuffer();
+        OrderedPair<String, Integer> p = parseId(s, ind);
+        cn.append(p.fst());
+        ind = p.snd();
+        while (s.length() > ind && s.charAt(ind) == '.') {
+            ind++; // consume ","
+            cn.append('.');
+            p = parseId(s, ind);
+            cn.append(p.fst());
+            ind = p.snd();
+        }
+        ind = consumeWhiteSpace(s, ind);
+        return new OrderedPair<>(cn.toString(), ind);
+    }
+
+    /**
+     * Parse a java identifier at the given index of the given string
+     *
+     * @param s string to parse
+     * @param ind place in the string
+     * @return parsed identifier and new place in string
+     */
+    private static OrderedPair<String, Integer> parseId(String s, int ind) {
+        StringBuffer id = new StringBuffer();
+        while (ind < s.length() && Character.isJavaIdentifierPart(s.charAt(ind))) {
+            id.append(s.charAt(ind++));
+        }
+        return new OrderedPair<>(id.toString(), ind);
+    }
+
+    /**
+     * Parse the arguments to a heap abstraction factory constructor at the given index of the given string
+     *
+     * @param s string to parse
+     * @param ind place in the string
+     * @return parsed identifier and new place in string
+     */
+    private static OrderedPair<List<Object>, Integer> parseArgs(String s, int ind) throws ParseException {
+        List<Object> args = new ArrayList<>();
+        OrderedPair<Object, Integer> p = parseArg(s, ind);
+        args.add(p.fst());
+        ind = p.snd();
+        ind = consumeWhiteSpace(s, ind);
+        while (s.charAt(ind) == ',') {
+            ind++; // consume ","
+            ind = consumeWhiteSpace(s, ind);
+            p = parseArg(s, ind);
+            args.add(p.fst());
+            ind = p.snd();
+        }
+        return new OrderedPair<>(args, ind);
+    }
+
+    /**
+     * Parse a single argument to a heap abstraction factory constructor
+     *
+     * @param s string to parse
+     * @param ind place in the string
+     * @return parsed identifier and new place in string
+     */
+    private static OrderedPair<Object, Integer> parseArg(String s, int ind) throws ParseException {
+        ind = consumeWhiteSpace(s, ind);
+        if (s.charAt(ind) == '{') {
+            ind++; // consume '{'
+            OrderedPair<HeapAbstractionFactory, Integer> h = parseHafs(s, ind);
+            ind = h.snd();
+            ind = consumeWhiteSpace(s, ind);
+            if (s.charAt(ind) != '}') {
+                throw new ParseException("No closing } in HaF argument for " + s);
+            }
+            ind++; // consume '}'
+            ind = consumeWhiteSpace(s, ind);
+            return new OrderedPair<Object, Integer>(h.fst(), ind);
+        }
+        else if (s.charAt(ind) == '"') {
+            // we have a string literal.
+            OrderedPair<String, Integer> lit = parseStringLiteral(s, ind);
+            ind = lit.snd();
+            ind = consumeWhiteSpace(s, ind);
+            return new OrderedPair<Object, Integer>(lit.fst(), ind);
+        }
+        // we should have an int
+        StringBuffer sb = new StringBuffer();
+        while (ind < s.length() && Character.isDigit(s.charAt(ind))) {
+            sb.append(s.charAt(ind++));
+        }
+        return new OrderedPair<Object, Integer>(Integer.valueOf(sb.toString()), ind);
+
+    }
+
+    private static OrderedPair<String, Integer> parseStringLiteral(String s, int ind) throws ParseException {
+        if (s.charAt(ind) != '"') {
+            throw new ParseException("Expecting \" for start of string literal");
+        }
+        ind++; // consume the quote
+        StringBuilder sb = new StringBuilder();
+        while (ind < s.length()) {
+            if (s.charAt(ind) == '\\') {
+                if (ind + 1 < s.length()) {
+                    throw new ParseException("Unclosed string literal");
                 }
-                c = Class.forName(className);
-            } catch (ClassNotFoundException e) {
-                // try again but prepend the analysis package
-                try {
-                    c = Class.forName("analysis.pointer.analyses." + className);
-                } catch (ClassNotFoundException e1) {
-                    System.err.println("HeapAbstractionFactory class not found: " + className);
-                    System.err.println("\tin: " + hafString);
-                    System.err.println(heapAbstractionUsage());
-                    throw new ParameterException(e1);
+                // handle an escaped character
+                if (s.charAt(ind + 1) == '\"' || s.charAt(ind + 1) == '\\') {
+                    // it is an escaped backslash, or an escaped literal
+                    sb.append(s.charAt(ind + 1));
+                    ind += 2;
+                    continue;
                 }
             }
-            Class<?>[] intClasses = new Class[args.size()];
-            int j = 0;
-            for (@SuppressWarnings("unused")
-            Integer i : args) {
-                intClasses[j] = int.class;
-                j++;
+            if (s.charAt(ind) == '\"') {
+                // it's the end of the string literal!
+                ind++; // consume the close quote
+                return new OrderedPair<String, Integer>(sb.toString(), ind);
             }
+            // it's just a normal character
+            sb.append(s.charAt(ind));
+            ind++;
+        }
+        throw new ParseException("Unclosed string literal");
+    }
 
-            Constructor<?> cons;
+    private static int consumeWhiteSpace(String s, int ind) {
+        while (ind < s.length() && Character.isWhitespace(s.charAt(ind))) {
+            ind++;
+        }
+        return ind;
+    }
+
+    private static HeapAbstractionFactory constructHaf(String hafClassname, List<Object> args) throws ParseException {
+        Class<?> c;
+        try {
+            if (hafClassname == null) {
+                throw new ParseException("No class name to instantiate!");
+            }
+            if ("type".equals(hafClassname)) {
+                hafClassname = "analysis.pointer.analyses.TypeSensitive";
+            }
+            else if ("scs".equals(hafClassname)) {
+                hafClassname = "analysis.pointer.analyses.StaticCallSiteSensitive";
+            }
+            else if ("cs".equals(hafClassname)) {
+                hafClassname = "analysis.pointer.analyses.CallSiteSensitive";
+            }
+            else if ("full".equals(hafClassname)) {
+                hafClassname = "analysis.pointer.analyses.FullObjSensitive";
+            }
+            c = Class.forName(hafClassname);
+        }
+        catch (ClassNotFoundException e) {
+            // try again but prepend the analysis package
             try {
-                cons = c.getConstructor(intClasses);
-            } catch (NoSuchMethodException | SecurityException e) {
-                System.err.println("HeapAbstractionFactory constructor not found: " + className + " with "
-                                                + args.size() + " int arguments");
-                System.err.println("\tin: " + hafString);
-                System.err.println(heapAbstractionUsage());
-                throw new ParameterException(e);
+                c = Class.forName("analysis.pointer.analyses." + hafClassname);
             }
-
-            try {
-                children.add((HeapAbstractionFactory) cons.newInstance(args.toArray()));
-            } catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-                                            | InvocationTargetException e) {
-                System.err.println("Could not invoke HeapAbstractionFactory constructor: " + className + " with "
-                                                + args.size() + " int arguments");
-                System.err.println("Arguments were: " + args);
-                System.err.println("\tin: " + hafString);
-                System.err.println(heapAbstractionUsage());
-                throw new ParameterException(e);
+            catch (ClassNotFoundException e1) {
+                throw new ParseException("HeapAbstractionFactory class not found: " + hafClassname);
             }
         }
-
-        if (children.size() == 0) {
-            System.err.println("Parser parsed no HeapAbstractionFactory for: " + hafString);
-            System.err.println(heapAbstractionUsage());
-            throw new ParameterException("Parser parsed no HeapAbstractionFactory for: " + hafString);
+        if (args == null) {
+            args = Collections.emptyList();
         }
-
-        HeapAbstractionFactory hf = null;
-        for (HeapAbstractionFactory haf : children) {
-            if (hf == null) {
-                hf = haf;
-            } else {
-                hf = new CrossProduct(hf, haf);
+        Class<?>[] argClasses = new Class[args.size()];
+        int j = 0;
+        for (Object a : args) {
+            if (a instanceof Integer) {
+                argClasses[j++] = int.class;
+            }
+            else if (a instanceof String) {
+                argClasses[j++] = String.class;
+            }
+            else if (a instanceof HeapAbstractionFactory) {
+                argClasses[j++] = HeapAbstractionFactory.class;
+            }
+            else {
+                throw new RuntimeException("Unexpected argument class: " + a.getClass());
             }
         }
-        return hf;
+
+        Constructor<?> cons;
+        try {
+            cons = c.getConstructor(argClasses);
+        }
+        catch (NoSuchMethodException | SecurityException e) {
+            throw new ParseException("HeapAbstractionFactory constructor not found: " + c.getCanonicalName() + " with "
+                    + args.size() + " arguments");
+        }
+
+        try {
+            return (HeapAbstractionFactory) cons.newInstance(args.toArray());
+        }
+        catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+            throw new ParseException("Could not invoke HeapAbstractionFactory constructor: " + c.getCanonicalName()
+                    + " with " + args.size() + " arguments; arguments were: " + args + " REASON " + e);
+        }
+
     }
 
     /**
@@ -332,7 +637,7 @@ public final class AccrueAnalysisOptions {
      *
      * @return String containing the documentation
      */
-    protected static String analysisNameUsage() {
+    static String analysisNameUsage() {
         StringBuilder sb = new StringBuilder();
         sb.append("Supported analyses:\n");
         sb.append("\tpointsto - runs the points-to analysis, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
@@ -346,7 +651,7 @@ public final class AccrueAnalysisOptions {
         return sb.toString();
     }
 
-    protected static String heapAbstractionUsage() {
+    private static String heapAbstractionUsage() {
         StringBuilder sb = new StringBuilder();
         sb.append("Supported analyses:\n");
         sb.append("\ttype - Type Sensitive analysis (default parameters 2Type+1H)\n");
@@ -359,6 +664,18 @@ public final class AccrueAnalysisOptions {
 
     public boolean shouldWriteDotPDG() {
         return writeDotPDG;
+    }
+
+    /**
+     * Get the class name to write control graphs for when cfg-for-class analysis is selected
+     *
+     * @return name name of class to write CFG files for
+     */
+    public String getClassNameForCFG() {
+        if (className == null) {
+            throw new RuntimeException("Specify the class name to print CFGs for with the -cn or -className options");
+        }
+        return className;
     }
 
 }
