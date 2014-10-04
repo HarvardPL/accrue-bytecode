@@ -97,6 +97,7 @@ public class ProgramPointSetClosure {
      * @return
      */
     private Collection<InterProgramPointReplica> getSources(PointsToGraph g) {
+        // XXX TODO turn this into an interator, so that we lazily look at these allocation sites.
         List<InterProgramPointReplica> s = new ArrayList<>();
         if (!g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
             // we need to add allocation sites of the to object, where from pointed to
@@ -114,14 +115,15 @@ public class ProgramPointSetClosure {
         }
         if (this.fromBase >= 0 && !g.isMostRecentObject(this.fromBase) && g.isTrackingMostRecentObject(this.fromBase)) {
             // we are the set of program points for which "fromBase_{nonrecent}.f" points to "to"
-            int mostRecentVersion = g.mostRecentVersion(this.fromBase);
+            int iFromBaseRecent = g.mostRecentVersion(this.fromBase);
+
             ObjectField fromNode = (ObjectField) g.lookupPointsToGraphNodeDictionary(this.from);
-            ObjectField mostRecentFromBaseNode = fromNode.receiver(g.lookupInstanceKeyDictionary(mostRecentVersion));
-            int mostRecentFromBase = g.lookupDictionary(mostRecentFromBaseNode);
+            ObjectField fromNodeRecent = fromNode.receiver(g.lookupInstanceKeyDictionary(iFromBaseRecent));
+            int iFromNodeRecent = g.lookupDictionary(fromNodeRecent);
             // mostRecentFromBase is now the "fromBase_{most recent}.f"
 
-            for (ProgramPointReplica allocPP : g.getAllocationSitesOf(mostRecentVersion)) {
-                if (g.pointsTo(mostRecentFromBase, this.to, allocPP.pre())) {
+            for (ProgramPointReplica allocPP : g.getAllocationSitesOf(iFromBaseRecent)) {
+                if (g.pointsTo(iFromNodeRecent, this.to, allocPP.pre())) {
                     // the node "fromBase_{most recent}.f" points to "to" before the allocation,
                     // so "fromBase_{nonrecent}.f" points to "to" after the allocation
                     s.add(allocPP.post());
