@@ -103,7 +103,7 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
      * (and speed up the points-to analysis), but result in a loss of precision for strings.
      */
-    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = false;
+    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = true;
 
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
