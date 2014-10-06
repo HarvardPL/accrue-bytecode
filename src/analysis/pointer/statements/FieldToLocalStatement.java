@@ -58,6 +58,7 @@ public class FieldToLocalStatement extends PointsToStatement {
         this.declaredField = f;
         this.receiver = o;
         this.assignee = l;
+        assert !assignee.isFlowSensitive();
     }
 
     @Override
@@ -145,4 +146,12 @@ public class FieldToLocalStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, this.assignee, haf));
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        assert !assignee.isFlowSensitive();
+        // assignee is not flow sensitive.
+        return false;
+    }
+
 }

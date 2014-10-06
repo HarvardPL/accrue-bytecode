@@ -106,11 +106,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createInnerArray(int dim, int pc,
             TypeReference type, IMethod method) {
-        ReferenceVariable local =
-                new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim,
-                                      type,
- false,
-                                      false);
+        ReferenceVariable local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim, type, false, false);
         // These should only be created once assert that this is true
         assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method),
                                       local) == null;
@@ -170,9 +166,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected static ReferenceVariable createMethodExit(TypeReference type,
             IMethod method, ExitType exitType) {
-        ReferenceVariable rv =
-                new ReferenceVariable(PrettyPrinter.methodString(method) + "-"
- + exitType,
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType,
                                                      type,
                                                      false,
                                                      false);

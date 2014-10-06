@@ -58,6 +58,8 @@ public class LocalToLocalStatement extends PointsToStatement {
             boolean isFromMethodSummaryVariable) {
         super(pp);
         assert !left.isSingleton() : left + " is static";
+        assert !right.isFlowSensitive();
+
         this.left = left;
         this.right = right;
         filter = filterBasedOnType;
@@ -134,4 +136,10 @@ public class LocalToLocalStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, left, haf));
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        return left.isFlowSensitive();
+    }
+
 }

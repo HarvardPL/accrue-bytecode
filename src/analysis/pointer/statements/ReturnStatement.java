@@ -45,6 +45,8 @@ public class ReturnStatement extends PointsToStatement {
         super(pp);
         this.result = result;
         this.returnSummary = returnSummary;
+        assert !result.isFlowSensitive();
+        assert !returnSummary.isFlowSensitive();
     }
 
     @Override
@@ -95,6 +97,14 @@ public class ReturnStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, returnSummary, haf));
+    }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // all variables are flow-insensitive
+        assert !result.isFlowSensitive();
+        assert !returnSummary.isFlowSensitive();
+        return false;
     }
 
 }

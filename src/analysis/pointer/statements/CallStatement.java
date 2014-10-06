@@ -224,4 +224,11 @@ public abstract class CallStatement extends PointsToStatement {
         return (CallSiteProgramPoint) super.programPoint();
     }
 
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // a call to another function may affect the flow-sensitive part of the
+        // points to graph, since it may modify the call graph
+        return true;
+    }
+
 }

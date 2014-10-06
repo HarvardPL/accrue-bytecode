@@ -124,4 +124,16 @@ public class NewStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // the allocation may affect the points to graph, even though result
+        // is flow insensitive
+        assert !result.isFlowSensitive();
+
+        // NOTE: if we end up not being flow sensitive for some allocations,
+        // we could improve this.
+        return true;
+    }
+
 }

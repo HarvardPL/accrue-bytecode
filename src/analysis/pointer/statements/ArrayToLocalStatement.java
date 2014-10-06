@@ -44,8 +44,11 @@ public class ArrayToLocalStatement extends PointsToStatement {
     protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a,
  TypeReference baseType, ProgramPoint pp) {
         super(pp);
-        value = v;
-        array = a;
+        this.value = v;
+        this.array = a;
+        assert !v.isFlowSensitive();
+        assert !a.isFlowSensitive();
+
         this.baseType = baseType;
     }
 
@@ -128,5 +131,15 @@ public class ArrayToLocalStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, value, haf));
+    }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        assert !this.value.isFlowSensitive();
+        assert !this.array.isFlowSensitive();
+
+        // the local is not flow sensitive, so we can't update the flow-sensitive
+        // portion of the points to graph.
+        return false;
     }
 }

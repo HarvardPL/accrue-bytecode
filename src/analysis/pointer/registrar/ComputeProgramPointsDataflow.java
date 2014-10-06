@@ -378,11 +378,11 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         return false;
     }
 
-    protected Map<ISSABasicBlock, ProgramPoint> flowBranchImpl(boolean mayChangePointsToGraph, SSAInstruction i,
+    protected Map<ISSABasicBlock, ProgramPoint> flowBranchImpl(boolean mayChangeFlowSensPointsToGraph, SSAInstruction i,
                                                          Set<ProgramPoint> previousItems,
                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                          ISSABasicBlock current) {
-        return factToMap(flowImpl(mayChangePointsToGraph, i, previousItems, cfg, current), current, cfg);
+        return factToMap(flowImpl(mayChangeFlowSensPointsToGraph, i, previousItems, cfg, current), current, cfg);
 
     }
 

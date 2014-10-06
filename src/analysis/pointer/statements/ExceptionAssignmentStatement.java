@@ -56,6 +56,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
                                            boolean isToMethodSummaryVariable) {
         super(pp);
         assert notType != null;
+        assert !thrown.isFlowSensitive();
+        assert !caught.isFlowSensitive();
         this.isToMethodSummaryVariable = isToMethodSummaryVariable;
         this.thrown = thrown;
         this.caught = caught;
@@ -172,6 +174,14 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             return defs;
         }
         return Collections.singleton(r);
+    }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        assert !thrown.isFlowSensitive();
+        assert !caught.isFlowSensitive();
+        // neither variable is flow sensitive
+        return false;
     }
 
 }

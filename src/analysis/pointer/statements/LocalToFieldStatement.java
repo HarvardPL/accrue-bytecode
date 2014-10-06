@@ -58,6 +58,8 @@ public class LocalToFieldStatement extends PointsToStatement {
         this.field = f;
         this.receiver = o;
         this.localVar = v;
+        assert !o.isFlowSensitive();
+        assert !v.isFlowSensitive();
     }
 
     @Override
@@ -154,4 +156,12 @@ public class LocalToFieldStatement extends PointsToStatement {
     protected FieldReference getField() {
         return field;
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // this depends on what the receiver points to. If it can point to a
+        // recent object, then this will be a flow sensitive update.
+        return true;
+    }
+
 }

@@ -1,5 +1,10 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
+import java.util.Set;
+
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -14,6 +19,8 @@ public class ProgramPoint {
     private final boolean isEntrySummaryNode;
     private final boolean isNormalExitSummaryNode;
     private final boolean isExceptionExitSummaryNode;
+
+    private Set<ProgramPoint> succs;
 
     private static int generator;
 
@@ -35,6 +42,7 @@ public class ProgramPoint {
         this.isEntrySummaryNode = isEntrySummaryNode;
         this.isNormalExitSummaryNode = isNormalExitSummaryNode;
         this.isExceptionExitSummaryNode = isExceptionExitSummaryNode;
+        this.succs = null;
     }
 
     public PreProgramPoint pre() {
@@ -47,6 +55,20 @@ public class ProgramPoint {
 
     public IMethod containingProcedure() {
         return this.containingProcedure;
+    }
+
+    public Set<ProgramPoint> succs() {
+        if (this.succs == null) {
+            return Collections.emptySet();
+        }
+        return this.succs;
+    }
+
+    public boolean addSucc(ProgramPoint succ) {
+        if (this.succs == null) {
+            this.succs = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+        }
+        return this.succs.add(succ);
     }
 
     @Override

@@ -47,6 +47,17 @@ public class PhiStatement extends PointsToStatement {
         assert !xs.isEmpty();
         assignee = v;
         uses = xs;
+        assert allFlowInsensitive(xs);
+        assert !assignee.isFlowSensitive();
+    }
+
+    private static boolean allFlowInsensitive(List<ReferenceVariable> vs) {
+        for (ReferenceVariable v : vs) {
+            if (v.isFlowSensitive()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -112,6 +123,14 @@ public class PhiStatement extends PointsToStatement {
     public Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, assignee, haf));
+    }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // all the locals are flow insensitive.
+        assert allFlowInsensitive(uses);
+        assert !assignee.isFlowSensitive();
+        return false;
     }
 
 }

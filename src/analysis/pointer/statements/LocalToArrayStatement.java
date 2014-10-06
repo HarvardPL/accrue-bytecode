@@ -55,6 +55,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v,
  TypeReference baseType, ProgramPoint pp) {
         super(pp);
+        assert !v.isFlowSensitive();
+        assert !a.isFlowSensitive();
         array = a;
         value = v;
         this.baseType = baseType;
@@ -79,6 +81,10 @@ public class LocalToArrayStatement extends PointsToStatement {
                         new ObjectField(arrHeapContext,
                                         PointsToGraph.ARRAY_CONTENTS,
                                         baseType);
+
+                // contents should never be flow sensitive, since it can never be a singleton
+                assert !contents.isFlowSensitive();
+
                 GraphDelta d1 = g.copyEdges(v, pre, contents, post);
                 changed = changed.combine(d1);
             }
@@ -93,6 +99,10 @@ public class LocalToArrayStatement extends PointsToStatement {
                         new ObjectField(arrHeapContext,
                                         PointsToGraph.ARRAY_CONTENTS,
                                         baseType);
+
+                // contents should never be flow sensitive, since it can never be a singleton
+                assert !contents.isFlowSensitive();
+
                 GraphDelta d1 = g.copyEdges(v, pre, contents, post);
                 changed = changed.combine(d1);
             }
@@ -145,4 +155,12 @@ public class LocalToArrayStatement extends PointsToStatement {
             HeapAbstractionFactory haf) {
         return Collections.emptySet();
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // array contents are never singleton fields, and so
+        // it is always a flow insensitive source node.
+        return false;
+    }
+
 }

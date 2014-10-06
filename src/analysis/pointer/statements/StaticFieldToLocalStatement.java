@@ -34,7 +34,6 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     /**
      * Statement for an assignment from a static field to a local, local = ClassName.staticField
      *
-<<<<<<< HEAD
      * @param local
      *            points-to graph node for the assigned value
      * @param staticField
@@ -46,6 +45,7 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         super(pp);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
+        assert !local.isFlowSensitive();
 
         this.staticField = staticField;
         this.local = local;
@@ -104,4 +104,13 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(l);
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        assert !local.isFlowSensitive();
+        // even if the static field is flow sensitive, this will only update the
+        // points to set of local, which is flow insensitive.
+        return false;
+    }
+
 }

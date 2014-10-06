@@ -106,4 +106,11 @@ public class ClassInitStatement extends PointsToStatement {
             HeapAbstractionFactory haf) {
         return Collections.emptyList();
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        // this is like a call.
+        return true;
+    }
+
 }

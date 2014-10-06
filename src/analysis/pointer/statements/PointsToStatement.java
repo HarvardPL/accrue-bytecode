@@ -219,4 +219,11 @@ public abstract class PointsToStatement {
     public abstract Collection<?> getWriteDependencies(Context ctxt,
             HeapAbstractionFactory haf);
 
+    /**
+     * Is it possible that processing this statement will modify the flow-sensitive portion of the points to graph? This
+     * includes anything that may change what a flow-sensitive variable points to, or if it changes the succesor
+     * relation of program points (i.e., statements that change the call graph).
+     */
+    public abstract boolean mayChangeFlowSensPointsToGraph();
+
 }

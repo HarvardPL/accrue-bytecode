@@ -82,6 +82,11 @@ public class StatementRegistrar {
      */
     private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
 
+    /*
+     * Program point to statement map
+     */
+    private final ConcurrentMap<ProgramPoint, PointsToStatement> ppToStmtMap;
+
     /**
      * The total number of statements
      */
@@ -136,14 +141,6 @@ public class StatementRegistrar {
      * Map from method to index mapping replaced variables to their replacements
      */
     private final Map<IMethod, VariableIndex> replacedVariableMap = new LinkedHashMap<>();
-    /*
-     * Program point to statement map
-     */
-    private final Map<ProgramPoint, PointsToStatement> ppToStmtMap = new LinkedHashMap<>();
-    /*
-     * Program point successor map
-     */
-    private final Map<ProgramPoint, Set<ProgramPoint>> ppSuccMap = new LinkedHashMap<>();
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -154,6 +151,7 @@ public class StatementRegistrar {
     public StatementRegistrar(StatementFactory factory) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
+        this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
@@ -807,17 +805,6 @@ public class StatementRegistrar {
         return this.ppToStmtMap.get(pp);
     }
 
-    /*
-     * Get the successors of a program point
-     */
-    public Set<ProgramPoint> getSucc(ProgramPoint pp) {
-        Set<ProgramPoint> s = this.ppSuccMap.get(pp);
-        if (s == null) {
-            return Collections.emptySet();
-        }
-        return s;
-    }
-
     /**
      * Get all methods that should be analyzed in the initial empty context
      *
@@ -890,6 +877,14 @@ public class StatementRegistrar {
         if (stmtListener != null) {
             // let the listener now a statement has been added.
             stmtListener.newStatement(s);
+        }
+
+        // handle the mapping for program points
+        if (s.mayChangeFlowSensPointsToGraph()) {
+            ProgramPoint pp = s.programPoint();
+            PointsToStatement existing = ppToStmtMap.putIfAbsent(pp, s);
+            assert (existing == null) : "More than one statement that may modify the points to graph at a program point: "
+                    + existing + " and " + s;
         }
 
         if ((this.size + StatementRegistrar.removed) % 10000 == 0) {

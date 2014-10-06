@@ -46,6 +46,8 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
         super(pp);
         assert !local.isSingleton() : local + " is static";
         assert staticField.isSingleton() : staticField + " is not static";
+        assert !local.isFlowSensitive();
+
         this.local = local;
         this.staticField = staticField;
     }
@@ -97,4 +99,10 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
             HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
+
+    @Override
+    public boolean mayChangeFlowSensPointsToGraph() {
+        return staticField.isFlowSensitive();
+    }
+
 }

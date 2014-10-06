@@ -198,7 +198,7 @@ public class ProgramPointSetClosure {
             }
         }
         else if (ipp instanceof PostProgramPoint) {
-            Set<ProgramPoint> ppSuccs = g.registrar.getSucc(pp);
+            Set<ProgramPoint> ppSuccs = pp.succs();
             List<InterProgramPointReplica> l = new ArrayList<>(ppSuccs.size());
             for (ProgramPoint succ : ppSuccs) {
                 l.add(InterProgramPointReplica.create(context, succ.pre()));
