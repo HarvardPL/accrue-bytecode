@@ -3,16 +3,12 @@ package analysis;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import signatures.Signatures;
-import util.OrderedPair;
 import util.print.CFGWriter;
-import android.AndroidInit;
 
-import com.ibm.wala.classLoader.DexIRFactory;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.AnalysisCache;
@@ -114,36 +110,37 @@ public class AnalysisUtil {
         // Intentionally blank
     }
 
-    public static void initDex(String androidLibLocation, String pathToApp) throws IOException, ClassHierarchyException {
-        cache = new AnalysisCache(new DexIRFactory());
-        long start = System.currentTimeMillis();
-
-        OrderedPair<IClassHierarchy, AnalysisScope> chaScope = AndroidInit.createAndroidCHAandAnalysisScope(pathToApp,
-                                                                                                            EXCLUSIONS_FILE,
-                                                                                                            androidLibLocation);
-        cha = chaScope.fst();
-        AnalysisScope scope = chaScope.snd();
-        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
-                + (System.currentTimeMillis() - start) + "ms");
-
-        // Set up is a two phase process, first we perform a context-insensitive analysis to find all the reachable
-        // callbacks in the application starting with the activities defined in the manifest. The second phase is to add
-        // all these callbacks to the fake root method in a way that captures the Android application lifecycle.
-
-        // Phase 1: the entry points are the activities found in the manifest
-        AndroidInit aInit = new AndroidInit(pathToApp);
-        Set<Entrypoint> entries = aInit.getActivityEntryPoints();
-        options = new AnalysisOptions(scope, entries);
-        addEntriesToRootMethod();
-        setUpCommonClasses();
-        // We now have valid values for all AnalysisUtil fields, but the entrypoints (system callbacks) are only a
-        // subset of the actual entrypoints. This subset gives a starting point for discovering the rest of the
-        // entrypoints.
-
-        // Phase 2: Find all the call backs and set up the fake root
-        Map<IClass, Set<IMethod>> callbacks = AndroidInit.findAllCallBacks();
-        // Here we do not want to just add all the entrypoints to the fake root, we need to do something more clever
-    }
+    // ANDROID
+    //    public static void initDex(String androidLibLocation, String pathToApp) throws IOException, ClassHierarchyException {
+    //        cache = new AnalysisCache(new DexIRFactory());
+    //        long start = System.currentTimeMillis();
+    //
+    //        OrderedPair<IClassHierarchy, AnalysisScope> chaScope = AndroidInit.createAndroidCHAandAnalysisScope(pathToApp,
+    //                                                                                                            EXCLUSIONS_FILE,
+    //                                                                                                            androidLibLocation);
+    //        cha = chaScope.fst();
+    //        AnalysisScope scope = chaScope.snd();
+    //        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
+    //                + (System.currentTimeMillis() - start) + "ms");
+    //
+    //        // Set up is a two phase process, first we perform a context-insensitive analysis to find all the reachable
+    //        // callbacks in the application starting with the activities defined in the manifest. The second phase is to add
+    //        // all these callbacks to the fake root method in a way that captures the Android application lifecycle.
+    //
+    //        // Phase 1: the entry points are the activities found in the manifest
+    //        AndroidInit aInit = new AndroidInit(pathToApp);
+    //        Set<Entrypoint> entries = aInit.getActivityEntryPoints();
+    //        options = new AnalysisOptions(scope, entries);
+    //        addEntriesToRootMethod();
+    //        setUpCommonClasses();
+    //        // We now have valid values for all AnalysisUtil fields, but the entrypoints (system callbacks) are only a
+    //        // subset of the actual entrypoints. This subset gives a starting point for discovering the rest of the
+    //        // entrypoints.
+    //
+    //        // Phase 2: Find all the call backs and set up the fake root
+    //        Map<IClass, Set<IMethod>> callbacks = AndroidInit.findAllCallBacks();
+    //        // Here we do not want to just add all the entrypoints to the fake root, we need to do something more clever
+    //    }
 
     /**
      * Create a pass which will generate points-to statements

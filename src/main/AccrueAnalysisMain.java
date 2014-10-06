@@ -7,7 +7,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -185,10 +184,6 @@ public class AccrueAnalysisMain {
             IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(type);
             System.err.println("Found class " + klass);
             for (IMethod m : klass.getAllMethods()) {
-                System.err.println("MR " + m.getReference());
-                System.err.println("\tSelector " + m.getSelector());
-                System.err.println("\tDescriptor " + m.getDescriptor());
-                System.err.println("\tParams " + Arrays.toString(m.getDescriptor().getParameters()));
                 IR methodIR = AnalysisUtil.getIR(m);
                 if (methodIR != null) {
                     CFGWriter.writeToFile(m);
@@ -208,7 +203,7 @@ public class AccrueAnalysisMain {
             preciseEx = runPreciseExceptions(otherOutputLevel, g, r, nonNull, rvCache);
             ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
             ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, nonNull, rvCache);
-            pdg.printDetailedCounts();
+            pdg.printSimpleCounts();
             String fullName = "tests/pdg_" + fileName + ".json";
             GZIPOutputStream gzip = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(fullName + ".gz")));
             try (Writer writer = new BufferedWriter(new OutputStreamWriter(gzip))) {
@@ -251,12 +246,12 @@ public class AccrueAnalysisMain {
                 }
             }
             break;
-        case "android-cfg":
-            AnalysisUtil.initDex("android/android-4.4.2_r1.jar", "android/it.dancar.music.ligabue.apk");
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
-            g = results.fst();
-            printAllCFG(g);
-            break;
+        //        case "android-cfg":
+        //            AnalysisUtil.initDex("android/android-4.4.2_r1.jar", "android/it.dancar.music.ligabue.apk");
+        //            results = generatePointsToGraph(outputLevel, haf, isOnline);
+        //            g = results.fst();
+        //            printAllCFG(g);
+        //            break;
         case "string-main":
             AnalysisUtil.init(classPath, entryPoint);
             StringVariableFactory factory = new StringVariableFactory();

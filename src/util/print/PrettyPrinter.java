@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import util.InstructionType;
+import analysis.AnalysisUtil;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.IClass;
@@ -144,10 +145,17 @@ public class PrettyPrinter {
         if (index == null) {
             return -1;
         }
-        if (m instanceof IBytecodeMethod) {
+        if (m instanceof IBytecodeMethod && !AnalysisUtil.hasSignature(m)) {
             IBytecodeMethod method = (IBytecodeMethod) m;
             try {
-                int bytecodeIndex = method.getBytecodeIndex(index);
+                int bytecodeIndex = -1;
+                try {
+                    bytecodeIndex = method.getBytecodeIndex(index);
+                }
+                catch (ArrayIndexOutOfBoundsException e) {
+                    System.err.println("INDEX OOB for " + i + " in " + m);
+                    return -1;
+                }
                 return method.getLineNumber(bytecodeIndex);
             } catch (InvalidClassFileException e) {
                 assert false : "InvalidClassFileException looking for line numbers in: " + methodString(m);
@@ -875,7 +883,7 @@ public class PrettyPrinter {
 
             if (st.isStringConstant(valueNumber)) {
                 // Put string literals in quotes
-                c = "\"" + c + "\"";
+                c = ("\"" + c + "\"").replace("\n", "(newline)");
                 locals.put(valueNumber, c);
                 return c;
             }

@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
-import util.intmap.MutableIntSetFromMap;
+import util.intset.ConcurrentIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
@@ -390,7 +390,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
+        return new ConcurrentIntHashSet();
+        //        return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {

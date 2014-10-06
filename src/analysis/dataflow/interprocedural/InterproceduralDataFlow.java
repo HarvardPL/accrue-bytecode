@@ -549,7 +549,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the field
      */
     public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
-        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n), null);
+        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n), null);
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Field target doesn't point to anything. v" + receiver + " in "
                                             + PrettyPrinter.cgNodeString(n) + " accessing field: "
@@ -577,7 +577,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the contents of the array
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
-        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
+        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Array doesn't point to anything. v" + array + " in " + PrettyPrinter.cgNodeString(n));
             System.err.println("\tReplica was " + getReplica(array, n));

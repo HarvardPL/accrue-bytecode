@@ -311,14 +311,20 @@ public class PointsToGraph {
         if (h == null) {
             // not in the dictionary yet
             h = this.instanceKeyCounter.getAndIncrement();
+
+            // Put the mapping into instanceKeyDictionary and concreteTypeDictionary
+            // Note that it is important to do this before putting it into reverseInstanceKeyDictionary
+            // to avoid a race (i.e., someone looking up heapContext in reverseInstanceKeyDictionary, getting
+            // int h, yet getting null when trying instanceKeyDictionary.get(h).)
             // try a put if absent
+            // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
+            this.instanceKeyDictionary.put(h, heapContext);
+            this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(heapContext, h);
-            if (existing == null) {
-                // we succeeded, and h is now the number for heapcontext.
-                this.instanceKeyDictionary.put(h, heapContext); // XXX there is a race here. It is possible that a thread will look up h in instanceKeyDictionary and get null. Should fix this, probably by retrying the read of instanceKeyDictionary if we get null
-                this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
-            }
-            else {
+            if (existing != null) {
+                // someone beat us. h will never be used.
+                this.instanceKeyDictionary.remove(h);
+                this.concreteTypeDictionary.remove(h);
                 h = existing;
             }
         }

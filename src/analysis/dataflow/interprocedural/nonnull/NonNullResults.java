@@ -49,13 +49,13 @@ public class NonNullResults implements AnalysisResults {
             // Constants are non-null unless they are the "null" constant
             return true;
         }
-        // TODO this is commented out while testing
-        // if (!containingNode.getIR().getMethod().isStatic()) {
-        // if (valNum == containingNode.getIR().getParameter(0)) {
-        // // "this" is always non-null, we can bypass the map lookup
-        // return true;
-        // }
-        // }
+
+        if (!containingNode.getIR().getMethod().isStatic()) {
+            if (valNum == containingNode.getIR().getParameter(0)) {
+                // "this" is always non-null, we can bypass the map lookup
+                return true;
+            }
+        }
 
         ResultsForNode results = allResults.get(containingNode);
         if (results == null) {
