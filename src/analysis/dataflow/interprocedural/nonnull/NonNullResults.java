@@ -194,13 +194,20 @@ public class NonNullResults implements AnalysisResults {
         }
     }
 
-    public void writeAllToFiles(ReachabilityResults reachable) throws IOException {
+    /**
+     * Write the results for each call graph node to the sepcified directory
+     * 
+     * @param reachable results of a reachability analysis
+     * @param directory directory to print to
+     * @throws IOException file trouble
+     */
+    public void writeAllToFiles(ReachabilityResults reachable, String directory) throws IOException {
         for (CGNode n : allResults.keySet()) {
             String cgString = PrettyPrinter.cgNodeString(n);
             if (cgString.length() > 200) {
                 cgString = cgString.substring(0, 200);
             }
-            String fileName = "tests/nonnull_" + cgString + ".dot";
+            String fileName = directory + "/nonnull_" + cgString + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n, reachable);
                 System.err.println("DOT written to " + fileName);
