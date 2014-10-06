@@ -246,12 +246,12 @@ public class AccrueAnalysisMain {
                 }
             }
             break;
-        case "android-cfg":
-            AnalysisUtil.initDex("android/android-4.4.2_r1.jar", "android/it.dancar.music.ligabue.apk");
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
-            g = results.fst();
-            printAllCFG(g);
-            break;
+        //        case "android-cfg":
+        //            AnalysisUtil.initDex("android/android-4.4.2_r1.jar", "android/it.dancar.music.ligabue.apk");
+        //            results = generatePointsToGraph(outputLevel, haf, isOnline);
+        //            g = results.fst();
+        //            printAllCFG(g);
+        //            break;
         case "string-main":
             AnalysisUtil.init(classPath, entryPoint);
             StringVariableFactory factory = new StringVariableFactory();
