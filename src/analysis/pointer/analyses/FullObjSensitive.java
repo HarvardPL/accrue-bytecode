@@ -30,7 +30,7 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
     /**
      * Create an n-object-sensitive analysis
-     * 
+     *
      * @param n
      *            depth of calling context stack
      */
@@ -93,7 +93,7 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
         public static AllocationNameContext create(
                 AllocationName<ContextStack<AllocSiteNode>> an) {
-            // ANDREW: maybe make this memoize. Steve: Yes, in the meantime ensure we have equality defined.
+            // XXX ANDREW: maybe make this memoize. Steve: Yes, in the meantime ensure we have equality defined.
 
             return new AllocationNameContext(an);
         }
@@ -138,5 +138,9 @@ public class FullObjSensitive extends HeapAbstractionFactory {
             return true;
         }
 
+        @Override
+        public String toString() {
+            return String.valueOf(an);
+        }
     }
 }
