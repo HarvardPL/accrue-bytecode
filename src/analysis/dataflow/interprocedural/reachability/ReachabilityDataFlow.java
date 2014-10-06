@@ -54,9 +54,6 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         BooleanConstantDataFlow bcdf = new BooleanConstantDataFlow(n, ptg, interProc.getRvCache());
         bcdf.setOutputLevel(interProc.getOutputLevel());
         this.booleanResults = bcdf.run();
-        if (interProc.getOutputLevel() >= 1) {
-            booleanResults.writeResultsToFile();
-        }
     }
 
     @Override

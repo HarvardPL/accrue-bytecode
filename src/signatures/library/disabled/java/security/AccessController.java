@@ -1,4 +1,4 @@
-package signatures.library.java.security;
+package signatures.library.disabled.java.security;
 
 import java.security.AccessControlContext;
 import java.security.PrivilegedAction;

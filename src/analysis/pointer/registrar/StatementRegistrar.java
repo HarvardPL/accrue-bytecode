@@ -590,8 +590,11 @@ public class StatementRegistrar {
             this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod(), false));
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
-                                                                                       .getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(a,
+                                                            klass,
+                                                            ir.getMethod(),
+                                                            i.getNewSite().getProgramCounter(),
+                                                            pp.getLineNumber(i)));
         }
         // Handle arrays with multiple dimensions
         ReferenceVariable outerArray = a;
@@ -643,8 +646,11 @@ public class StatementRegistrar {
 
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
-                                                                                            .getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(result,
+                                                            klass,
+                                                            ir.getMethod(),
+                                                            i.getNewSite().getProgramCounter(),
+                                                            pp.getLineNumber(i)));
         }
     }
 

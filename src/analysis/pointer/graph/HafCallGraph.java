@@ -37,7 +37,7 @@ public class HafCallGraph extends ExplicitCallGraph {
     /**
      * Create and initialize a new call graph where contexts are created using
      * the given {@link HeapAbstractionFactory}
-     * 
+     *
      * @param haf
      *            Heap abstraction factory
      */
@@ -74,17 +74,16 @@ public class HafCallGraph extends ExplicitCallGraph {
     protected CGNode makeFakeRootNode() throws CancelException {
         return findOrCreateNode(fakeRoot, haf.initialContext());
     }
-    
+
     /**
      * Print the call graph in graphviz dot format to a file
-     * 
+     *
      * @param filename
      *            name of the file, the file is put in tests/filename.dot
      * @param addDate
      *            if true then the date will be added to the filename
      */
     public void dumpCallGraphToFile(String filename, boolean addDate) {
-        String dir = "tests";
         String file = filename;
         if (addDate) {
             SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
@@ -92,7 +91,7 @@ public class HafCallGraph extends ExplicitCallGraph {
             String now = dateFormat.format(dateNow);
             file += now;
         }
-        String fullFilename = dir + "/" + file + ".dot";
+        String fullFilename = file + ".dot";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             dumpCallGraph(out);
             System.err.println("\nDOT written to: " + fullFilename);
@@ -137,7 +136,7 @@ public class HafCallGraph extends ExplicitCallGraph {
         writer.write("\n};\n");
         return writer;
     }
-    
+
     private static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }

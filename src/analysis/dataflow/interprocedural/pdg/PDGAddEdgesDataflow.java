@@ -28,6 +28,7 @@ import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.shrikeBT.IConditionalBranchInstruction.Operator;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -369,7 +370,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
             PDGNode v_j = PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp);
             PDGNode assignment_j = PDGNodeFactory.findOrCreateOther("temp = " + v_j, PDGNodeType.OTHER_EXPRESSION,
-                                            currentNode, new OrderedPair<>(i.getDef(), j));
+                                                                    currentNode,
+                                                                    new OrderedPair<>(i, j));
             temporaryAssignments.add(assignment_j);
             addEdge(v_j, assignment_j, PDGEdgeType.COPY);
             addEdge(predContext.getPCNode(), assignment_j, PDGEdgeType.IMPLICIT);
@@ -377,7 +379,14 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         PDGContext in = instructionInput.get(i);
 
-        addEdgesForMerge(temporaryAssignments, result);
+        // Node representing the phi before the assignment
+        PDGNode phi = PDGNodeFactory.findOrCreateOther(pp.rightSideString(i),
+                                                       PDGNodeType.OTHER_EXPRESSION,
+                                                       currentNode,
+                                                       new OrderedPair<>("PHI_MERGE", result));
+
+        addEdgesForMerge(temporaryAssignments, phi);
+        addEdge(phi, result, PDGEdgeType.COPY);
         addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
         return Unit.VALUE;
@@ -594,27 +603,45 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                     ISSABasicBlock current) {
         String cond = pp.valString(i.getUse(0)) + " " + PrettyPrinter.conditionalOperatorString(i.getOperator()) + " "
                                         + pp.valString(i.getUse(1));
-        PDGNode condNode = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.OTHER_EXPRESSION, currentNode, i);
         PDGNode val0 = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
         PDGNode val1 = PDGNodeFactory.findOrCreateUse(i, 1, currentNode, pp);
 
-        addEdge(val0, condNode, PDGEdgeType.EXP);
-        addEdge(val1, condNode, PDGEdgeType.EXP);
-
         PDGContext in = instructionInput.get(i);
-
-        // Get the PC nodes for each branch and add dependencies on the previous
-        // program point (PC node) and the condition that branches
 
         ISSABasicBlock trueSucc = getTrueSuccessor(current, cfg);
         PDGNode truePC = outputFacts.get(current).get(trueSucc).getPCNode();
-        addEdge(in.getPCNode(), truePC, PDGEdgeType.CONJUNCTION);
-        addEdge(condNode, truePC, PDGEdgeType.TRUE);
-
         ISSABasicBlock falseSucc = getFalseSuccessor(current, cfg);
         PDGNode falsePC = outputFacts.get(current).get(falseSucc).getPCNode();
+
+        // The old PC is joined with the conditional expression for the new PC
+        addEdge(in.getPCNode(), truePC, PDGEdgeType.CONJUNCTION);
         addEdge(in.getPCNode(), falsePC, PDGEdgeType.CONJUNCTION);
-        addEdge(condNode, falsePC, PDGEdgeType.FALSE);
+
+        if (ir.getSymbolTable().isZeroOrFalse(i.getUse(1)) && i.getOperator().equals(Operator.EQ)) {
+            // This is an equality comparison with the constant zero (i.e. false)
+            // flip the branches and set the first argument to the branching node
+            // This is a special case because this is how a branch on a unary boolean expression is translated
+            addEdge(val0, truePC, PDGEdgeType.FALSE);
+            addEdge(val0, falsePC, PDGEdgeType.TRUE);
+        }
+        else if (ir.getSymbolTable().isZeroOrFalse(i.getUse(1)) && i.getOperator().equals(Operator.NE)) {
+            // This is an inequality comparison with the constant zero (i.e. false)
+            // This is a special case because this is how a branch on a unary-negation boolean expression is translated
+            addEdge(val0, truePC, PDGEdgeType.TRUE);
+            addEdge(val0, falsePC, PDGEdgeType.FALSE);
+        }
+        else {
+            // Create a node for the conditional itself
+            PDGNode condNode = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.OTHER_EXPRESSION, currentNode, i);
+            addEdge(val0, condNode, PDGEdgeType.EXP);
+            addEdge(val1, condNode, PDGEdgeType.EXP);
+
+            // Get the PC nodes for each branch and add dependencies on the previous
+            // program point (PC node) and the condition that branches
+
+            addEdge(condNode, truePC, PDGEdgeType.TRUE);
+            addEdge(condNode, falsePC, PDGEdgeType.FALSE);
+        }
 
         return factToMap(Unit.VALUE, current, cfg);
     }
@@ -700,7 +727,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // formals right before the call
         List<PDGNode> formalAssignments = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
-            String s = "formal(" + j + ") = " + pp.valString(i.getUse(j)) + " for "
+            String s = "formal-" + j + " = " + pp.valString(i.getUse(j)) + " for "
                                             + PrettyPrinter.methodString(i.getDeclaredTarget());
             PDGNode formalAssign = PDGNodeFactory.findOrCreateOther(s, PDGNodeType.FORMAL_ASSIGNMENT, currentNode,
                                             new OrderedPair<>(i, j));

@@ -1,22 +1,24 @@
 package analysis.pointer.analyses;
 
+import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.ContextItem;
 import com.ibm.wala.ipa.callgraph.ContextKey;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
+import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.types.ClassLoaderReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
- * A full object sensitive analysis, as described in "Pick Your Contexts Well: Understanding Object-Sensitivity" by
- * Smaragdakis, Bravenboer, and Lhotak, POPL 2011.
- * <p>
- * Not that this analysis is imprecise for static calls: the context for the static call is the context of the caller.
- * It is recommended that one combine this with another abstraction to recover precision for static calls (e.g.
- * StaticCallStiteSensitive)
+ * This analysis wraps around another {@link HeapAbstractionFactory} and only records allocation sites for objects that
+ * are subclasses of java.lang.AbstractStringBuilder
  */
-public class FullObjSensitive extends HeapAbstractionFactory {
+public class FilterStringBuilderSpecialized extends HeapAbstractionFactory {
 
     /**
      * Object sensitivity parameter
@@ -28,40 +30,24 @@ public class FullObjSensitive extends HeapAbstractionFactory {
      */
     private static final int DEFAULT_DEPTH = 2;
 
+    private IClass abstractStringBuilderClass;
     /**
-     * Create an n-object-sensitive analysis
-     *
-     * @param n
-     *            depth of calling context stack
+     * Class loader to use when making new types to find classes for
      */
-    public FullObjSensitive(int n) {
+    private static final ClassLoaderReference CL = ClassLoaderReference.Primordial;
+    private static final TypeReference ASB_TYPE = TypeReference.findOrCreate(CL, "Ljava/lang/AbstractStringBuilder");
+    private IClassHierarchy cha;
+
+    public FilterStringBuilderSpecialized() {
+        this.n = DEFAULT_DEPTH;
+    }
+
+    public FilterStringBuilderSpecialized(int n) {
         this.n = n;
     }
 
-    /**
-     * Create a full object sensitive abstraction factory with the default parameters
-     */
-    public FullObjSensitive() {
-        this(DEFAULT_DEPTH);
-    }
-
-    @SuppressWarnings("unchecked")
     @Override
-    public AllocationNameContext merge(CallSiteLabel callSite,
-            InstanceKey receiver, Context callerContext) {
-        if (callSite.isStatic()) {
-            // this is a static method call return the caller's context
-            return (AllocationNameContext) callerContext;
-        }
-
-        AllocationName<ContextStack<AllocSiteNode>> rec =
-                (AllocationName<ContextStack<AllocSiteNode>>) receiver;
-        return AllocationNameContext.create(rec);
-    }
-
-    @Override
-    public AllocationName<ContextStack<AllocSiteNode>> record(
-            AllocSiteNode allocationSite, Context context) {
+    public InstanceKey record(AllocSiteNode allocationSite, Context context) {
         AllocationNameContext c = (AllocationNameContext) context;
         AllocationName<ContextStack<AllocSiteNode>> an = c.allocationName();
         ContextStack<AllocSiteNode> stack;
@@ -69,19 +55,41 @@ public class FullObjSensitive extends HeapAbstractionFactory {
             stack = ContextStack.emptyStack();
         }
         else {
-            stack = an.getContext().push(an.getAllocationSite(), n);
+            if (abstractStringBuilderClass == null) {
+                cha = AnalysisUtil.getClassHierarchy();
+                abstractStringBuilderClass = cha.lookupClass(ASB_TYPE);
+            }
+
+            if (!cha.isAssignableFrom(abstractStringBuilderClass, allocationSite.getAllocatedClass())) {
+                stack = an.getContext().push(null, n);
+            }
+            else {
+                stack = an.getContext().push(an.getAllocationSite(), n);
+            }
         }
         return AllocationName.create(stack, allocationSite);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public AllocationNameContext initialContext() {
+    public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+        if (callSite.isStatic()) {
+            // this is a static method call return the caller's context
+            return callerContext;
+        }
+
+        AllocationName<ContextStack<AllocSiteNode>> rec = (AllocationName<ContextStack<AllocSiteNode>>) receiver;
+        return AllocationNameContext.create(rec);
+    }
+
+    @Override
+    public Context initialContext() {
         return AllocationNameContext.create(null);
     }
 
     @Override
     public String toString() {
-        return n + "FullObjSens+1H";
+        return "filter(" + PrettyPrinter.typeString(ASB_TYPE) + ")";
     }
 
     public static class AllocationNameContext implements Context {
@@ -91,8 +99,7 @@ public class FullObjSensitive extends HeapAbstractionFactory {
             this.an = an;
         }
 
-        public static AllocationNameContext create(
-                AllocationName<ContextStack<AllocSiteNode>> an) {
+        public static AllocationNameContext create(AllocationName<ContextStack<AllocSiteNode>> an) {
             // XXX ANDREW: maybe make this memoize. Steve: Yes, in the meantime ensure we have equality defined.
 
             return new AllocationNameContext(an);

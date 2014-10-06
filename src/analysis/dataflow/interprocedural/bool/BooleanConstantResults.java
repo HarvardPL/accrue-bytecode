@@ -42,7 +42,7 @@ public class BooleanConstantResults implements AnalysisResults {
     /**
      * Check whether the given value number corresponds to a <code>true</code> constant right <i>before</i> executing
      * the given instruction
-     * 
+     *
      * @param i
      *            instruction
      * @param value
@@ -69,7 +69,7 @@ public class BooleanConstantResults implements AnalysisResults {
     /**
      * Check whether the given value number corresponds to a <code>false</code> constant right <i>before</i> executing
      * the given instruction
-     * 
+     *
      * @param i
      *            instruction
      * @param value
@@ -96,7 +96,7 @@ public class BooleanConstantResults implements AnalysisResults {
     /**
      * Check whether the given value number corresponds to a boolean constant right <i>before</i> executing the given
      * instruction
-     * 
+     *
      * @param i
      *            instruction
      * @param value
@@ -120,7 +120,7 @@ public class BooleanConstantResults implements AnalysisResults {
 
     /**
      * If the value is constant then get the constant value. Returns null if called on a non-constant
-     * 
+     *
      * @param i
      *            instruction
      * @param value
@@ -146,7 +146,7 @@ public class BooleanConstantResults implements AnalysisResults {
     /**
      * Record that a value number corresponds to a variable that is a constant boolean right before executing
      * <code>i</code>
-     * 
+     *
      * @param i
      *            instruction
      * @param valueNumber
@@ -165,16 +165,16 @@ public class BooleanConstantResults implements AnalysisResults {
 
     /**
      * Write the results in dot format to a file in the tests directory prepended with "bool"
-     * 
+     *
      * @throws IOException
      *             file troubles
      */
-    public void writeResultsToFile() {
+    public void writeResultsToFile(String directory) {
         String cgString = PrettyPrinter.cgNodeString(n);
         if (cgString.length() > 200) {
             cgString = cgString.substring(0, 200);
         }
-        String fileName = "tests/bool_" + cgString + ".dot";
+        String fileName = directory + "/bool_" + cgString + ".dot";
         try (Writer w = new FileWriter(fileName)) {
             writeResults(w);
             System.err.println("DOT written to " + fileName);

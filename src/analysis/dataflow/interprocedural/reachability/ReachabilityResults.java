@@ -68,12 +68,12 @@ public class ReachabilityResults implements AnalysisResults {
 
     /**
      * Will write the results for the first context for the given method
-     * 
+     *
      * @param writer
      *            writer to write to
      * @param m
      *            method to write the results for
-     * 
+     *
      * @throws IOException
      *             issues with the writer
      */
@@ -86,7 +86,7 @@ public class ReachabilityResults implements AnalysisResults {
         }
     }
 
-    public void writeAllToFiles() {
+    public void writeAllToFiles(String directory) {
         for (CGNode n : allResults.keySet()) {
             if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
                 System.err.println("No CFG for native " + PrettyPrinter.cgNodeString(n));
@@ -96,7 +96,7 @@ public class ReachabilityResults implements AnalysisResults {
             if(cgString.length() > 200) {
                 cgString = cgString.substring(0, 200);
             }
-            String fileName = "tests/reachability_" + cgString + ".dot";
+            String fileName = directory + "/reachability_" + cgString + ".dot";
             try (Writer w = new FileWriter(fileName)) {
                 writeResultsForNode(w, n);
                 System.err.println("DOT written to " + fileName);

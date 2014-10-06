@@ -233,7 +233,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
      *
      * @throws IOException writer issues
      */
-    public void intraProcDotToFile(double spread, String methodName) throws IOException {
+    public void intraProcDotToFile(double spread, String methodName, String directory) throws IOException {
         Set<PDGEdge> edgeSet = new LinkedHashSet<>();
         for (PDGEdgeType t : edges.keySet()) {
             edgeSet.addAll(edges.get(t));
@@ -368,7 +368,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
                 // Different methods should be identical
                 continue;
             }
-            String fileName = "tests/pdg_" + PrettyPrinter.methodString(cg.getMethod()) + ".dot";
+            String fileName = directory + "/pdg_" + PrettyPrinter.methodString(cg.getMethod()) + ".dot";
             try (Writer writer = new FileWriter(fileName)) {
                 String label = fileName.replace("\"", "").replace("\\", "\\\\");
                 writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"

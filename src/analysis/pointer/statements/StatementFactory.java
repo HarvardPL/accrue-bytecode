@@ -338,14 +338,15 @@ public class StatementFactory {
      * @param newClass Class being created
      * @param m method the points-to statement came from
      * @param pc The program counter where the allocation occured
+     * @param lineNumber line number from source code if one can be found, -1 otherwise
      * @return statement to be processed during pointer analysis
      */
-    public NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IMethod m, int pc) {
+    public NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, IMethod m, int pc, int lineNumber) {
         assert result != null;
         assert newClass != null;
         assert m != null;
 
-        NewStatement s = new NewStatement(result, newClass, m, pc);
+        NewStatement s = new NewStatement(result, newClass, m, pc, lineNumber);
         assert map.put(new StatementKey(result), s) == null;
         return s;
     }
