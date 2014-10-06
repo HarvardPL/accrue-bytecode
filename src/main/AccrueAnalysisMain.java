@@ -103,6 +103,8 @@ public class AccrueAnalysisMain {
             otherOutputLevel = 9;
         }
 
+        String outputDir = options.getOutputDir();
+
         String fileName = entryPoint;
         Entrypoint entry;
         IR ir;
@@ -111,11 +113,11 @@ public class AccrueAnalysisMain {
         ReferenceVariableCache rvCache;
         switch (analysisName) {
         case "pointsto":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
 //            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
-            ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(fileName + "_cg", false);
+            ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
 //            System.err.println(g.getNodes().size() + " Nodes");
             int num = 0;
@@ -133,50 +135,50 @@ public class AccrueAnalysisMain {
             System.err.println(numNodes + " CGNodes");
             break;
         case "maincfg":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
             ir = AnalysisUtil.getIR(entry.getMethod());
-            printSingleCFG(ir, fileName + "_main");
+            printSingleCFG(ir, outputDir + "/" + fileName + "_main");
             break;
         case "bool":
-            AnalysisUtil.init(classPath, entryPoint);
-            runBooleanConstant(entryPoint, outputLevel, haf);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            runBooleanConstant(entryPoint, outputLevel, haf, outputDir);
             break;
         case "nonnull":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
             NonNullResults nonNull = runNonNull(outputLevel, g, r, rvCache);
-            nonNull.writeAllToFiles(r);
+            nonNull.writeAllToFiles(r, outputDir);
             break;
         case "precise-ex":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
             nonNull = runNonNull(otherOutputLevel, g, r, rvCache);
             PreciseExceptionResults preciseEx = runPreciseExceptions(outputLevel, g, r, nonNull, rvCache);
-            preciseEx.writeAllToFiles(r);
+            preciseEx.writeAllToFiles(r, outputDir);
             break;
         case "reachability":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
-            r.writeAllToFiles();
+            r.writeAllToFiles(outputDir);
             break;
         case "cfg":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
-            printAllCFG(g);
+            printAllCFG(g, outputDir);
             break;
         case "cfg-for-class":
-            AnalysisUtil.init(classPath, null);
+            AnalysisUtil.init(classPath, null, outputDir);
             String name = "L" + options.getClassNameForCFG().replace(".", "/");
             System.err.println("Printing CFGs for " + name);
             TypeReference type = TypeReference.findOrCreate(ClassLoaderReference.Application, name);
@@ -186,7 +188,8 @@ public class AccrueAnalysisMain {
             for (IMethod m : klass.getAllMethods()) {
                 IR methodIR = AnalysisUtil.getIR(m);
                 if (methodIR != null) {
-                    CFGWriter.writeToFile(m);
+                    String cfgFile = outputDir + "/cfg_" + PrettyPrinter.methodString(m) + ".dot";
+                    CFGWriter.writeToFile(m, cfgFile);
                 }
                 else {
                     System.err.println("Did not print CFG for (native) method: " + PrettyPrinter.methodString(m));
@@ -194,7 +197,7 @@ public class AccrueAnalysisMain {
             }
             break;
         case "pdg":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel, haf, isOnline);
             g = results.fst();
             rvCache = results.snd();
@@ -204,7 +207,7 @@ public class AccrueAnalysisMain {
             ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
             ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, nonNull, rvCache);
             pdg.printSimpleCounts();
-            String fullName = "tests/pdg_" + fileName + ".json";
+            String fullName = outputDir + "/pdg_" + fileName + ".json";
             GZIPOutputStream gzip = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(fullName + ".gz")));
             try (Writer writer = new BufferedWriter(new OutputStreamWriter(gzip))) {
                 pdg.writeJSON(writer);
@@ -212,34 +215,34 @@ public class AccrueAnalysisMain {
             }
 
             if (fileLevel >= 1) {
-                pdg.intraProcDotToFile(1, "");
+                pdg.intraProcDotToFile(1, "", outputDir);
             }
 
             if (fileLevel >= 2) {
-                printAllCFG(g);
-                r2.writeAllToFiles();
-                nonNull.writeAllToFiles(r);
-                preciseEx.writeAllToFiles(r);
+                printAllCFG(g, outputDir);
+                r2.writeAllToFiles(outputDir);
+                nonNull.writeAllToFiles(r, outputDir);
+                preciseEx.writeAllToFiles(r, outputDir);
             }
 
             if (options.shouldWriteDotPDG()) {
-                String dotName = "tests/pdg_" + fileName + ".dot";
+                String dotName = outputDir + "/pdg_" + fileName + ".dot";
                 try (FileWriter dotfile = new FileWriter(dotName)) {
                     pdg.writeDot(dotfile, true, 1);
                 }
                 System.err.println("DOT written to " + dotName);
                 // Also write out the PDG for "main"
-                pdg.intraProcDotToFile(1, "main");
+                pdg.intraProcDotToFile(1, "main", outputDir);
 
                 // Also the non null results for main
-                String nullfileName = "tests/nonnull_main_" + fileName + ".dot";
+                String nullfileName = outputDir + "/nonnull_main_" + fileName + ".dot";
                 try (Writer w = new FileWriter(nullfileName)) {
                     nonNull.writeResultsForMethod(w, "main", r);
                     System.err.println("DOT written to " + nullfileName);
                 }
 
                 // Also the precise exceptions results for main
-                String preciseExFileName = "tests/preciseEx_main_" + fileName + ".dot";
+                String preciseExFileName = outputDir + "/preciseEx_main_" + fileName + ".dot";
                 try (Writer w = new FileWriter(preciseExFileName)) {
                     preciseEx.writeResultsForMethod(w, "main", r);
                     System.err.println("DOT written to " + preciseExFileName);
@@ -253,11 +256,11 @@ public class AccrueAnalysisMain {
         //            printAllCFG(g);
         //            break;
         case "string-main":
-            AnalysisUtil.init(classPath, entryPoint);
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
             StringVariableFactory factory = new StringVariableFactory();
             StringAnalysisResults stringResults = new StringAnalysisResults(factory);
             IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();
-            printSingleCFG(AnalysisUtil.getIR(main), fileName + "_main");
+            printSingleCFG(AnalysisUtil.getIR(main), outputDir + "/" + fileName + "_main");
             Map<StringVariable, AbstractString> res = stringResults.getResultsForMethod(main);
             for (StringVariable v : res.keySet()) {
                 System.err.println(v + " = " + res.get(v));
@@ -277,7 +280,7 @@ public class AccrueAnalysisMain {
      *
      * @param g points to graph
      */
-    private static void printAllCFG(PointsToGraph g) {
+    private static void printAllCFG(PointsToGraph g, String directory) {
         Set<IMethod> printed = new LinkedHashSet<>();
         for (CGNode n : g.getCallGraph()) {
             IMethod m = n.getMethod();
@@ -287,7 +290,7 @@ public class AccrueAnalysisMain {
                 if (AnalysisUtil.hasSignature(m)) {
                     prefix += "sig_";
                 }
-                String fileName = prefix + PrettyPrinter.methodString(m);
+                String fileName = directory + "/" + prefix + PrettyPrinter.methodString(m);
                 IR ir = AnalysisUtil.getIR(m);
                 if (ir != null) {
                     printSingleCFG(ir, fileName);
@@ -353,8 +356,7 @@ public class AccrueAnalysisMain {
      */
     private static void printSingleCFG(IR ir, String fileName) {
         CFGWriter cfg = new CFGWriter(ir);
-        String dir = "tests";
-        String fullFilename = dir + "/" + fileName + ".dot";
+        String fullFilename = fileName + ".dot";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             cfg.writeVerbose(out, "", "\\l");
             System.err.println("DOT written to: " + fullFilename);
@@ -441,8 +443,11 @@ public class AccrueAnalysisMain {
      *
      * @param entryPoint full name of class to print results for contained methods
      * @param outputLevel amount of debugging
+     * @param haf heap abstraction factory defining analysis contexts
+     * @param outputDir directory to print output to
      */
-    private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf) {
+    private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
+                                           String outputDir) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel, haf, true);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
@@ -451,10 +456,11 @@ public class AccrueAnalysisMain {
                 System.err.println("Analyzing: " + PrettyPrinter.cgNodeString(n));
                 df = new BooleanConstantDataFlow(n, results.fst(), results.snd());
                 BooleanConstantResults r = df.run();
-                r.writeResultsToFile();
+                r.writeResultsToFile(outputDir);
 
                 if (outputLevel >= 1) {
-                    CFGWriter.writeToFile(n.getIR());
+                    String cfgFile = outputDir + "/cfg_" + PrettyPrinter.methodString(n.getIR().getMethod()) + ".dot";
+                    CFGWriter.writeToFile(n.getIR(), cfgFile);
                 }
             }
         }

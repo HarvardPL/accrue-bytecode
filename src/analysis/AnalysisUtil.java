@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import signatures.Signatures;
 import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
@@ -85,18 +86,16 @@ public class AnalysisUtil {
     public static IClass privilegedActionClass;
     public static IClass privilegedExceptionActionClass;
 
+    private static String outputDirectory;
+
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
      */
-    private static final File EXCLUSIONS_FILE = new File("data/Exclusions.txt");
+    private static final File EXCLUSIONS_FILE = new File("Exclusions.txt");
     /**
      * File containing the location of the java standard library and other standard jars
      */
-    private static final String PRIMORDIAL_FILENAME = "data/primordial.txt";
-    /**
-     * Class path to use if none is provided
-     */
-    private static final String DEFAULT_CLASSPATH = "classes";
+    private static final String PRIMORDIAL_FILENAME = "primordial.txt";
     /**
      * Signatures
      */
@@ -147,28 +146,29 @@ public class AnalysisUtil {
      *
      * @param classPath Java class path to load class filed from with entries separated by ":"
      * @param entryPoint entry point main method, e.g mypackage.mysubpackage.MyClass
+     * @param outputDirectory directory to put outputfiles into
      *
      * @throws IOException Thrown when the analysis scope is invalid
      * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
      *             class path and for other reasons see {@link ClassHierarchy}
      */
-    public static void init(String classPath, String entryPoint) throws IOException, ClassHierarchyException {
+    public static void init(String classPath, String entryPoint, String outputDirectory) throws IOException,
+                                                                                        ClassHierarchyException {
 
-        cache = new AnalysisCache();
+        AnalysisUtil.outputDirectory = outputDirectory;
+        AnalysisUtil.cache = new AnalysisCache();
 
-        if (classPath == null) {
-            classPath = DEFAULT_CLASSPATH;
-        }
 
         AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
                                                                 EXCLUSIONS_FILE,
                                                                 AnalysisUtil.class.getClassLoader());
+        System.err.println("CLASSPATH=" + classPath);
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
         long start = System.currentTimeMillis();
 
-        cha = ClassHierarchy.make(scope);
-        System.out.println(cha.getNumberOfClasses() + " classes loaded. It took "
+        AnalysisUtil.cha = ClassHierarchy.make(scope);
+        System.out.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
 
         Iterable<Entrypoint> entrypoints;
@@ -177,11 +177,10 @@ public class AnalysisUtil {
         }
         else {
             // Add L to the name to indicate that this is a class name
-            entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope,
-                                                                                   cha,
-                                                                                   "L" + entryPoint.replace(".", "/"));
+            entrypoints = com.ibm.wala.ipa.callgraph.impl.Util.makeMainEntrypoints(scope, AnalysisUtil.cha, "L"
+                    + entryPoint.replace(".", "/"));
         }
-        options = new AnalysisOptions(scope, entrypoints);
+        AnalysisUtil.options = new AnalysisOptions(scope, entrypoints);
 
         addEntriesToRootMethod();
         setUpCommonClasses();
@@ -203,7 +202,8 @@ public class AnalysisUtil {
         // could have an exception edge and normal edge from the same basic
         // block.
         fakeRoot.addReturn(-1, false);
-        CFGWriter.writeToFile(fakeRoot);
+        String fullFilename = outputDirectory + "/cfg_" + PrettyPrinter.methodString(fakeRoot);
+        CFGWriter.writeToFile(fakeRoot, fullFilename);
     }
 
     private static void setUpCommonClasses() {
@@ -375,6 +375,15 @@ public class AnalysisUtil {
 
     public static <T> Set<T> createConcurrentSet() {
         return Collections.newSetFromMap(AnalysisUtil.<T, Boolean> createConcurrentHashMap());
+    }
+
+    /**
+     * Get the directory to put output files into
+     *
+     * @return folder name
+     */
+    public static String getOutputDirectory() {
+        return outputDirectory;
     }
 
 }

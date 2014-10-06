@@ -130,8 +130,7 @@ public class CFGWriter {
      */
     public static final void writeToFile(IR ir, String filename) {
         CFGWriter cfg = new CFGWriter(ir);
-        String dir = "tests";
-        String fullFilename = dir + "/" + filename + ".dot";
+        String fullFilename = filename + ".dot";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             cfg.writeVerbose(out, "", "\\l");
             System.err.println("DOT written to: " + fullFilename);
