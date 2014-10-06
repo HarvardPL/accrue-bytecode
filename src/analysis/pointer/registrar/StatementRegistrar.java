@@ -103,7 +103,7 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
      * (and speed up the points-to analysis), but result in a loss of precision for strings.
      */
-    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = true;
+    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = false;
 
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
@@ -590,8 +590,11 @@ public class StatementRegistrar {
             this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod(), false));
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(a, klass, ir.getMethod(), i.getNewSite()
-                                                                                       .getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(a,
+                                                            klass,
+                                                            ir.getMethod(),
+                                                            i.getNewSite().getProgramCounter(),
+                                                            pp.getLineNumber(i)));
         }
         // Handle arrays with multiple dimensions
         ReferenceVariable outerArray = a;
@@ -643,8 +646,11 @@ public class StatementRegistrar {
 
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(result, klass, ir.getMethod(), i.getNewSite()
-                                                                                            .getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(result,
+                                                            klass,
+                                                            ir.getMethod(),
+                                                            i.getNewSite().getProgramCounter(),
+                                                            pp.getLineNumber(i)));
         }
     }
 
