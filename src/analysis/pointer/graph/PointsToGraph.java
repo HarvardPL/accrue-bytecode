@@ -397,13 +397,18 @@ public class PointsToGraph {
         if (n == null) {
             // not in the dictionary yet
             n = graphNodeCounter.getAndIncrement();
+
+            // Put the mapping into graphNodeDictionary
+            // Note that it is important to do this before putting it into reverseGraphNodeDictionary
+            // to avoid a race (i.e., someone looking up node in reverseGraphNodeDictionary, getting
+            // int n, yet getting null when trying graphNodeDictionary.get(n).)
+            // Note that we can do a put instead of a putIfAbsent, since n is guaranteed unique.
+            this.graphNodeDictionary.put(n, node);
             Integer existing = this.reverseGraphNodeDictionary.putIfAbsent(node, n);
             if (existing != null) {
+                // Someone beat us to it. Clean up graphNodeDictionary
+                this.graphNodeDictionary.remove(n);
                 return existing;
-            }
-            else {
-                // we were the first to put it in.
-                this.graphNodeDictionary.put(n, node);
             }
         }
         return n;
