@@ -13,6 +13,10 @@ import com.ibm.wala.util.intset.IntIterator;
 public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
     public final ConcurrentHashMap<Integer, T> map = new ConcurrentHashMap<>();
 
+    public SimpleConcurrentIntMap() {
+
+    }
+
     @Override
     public boolean containsKey(int i) {
         return map.containsKey(i);

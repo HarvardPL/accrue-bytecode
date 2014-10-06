@@ -1,35 +1,29 @@
-XXX Make sure the procedure name is just the procedure name and does not include the context
-
 TODO no need for {v1} after "this" for variable names
 
 TODO Gen exceptions should carry the PC? They didn't in Infoflow, fix this in Infoflow
 
-OK TODO Should array.length be treated like a normal field (an edge from the pointer to the "length" field) or just have an edge from the array?
-
-TODO if we are not careful two different threads could get two different reference variables for a string literal field, in general the ReferenceVariableFactory is not threadsafe
+TODO ReferenceVariableFactory is not threadsafe
 
 TODO signature for getClassLoader() etc
-
-TODO why are there so many more nodes and edges
 
 TODO mark Native nodes as "estimated type"
 
 TODO remove trailing semicolon from callgraph
 
-XXX Policy 2 for tax doesn't work, we can get explicit flows, but not PC flows. Same with the infoflow version, not sure when it broke, I thought I reran everything before CCS
-
-TODO filename can be too long when printing out precise ex results
+XXX Policy 2 for tax doesn't work, we can get explicit flows, but not PC flows.
 
 TODO all flags in StatementRegistrar should be full-fleged options
 
 TODO option to not use signature for non-native methods
-
-TODO make it so the native methods used for the String signatures do not throw exceptions (at least in the PDG)
-
-TODO make sure the native methods for String don't cause issues with the context being too deep, maybe they don't count?
-
-XXX Seem to be NPEs for field accesses to "this" 
-
-TODO More tests for HAF parsing
  
 XXX clinit sneaking in twice when we turn off "seenInstanceOf" in the registrar
+
+TODO extra dot at the end of procedure names in heap nodes for instance init methods
+
+TODO language needs an "is nonempty" for debugging purposes
+
+XXX don't actually have let binding for policies
+
+XXX Special case for conditionals should only apply when arguments are booleans, can we ensure that?
+
+TODO baseline WALA should work now since they accepted my pull requests

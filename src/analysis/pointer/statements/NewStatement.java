@@ -45,7 +45,11 @@ public class NewStatement extends PointsToStatement {
     protected NewStatement(ReferenceVariable result, IClass newClass, ProgramPoint pp, int pc) {
         super(pp);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createNormal(newClass, pp.containingProcedure().getDeclaringClass(), result, pc);
+        alloc = AllocSiteNodeFactory.createNormal(newClass,
+                                                  pp.containingProcedure().getDeclaringClass(),
+                                                  result,
+                                                  pc,
+                                                  -1);
     }
 
     /**

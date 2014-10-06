@@ -138,7 +138,7 @@ public class Signatures {
         IR sigIR = AnalysisUtil.getIR(resolvedSig);
         if (sigIR != null) {
             sigIR = rewriteIR(sigIR, actualMethod);
-            if (sigIR != null) {
+            if (sigIR != null && PointsToAnalysis.outputLevel > 0) {
                 System.err.println("USING SIGNATURE for: " + PrettyPrinter.methodString(actualMethod));
             }
             signatures.put(actualMethod, new SoftReference<>(sigIR));

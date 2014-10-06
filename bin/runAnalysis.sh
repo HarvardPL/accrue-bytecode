@@ -3,11 +3,12 @@
 vmargs="-Xmx14G -Xms14G -Xss30m"
 dir=`dirname "$0"`/..
 
-if [ -z "$WALA_HOME" ]; then
-  WALA_HOME=$dir/../WALA
+if [ -z "$ACCRUE_BYTECODE" ]; then
+  # check if we are already in the right folder
+  ACCRUE_BYTECODE=$dir/../walaAnalysis
 fi
-if [ ! -d "$WALA_HOME" ]; then
-  echo "WALA not found: try defining the WALA_HOME environment variable to the directory containing all the WALA projects."
+if [ ! -d "$ACCRUE_BYTECODE" ]; then
+  echo "Accrue bytecode path not found: try defining the ACCRUE_BYTECODE environment variable as the top-level directory for accrue-bytecode (this could be the walaAnalysis folder)."
 fi
 
 run() {
@@ -15,6 +16,11 @@ run() {
         cmmd="-classpath '$classpath' -ea main.AccrueAnalysisMain"
     else
         cmmd="-classpath '$classpath' main.AccrueAnalysisMain"
+    fi
+
+    if [ ! "$outputDirSet" ]; then
+        # Use the default output directory
+        args="$args '-out' '$ACCRUE_BYTECODE/tests'"
     fi
 
     if [ "$verbose" = 1 ]; then
@@ -50,6 +56,26 @@ while true; do
       verbose=1
       shift
       ;;
+    -cp)
+      # make sure the signatures make it onto the analysis classpath
+      args="$args '$1'"
+      shift
+      args="$args '$1:$ACCRUE_BYTECODE/classes/signatures'"
+      shift
+      ;;
+    -analysisClassPath)
+      # make sure the signatures make it onto the analysis classpath
+      args="$args '$1'"
+      shift
+      args="$args '$1:$ACCRUE_BYTECODE/classes/signatures'"
+      shift
+      ;;
+    -out)
+      # flag output directory as having been set
+      outputDirSet=1
+      args="$args '$1'"
+      shift
+      ;;
     *)
       args="$args '$1'"
       shift
@@ -57,46 +83,14 @@ while true; do
   esac
 done
 
-classpath="$dir/classes"
-classpath="$classpath:$dir/data"
-classpath="$classpath:$dir/lib/JSON-java.jar"
-classpath="$classpath:$dir/lib/jcommander-1.35.jar"
-classpath="$classpath:$dir/lib/JFlex.jar"
-classpath="$classpath:$dir/lib/java-cup-11a.jar"
-classpath="$classpath:$dir/lib/apktool-cli.jar"
-classpath="$classpath:$WALA_HOME/com.ibm.wala.core/bin/"
-classpath="$classpath:$WALA_HOME/com.ibm.wala.util/bin/"
-classpath="$classpath:$WALA_HOME/com.ibm.wala.shrike/bin/"
-classpath="$classpath:$WALA_HOME/com.ibm.wala.core/classes/"
-classpath="$classpath:$WALA_HOME/com.ibm.wala.util/classes/"
-classpath="$classpath:$WALA_HOME/com.ibm.wala.shrike/classes/"
-# SCanDroid
-classpath="$classpath:$WALA_HOME/../SCandroid/bin/"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/activation-1.1.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/commons-cli-1.2.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/commons-compiler-2.6.1.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/commons-io-2.4.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/commons-lang3-3.1.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/dexlib-1.3.4-dev.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/geronimo-jms_1.1_spec-1.0.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/groovy-all-2.0.0.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/guava-13.0.1.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/hamcrest-core-1.3.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/janino-2.6.1.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/jansi-1.8.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/jgrapht-0.8.3.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/jsr305-1.3.9.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/junit-4.11.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/logback-classic-1.0.9.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/logback-core-1.0.9.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/mail-1.4.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/servlet-api-2.5.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/lib/slf4j-api-1.7.2.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/wala/wala_cast.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/wala/wala_cast_java.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/wala/wala_cast_java_jdt.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/wala/wala_core_tests.jar"
-classpath="$classpath:$WALA_HOME/../SCandroid/wala/wala_ide.jar"
+classpath="$ACCRUE_BYTECODE/classes"
+classpath="$classpath:$ACCRUE_BYTECODE/data"
+classpath="$classpath:$ACCRUE_BYTECODE/lib/JSON-java.jar"
+classpath="$classpath:$ACCRUE_BYTECODE/lib/jcommander-1.35.jar"
+classpath="$classpath:$ACCRUE_BYTECODE/lib/JFlex.jar"
+classpath="$classpath:$ACCRUE_BYTECODE/lib/java-cup-11a.jar"
+classpath="$classpath:$ACCRUE_BYTECODE/lib/apktool-cli.jar"
+classpath="$classpath:$ACCRUE_BYTECODE/lib/wala-fork.jar"
 
 run "$args"
 

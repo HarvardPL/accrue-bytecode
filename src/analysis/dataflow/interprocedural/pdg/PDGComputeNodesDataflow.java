@@ -21,6 +21,7 @@ import analysis.dataflow.util.Unit;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.shrikeBT.IConditionalBranchInstruction.Operator;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -537,11 +538,39 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected Map<ISSABasicBlock, PDGContext> flowConditionalBranch(SSAConditionalBranchInstruction i,
                                     Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        String cond = pp.valString(i.getUse(0)) + " " + PrettyPrinter.conditionalOperatorString(i.getOperator()) + " "
-                                        + pp.valString(i.getUse(1));
-        PDGNode truePC = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.BOOLEAN_TRUE_PC, currentNode, i);
-        PDGNode falsePC = PDGNodeFactory.findOrCreateOther("!(" + cond + ")", PDGNodeType.BOOLEAN_FALSE_PC,
-                                        currentNode, i);
+        PDGNode truePC;
+        PDGNode falsePC;
+        if (ir.getSymbolTable().isZeroOrFalse(i.getUse(1)) && i.getOperator().equals(Operator.EQ)) {
+            // This is an equality comparison with the constant zero (i.e. false)
+            // This is a special case because this is how a branch on a unary boolean expression is translated
+            truePC = PDGNodeFactory.findOrCreateOther("!" + pp.valString(i.getUse(0)),
+                                                      PDGNodeType.BOOLEAN_FALSE_PC,
+                                                      currentNode,
+                                                      i);
+            falsePC = PDGNodeFactory.findOrCreateOther(pp.valString(i.getUse(0)),
+                                                       PDGNodeType.BOOLEAN_TRUE_PC,
+                                                       currentNode,
+                                                       i);
+        }
+        else if (ir.getSymbolTable().isZeroOrFalse(i.getUse(1)) && i.getOperator().equals(Operator.NE)) {
+            // This is an inequality comparison with the constant zero (i.e. false)
+            // This is a special case because this is how a branch on a unary-negation boolean expression is translated
+            truePC = PDGNodeFactory.findOrCreateOther(pp.valString(i.getUse(0)),
+                                                      PDGNodeType.BOOLEAN_TRUE_PC,
+                                                      currentNode,
+                                                      i);
+            falsePC = PDGNodeFactory.findOrCreateOther("!" + pp.valString(i.getUse(0)),
+                                                       PDGNodeType.BOOLEAN_FALSE_PC,
+                                                       currentNode,
+                                                       i);
+        }
+        else {
+            // Some other test
+            String cond = pp.valString(i.getUse(0)) + " " + PrettyPrinter.conditionalOperatorString(i.getOperator())
+                    + " " + pp.valString(i.getUse(1));
+            truePC = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.BOOLEAN_TRUE_PC, currentNode, i);
+            falsePC = PDGNodeFactory.findOrCreateOther("!(" + cond + ")", PDGNodeType.BOOLEAN_FALSE_PC, currentNode, i);
+        }
 
         Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
 

@@ -23,6 +23,12 @@ public final class AccrueAnalysisOptions {
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
     /**
+     * Output folder default is "tests"
+     */
+    @Parameter(names = { "-out" }, description = "Output directory, default is the tests directory.")
+    private String outputDir;
+
+    /**
      * Flag for printing useage information
      */
     @Parameter(names = { "-h", "-help", "-useage", "--help" }, description = "Print useage information")
@@ -229,9 +235,6 @@ public final class AccrueAnalysisOptions {
     }
 
     public String getAnalysisClassPath() {
-        if (!analysisClassPath.contains("classes/signatures")) {
-            analysisClassPath += ":classes/signatures";
-        }
         return analysisClassPath;
     }
 
@@ -531,7 +534,7 @@ public final class AccrueAnalysisOptions {
             if (s.charAt(ind) == '\"') {
                 // it's the end of the string literal!
                 ind++; // consume the close quote
-                return new OrderedPair<String, Integer>(sb.toString(), ind);
+                return new OrderedPair<>(sb.toString(), ind);
             }
             // it's just a normal character
             sb.append(s.charAt(ind));
@@ -678,4 +681,12 @@ public final class AccrueAnalysisOptions {
         return className;
     }
 
+    /**
+     * Get the directory to print the output into
+     *
+     * @return director to print the output to
+     */
+    public String getOutputDir() {
+        return outputDir;
+    }
 }
