@@ -48,6 +48,7 @@ public class ProgramPointSetClosure {
         this.from = from;
         this.to = to;
         this.fromBase = g.baseNodeForPointsToGraphNode(from);
+        assert (fromBase == -1 || g.isMostRecentObject(fromBase)) : "If we have a fromBase, it should be a most recent object, since these are the only ones we track flow sensitively.";
     }
 
 
@@ -98,8 +99,9 @@ public class ProgramPointSetClosure {
      */
     private Collection<InterProgramPointReplica> getSources(PointsToGraph g) {
         // XXX TODO turn this into an interator, so that we lazily look at these allocation sites.
-        List<InterProgramPointReplica> s = new ArrayList<>();
         if (!g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
+            List<InterProgramPointReplica> s = new ArrayList<>();
+            s.addAll(this.sources);
             // we need to add allocation sites of the to object, where from pointed to
             // the most recent version just before the allocation.
             int mostRecentVersion = g.mostRecentVersion(this.to);
@@ -112,31 +114,9 @@ public class ProgramPointSetClosure {
                     s.add(allocPP.post());
                 }
             }
+            return s;
         }
-        if (this.fromBase >= 0 && !g.isMostRecentObject(this.fromBase) && g.isTrackingMostRecentObject(this.fromBase)) {
-            // we are the set of program points for which "fromBase_{nonrecent}.f" points to "to"
-            int iFromBaseRecent = g.mostRecentVersion(this.fromBase);
-
-            ObjectField fromNode = (ObjectField) g.lookupPointsToGraphNodeDictionary(this.from);
-            ObjectField fromNodeRecent = fromNode.receiver(g.lookupInstanceKeyDictionary(iFromBaseRecent));
-            int iFromNodeRecent = g.lookupDictionary(fromNodeRecent);
-            // mostRecentFromBase is now the "fromBase_{most recent}.f"
-
-            for (ProgramPointReplica allocPP : g.getAllocationSitesOf(iFromBaseRecent)) {
-                if (g.pointsTo(iFromNodeRecent, this.to, allocPP.pre())) {
-                    // the node "fromBase_{most recent}.f" points to "to" before the allocation,
-                    // so "fromBase_{nonrecent}.f" points to "to" after the allocation
-                    s.add(allocPP.post());
-                }
-            }
-
-        }
-        if (s.isEmpty()) {
-            return this.sources;
-        }
-        s.addAll(this.sources);
-        return s;
-
+        return this.sources;
     }
 
     private boolean dfs(InterProgramPointReplica i,
