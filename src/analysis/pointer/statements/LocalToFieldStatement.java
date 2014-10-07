@@ -98,6 +98,21 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        ReferenceVariableReplica l = new ReferenceVariableReplica(context, receiver, g.getHaf());
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        Iterator<InstanceKeyRecency> iter = g.pointsToIterator(l, pre, new StmtAndContext(this, context));
+
+        if (iter.hasNext()) {
+            InstanceKeyRecency pointedTo = iter.next();
+            if (!iter.hasNext() && pointedTo.isRecent()) {
+                return new ObjectField(pointedTo, field);
+            }
+        }
+        return null;
+    }
+
+    @Override
     public String toString() {
         return this.receiver
                 + "."

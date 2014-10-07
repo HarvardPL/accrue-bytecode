@@ -100,6 +100,11 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return value.isFlowSensitive() ? new ReferenceVariableReplica(context, value, g.getHaf()) : null;
+    }
+
+    @Override
     public String toString() {
         return value + " = " + array + "." + PointsToGraph.ARRAY_CONTENTS;
     }

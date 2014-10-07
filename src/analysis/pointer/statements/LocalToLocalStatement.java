@@ -82,8 +82,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, RecencyHeapAbstractionFactory haf) {
-        return left.isFlowSensitive() ? new ReferenceVariableReplica(context, left, haf) : null;
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return left.isFlowSensitive() ? new ReferenceVariableReplica(context, left, g.getHaf()) : null;
     }
 
     @Override

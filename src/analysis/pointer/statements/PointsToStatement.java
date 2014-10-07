@@ -79,11 +79,11 @@ public abstract class PointsToStatement {
     public abstract GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g,
                                        GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator);
 
-    public PointsToGraphNode killed(Context context, RecencyHeapAbstractionFactory haf) {
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
         return null;
     }
 
-    public InstanceKeyRecency justAllocated(Context context, RecencyHeapAbstractionFactory haf) {
+    public InstanceKeyRecency justAllocated(Context context, PointsToGraph g) {
         return null;
     }
 

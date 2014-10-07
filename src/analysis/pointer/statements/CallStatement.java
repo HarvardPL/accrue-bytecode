@@ -6,6 +6,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -167,6 +168,14 @@ public abstract class CallStatement extends PointsToStatement {
         changed = changed.combine(exChange);
 
         return changed;
+    }
+
+    /**
+     * The result node is killed after the call
+     */
+    @Override
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return result.isFlowSensitive() ? new ReferenceVariableReplica(context, result, g.getHaf()) : null;
     }
 
     /**

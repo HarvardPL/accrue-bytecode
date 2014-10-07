@@ -176,12 +176,12 @@ public class ProgramPointSetClosure {
                 PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
                 // not a call or a return, it's just a normal statement.
                 // does ipp kill this.node?
-                if (from == g.lookupDictionary(stmt.killed(context, g.getHaf()))) {
+                if (from == g.lookupDictionary(stmt.killed(context, g))) {
                     return Collections.emptyList();
                 }
 
                 // is "to" allocated at this program point?
-                int/*InstanceKeyRecency*/justAllocated = g.lookupDictionary(stmt.justAllocated(context, g.getHaf()));
+                int/*InstanceKeyRecency*/justAllocated = g.lookupDictionary(stmt.justAllocated(context, g));
                 if (to == justAllocated) {
                     // The to node just got allocated, and the to node is the most recent object created by that allocation site
                     assert g.lookupInstanceKeyDictionary(to).isRecent();

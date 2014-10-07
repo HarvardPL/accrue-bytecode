@@ -80,6 +80,11 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return assignee.isFlowSensitive() ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null;
+    }
+
+    @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
         s.append(assignee + " = ");

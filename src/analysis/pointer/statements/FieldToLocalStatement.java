@@ -105,6 +105,11 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return assignee.isFlowSensitive() ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null;
+    }
+
+    @Override
     public ReferenceVariable getDef() {
         return this.assignee;
     }

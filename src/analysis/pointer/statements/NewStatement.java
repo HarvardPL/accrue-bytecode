@@ -90,13 +90,13 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public InstanceKeyRecency justAllocated(Context context, RecencyHeapAbstractionFactory haf) {
-        return haf.record(alloc, context);
+    public InstanceKeyRecency justAllocated(Context context, PointsToGraph g) {
+        return g.getHaf().record(alloc, context);
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, RecencyHeapAbstractionFactory haf) {
-        return result.isFlowSensitive() ? new ReferenceVariableReplica(context, result, haf) : null;
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return result.isFlowSensitive() ? new ReferenceVariableReplica(context, result, g.getHaf()) : null;
     }
 
     @Override

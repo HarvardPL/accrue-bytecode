@@ -66,6 +66,11 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+        return local.isFlowSensitive() ? new ReferenceVariableReplica(context, local, g.getHaf()) : null;
+    }
+
+    @Override
     public String toString() {
         return local + " = " + staticField;
     }
