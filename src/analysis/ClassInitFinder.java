@@ -15,6 +15,7 @@ import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Find classes that may need to be initialized
@@ -31,22 +32,33 @@ public class ClassInitFinder {
     /**
      * As defined in JLS 12.4.1, get class initializers that must be called (if they have not already been called)
      * before executing the given instruction.
-     * 
-     * @param i
-     *            current instruction
-     * @param ir
-     *            code for method containing instruction
+     *
+     * @param i current instruction
      * @return clinit methods that might need to be called in the order they need to be called (i.e. element j is a
      *         super class of element j+1)
      */
     public static List<IMethod> getClassInitializers(SSAInstruction i) {
-        IClass klass = null;
+        IClass klass = getRequiredInitializedClasses(i);
+        if (klass == null) {
+            return Collections.emptyList();
+        }
+        return getClassInitializersForClass(klass);
+    }
 
+    /**
+     * As defined in JLS 12.4.1, get the class (if any) that must be initialized before executing the given instruction.
+     *
+     * @param i current instruction
+     * @return clinit methods that might need to be called in the order they need to be called (i.e. element j is a
+     *         super class of element j+1)
+     */
+    public static IClass getRequiredInitializedClasses(SSAInstruction i) {
         // T is a class and an instance of T is created.
         if (i instanceof SSANewInstruction) {
             SSANewInstruction ins = (SSANewInstruction) i;
             if (!ins.getConcreteType().isArrayType()) {
-                return getClassInitializersForClass(klass);
+                TypeReference rf = ins.getConcreteType();
+                return AnalysisUtil.getClassHierarchy().lookupClass(rf);
             }
         }
 
@@ -60,9 +72,9 @@ public class ClassInitFinder {
                         System.err.println("Trying to get class initializer for " + i + " and could not resolve "
                                                         + PrettyPrinter.methodString(ins.getDeclaredTarget()));
                     }
-                    return Collections.emptyList();
+                    return null;
                 }
-                return getClassInitializersForClass(callee.getDeclaringClass());
+                return callee.getDeclaringClass();
             }
         }
 
@@ -79,7 +91,7 @@ public class ClassInitFinder {
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
-                return getClassInitializersForClass(f.getDeclaringClass());
+                return f.getDeclaringClass();
             }
         }
 
@@ -96,7 +108,7 @@ public class ClassInitFinder {
                                                                                     .getDeclaringClass()) + "."
                                                     + ins.getDeclaredField().getName());
                 }
-                return getClassInitializersForClass(f.getDeclaringClass());
+                return f.getDeclaringClass();
             }
         }
 
@@ -104,19 +116,17 @@ public class ClassInitFinder {
         // package java.lang.reflect also causes class or interface initialization.
         // TODO handle class initializers for reflection
 
-        return Collections.emptyList();
+        return null;
     }
 
     /**
      * Get any classes that have to be initialized when the given class is initialized (i.e. the superclasses and
      * interfaces)
-     * 
-     * @param clazz
-     *            class to be initialized
+     *
+     * @param klass class to be initialized
      * @return List of class init methods that need to be called in the order they need to be initialized in
      */
-    public static List<IMethod> getClassInitializersForClass(IClass clazz) {
-        IClass klass = clazz;
+    public static List<IMethod> getClassInitializersForClass(IClass klass) {
         if (klass != null) {
             IClass objectClass = AnalysisUtil.getClassHierarchy().getRootClass();
             LinkedList<IMethod> inits = new LinkedList<>();
