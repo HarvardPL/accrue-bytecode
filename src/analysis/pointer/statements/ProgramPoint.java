@@ -15,7 +15,7 @@ public class ProgramPoint {
     private final PreProgramPoint pre;
     private final PostProgramPoint post;
     private final IMethod containingProcedure;
-    private final String debugInfo;
+    private String debugInfo;
 
     private final boolean isEntrySummaryNode;
     private final boolean isNormalExitSummaryNode;
@@ -368,5 +368,29 @@ public class ProgramPoint {
             return true;
         }
 
+    }
+
+    /**
+     * Break this program point into two. Imperatively, what happens is that we create a new program point pp (which is
+     * returned), which has as its successors the succs of this object, and then this object has its succs cleared.
+     *
+     * The caller of this method typically adds pp as a succ to this object (or connects this program point to pp
+     * transitively via succ relations).
+     *
+     * @return
+     */
+    public ProgramPoint divide(String debugStringPre) {
+        assert !(this.isEntrySummaryNode || this.isExceptionExitSummaryNode || this.isNormalExitSummaryNode);
+        ProgramPoint pp = new ProgramPoint(this.containingProcedure, this.debugInfo);
+        return this.divide(debugStringPre, pp);
+    }
+
+    public ProgramPoint divide(String debugStringPre, ProgramPoint pp) {
+        pp.addSuccs(this.succs);
+        this.succs.clear();
+        if (debugStringPre != null) {
+            this.debugInfo = this.debugInfo + debugStringPre;
+        }
+        return pp;
     }
 }

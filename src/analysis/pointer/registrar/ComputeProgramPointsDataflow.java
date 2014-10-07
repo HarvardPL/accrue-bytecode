@@ -1,5 +1,6 @@
 package analysis.pointer.registrar;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -8,10 +9,15 @@ import java.util.Set;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
+import analysis.ClassInitFinder;
 import analysis.dataflow.InstructionDispatchDataFlow;
+import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.statements.ProgramPoint;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -39,13 +45,15 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 
 /**
- * Data-flow that computes program points
+ * Data-flow that computes program points. We also compute intraprocedurally the set of classes that have definitely
+ * been initalized at certain instructions, so that we can reduce the number of class initialization statements we have
+ * to generate.
  */
-public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<ProgramPoint> {
+public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<ProgramPointFacts> {
 
     private final IR ir;
-    private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPoint> memoizedProgramPoints;
-    private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPoint> mostRecentProgramPoint;
+    private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPoint> memoizedProgramPoint;
+    private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPointFacts> mostRecentProgramPointFacts;
     private final Set<ProgramPoint> modifiesPointsToGraph;
     private final StatementRegistrar registrar;
     private final ReferenceVariableFactory rvFactory;
@@ -58,8 +66,8 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         this.registrar = registrar;
         this.rvFactory = rvFactory;
 
-        this.memoizedProgramPoints = new HashMap<>();
-        this.mostRecentProgramPoint = new HashMap<>();
+        this.memoizedProgramPoint = new HashMap<>();
+        this.mostRecentProgramPointFacts = new HashMap<>();
         this.modifiesPointsToGraph = new HashSet<>();
     }
 
@@ -80,11 +88,11 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         // iterate over every basic block
         for (ISSABasicBlock bb : cfg) {
             // go other every instruction in the basic block, and add a successor edge.
-            ProgramPoint previousPP = null;
+            ProgramPointFacts previousPP = null;
             for (SSAInstruction current : bb){
-                ProgramPoint currentPP = this.mostRecentProgramPoint.get(new OrderedPair<>(bb, current));
+                ProgramPointFacts currentPP = this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, current));
                 if (previousPP != null) {
-                    addSucc(previousPP, currentPP);
+                    addSucc(previousPP.pp, currentPP.pp);
                 }
                 previousPP = currentPP;
             }
@@ -92,7 +100,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
             // add successor edges from the program point of the last instruction of the basic block to
             // the program point of the first instruction of the successor basic blocks.
             SSAInstruction last = getLastInstruction(bb);
-            ProgramPoint lastPPofBB = this.mostRecentProgramPoint.get(new OrderedPair<>(bb, last));
+            ProgramPoint lastPPofBB = this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, last)).pp;
             for (ISSABasicBlock succBB : cfg.getNormalSuccessors(bb)) {
                 addSucc(lastPPofBB, bbEntryProgramPoint(succBB, true));
             }
@@ -103,16 +111,16 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
 
     }
 
-    private void addSucc(ProgramPoint pp, ProgramPoint succPP) {
+    private static void addSucc(ProgramPoint pp, ProgramPoint succPP) {
         if (pp.equals(succPP)) {
             // nothing to do
             return;
         }
-        // XXX TODO add the actual successor relation, once the interface of ProgramPoint has been determined.
+        pp.addSucc(succPP);
     }
 
     /**
-     * Get the ProgramPoint for the first instruction for bb. If bb is the unique exit basic block, then this method
+     * Get the ProgramPointFacts for the first instruction for bb. If bb is the unique exit basic block, then this method
      * returns either the normal exit ProgramPoint or the exception exit ProgramPoint from the method summary, depending
      * on the value of isExceptionEdge.
      *
@@ -131,243 +139,293 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         }
 
         // Not the exit block
+        SSAInstruction firstInst;
         if (!bb.iterator().hasNext()) {
             // Empty block, pass in null as the instruction @see flowEmptyBlock
-            this.mostRecentProgramPoint.get(new OrderedPair<>(bb, null));
+            firstInst = null;
         }
-        SSAInstruction firstInst = bb.iterator().next();
-        return this.mostRecentProgramPoint.get(new OrderedPair<>(bb, firstInst));
+        else {
+            firstInst = bb.iterator().next();
+        }
+        return this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, firstInst)).pp;
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flow(Set<ProgramPoint> inItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flow(Set<ProgramPointFacts> inItems,
                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                    ISSABasicBlock current) {
         // if we are the entry block, then the program point
         // is the entry ProgramPoint from the method summary.
         if (current.isEntryBlock()) {
             assert inItems.isEmpty();
-            MethodSummaryNodes summary = this.registrar.findOrCreateMethodSummary(this.ir.getMethod(),
+            IMethod meth = this.ir.getMethod();
+            MethodSummaryNodes summary = this.registrar.findOrCreateMethodSummary(meth,
                                                                                   this.rvFactory);
-            inItems = Collections.singleton(summary.getEntryPP());
+            ProgramPointFacts initialFacts = new ProgramPointFacts(summary.getEntryPP(),
+                                                                   Collections.<IClass> emptySet(),
+                                                                   initializedClassesForMethod(meth));
+            inItems = Collections.singleton(initialFacts);
         }
         return super.flow(inItems, cfg, current);
     }
 
+    /**
+     * Return the classes that we know must have been initialized by the time this method is called.
+     */
+    private static Set<IClass> initializedClassesForMethod(IMethod meth) {
+        Set<IClass> s = new HashSet<>();
+        IClass declaringClass = meth.getDeclaringClass();
+        if (!meth.isInit() && !meth.isStatic()) {
+            // a non-static non-intialization method,
+            // so all the superclasses and superinterfaces are initialized.
+            ArrayList<IClass> q = new ArrayList<>();
+            q.add(declaringClass);
+            while (!q.isEmpty()) {
+                IClass c = q.remove(q.size() - 1);
+                if (s.add(c)) {
+                    // add the superclasses and interfaces to the q
+                    IClass sup = c.getSuperclass();
+                    if (sup != null) {
+                        q.add(sup);
+                    }
+                    for (IClass in : c.getAllImplementedInterfaces()) {
+                        q.add(in);
+                    }
+                }
+            }
+        }
+        s.add(declaringClass);
+        if (!declaringClass.equals(AnalysisUtil.getObjectClass())) {
+            // object is initialized
+            s.add(AnalysisUtil.getObjectClass());
+        }
+        return s;
+    }
+
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowEmptyBlock(Set<ProgramPoint> inItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowEmptyBlock(Set<ProgramPointFacts> inItems,
                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                ISSABasicBlock current) {
         assert !inItems.isEmpty();
 
         // we have an empty block, so we can't associate a ProgramPoint with an instruction.
         // We will associate it with a "null" instruction.
-        ProgramPoint pp = flowImpl(false, null, inItems, cfg, current);
+        ProgramPointFacts pp = flowImpl(false, null, inItems, cfg, current);
         return factToMap(pp, current, cfg);
     }
 
     @Override
-    protected ProgramPoint flowBinaryOp(SSABinaryOpInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowBinaryOp(SSABinaryOpInstruction i, Set<ProgramPointFacts> previousItems,
                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowComparison(SSAComparisonInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowComparison(SSAComparisonInstruction i, Set<ProgramPointFacts> previousItems,
                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowConversion(SSAConversionInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowConversion(SSAConversionInstruction i, Set<ProgramPointFacts> previousItems,
                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowGetCaughtException(SSAGetCaughtExceptionInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
+                                                       Set<ProgramPointFacts> previousItems,
                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                   ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowGetStatic(SSAGetInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowGetStatic(SSAGetInstruction i, Set<ProgramPointFacts> previousItems,
                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowInstanceOf(SSAInstanceofInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowInstanceOf(SSAInstanceofInstruction i, Set<ProgramPointFacts> previousItems,
                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowPhi(SSAPhiInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowPhi(SSAPhiInstruction i, Set<ProgramPointFacts> previousItems,
                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowPutStatic(SSAPutInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowPutStatic(SSAPutInstruction i, Set<ProgramPointFacts> previousItems,
                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return flowImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected ProgramPoint flowUnaryNegation(SSAUnaryOpInstruction i, Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowUnaryNegation(SSAUnaryOpInstruction i, Set<ProgramPointFacts> previousItems,
                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                              ISSABasicBlock current) {
         return flowImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowArrayLength(SSAArrayLengthInstruction i,
-                                                                Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowArrayLength(SSAArrayLengthInstruction i,
+                                                                     Set<ProgramPointFacts> previousItems,
                                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                 ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowArrayLoad(SSAArrayLoadInstruction i,
-                                                              Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowArrayLoad(SSAArrayLoadInstruction i,
+                                                                   Set<ProgramPointFacts> previousItems,
                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                               ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowArrayStore(SSAArrayStoreInstruction i,
-                                                               Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowArrayStore(SSAArrayStoreInstruction i,
+                                                                    Set<ProgramPointFacts> previousItems,
                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowBinaryOpWithException(SSABinaryOpInstruction i,
-                                                                          Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                                                               Set<ProgramPointFacts> previousItems,
                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                           ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowCheckCast(SSACheckCastInstruction i,
-                                                              Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowCheckCast(SSACheckCastInstruction i,
+                                                                   Set<ProgramPointFacts> previousItems,
                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                               ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowConditionalBranch(SSAConditionalBranchInstruction i,
-                                                                      Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowConditionalBranch(SSAConditionalBranchInstruction i,
+                                                                           Set<ProgramPointFacts> previousItems,
                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                       ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowGetField(SSAGetInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowGetField(SSAGetInstruction i,
+                                                                  Set<ProgramPointFacts> previousItems,
                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                              ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeInterface(SSAInvokeInstruction i,
-                                                                    Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowInvokeInterface(SSAInvokeInstruction i,
+                                                                         Set<ProgramPointFacts> previousItems,
                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                     ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeSpecial(SSAInvokeInstruction i,
-                                                                  Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowInvokeSpecial(SSAInvokeInstruction i,
+                                                                       Set<ProgramPointFacts> previousItems,
                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                   ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeStatic(SSAInvokeInstruction i,
-                                                                 Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowInvokeStatic(SSAInvokeInstruction i,
+                                                                      Set<ProgramPointFacts> previousItems,
                                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                  ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowInvokeVirtual(SSAInvokeInstruction i,
-                                                                  Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowInvokeVirtual(SSAInvokeInstruction i,
+                                                                       Set<ProgramPointFacts> previousItems,
                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                   ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowGoto(SSAGotoInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowGoto(SSAGotoInstruction i,
+                                                              Set<ProgramPointFacts> previousItems,
                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                          ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowLoadMetadata(SSALoadMetadataInstruction i,
-                                                                 Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowLoadMetadata(SSALoadMetadataInstruction i,
+                                                                      Set<ProgramPointFacts> previousItems,
                                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                  ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowMonitor(SSAMonitorInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowMonitor(SSAMonitorInstruction i,
+                                                                 Set<ProgramPointFacts> previousItems,
                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                             ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowNewArray(SSANewInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowNewArray(SSANewInstruction i,
+                                                                  Set<ProgramPointFacts> previousItems,
                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                              ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowNewObject(SSANewInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowNewObject(SSANewInstruction i,
+                                                                   Set<ProgramPointFacts> previousItems,
                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                               ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowPutField(SSAPutInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowPutField(SSAPutInstruction i,
+                                                                  Set<ProgramPointFacts> previousItems,
                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                              ISSABasicBlock current) {
         return flowBranchImpl(true, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowReturn(SSAReturnInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowReturn(SSAReturnInstruction i,
+                                                                Set<ProgramPointFacts> previousItems,
                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                            ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowSwitch(SSASwitchInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowSwitch(SSASwitchInstruction i,
+                                                                Set<ProgramPointFacts> previousItems,
                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                            ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
     }
 
     @Override
-    protected Map<ISSABasicBlock, ProgramPoint> flowThrow(SSAThrowInstruction i, Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowThrow(SSAThrowInstruction i,
+                                                               Set<ProgramPointFacts> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
         return flowBranchImpl(false, i, previousItems, cfg, current);
@@ -378,16 +436,17 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         return false;
     }
 
-    protected Map<ISSABasicBlock, ProgramPoint> flowBranchImpl(boolean mayChangeFlowSensPointsToGraph, SSAInstruction i,
-                                                         Set<ProgramPoint> previousItems,
+    protected Map<ISSABasicBlock, ProgramPointFacts> flowBranchImpl(boolean mayChangeFlowSensPointsToGraph,
+                                                                    SSAInstruction i,
+                                                                    Set<ProgramPointFacts> previousItems,
                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                          ISSABasicBlock current) {
         return factToMap(flowImpl(mayChangeFlowSensPointsToGraph, i, previousItems, cfg, current), current, cfg);
 
     }
 
-    protected ProgramPoint flowImpl(boolean mayChangePointsToGraph, SSAInstruction i,
-                                             Set<ProgramPoint> previousItems,
+    protected ProgramPointFacts flowImpl(boolean mayChangePointsToGraph, SSAInstruction i,
+                                         Set<ProgramPointFacts> previousItems,
                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                              ISSABasicBlock current) {
         assert !previousItems.isEmpty() : "Empty facts for BB" + current.getNumber() + " IN "
@@ -396,9 +455,69 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         // i may be null.
         OrderedPair<ISSABasicBlock, SSAInstruction> memoKey = new OrderedPair<>(current, i);
 
+        // Compute the set of classes that are definitely initialized.
+        Set<IClass> definitelyInitializedClassesBeforeIns;
+        if (previousItems.size() > 1) {
+            // compute the intersection
+            Set<IClass> s = null;
+            for (ProgramPointFacts it : previousItems) {
+                if (s == null) {
+                    s = new HashSet<>();
+                    s.addAll(it.definitelyInitClassesAfterIns);
+                }
+                else {
+                    s.retainAll(it.definitelyInitClassesAfterIns);
+                }
+            }
+            definitelyInitializedClassesBeforeIns = s;
+        }
+        else {
+            definitelyInitializedClassesBeforeIns = new HashSet<>(previousItems.iterator().next().definitelyInitClassesAfterIns);
+        }
+
+        // now this instruction itself may cause some classes to be initialized.
+        Set<IClass> definitelyInitializedClassesAfterIns;
+
+        boolean callsClassInitializer = false;
+        IClass reqInit = ClassInitFinder.getRequiredInitializedClasses(i);
+        if (reqInit != null && !definitelyInitializedClassesBeforeIns.contains(reqInit)) {
+            definitelyInitializedClassesAfterIns = new HashSet<>(definitelyInitializedClassesBeforeIns);
+            definitelyInitializedClassesAfterIns.add(reqInit);
+            if (!ClassInitFinder.getClassInitializersForClass(reqInit).isEmpty()) {
+                // because this instruction will definitely cause a class initializer method to be called,
+                // it can change the points to graph
+                mayChangePointsToGraph = true;
+                callsClassInitializer = true;
+            }
+        }
+        else {
+            definitelyInitializedClassesAfterIns = definitelyInitializedClassesBeforeIns;
+        }
+
+        if (i != null) {
+            if (!mayChangePointsToGraph) {
+                // see if there are string literals
+                for (int j = 0; j < i.getNumberOfUses(); j++) {
+                    int use = i.getUse(j);
+                    if (ir.getSymbolTable().isStringConstant(use)) {
+                        mayChangePointsToGraph = true;
+                        break;
+                    }
+                }
+            }
+            if (!mayChangePointsToGraph) {
+                // see if there are generated exceptions
+                if (!PreciseExceptionResults.implicitExceptions(i).isEmpty()) {
+                    mayChangePointsToGraph = true;
+                }
+            }
+        }
+
+        // Compute the program point.
         ProgramPoint pp;
-        if (mayChangePointsToGraph || previousItems.size() > 1
-                || (previousItems.size() == 1 && this.modifiesPointsToGraph.contains(previousItems.iterator().next()))) {
+        if (mayChangePointsToGraph
+                || previousItems.size() > 1
+                || (previousItems.size() == 1 && this.modifiesPointsToGraph.contains(previousItems.iterator().next().pp))) {
             // we need a new program point: either this instruction may change the points to graph, or
             // the previous instruction changed the points to graph, or there are multiple distinct
             // predecessor program points.
@@ -406,35 +525,110 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         }
         else {
             assert previousItems.size() == 1;
-            pp = previousItems.iterator().next();
+            pp = previousItems.iterator().next().pp;
         }
 
-        mostRecentProgramPoint.put(memoKey, pp);
+        ProgramPointFacts ppf = new ProgramPointFacts(pp,
+                                                      definitelyInitializedClassesBeforeIns,
+                                                      definitelyInitializedClassesAfterIns);
+        this.mostRecentProgramPointFacts.put(memoKey, ppf);
 
         if (mayChangePointsToGraph) {
             this.modifiesPointsToGraph.add(pp);
         }
 
-        return pp;
+        return ppf;
 
     }
 
     private ProgramPoint getOrCreateProgramPoint(OrderedPair<ISSABasicBlock, SSAInstruction> memoKey) {
         ProgramPoint pp;
-        if (memoizedProgramPoints.containsKey(memoKey)) {
-            pp = memoizedProgramPoints.get(memoKey);
+        if (memoizedProgramPoint.containsKey(memoKey)) {
+            pp = memoizedProgramPoint.get(memoKey);
         }
         else {
-            pp = new ProgramPoint(this.ir.getMethod(), PrettyPrinter.methodString(this.ir.getMethod()) + ":"
-                    + memoKey.fst().getNumber() + ":" + memoKey.snd());
-            memoizedProgramPoints.put(memoKey, pp);
+            String debugString = PrettyPrinter.methodString(this.ir.getMethod()) + ":" + memoKey.fst().getNumber()
+                    + ":" + memoKey.snd();
+            pp = new ProgramPoint(this.ir.getMethod(), debugString);
+
+            memoizedProgramPoint.put(memoKey, pp);
         }
         return pp;
     }
 
     public ProgramPoint getProgramPoint(SSAInstruction ins, ISSABasicBlock bb) {
         assert finishedDataflow;
-        return this.mostRecentProgramPoint.get(new OrderedPair<>(bb, ins));
+        return this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, ins)).pp;
     }
 
+    public Set<IClass> getInitializedClassesBeforeIns(SSAInstruction ins, ISSABasicBlock bb) {
+        assert finishedDataflow;
+        return this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, ins)).definitelyInitClassesBeforeIns;
+    }
+
+}
+
+class ProgramPointFacts {
+    ProgramPoint pp;
+    Set<IClass> definitelyInitClassesBeforeIns;
+    Set<IClass> definitelyInitClassesAfterIns;
+
+    public ProgramPointFacts(ProgramPoint pp,
+                             Set<IClass> definitelyInitClassesBeforeIns,
+                             Set<IClass> definitelyInitClassesAfterIns) {
+        this.pp = pp;
+        this.definitelyInitClassesBeforeIns = definitelyInitClassesBeforeIns;
+        this.definitelyInitClassesAfterIns = definitelyInitClassesAfterIns;
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result
+                + ((definitelyInitClassesAfterIns == null) ? 0 : definitelyInitClassesAfterIns.hashCode());
+        result = prime * result
+                + ((definitelyInitClassesBeforeIns == null) ? 0 : definitelyInitClassesBeforeIns.hashCode());
+        result = prime * result + ((pp == null) ? 0 : pp.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof ProgramPointFacts)) {
+            return false;
+        }
+        ProgramPointFacts other = (ProgramPointFacts) obj;
+        if (definitelyInitClassesAfterIns == null) {
+            if (other.definitelyInitClassesAfterIns != null) {
+                return false;
+            }
+        }
+        else if (!definitelyInitClassesAfterIns.equals(other.definitelyInitClassesAfterIns)) {
+            return false;
+        }
+        if (definitelyInitClassesBeforeIns == null) {
+            if (other.definitelyInitClassesBeforeIns != null) {
+                return false;
+            }
+        }
+        else if (!definitelyInitClassesBeforeIns.equals(other.definitelyInitClassesBeforeIns)) {
+            return false;
+        }
+        if (pp == null) {
+            if (other.pp != null) {
+                return false;
+            }
+        }
+        else if (!pp.equals(other.pp)) {
+            return false;
+        }
+        return true;
+    }
 }
