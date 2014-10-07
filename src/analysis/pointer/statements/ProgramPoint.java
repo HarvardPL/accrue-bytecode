@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
@@ -69,6 +70,14 @@ public class ProgramPoint {
             this.succs = PointsToAnalysisMultiThreaded.makeConcurrentSet();
         }
         return this.succs.add(succ);
+    }
+
+    public boolean addSuccs(Collection<ProgramPoint> succs) {
+        boolean changed = false;
+        for (ProgramPoint pp : succs) {
+            changed |= this.addSucc(pp);
+        }
+        return changed;
     }
 
     @Override

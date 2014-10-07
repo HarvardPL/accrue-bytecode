@@ -3,7 +3,6 @@ package analysis.pointer.registrar;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -73,9 +72,10 @@ public class StatementRegistrar {
     private final IMethod entryMethod;
 
     /**
-     * List of program points for the entry method. We use these program points for initial points to statements.
+     * Program points that are used for special initializations at the beginning of the program. This set is the program
+     * points that were added before the entry method was processed.
      */
-    private final List<ProgramPoint> entryMethodProgramPoints = new ArrayList<>();
+    private final Set<ProgramPoint> entryMethodProgramPoints;
 
     /**
      * Map from method to the points-to statements generated from instructions in that method
@@ -155,6 +155,7 @@ public class StatementRegistrar {
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
+        this.entryMethodProgramPoints = AnalysisUtil.createConcurrentSet();
         this.stmtFactory = factory;
     }
 
@@ -170,68 +171,81 @@ public class StatementRegistrar {
         }
 
         if (this.registeredMethods.add(m)) {
-            // we need to register the method.
+            try {
+                // we need to register the method.
 
-            IR ir = AnalysisUtil.getIR(m);
-            if (ir == null) {
-                // Native method with no signature
-                assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-                this.registerNative(m, this.rvFactory);
+                IR ir = AnalysisUtil.getIR(m);
+                if (ir == null) {
+                    // Native method with no signature
+                    assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
+                    this.registerNative(m, this.rvFactory);
+                    return true;
+                }
+
+                // First, run a dataflow to find the program points.
+                ComputeProgramPointsDataflow df = new ComputeProgramPointsDataflow(ir, this, this.rvFactory);
+                df.dataflow();
+
+                TypeRepository types = new TypeRepository(ir);
+                PrettyPrinter pprint = new PrettyPrinter(ir);
+
+                MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
+
+                // Add edges from formal summary nodes to the local variables representing the method parameters
+                this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, pprint);
+
+                for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                    for (SSAInstruction ins : bb) {
+                        if (ins.toString().contains("signatures/library/java/lang/String")
+                                || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
+                            System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
+                                    + " in " + m);
+                        }
+                        handleInstruction(ins, ir, df.getProgramPoint(ins, bb), bb, types, pprint);
+                    }
+                }
+
+                // now try to remove duplicates
+                Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
+                int oldSize = oldStatements.size();
+                OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+                Set<PointsToStatement> newStatements = duplicateResults.fst();
+                replacedVariableMap.put(m, duplicateResults.snd());
+                int newSize = newStatements.size();
+
+                removed += (oldSize - newSize);
+                this.statementsForMethod.put(m, newStatements);
+                this.size += (newSize - oldSize);
+
+                if (PointsToAnalysis.outputLevel >= 1) {
+                    System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
+                    CFGWriter.writeToFile(ir);
+                    System.err.println();
+                }
+
+                if (PointsToAnalysis.outputLevel >= 6) {
+                    try (Writer writer = new StringWriter()) {
+                        PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+                        System.err.print(writer.toString());
+                    }
+                    catch (IOException e) {
+                        throw new RuntimeException();
+                    }
+                }
                 return true;
             }
-
-            // First, run a dataflow to find the program points.
-            ComputeProgramPointsDataflow df = new ComputeProgramPointsDataflow(ir, this, this.rvFactory);
-            df.dataflow();
-
-            TypeRepository types = new TypeRepository(ir);
-            PrettyPrinter pprint = new PrettyPrinter(ir);
-
-            MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
-
-            // Add edges from formal summary nodes to the local variables representing the method parameters
-            this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, pprint);
-
-            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                for (SSAInstruction ins : bb) {
-                    if (ins.toString().contains("signatures/library/java/lang/String")
-                            || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
-                        System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
-                                + " in " + m);
+            finally {
+                // if we just registered the entry method, add the entry method program points
+                if (m.equals(this.entryMethod)) {
+                    ProgramPoint entryPP = getMethodSummary(m).getEntryPP();
+                    for (ProgramPoint pp : this.entryMethodProgramPoints) {
+                        pp.addSuccs(entryPP.succs());
                     }
-                    handleInstruction(ins, ir, df.getProgramPoint(ins, bb), bb, types, pprint);
+                    entryPP.addSuccs(this.entryMethodProgramPoints);
+
+                    this.entryMethodProgramPoints.clear();
                 }
             }
-
-            // now try to remove duplicates
-            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
-            int oldSize = oldStatements.size();
-            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            Set<PointsToStatement> newStatements = duplicateResults.fst();
-            replacedVariableMap.put(m, duplicateResults.snd());
-            int newSize = newStatements.size();
-
-            removed += (oldSize - newSize);
-            this.statementsForMethod.put(m, newStatements);
-            this.size += (newSize - oldSize);
-
-
-            if (PointsToAnalysis.outputLevel >= 1) {
-                System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
-                CFGWriter.writeToFile(ir);
-                System.err.println();
-            }
-
-            if (PointsToAnalysis.outputLevel >= 6) {
-                try (Writer writer = new StringWriter()) {
-                    PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-                    System.err.print(writer.toString());
-                }
-                catch (IOException e) {
-                    throw new RuntimeException();
-                }
-            }
-            return true;
         }
         return false;
 
@@ -1047,14 +1061,38 @@ public class StatementRegistrar {
             assert klass != null : "No class found for " + PrettyPrinter.typeString(varType);
 
             // We pretend that the allocation for this object occurs in the entry point.
-            NewStatement stmt = stmtFactory.newForGeneratedObject(rv,
-                                                                  klass,
-                                                                  nextEntryMethodProgramPoint(),
-                                                                  PrettyPrinter.typeString(varType));
+            ProgramPoint pp = new ProgramPoint(getEntryPoint(), "EntryMethod-pp-" + klass);
+            addEntryMethodProgramPoint(pp);
+            NewStatement stmt = stmtFactory.newForGeneratedObject(rv, klass, pp, PrettyPrinter.typeString(varType));
+
+
+
             this.addStatement(stmt);
 
         }
         return rv;
+    }
+
+    /**
+     * Add a program point to the entry method.
+     *
+     * @param pp
+     */
+    private void addEntryMethodProgramPoint(ProgramPoint pp) {
+        // get the entry method entry program point
+        ProgramPoint entryPP = getMethodSummary(this.entryMethod).getEntryPP();
+        if (entryPP.succs().isEmpty()) {
+            // we haven't processed the entry method yet
+            this.entryMethodProgramPoints.add(pp);
+        }
+        else {
+            // add all of the succs of entryPP as succs of pp
+            // and add pp as a succ to entryPP.
+            // This is not great (quadratic-sized structure!) and
+            // we should make it more efficient sometime.
+            pp.addSuccs(entryPP.succs());
+            entryPP.addSucc(pp);
+        }
     }
 
     /**
@@ -1308,17 +1346,6 @@ public class StatementRegistrar {
 
     public IMethod getEntryPoint() {
         return this.entryMethod;
-    }
-
-    private ProgramPoint nextEntryMethodProgramPoint() {
-        ProgramPoint pp = new ProgramPoint(getEntryPoint(), "EntryMethod-pp-" + this.entryMethodProgramPoints.size());
-        if (!this.entryMethodProgramPoints.isEmpty()) {
-            ProgramPoint lastpp = this.entryMethodProgramPoints.get(this.entryMethodProgramPoints.size() - 1);
-            lastpp.addSucc(pp);
-        }
-
-        entryMethodProgramPoints.add(pp);
-        return pp;
     }
 
 }
