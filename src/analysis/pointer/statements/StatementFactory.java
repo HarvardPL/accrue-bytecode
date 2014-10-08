@@ -84,7 +84,7 @@ public class StatementFactory {
     /**
      * Statement for the assignment from an exception to a catch-block formal or the summary node representing the
      * exception value on method exit
-     * 
+     *
      * @param thrown reference variable for the exception being thrown
      * @param caught reference variable for the caught exception (or summary for the method exit)
      * @param notType types that the exception being caught cannot have since those types must have been caught by
@@ -92,16 +92,11 @@ public class StatementFactory {
      * @param m method the statement was created for
      * @param isToMethodSummaryVariable true if the variable we are assigning into, <code>caught</code>, is the
      *            exception summary node for a method
-     * @param useSingletonAllocForThisException If true then only one allocation will be made for exceptions like this
-     *            one, e.g. for all exceptions of this type or all generated exceptions of this type. This means that
-     *            there may be multiple identical exception assignment statements if the same type of exception is
-     *            caught by the same catch block
      * @return statement to be processed during pointer analysis
      */
-    public ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
-                                                            Set<IClass> notType, IMethod m,
-                                                            boolean isToMethodSummaryVariable,
-                                                            boolean useSingletonAllocForThisException) {
+    public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
+                                                                   Set<IClass> notType, IMethod m,
+                                                                   boolean isToMethodSummaryVariable) {
         assert thrown != null;
         assert caught != null;
         assert notType != null;
@@ -112,7 +107,6 @@ public class StatementFactory {
                                                                           notType,
                                                                           m,
                                                                           isToMethodSummaryVariable);
-        assert useSingletonAllocForThisException || map.put(new StatementKey(thrown, caught), s) == null;
         return s;
 
     }

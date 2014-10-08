@@ -538,7 +538,7 @@ public class StatementRegistrar {
 
         TypeReference exType = types.getType(i.getException());
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pp);
-        this.registerThrownException(bb, ir, exception, rvFactory, types, pp, useSingleAllocPerThrowableType);
+        this.registerThrownException(bb, ir, exception, rvFactory, types, pp);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -747,7 +747,7 @@ public class StatementRegistrar {
                                TypeRepository types, PrettyPrinter pp) {
         TypeReference throwType = types.getType(i.getException());
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pp);
-        this.registerThrownException(bb, ir, v, rvFactory, types, pp, useSingleAllocPerThrowableType);
+        this.registerThrownException(bb, ir, v, rvFactory, types, pp);
     }
 
     /**
@@ -979,7 +979,7 @@ public class StatementRegistrar {
 
                 this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, ir.getMethod()));
             }
-            this.registerThrownException(bb, ir, ex, rvFactory, types, pp, useSingleAlloc);
+            this.registerThrownException(bb, ir, ex, rvFactory, types, pp);
         }
     }
 
@@ -1020,14 +1020,10 @@ public class StatementRegistrar {
      * @param thrown reference variable representing the value of the exception
      * @param types type information about local variables
      * @param pp pretty printer for the appropriate method
-     * @param useSingletonAllocForThisException If true then only one allocation will be made for exceptions like this
-     *            one, e.g. for all exceptions of this type or all generated exceptions of this type. This means that
-     *            there may be multiple identical exception assignment statements if the same type of exception is
-     *            caught by the same catch block
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
-                                               PrettyPrinter pp, boolean useSingletonAllocForThisException) {
+                                               PrettyPrinter pp) {
 
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
 
@@ -1059,12 +1055,11 @@ public class StatementRegistrar {
 
                 if (maybeCaught || definitelyCaught) {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                    this.addStatement(stmtFactory.exceptionAssignment(thrown,
-                                                                      caught,
-                                                                      notType,
-                                                                      ir.getMethod(),
-                                                                      false,
-                                                                      useSingletonAllocForThisException));
+                    this.addStatement(StatementFactory.exceptionAssignment(thrown,
+                                                                           caught,
+                                                                           notType,
+                                                                           ir.getMethod(),
+                                                                           false));
                 }
 
                 // if we have definitely caught the exception, no need to add more exception assignment statements.
@@ -1080,12 +1075,7 @@ public class StatementRegistrar {
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
-                this.addStatement(stmtFactory.exceptionAssignment(thrown,
-                                                                  caught,
-                                                                  notType,
-                                                                  ir.getMethod(),
-                                                                  true,
-                                                                  useSingletonAllocForThisException));
+                this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), true));
             }
         }
     }
@@ -1129,12 +1119,11 @@ public class StatementRegistrar {
                 for (TypeReference exType : exceptions) {
                     // Allocation of exception of a particular type
                     ReferenceVariable ex = ReferenceVariableFactory.createNativeException(exType, m);
-                    this.addStatement(stmtFactory.exceptionAssignment(ex,
-                                                                      methodSummary.getException(),
-                                                                      Collections.<IClass> emptySet(),
-                                                                      m,
-                                                                      true,
-                                                                      useSingleAllocPerThrowableType));
+                    this.addStatement(StatementFactory.exceptionAssignment(ex,
+                                                                           methodSummary.getException(),
+                                                                           Collections.<IClass> emptySet(),
+                                                                           m,
+                                                                           true));
                     this.registerAllocationForNative(m, exType, ex);
                     containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
                 }
@@ -1151,12 +1140,11 @@ public class StatementRegistrar {
         if (!containsRTE) {
             ReferenceVariable ex = ReferenceVariableFactory.createNativeException(TypeReference.JavaLangRuntimeException,
                                                                                   m);
-            this.addStatement(stmtFactory.exceptionAssignment(ex,
-                                                              methodSummary.getException(),
-                                                              Collections.<IClass> emptySet(),
-                                                              m,
-                                                              true,
-                                                              useSingleAllocPerThrowableType));
+            this.addStatement(StatementFactory.exceptionAssignment(ex,
+                                                                   methodSummary.getException(),
+                                                                   Collections.<IClass> emptySet(),
+                                                                   m,
+                                                                   true));
             this.registerAllocationForNative(m, TypeReference.JavaLangRuntimeException, methodSummary.getException());
         }
     }
