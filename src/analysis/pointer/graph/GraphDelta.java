@@ -166,7 +166,7 @@ public class GraphDelta {
                 getOrCreateFISet(src, estimatedSize).addAll(srcSet);
             }
 
-            IntIterator keysFS = d.deltaFI.keyIterator();
+            IntIterator keysFS = d.deltaFS.keyIterator();
             while (keysFS.hasNext()) {
                 int src = keysFS.next();
                 IntMap<ProgramPointSetClosure> srcSet = d.deltaFS.get(src);

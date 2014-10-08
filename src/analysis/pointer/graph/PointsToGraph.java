@@ -70,7 +70,7 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
-    private final ConcurrentMap<InstanceKeyRecency, Integer> reverseInstanceKeyDictionary = new ConcurrentHashMap<>();
+    private final ConcurrentMap<InstanceKeyRecency, Integer> reverseInstanceKeyDictionary = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Dictionary to record the concrete type of instance keys.
@@ -85,18 +85,17 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
+    private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private final ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = new SimpleConcurrentIntMap();
-
+    private final ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /* ******************
      * Record allocation sites
      */
-    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = new SimpleConcurrentIntMap();
+    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /* ***************************************************************************
      *
@@ -431,7 +430,7 @@ public class PointsToGraph {
      */
     public GraphDelta copyEdges(PointsToGraphNode source, InterProgramPointReplica sourceIppr,
                                 PointsToGraphNode target, InterProgramPointReplica targetIppr) {
-        assert !(source.isFlowSensitive() && source.isFlowSensitive()) : "At most one of the source and target should be flow sensitive";
+        assert !(source.isFlowSensitive() && target.isFlowSensitive()) : "At most one of the source and target should be flow sensitive";
 
         int s = this.getRepresentative(lookupDictionary(source));
         int t = this.getRepresentative(lookupDictionary(target));
@@ -1236,6 +1235,7 @@ public class PointsToGraph {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 IClass type = PointsToGraph.this.concreteTypeDictionary.get(i);
+                assert type != null;
                 if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
@@ -1523,7 +1523,10 @@ public class PointsToGraph {
             assert sourceIsFlowSensitive;
             srcIter = new ProgramPointIntIterator(pointsToFS.get(source), ippr, this);
         }
-        return this.getDifference(srcIter, target, targetIsFlowSensitive, ExplicitProgramPointSet.singleton(ippr));
+        return this.getDifference(srcIter,
+                                  target,
+                                  targetIsFlowSensitive,
+                                  ippr == null ? null : ExplicitProgramPointSet.singleton(ippr));
 
     }
 

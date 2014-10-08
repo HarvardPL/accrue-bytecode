@@ -36,6 +36,7 @@ public class ExplicitProgramPointSet implements Iterable<InterProgramPointReplic
     }
 
     public static ExplicitProgramPointSet singleton(InterProgramPointReplica ippr) {
+        assert ippr != null;
         ExplicitProgramPointSet x = new ExplicitProgramPointSet();
         x.add(ippr);
         return x;

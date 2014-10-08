@@ -25,6 +25,10 @@ public final class ObjectField implements PointsToGraphNode {
      */
     private final TypeReference expectedType;
     /**
+     * Is this ObjectField representing the contents of an array?
+     */
+    private final boolean isArrayContentsDummyField;
+    /**
      * Hash code computed once
      */
     private final int memoizedHashCode;
@@ -39,14 +43,15 @@ public final class ObjectField implements PointsToGraphNode {
      * @param expectedType
      *            type of the field
      */
-    public ObjectField(InstanceKeyRecency receiver, String fieldName,
-            TypeReference expectedType) {
+    public ObjectField(InstanceKeyRecency receiver, String fieldName, TypeReference expectedType,
+                       boolean isArrayContentsDummyField) {
         assert receiver != null;
         assert fieldName != null;
         assert expectedType != null;
         this.receiver = receiver;
         this.fieldName = fieldName;
         this.expectedType = expectedType;
+        this.isArrayContentsDummyField = isArrayContentsDummyField;
         memoizedHashCode = computeHashCode();
     }
 
@@ -61,7 +66,7 @@ public final class ObjectField implements PointsToGraphNode {
     public ObjectField(InstanceKeyRecency receiver, FieldReference fieldReference) {
         this(receiver,
              fieldReference.getName().toString(),
-             fieldReference.getFieldType());
+ fieldReference.getFieldType(), false);
     }
 
     @Override
@@ -140,13 +145,13 @@ public final class ObjectField implements PointsToGraphNode {
 
     @Override
     public boolean isFlowSensitive() {
-        // Be flow sensitive for the recent objects.
-        return this.receiver.isRecent();
+        // Be flow sensitive for the recent objects (if we are not the array contents).
+        return this.receiver.isRecent() && !this.isArrayContentsDummyField;
     }
 
     /**
      * Return an ObjectField that is identical to this one except that it has newReceiver as the receiver.
-     * 
+     *
      * @param newReceiver
      * @return
      */
@@ -154,6 +159,6 @@ public final class ObjectField implements PointsToGraphNode {
         if (this.receiver == newReceiver || this.receiver.equals(newReceiver)) {
             return this;
         }
-        return new ObjectField(newReceiver, this.fieldName, this.expectedType);
+        return new ObjectField(newReceiver, this.fieldName, this.expectedType, this.isArrayContentsDummyField);
     }
 }

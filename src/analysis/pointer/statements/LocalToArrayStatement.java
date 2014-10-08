@@ -80,7 +80,7 @@ public class LocalToArrayStatement extends PointsToStatement {
                 ObjectField contents =
                         new ObjectField(arrHeapContext,
                                         PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+ baseType, true);
 
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive();
@@ -98,10 +98,10 @@ public class LocalToArrayStatement extends PointsToStatement {
                 ObjectField contents =
                         new ObjectField(arrHeapContext,
                                         PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+ baseType, true);
 
                 // contents should never be flow sensitive, since it can never be a singleton
-                assert !contents.isFlowSensitive();
+                assert !contents.isFlowSensitive() : "Contents should never be flow sensitive";
 
                 GraphDelta d1 = g.copyEdges(v, pre, contents, post);
                 changed = changed.combine(d1);
