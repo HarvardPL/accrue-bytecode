@@ -280,6 +280,7 @@ public class PointsToGraph {
      * @return
      */
     protected/*InstanceKeyRecency*/int baseNodeForPointsToGraphNode(int/*PointsToGaphNode*/n) {
+        assert n >= 0;
         PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
         if (fromGraphNode instanceof ObjectField) {
             ObjectField of = (ObjectField) fromGraphNode;
@@ -318,7 +319,9 @@ public class PointsToGraph {
             // try a put if absent
             // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
             this.instanceKeyDictionary.put(h, heapContext);
-            this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
+            IClass concreteType = heapContext.getConcreteType();
+            assert concreteType != null;
+            this.concreteTypeDictionary.put(h, concreteType);
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(heapContext, h);
             if (existing != null) {
                 // someone beat us. h will never be used.
@@ -520,6 +523,8 @@ public class PointsToGraph {
         assert !(sourceIsFlowSensitive && targetIsFlowSensitive) : "At most one can be flow sensitive";
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || filter == null : "If either is flow sensitive then filter must be null";
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || ippr != null : "If either is flow sensitive then ippr must be non null";
+
+        assert source >= 0 && target >= 0;
 
         // go through the points to set of source, and add anything that target doesn't already point to.
         IntSet diff = this.getDifference(source, sourceIsFlowSensitive, filter, target, targetIsFlowSensitive, ippr);
@@ -1235,7 +1240,7 @@ public class PointsToGraph {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 IClass type = PointsToGraph.this.concreteTypeDictionary.get(i);
-                assert type != null;
+                assert type != null : "No concrete type for key " + i;
                 if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;

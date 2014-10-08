@@ -54,7 +54,6 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
     private final IR ir;
     private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPoint> memoizedProgramPoint;
     private final Map<OrderedPair<ISSABasicBlock, SSAInstruction>, ProgramPointFacts> mostRecentProgramPointFacts;
-    private final Set<ProgramPoint> modifiesPointsToGraph;
     private final StatementRegistrar registrar;
     private final ReferenceVariableFactory rvFactory;
 
@@ -68,7 +67,6 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
 
         this.memoizedProgramPoint = new HashMap<>();
         this.mostRecentProgramPointFacts = new HashMap<>();
-        this.modifiesPointsToGraph = new HashSet<>();
     }
 
     /**
@@ -515,9 +513,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
 
         // Compute the program point.
         ProgramPoint pp;
-        if (mayChangePointsToGraph
-                || previousItems.size() > 1
-                || (previousItems.size() == 1 && this.modifiesPointsToGraph.contains(previousItems.iterator().next().pp))) {
+        if (mayChangePointsToGraph || previousItems.size() > 1) {
             // we need a new program point: either this instruction may change the points to graph, or
             // the previous instruction changed the points to graph, or there are multiple distinct
             // predecessor program points.
@@ -532,10 +528,6 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
                                                       definitelyInitializedClassesBeforeIns,
                                                       definitelyInitializedClassesAfterIns);
         this.mostRecentProgramPointFacts.put(memoKey, ppf);
-
-        if (mayChangePointsToGraph) {
-            this.modifiesPointsToGraph.add(pp);
-        }
 
         return ppf;
 

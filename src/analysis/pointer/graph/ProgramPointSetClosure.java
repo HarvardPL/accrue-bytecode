@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 import util.OrderedPair;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -176,24 +177,27 @@ public class ProgramPointSetClosure {
                 PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
                 // not a call or a return, it's just a normal statement.
                 // does ipp kill this.node?
-                if (from == g.lookupDictionary(stmt.killed(context, g))) {
+                PointsToGraphNode killed = stmt.killed(context, g);
+                if (killed != null && from == g.lookupDictionary(killed)) {
                     return Collections.emptyList();
                 }
 
                 // is "to" allocated at this program point?
-                int/*InstanceKeyRecency*/justAllocated = g.lookupDictionary(stmt.justAllocated(context, g));
-                if (to == justAllocated) {
-                    // The to node just got allocated, and the to node is the most recent object created by that allocation site
-                    assert g.lookupInstanceKeyDictionary(to).isRecent();
-                    return Collections.emptyList();
+                InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
+                if (justAllocated != null) {
+                    int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
+                    if (to == justAllocatedKey) {
+                        // The to node just got allocated, and the to node is the most recent object created by that allocation site
+                        assert g.lookupInstanceKeyDictionary(to).isRecent();
+                        return Collections.emptyList();
+                    }
+                    if (fromBase >= 0 && fromBase == justAllocatedKey) {
+                        // We are the set of program points pp such that "to \in pointsToFS(fromBase.f, pp)" is true,
+                        // and at this program point, fromBase just got allocated.
+                        assert g.lookupInstanceKeyDictionary(fromBase).isRecent();
+                        return Collections.emptyList();
+                    }
                 }
-                if (fromBase == justAllocated) {
-                    // We are the set of program points pp such that "to \in pointsToFS(fromBase.f, pp)" is true,
-                    // and at this program point, fromBase just got allocated.
-                    assert g.lookupInstanceKeyDictionary(fromBase).isRecent();
-                    return Collections.emptyList();
-                }
-
                 return Collections.singletonList(InterProgramPointReplica.create(context, pp.post()));
             }
         }
