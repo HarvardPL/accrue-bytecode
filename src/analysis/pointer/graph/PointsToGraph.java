@@ -149,7 +149,7 @@ public class PointsToGraph {
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>>> callGraphMap = new ConcurrentHashMap<>();
 
     private HafCallGraph callGraph = null;
 
@@ -211,7 +211,7 @@ public class PointsToGraph {
     }
 
     public/*PointsToGraphNode*/int getRepresentative(/*PointsToGraphNode*/int n) {
-        int orig = n;
+        // XXX Steve: Should this be used for something? int orig = n;
         int rep;
         Integer x = n;
         do {
@@ -273,6 +273,7 @@ public class PointsToGraph {
         return delta;
     }
 
+    @SuppressWarnings("unused")
     private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
         MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
         IntIterator iter = toCollapse.keyIterator();
@@ -444,6 +445,7 @@ public class PointsToGraph {
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = iter.next();
+            @SuppressWarnings("null")
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
             // it is possible that the filter set is empty, due to race conditions.
             // No trouble, we will just ignore it, and pretend we got in there before
@@ -522,26 +524,40 @@ public class PointsToGraph {
     }
 
     /**
-     * XXXX DOCO TODO.
+     * Add a call at a particular call site from a caller (in a context) to a callee (in a context)
      *
+     * @param callSite call site the new call is being added for
+     * @param caller method invocation occurs in
+     * @param callerContext analysis context for the caller
+     * @param callee method being called
+     * @param calleeContext analyis context for the callee
      */
-    @SuppressWarnings("deprecation")
     public boolean addCall(CallSiteReference callSite, IMethod caller,
                            Context callerContext, IMethod callee,
                            Context calleeContext) {
         OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
         OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
 
-        ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
+        ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> m = this.callGraphMap.get(callerPair);
         if (m == null) {
             m = AnalysisUtil.createConcurrentHashMap();
-            ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair,
-                                                                                                                     m);
+            ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> existing = this.callGraphMap.putIfAbsent(callerPair,
+                                                                                                                          m);
             if (existing != null) {
                 m = existing;
             }
         }
-        m.putIfAbsent(callSite, calleePair);
+
+        Set<OrderedPair<IMethod, Context>> s = m.get(callSite);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = m.putIfAbsent(callSite, s);
+
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(calleePair);
 
         this.recordReachableContext(callee, calleeContext);
         return true;
@@ -589,7 +605,8 @@ public class PointsToGraph {
         return set;
     }
 
-    private <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
+    @SuppressWarnings("unused")
+    private static <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);
         if (set == null) {
             set = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
@@ -643,6 +660,7 @@ public class PointsToGraph {
      *
      * @return call graph
      */
+    @SuppressWarnings("deprecation")
     public CallGraph getCallGraph() {
         assert graphFinished;
         if (this.callGraph != null) {
@@ -657,17 +675,19 @@ public class PointsToGraph {
                 IMethod caller = callerPair.fst();
                 Context callerContext = callerPair.snd();
                 CGNode src = callGraph.findOrCreateNode(caller, callerContext);
-                ConcurrentMap<CallSiteReference, OrderedPair<IMethod, Context>> m = this.callGraphMap.get(callerPair);
+
+                ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> m = this.callGraphMap.get(callerPair);
                 for (CallSiteReference callSite : m.keySet()) {
-                    OrderedPair<IMethod, Context> calleePair = m.get(callSite);
-                    IMethod callee = calleePair.fst();
-                    Context calleeContext = calleePair.snd();
+                    Set<OrderedPair<IMethod, Context>> calleePairs = m.get(callSite);
+                    for (OrderedPair<IMethod, Context> calleePair : calleePairs) {
+                        IMethod callee = calleePair.fst();
+                        Context calleeContext = calleePair.snd();
 
-                    CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
+                        CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
 
-                    // We are building a call graph so it is safe to call this "deprecated" method
-                    src.addTarget(callSite, dst);
-
+                        // We are building a call graph so it is safe to call this "deprecated" method
+                        src.addTarget(callSite, dst);
+                    }
                 }
             }
 
@@ -782,7 +802,7 @@ public class PointsToGraph {
         return changed;
     }
 
-    class FilteredIntSet extends AbstractIntSet implements IntSet {
+    class FilteredIntSet extends AbstractIntSet {
         final IntSet s;
         final Set<TypeFilter> filters;
 
@@ -807,6 +827,7 @@ public class PointsToGraph {
             return new FilteredIterator(this.s.intIterator(), this.filters);
         }
 
+        @SuppressWarnings("synthetic-access")
         @Override
         public boolean contains(int o) {
             return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteTypeDictionary.get(o));
@@ -918,6 +939,7 @@ public class PointsToGraph {
 
         }
 
+        @SuppressWarnings("synthetic-access")
         @Override
         public boolean hasNext() {
             while (this.next < 0 && this.iter.hasNext()) {
@@ -943,7 +965,7 @@ public class PointsToGraph {
         }
     }
 
-    class SortedIntSetUnion extends AbstractIntSet implements IntSet {
+    class SortedIntSetUnion extends AbstractIntSet {
         final IntSet a;
         final IntSet b;
 
@@ -1130,6 +1152,7 @@ public class PointsToGraph {
 
         @Override
         public InstanceKey next() {
+            @SuppressWarnings("synthetic-access")
             InstanceKey ik = PointsToGraph.this.instanceKeyDictionary.get(this.iter.next());
             assert ik != null;
             return ik;
