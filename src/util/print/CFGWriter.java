@@ -99,7 +99,7 @@ public class CFGWriter {
      */
     public static final void writeToFile(IR ir) {
         CFGWriter cfg = new CFGWriter(ir);
-        String dir = "tests";
+        String dir = AnalysisUtil.getOutputDirectory();
         String fullFilename = dir + "/cfg_" + PrettyPrinter.methodString(ir.getMethod()) + ".dot";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             cfg.writeVerbose(out, "", "\\l");
