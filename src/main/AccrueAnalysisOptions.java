@@ -85,12 +85,51 @@ public final class AccrueAnalysisOptions {
     private String className;
 
     /**
-     * If false then register points-to statements during the points-to analysis. If true then register them before the
-     * points-to analysis. The latter will register many more statements since there is less information about the types
-     * of the receivers of virtual methods.
+     * If true then register points-to statements during the points-to analysis. If false (or not set) then register
+     * them before the points-to analysis. The latter will register many more statements since there is less information
+     * about the types of the receivers of virtual methods, but is thread safe to use with the multithreaded points-to
+     * analysis.
      */
-    @Parameter(names = { "-offline" }, description = "Whether to register the points-to statements during points-to analysis or before points-to analysis")
-    private boolean offline = false;
+    @Parameter(
+        names = { "-online" },
+        description = "Whether to register the points-to statements during points-to analysis or before points-to analysis")
+    private boolean online = false;
+
+    /**
+     * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
+     */
+    @Parameter(
+        names = { "-useSingleAllocForGenEx" },
+        description = "If set then only one allocation will be made for each generated exception type. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions. Note that this will be overridden if the -useSingleAllocForThrowable flag is set.")
+    private boolean useSingleAllocForGenEx = false;
+
+    /**
+     * If true then only one allocation will be made for each type of throwable. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for throwables.
+     */
+    @Parameter(
+        names = { "-useSingleAllocPerThrowableType" },
+        description = "If set then only one allocation will be made for each exception type. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for exceptions.")
+    private boolean useSingleAllocPerThrowableType = false;
+
+    /**
+     * If true then only one allocation will be made for any kind of primitive array. Reduces precision, but improves
+     * performance.
+     */
+    @Parameter(
+        names = { "-useSingleAllocForPrimitiveArrays" },
+        description = "If set then only one allocation will be made for each kind of primitve array. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision.")
+    private boolean useSingleAllocForPrimitiveArrays = false;
+
+    /**
+     * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
+     * (and speed up the points-to analysis), but result in a loss of precision for strings.
+     */
+    @Parameter(
+        names = { "-useSingleAllocForStrings" },
+        description = "If set then only one allocation site will be used for all Strings. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for strings.")
+    private boolean useSingleAllocForStrings = false;
 
     /**
      * Name of the analysis to be run
@@ -170,7 +209,7 @@ public final class AccrueAnalysisOptions {
     @Parameter(names = { "-analysisClassPath", "-cp" }, description = "Classpath containing code for application and libraries to be analyzed.")
     private String analysisClassPath = DEFAULT_CLASSPATH;
 
-    public AccrueAnalysisOptions() {
+    private AccrueAnalysisOptions() {
         // Do not instantiate
     }
 
@@ -217,7 +256,7 @@ public final class AccrueAnalysisOptions {
     }
 
     public boolean registerOnline() {
-        return !offline;
+        return online;
     }
 
     public String getEntryPoint() {
@@ -688,5 +727,45 @@ public final class AccrueAnalysisOptions {
      */
     public String getOutputDir() {
         return outputDir;
+    }
+
+    /**
+     * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
+     *
+     * @return whether to use a single allocation site for generated exceptions
+     */
+    public boolean shouldUseSingleAllocForGenEx() {
+        return useSingleAllocForGenEx;
+    }
+
+    /**
+     * If true then only one allocation will be made for any kind of primitive array. Reduces precision, but improves
+     * performance.
+     *
+     * @return whether to use a single allocation site per type for primitive arrays
+     */
+    public boolean shouldUseSingleAllocForPrimitiveArrays() {
+        return useSingleAllocForPrimitiveArrays;
+    }
+
+    /**
+     * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
+     *
+     * @return whether to use a single allocation site per exception type
+     */
+    public boolean shouldUseSingleAllocPerThrowableType() {
+        return useSingleAllocPerThrowableType;
+    }
+
+    /**
+     * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
+     * (and speed up the points-to analysis), but result in a loss of precision for strings.
+     *
+     * @return whether to use a single allocation site for all java.lang.String objects
+     */
+    public boolean shouldUseSingleAllocForStrings() {
+        return useSingleAllocForStrings;
     }
 }

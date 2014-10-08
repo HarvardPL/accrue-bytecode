@@ -92,6 +92,12 @@ public class AccrueAnalysisMain {
         HeapAbstractionFactory haf = options.getHaf();
         boolean isOnline = options.registerOnline();
 
+        // Trade-offs for points-to analysis precision vs. size/time
+        boolean singleGenEx = options.shouldUseSingleAllocForGenEx();
+        boolean singleThrowable = options.shouldUseSingleAllocPerThrowableType();
+        boolean singlePrimArray = options.shouldUseSingleAllocForPrimitiveArrays();
+        boolean singleString = options.shouldUseSingleAllocForStrings();
+
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
         } catch (WalaException e) {
@@ -114,7 +120,13 @@ public class AccrueAnalysisMain {
         switch (analysisName) {
         case "pointsto":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString);
             g = results.fst();
 //            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
             ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
@@ -142,11 +154,25 @@ public class AccrueAnalysisMain {
             break;
         case "bool":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            runBooleanConstant(entryPoint, outputLevel, haf, outputDir);
+            runBooleanConstant(entryPoint,
+                               outputLevel,
+                               haf,
+                               outputDir,
+                               isOnline,
+                               singleGenEx,
+                               singleThrowable,
+                               singlePrimArray,
+                               singleString);
             break;
         case "nonnull":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -155,7 +181,13 @@ public class AccrueAnalysisMain {
             break;
         case "precise-ex":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -165,7 +197,13 @@ public class AccrueAnalysisMain {
             break;
         case "reachability":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -173,7 +211,13 @@ public class AccrueAnalysisMain {
             break;
         case "cfg":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -198,7 +242,13 @@ public class AccrueAnalysisMain {
             break;
         case "pdg":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
-            results = generatePointsToGraph(outputLevel, haf, isOnline);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -309,11 +359,26 @@ public class AccrueAnalysisMain {
      * @param outputLevel print level
      * @param haf Definition of the abstraction for heap locations
      * @param online if true then points-to statements are registered during pointer analysis, rather than before
+     * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for such exceptions.
+     * @param useSingleAllocForThrowable If true then only one allocation will be made for each type of throwable. This
+     *            will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a
+     *            loss of precision for throwables.
+     * @param useSingleAllocForPrimitiveArrays If true then only one allocation will be made for any kind of primitive
+     *            array. Reduces precision, but improves performance.
+     * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
+     *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
+     *            precision for strings.
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf,
-                                                                                            boolean isOnline) {
+                                                                                            boolean isOnline,
+                                                                                            boolean useSingleAllocForGenEx,
+                                                                                            boolean useSingleAllocForThrowable,
+                                                                                            boolean useSingleAllocForPrimitiveArrays,
+                                                                                            boolean useSingleAllocForStrings) {
         //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
@@ -321,11 +386,19 @@ public class AccrueAnalysisMain {
         StatementRegistrar registrar;
         StatementFactory factory = new StatementFactory();
         if (isOnline) {
-            registrar = new StatementRegistrar(factory);
+            registrar = new StatementRegistrar(factory,
+                                               useSingleAllocForGenEx,
+                                               useSingleAllocForThrowable,
+                                               useSingleAllocForPrimitiveArrays,
+                                               useSingleAllocForStrings);
             g = analysis.solveAndRegister(registrar);
         }
         else {
-            StatementRegistrationPass pass = new StatementRegistrationPass(factory);
+            StatementRegistrationPass pass = new StatementRegistrationPass(factory,
+                                                                           useSingleAllocForGenEx,
+                                                                           useSingleAllocForThrowable,
+                                                                           useSingleAllocForPrimitiveArrays,
+                                                                           useSingleAllocForStrings);
             pass.run();
             registrar = pass.getRegistrar();
             PointsToAnalysis.outputLevel = outputLevel;
@@ -445,10 +518,29 @@ public class AccrueAnalysisMain {
      * @param outputLevel amount of debugging
      * @param haf heap abstraction factory defining analysis contexts
      * @param outputDir directory to print output to
+     * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for such exceptions.
+     * @param useSingleAllocForThrowable If true then only one allocation will be made for each type of throwable. This
+     *            will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a
+     *            loss of precision for throwables.
+     * @param useSingleAllocForPrimitiveArrays If true then only one allocation will be made for any kind of primitive
+     *            array. Reduces precision, but improves performance.
+     * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
+     *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
+     *            precision for strings.
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
-                                           String outputDir) {
-        OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel, haf, true);
+                                           String outputDir, boolean isOnline, boolean useSingleAllocForGenEx,
+                                           boolean useSingleAllocForThrowable,
+                                           boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings) {
+        OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
+                                                                                           haf,
+                                                                                           isOnline,
+                                                                                           useSingleAllocForGenEx,
+                                                                                           useSingleAllocForThrowable,
+                                                                                           useSingleAllocForPrimitiveArrays,
+                                                                                           useSingleAllocForStrings);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {
