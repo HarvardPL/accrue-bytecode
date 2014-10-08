@@ -10,7 +10,6 @@ import analysis.AnalysisUtil;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
-import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -85,19 +84,24 @@ public class StatementFactory {
     /**
      * Statement for the assignment from an exception to a catch-block formal or the summary node representing the
      * exception value on method exit
-     *
+     * 
      * @param thrown reference variable for the exception being thrown
      * @param caught reference variable for the caught exception (or summary for the method exit)
      * @param notType types that the exception being caught cannot have since those types must have been caught by
      *            previous catch blocks
      * @param m method the statement was created for
+     * @param isToMethodSummaryVariable true if the variable we are assigning into, <code>caught</code>, is the
+     *            exception summary node for a method
+     * @param useSingletonAllocForThisException If true then only one allocation will be made for exceptions like this
+     *            one, e.g. for all exceptions of this type or all generated exceptions of this type. This means that
+     *            there may be multiple identical exception assignment statements if the same type of exception is
+     *            caught by the same catch block
      * @return statement to be processed during pointer analysis
      */
-    // "unused": if SINGLETON_GENERATED_EXCEPTIONS is true then the second half of the assert is dead
-    @SuppressWarnings("unused")
     public ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
                                                             Set<IClass> notType, IMethod m,
-                                                            boolean isToMethodSummaryVariable) {
+                                                            boolean isToMethodSummaryVariable,
+                                                            boolean useSingletonAllocForThisException) {
         assert thrown != null;
         assert caught != null;
         assert notType != null;
@@ -108,8 +112,7 @@ public class StatementFactory {
                                                                           notType,
                                                                           m,
                                                                           isToMethodSummaryVariable);
-        assert StatementRegistrar.USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS
-                || map.put(new StatementKey(thrown, caught), s) == null;
+        assert useSingletonAllocForThisException || map.put(new StatementKey(thrown, caught), s) == null;
         return s;
 
     }

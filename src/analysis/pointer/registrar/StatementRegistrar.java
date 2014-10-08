@@ -86,24 +86,24 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
      */
-    public static final boolean USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS = true;
+    private final boolean useSingleAllocForGenEx;
     /**
      * If true then only one allocation will be made for each type of throwable. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for throwables.
      */
-    public static final boolean USE_SINGLE_ALLOC_PER_THROWABLE_TYPE = true;
+    private final boolean useSingleAllocPerThrowableType;
 
     /**
      * If true then only one allocation will be made for any kind of primitive array. Reduces precision, but improves
      * performance.
      */
-    public static final boolean USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS = true;
+    private final boolean useSingleAllocForPrimitiveArrays;
 
     /**
      * If true then only one allocation will be made for any string. This will reduce the size of the points-to graph
      * (and speed up the points-to analysis), but result in a loss of precision for strings.
      */
-    public static final boolean USE_SINGLE_ALLOC_FOR_STRINGS = false;
+    private final boolean useSingleAllocForStrings;
 
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
@@ -133,14 +133,37 @@ public class StatementRegistrar {
      * points-to graph.
      *
      * @param factory factory used to create points-to statements
+     *
+     * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for such exceptions.
+     * @param useSingleAllocPerThrowableType If true then only one allocation will be made for each type of throwable.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for throwables.
+     * @param useSingleAllocForPrimitiveArrays If true then only one allocation will be made for any kind of primitive
+     *            array. Reduces precision, but improves performance.
+     * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
+     *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
+     *            precision for strings.
      */
-    public StatementRegistrar(StatementFactory factory) {
+    public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
+                              boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
+                              boolean useSingleAllocForStrings) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryPoint = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
+        this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
+        System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
+        this.useSingleAllocForPrimitiveArrays = useSingleAllocForPrimitiveArrays;
+        System.err.println("Singleton allocation site per primitive array type: " + useSingleAllocForPrimitiveArrays);
+        this.useSingleAllocForStrings = useSingleAllocForStrings;
+        System.err.println("Singleton allocation site for java.lang.String: " + useSingleAllocForStrings);
+        this.useSingleAllocPerThrowableType = useSingleAllocPerThrowableType;
+        System.err.println("Singleton allocation site per java.lang.Throwable subtype: "
+                + useSingleAllocPerThrowableType);
     }
 
     /**
@@ -515,7 +538,7 @@ public class StatementRegistrar {
 
         TypeReference exType = types.getType(i.getException());
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pp);
-        this.registerThrownException(bb, ir, exception, rvFactory, types, pp);
+        this.registerThrownException(bb, ir, exception, rvFactory, types, pp, useSingleAllocPerThrowableType);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -585,7 +608,7 @@ public class StatementRegistrar {
 
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(i.getNewSite().getDeclaredType());
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        if (USE_SINGLE_ALLOC_FOR_PRIMITIVE_ARRAYS && resultType.getArrayElementType().isPrimitiveType()) {
+        if (useSingleAllocForPrimitiveArrays && resultType.getArrayElementType().isPrimitiveType()) {
             ReferenceVariable rv = getOrCreateSingleton(resultType);
             this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod(), false));
         }
@@ -632,14 +655,14 @@ public class StatementRegistrar {
         TypeReference allocType = i.getNewSite().getDeclaredType();
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(allocType);
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE
+        if (useSingleAllocPerThrowableType
                 && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
 
         }
-        else if (USE_SINGLE_ALLOC_FOR_STRINGS && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
+        else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
@@ -724,7 +747,7 @@ public class StatementRegistrar {
                                TypeRepository types, PrettyPrinter pp) {
         TypeReference throwType = types.getType(i.getException());
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pp);
-        this.registerThrownException(bb, ir, v, rvFactory, types, pp);
+        this.registerThrownException(bb, ir, v, rvFactory, types, pp, useSingleAllocPerThrowableType);
     }
 
     /**
@@ -912,7 +935,7 @@ public class StatementRegistrar {
      * @param m Method where the literal is created
      */
     private void registerStringLiteral(ReferenceVariable stringLit, int local, IMethod m, PrettyPrinter pp) {
-        if (USE_SINGLE_ALLOC_FOR_STRINGS) {
+        if (useSingleAllocForStrings) {
             // v = string
             ReferenceVariable rv = getOrCreateSingleton(AnalysisUtil.getStringClass().getReference());
             this.addStatement(stmtFactory.localToLocal(stringLit, rv, m, false));
@@ -939,13 +962,13 @@ public class StatementRegistrar {
      * @param ir code containing the instruction
      * @param rvFactory factory for creating new reference variables
      */
-    @SuppressWarnings("unused")
     private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir,
                                                           ReferenceVariableFactory rvFactory, TypeRepository types,
                                                           PrettyPrinter pp) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
-            if (USE_SINGLE_ALLOC_PER_THROWABLE_TYPE || USE_SINGLE_ALLOC_FOR_GENERATED_EXCEPTIONS) {
+            boolean useSingleAlloc = useSingleAllocForGenEx;
+            if (useSingleAlloc) {
                 ex = getOrCreateSingleton(exType);
             }
             else {
@@ -956,7 +979,7 @@ public class StatementRegistrar {
 
                 this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, ir.getMethod()));
             }
-            this.registerThrownException(bb, ir, ex, rvFactory, types, pp);
+            this.registerThrownException(bb, ir, ex, rvFactory, types, pp, useSingleAlloc);
         }
     }
 
@@ -997,10 +1020,14 @@ public class StatementRegistrar {
      * @param thrown reference variable representing the value of the exception
      * @param types type information about local variables
      * @param pp pretty printer for the appropriate method
+     * @param useSingletonAllocForThisException If true then only one allocation will be made for exceptions like this
+     *            one, e.g. for all exceptions of this type or all generated exceptions of this type. This means that
+     *            there may be multiple identical exception assignment statements if the same type of exception is
+     *            caught by the same catch block
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
-                                               PrettyPrinter pp) {
+                                               PrettyPrinter pp, boolean useSingletonAllocForThisException) {
 
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
 
@@ -1032,7 +1059,12 @@ public class StatementRegistrar {
 
                 if (maybeCaught || definitelyCaught) {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                    this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), false));
+                    this.addStatement(stmtFactory.exceptionAssignment(thrown,
+                                                                      caught,
+                                                                      notType,
+                                                                      ir.getMethod(),
+                                                                      false,
+                                                                      useSingletonAllocForThisException));
                 }
 
                 // if we have definitely caught the exception, no need to add more exception assignment statements.
@@ -1048,7 +1080,12 @@ public class StatementRegistrar {
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
-                this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), true));
+                this.addStatement(stmtFactory.exceptionAssignment(thrown,
+                                                                  caught,
+                                                                  notType,
+                                                                  ir.getMethod(),
+                                                                  true,
+                                                                  useSingletonAllocForThisException));
             }
         }
     }
@@ -1096,7 +1133,8 @@ public class StatementRegistrar {
                                                                       methodSummary.getException(),
                                                                       Collections.<IClass> emptySet(),
                                                                       m,
-                                                                      true));
+                                                                      true,
+                                                                      useSingleAllocPerThrowableType));
                     this.registerAllocationForNative(m, exType, ex);
                     containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
                 }
@@ -1117,7 +1155,8 @@ public class StatementRegistrar {
                                                               methodSummary.getException(),
                                                               Collections.<IClass> emptySet(),
                                                               m,
-                                                              true));
+                                                              true,
+                                                              useSingleAllocPerThrowableType));
             this.registerAllocationForNative(m, TypeReference.JavaLangRuntimeException, methodSummary.getException());
         }
     }
@@ -1215,5 +1254,9 @@ public class StatementRegistrar {
 
     public IMethod getEntryPoint() {
         return this.entryPoint;
+    }
+
+    public boolean shouldUseSingleAllocForGenEx() {
+        return useSingleAllocForGenEx;
     }
 }

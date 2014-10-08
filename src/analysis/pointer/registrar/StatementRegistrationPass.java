@@ -1,6 +1,7 @@
 package analysis.pointer.registrar;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,10 +38,28 @@ public class StatementRegistrationPass {
     /**
      * Create a pass which will generate points-to statements
      *
-     * @param factory
+     * @param factory factory used to create points-to statements
+     * 
+     * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for such exceptions.
+     * @param useSingleAllocForThrowable If true then only one allocation will be made for each type of throwable. This
+     *            will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a
+     *            loss of precision for throwables.
+     * @param useSingleAllocForPrimitiveArrays If true then only one allocation will be made for any kind of primitive
+     *            array. Reduces precision, but improves performance.
+     * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
+     *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
+     *            precision for strings.
      */
-    public StatementRegistrationPass(StatementFactory factory) {
-        registrar = new StatementRegistrar(factory);
+    public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
+                                     boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
+                                     boolean useSingleAllocForStrings) {
+        registrar = new StatementRegistrar(factory,
+                                           useSingleAllocForGenEx,
+                                           useSingleAllocForThrowable,
+                                           useSingleAllocForPrimitiveArrays,
+                                           useSingleAllocForStrings);
     }
 
     /**
@@ -183,10 +202,9 @@ public class StatementRegistrationPass {
 
         }
 
-        if (PointsToAnalysis.outputLevel >= 1) {
-            System.err.println("Registered " + registrar.size() + " statements.");
-            System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
-        }
+        System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
+        System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
+                + "Mb");
         if (PROFILE) {
             System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             try {
@@ -210,7 +228,7 @@ public class StatementRegistrationPass {
      * @param q work queue of methods to register statements for
      */
     public static void processInstanceClass(Set<IClass> seenInstancesOf, IClass instanceClass,
-                                  Map<IClass, Collection<IMethod>> waitingForInstances, WorkQueue<IMethod> q) {
+                                            Map<IClass, Collection<IMethod>> waitingForInstances, WorkQueue<IMethod> q) {
         if (seenInstancesOf.add(instanceClass)) {
             // this is the first instance method we have seen for this class
             // Add any methods that were waiting on registration.
