@@ -146,6 +146,9 @@ public class ProgramPointSetClosure {
             if (pp instanceof CallSiteProgramPoint) {
                 OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp, context);
                 Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
+                if (calleeSet == null) {
+                    return Collections.emptySet();
+                }
                 List<InterProgramPointReplica> l = new ArrayList<>();
                 for (OrderedPair<IMethod, Context> callee: calleeSet) {
                     ProgramPoint entry = g.registrar.getMethodSummary(callee.fst()).getEntryPP();
@@ -159,40 +162,43 @@ public class ProgramPointSetClosure {
                 // returns, and one for exceptional returns.
                 OrderedPair<IMethod, Context> callee = new OrderedPair<>(pp.containingProcedure(), context);
                 Set<OrderedPair<CallSiteProgramPoint, Context>> callerSet = g.getCallGraphReverseMap().get(callee);
-                if (callerSet != null) {
-                    List<InterProgramPointReplica> l = new ArrayList<>();
-                    for (OrderedPair<CallSiteProgramPoint, Context> caller : callerSet) {
-                        l.add(InterProgramPointReplica.create(caller.snd(), caller.fst().post()));
-                    }
-                    return l;
+                if (callerSet == null) {
+                    return Collections.emptySet();
                 }
-                return Collections.emptyList();
+                List<InterProgramPointReplica> l = new ArrayList<>();
+                for (OrderedPair<CallSiteProgramPoint, Context> caller : callerSet) {
+                    l.add(InterProgramPointReplica.create(caller.snd(), caller.fst().post()));
+                }
+                return l;
             }
             else {
                 PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
                 // not a call or a return, it's just a normal statement.
                 // does ipp kill this.node?
-                PointsToGraphNode killed = stmt.killed(context, g);
-                if (killed != null && from == g.lookupDictionary(killed)) {
-                    return Collections.emptyList();
+                if (stmt != null) {
+                    PointsToGraphNode killed = stmt.killed(context, g);
+                    if (killed != null && from == g.lookupDictionary(killed)) {
+                        return Collections.emptyList();
+                    }
+
+                    // is "to" allocated at this program point?
+                    InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
+                    if (justAllocated != null) {
+                        int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
+                        if (to == justAllocatedKey) {
+                            // The to node just got allocated, and the to node is the most recent object created by that allocation site
+                            assert g.lookupInstanceKeyDictionary(to).isRecent();
+                            return Collections.emptyList();
+                        }
+                        if (fromBase >= 0 && fromBase == justAllocatedKey) {
+                            // We are the set of program points pp such that "to \in pointsToFS(fromBase.f, pp)" is true,
+                            // and at this program point, fromBase just got allocated.
+                            assert g.lookupInstanceKeyDictionary(fromBase).isRecent();
+                            return Collections.emptyList();
+                        }
+                    }
                 }
 
-                // is "to" allocated at this program point?
-                InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
-                if (justAllocated != null) {
-                    int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
-                    if (to == justAllocatedKey) {
-                        // The to node just got allocated, and the to node is the most recent object created by that allocation site
-                        assert g.lookupInstanceKeyDictionary(to).isRecent();
-                        return Collections.emptyList();
-                    }
-                    if (fromBase >= 0 && fromBase == justAllocatedKey) {
-                        // We are the set of program points pp such that "to \in pointsToFS(fromBase.f, pp)" is true,
-                        // and at this program point, fromBase just got allocated.
-                        assert g.lookupInstanceKeyDictionary(fromBase).isRecent();
-                        return Collections.emptyList();
-                    }
-                }
                 return Collections.singletonList(InterProgramPointReplica.create(context, pp.post()));
             }
         }
