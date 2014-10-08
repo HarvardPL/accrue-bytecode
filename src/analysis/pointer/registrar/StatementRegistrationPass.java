@@ -39,7 +39,7 @@ public class StatementRegistrationPass {
      * Create a pass which will generate points-to statements
      *
      * @param factory factory used to create points-to statements
-     * 
+     *
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -104,7 +104,8 @@ public class StatementRegistrationPass {
         Set<IClass> seenInstancesOf = new HashSet<>();
         Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
 
-        Set<MethodReference> alreadyDispatched = new HashSet<>();
+        Set<MethodReference> alreadyProcessedVirtual = new HashSet<>();
+        Set<MethodReference> alreadyProcessedStaticAndSpecial = new HashSet<>();
 
         init(q);
 
@@ -168,8 +169,14 @@ public class StatementRegistrationPass {
                     // This is an invocation, add statements for callee to work queue
                     SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
 
-                    if (!alreadyDispatched.add(inv.getDeclaredTarget())) {
-                        // we have seen this declared target before, no need to process again
+                    if ((inv.isSpecial() || inv.isStatic())
+                            && !alreadyProcessedStaticAndSpecial.add(inv.getDeclaredTarget())) {
+                        // Already processed this static or special method
+                        continue;
+                    }
+
+                    if (inv.isDispatch() && !alreadyProcessedVirtual.add(inv.getDeclaredTarget())) {
+                        // Already processed this virtually dispatched method
                         continue;
                     }
 
@@ -203,6 +210,7 @@ public class StatementRegistrationPass {
         }
 
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
+        System.gc();
         System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
                 + "Mb");
         if (PROFILE) {

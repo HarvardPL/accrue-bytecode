@@ -1,5 +1,6 @@
 package analysis.pointer.engine;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Set;
@@ -159,6 +160,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+        System.gc();
+        System.err.println("   Memory utilization     : "
+                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "Mb");
         System.err.println("\n\n");
 
         if (paranoidMode) {
