@@ -263,7 +263,7 @@ public class PointsToGraph {
     }
 
     public/*PointsToGraphNode*/int getRepresentative(/*PointsToGraphNode*/int n) {
-        int orig = n;
+        // XXX Steve: Should this be used for something? int orig = n;
         int rep;
         Integer x = n;
         do {
@@ -352,6 +352,7 @@ public class PointsToGraph {
         return this.graphNodeDictionary.get(n).isFlowSensitive();
     }
 
+    @SuppressWarnings("unused")
     private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
         MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
         IntIterator iter = toCollapse.keyIterator();
@@ -635,6 +636,7 @@ public class PointsToGraph {
             int m = iter.next();
             assert !isFlowSensitivePointsToGraphNode(m);
 
+            @SuppressWarnings("null")
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
             // it is possible that the filter set is empty, due to race conditions.
             // No trouble, we will just ignore it, and pretend we got in there before
@@ -827,8 +829,13 @@ public class PointsToGraph {
     }
 
     /**
-     * XXXX DOCO TODO.
+     * Add a call at a particular call site from a caller (in a context) to a callee (in a context)
      *
+     * @param callSite call site the new call is being added for
+     * @param caller method invocation occurs in
+     * @param callerContext analysis context for the caller
+     * @param callee method being called
+     * @param calleeContext analyis context for the callee
      */
     @SuppressWarnings("deprecation")
     public boolean addCall(CallSiteProgramPoint callSite,
@@ -841,6 +848,7 @@ public class PointsToGraph {
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
             Set<OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair, s);
+
             if (existing != null) {
                 s = existing;
             }
@@ -905,7 +913,8 @@ public class PointsToGraph {
         return set;
     }
 
-    private <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
+    @SuppressWarnings("unused")
+    private static <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);
         if (set == null) {
             set = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
@@ -977,6 +986,7 @@ public class PointsToGraph {
      *
      * @return call graph
      */
+    @SuppressWarnings("deprecation")
     public HafCallGraph getCallGraph() {
         assert graphFinished;
         if (this.callGraph != null) {
@@ -997,10 +1007,10 @@ public class PointsToGraph {
                     Context calleeContext = calleePair.snd();
 
                     CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
+                    // We are building a call graph so it is safe to call this "deprecated" method
 
                     // We are building a call graph so it is safe to call this "deprecated" method
                     src.addTarget(caller.getReference(), dst);
-
                 }
             }
 
@@ -1083,7 +1093,7 @@ public class PointsToGraph {
         return changed;
     }
 
-    class FilteredIntSet extends AbstractIntSet implements IntSet {
+    class FilteredIntSet extends AbstractIntSet {
         final IntSet s;
         final Set<TypeFilter> filters;
 
@@ -1108,6 +1118,7 @@ public class PointsToGraph {
             return new FilteredIterator(this.s.intIterator(), this.filters);
         }
 
+        @SuppressWarnings("synthetic-access")
         @Override
         public boolean contains(int o) {
             return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteTypeDictionary.get(o));
@@ -1219,6 +1230,7 @@ public class PointsToGraph {
 
         }
 
+        @SuppressWarnings("synthetic-access")
         @Override
         public boolean hasNext() {
             while (this.next < 0 && this.iter.hasNext()) {
@@ -1469,6 +1481,7 @@ public class PointsToGraph {
 
         @Override
         public InstanceKeyRecency next() {
+            @SuppressWarnings("synthetic-access")
             InstanceKeyRecency ik = PointsToGraph.this.instanceKeyDictionary.get(this.iter.next());
             assert ik != null;
             return ik;

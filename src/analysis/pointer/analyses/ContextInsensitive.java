@@ -16,6 +16,11 @@ public class ContextInsensitive extends HeapAbstractionFactory {
             // There are no context items
             return null;
         }
+
+        @Override
+        public String toString() {
+            return "[]";
+        }
     };
 
     @Override

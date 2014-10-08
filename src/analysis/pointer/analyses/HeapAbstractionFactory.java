@@ -26,12 +26,12 @@ public abstract class HeapAbstractionFactory {
     /**
      * Create a new abstract object created at a particular allocation site in a particular code context. The results of
      * this call must be memoized and two equivalent InstanceKeys must be pointer-equivalent
-     * 
+     *
      * @param allocationSite
      *            Representation of the program counter for the allocation site
      * @param context
      *            Code context at the allocation site
-     * 
+     *
      * @return Abstract heap object (heap context)
      */
     public abstract InstanceKey record(AllocSiteNode allocationSite, Context context);
@@ -39,7 +39,7 @@ public abstract class HeapAbstractionFactory {
     /**
      * Create a new code context for a new callee. The results of this call must be memoized and two equivalent contexts
      * must be pointer-equivalent.
-     * 
+     *
      * @param callSite
      *            call site we are creating a node for
      * @param receiver
@@ -70,7 +70,7 @@ public abstract class HeapAbstractionFactory {
      * Memoize the given context. If all the <code>memoKeys</code> are .equals to those passed in for an existing
      * Context and the contexts are of the same type then the previous context will be returned, otherwise the context
      * that was passed in will be recorded and returned.
-     * 
+     *
      * @param c
      *            context to memoize
      * @param memoKeys
@@ -89,6 +89,8 @@ public abstract class HeapAbstractionFactory {
             }
         }
 
+        assert c == memoized || c.toString().equals(memoized.toString());
+
         return memoized;
     }
 
@@ -96,7 +98,7 @@ public abstract class HeapAbstractionFactory {
      * Memoize the given heap context (instance key). If all the <code>memoKeys</code> are .equals to those passed in
      * for an existing InstanceKey and the InstanceKeys are of the same type then the previous instance key will be
      * returned, otherwise the instance key that was passed in will be recorded and returned.
-     * 
+     *
      * @param ik
      *            instance key (heap context) to memoize
      * @param memoKeys
@@ -114,6 +116,7 @@ public abstract class HeapAbstractionFactory {
                 memoized = ik;
             }
         }
+        assert ik == memoized || ik.toString().equals(memoized.toString());
         return memoized;
     }
 
@@ -131,7 +134,7 @@ public abstract class HeapAbstractionFactory {
 
         /**
          * Wrapper around the context and any keys determining semantic equality
-         * 
+         *
          * @param c
          *            context or InstanceKey (must be non-null)
          * @param memoKeys
@@ -152,12 +155,15 @@ public abstract class HeapAbstractionFactory {
         @Override
         public boolean equals(Object obj) {
 
-            if (this == obj)
+            if (this == obj) {
                 return true;
-            if (obj == null)
+            }
+            if (obj == null) {
                 return false;
-            if (getClass() != obj.getClass())
+            }
+            if (getClass() != obj.getClass()) {
                 return false;
+            }
             @SuppressWarnings("unchecked")
             Wrapper<T> other = (Wrapper<T>) obj;
             if (c == other.c) {

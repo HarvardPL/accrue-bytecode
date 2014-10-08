@@ -9,6 +9,7 @@ import java.util.Map;
 
 import util.InstructionType;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.IClass;
@@ -525,9 +526,19 @@ public class PrettyPrinter {
         if (names.length == 0) {
             return null;
         }
+        if (names.length > 1 && PointsToAnalysis.outputLevel > 0) {
+            CFGWriter.writeToFile(m);
+            System.err.println("WARNING: more than one name: " + Arrays.toString(names) + " for " + valNum + " in "
+                    + methodString(m));
+        }
         if (names.length > 1) {
-            assert false : "More than one name: " + Arrays.toString(names) + " for " + valNum + " in "
-                                            + methodString(m);
+            for (int i = 1; i < names.length; i++) {
+                if (names[i] != null) {
+                    CFGWriter.writeToFile(m);
+                    System.err.println("WARNING: more than one name: " + Arrays.toString(names) + " for " + valNum
+                            + " in " + methodString(m));
+                }
+            }
         }
         return getCanonical(names[0]);
     }
