@@ -1136,7 +1136,7 @@ public class StatementRegistrar {
             IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(varType);
             assert klass != null : "No class found for " + PrettyPrinter.typeString(varType);
 
-            // We pretend that the allocation for this object occurs in the entry point.
+            // We pretend that the allocation for this object occurs in the entry point of the entire program
             ProgramPoint pp = new ProgramPoint(getEntryPoint(), "EntryMethod-pp-" + klass);
             addEntryMethodProgramPoint(pp);
             NewStatement stmt = stmtFactory.newForGeneratedObject(rv, klass, pp, PrettyPrinter.typeString(varType));

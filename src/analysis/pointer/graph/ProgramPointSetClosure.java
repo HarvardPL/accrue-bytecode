@@ -153,25 +153,20 @@ public class ProgramPointSetClosure {
                 }
                 return l;
             }
-            else if (pp.isNormalExitSummaryNode()) {
+            else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
+                // we will treat normal and exceptional exits the same. We could be
+                // more precise if call sites had two different program points to return to, one for normal
+                // returns, and one for exceptional returns.
                 OrderedPair<IMethod, Context> callee = new OrderedPair<>(pp.containingProcedure(), context);
                 Set<OrderedPair<CallSiteProgramPoint, Context>> callerSet = g.getCallGraphReverseMap().get(callee);
-                List<InterProgramPointReplica> l = new ArrayList<>();
-                for (OrderedPair<CallSiteProgramPoint, Context> caller: callerSet) {
-                    l.add(InterProgramPointReplica.create(caller.snd(), caller.fst().post()));
+                if (callerSet != null) {
+                    List<InterProgramPointReplica> l = new ArrayList<>();
+                    for (OrderedPair<CallSiteProgramPoint, Context> caller : callerSet) {
+                        l.add(InterProgramPointReplica.create(caller.snd(), caller.fst().post()));
+                    }
+                    return l;
                 }
-                return l;
-            }
-            else if (pp.isExceptionExitSummaryNode()) {
-                OrderedPair<IMethod, Context> callee = new OrderedPair<>(pp.containingProcedure(), context);
-                Set<OrderedPair<CallSiteProgramPoint, Context>> callerSet = g.getCallGraphReverseMap().get(callee);
-                List<InterProgramPointReplica> l = new ArrayList<>();
-                for (OrderedPair<CallSiteProgramPoint, Context> caller: callerSet) {
-                    IMethod callerContainingProcedure = caller.fst().containingProcedure();
-                    ProgramPoint exceptionExit = g.registrar.getMethodSummary(callerContainingProcedure).getExceptionExitPP();
-                    l.add(InterProgramPointReplica.create(caller.snd(), exceptionExit.pre()));
-                }
-                return l;
+                return Collections.emptyList();
             }
             else {
                 PointsToStatement stmt = g.registrar.getStmtAtPP(pp);

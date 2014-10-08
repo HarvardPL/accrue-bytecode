@@ -307,29 +307,7 @@ public class PointsToGraph {
 
         n = this.getRepresentative(n);
 
-        Integer h = this.reverseInstanceKeyDictionary.get(heapContext);
-        if (h == null) {
-            // not in the dictionary yet
-            h = this.instanceKeyCounter.getAndIncrement();
-
-            // Put the mapping into instanceKeyDictionary and concreteTypeDictionary
-            // Note that it is important to do this before putting it into reverseInstanceKeyDictionary
-            // to avoid a race (i.e., someone looking up heapContext in reverseInstanceKeyDictionary, getting
-            // int h, yet getting null when trying instanceKeyDictionary.get(h).)
-            // try a put if absent
-            // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
-            this.instanceKeyDictionary.put(h, heapContext);
-            IClass concreteType = heapContext.getConcreteType();
-            assert concreteType != null;
-            this.concreteTypeDictionary.put(h, concreteType);
-            Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(heapContext, h);
-            if (existing != null) {
-                // someone beat us. h will never be used.
-                this.instanceKeyDictionary.remove(h);
-                this.concreteTypeDictionary.remove(h);
-                h = existing;
-            }
-        }
+        int h = this.lookupDictionary(heapContext);
 
         GraphDelta delta = new GraphDelta(this);
         if (!this.pointsToSetFI(n).contains(h)) {
@@ -385,13 +363,21 @@ public class PointsToGraph {
         if (n == null) {
             // not in the dictionary yet
             n = instanceKeyCounter.getAndIncrement();
+
+            // Put the mapping into instanceKeyDictionary and concreteTypeDictionary
+            // Note that it is important to do this before putting it into reverseInstanceKeyDictionary
+            // to avoid a race (i.e., someone looking up heapContext in reverseInstanceKeyDictionary, getting
+            // int h, yet getting null when trying instanceKeyDictionary.get(h).)
+            // try a put if absent
+            // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
+            this.concreteTypeDictionary.put(n, key.getConcreteType());
+            this.instanceKeyDictionary.put(n, key);
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(key, n);
             if (existing != null) {
-                return existing;
-            }
-            else {
-                // we were the first to put it in.
-                this.instanceKeyDictionary.put(n, key);
+                // someone beat us. h will never be used.
+                this.instanceKeyDictionary.remove(n);
+                this.concreteTypeDictionary.remove(n);
+                n = existing;
             }
         }
         return n;
@@ -563,7 +549,7 @@ public class PointsToGraph {
      */
     private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target,
                                       boolean targetIsFlowSensitive, ExplicitProgramPointSet targetPoints,
-                                      IntSet setToAdd,
+                                      /*Set<InstanceKeyRecency>*/IntSet setToAdd,
                                       MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                       Stack<Set<TypeFilter>> filterStack,
                                       Stack<ExplicitProgramPointSet> programPointStack,
@@ -721,7 +707,7 @@ public class PointsToGraph {
      */
     private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, Set<TypeFilter> filters,
                                      ExplicitProgramPointSet targetPoints,
-                                      IntSet setToAdd, MutableIntSet currentlyAdding,
+                                     /*Set<InstanceKeyRecency>*/IntSet setToAdd, MutableIntSet currentlyAdding,
                                       IntStack currentlyAddingStack,
                                      Stack<Set<TypeFilter>> filterStack,
                                      Stack<ExplicitProgramPointSet> programPointStack, IntMap<MutableIntSet> toCollapse) {
@@ -1240,7 +1226,6 @@ public class PointsToGraph {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 IClass type = PointsToGraph.this.concreteTypeDictionary.get(i);
-                assert type != null : "No concrete type for key " + i;
                 if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
@@ -1535,8 +1520,8 @@ public class PointsToGraph {
 
     }
 
-    private IntSet getDifference(IntIterator srcIter, /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive,
-                                 ExplicitProgramPointSet addAtPoints) {
+    private IntSet getDifference(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
+    /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, ExplicitProgramPointSet addAtPoints) {
         assert !targetIsFlowSensitive || addAtPoints != null && !addAtPoints.isEmpty() : "If target is flow sensitive, then addAtPoints must be nonempty";
         target = this.getRepresentative(target);
 
@@ -1604,7 +1589,7 @@ public class PointsToGraph {
 
     protected boolean addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
                                   ExplicitProgramPointSet ppsToAdd,
-                                  IntSet set) {
+                                  /*Set<InstanceKeyRecency*/IntSet set) {
         if (set.isEmpty()) {
             return false;
         }
