@@ -566,6 +566,63 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         return this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, ins)).definitelyInitClassesBeforeIns;
     }
 
+    /**
+     * Try to condense program points pp and pp' if pp' is the only successor to pp, and pp is the only predecessor to
+     * pp' and neither of them have a statement that may change the flow-sensitive part of the points to graph.
+     *
+     * @return int array where ret[0] is the total number of program points before removing, and ret[1] is the number of
+     *         program points removed.
+     */
+    public int[] cleanUpProgramPoints() {
+        // try to clean up the program points. Let's first get a reverse mapping, and then check to see if there are any we can merge
+        Map<ProgramPoint, Set<ProgramPoint>> preds = new HashMap<>();
+        Set<ProgramPoint> visited = new HashSet<>();
+        ArrayList<ProgramPoint> q = new ArrayList<>();
+        MethodSummaryNodes summary = this.registrar.findOrCreateMethodSummary(this.ir.getMethod(), this.rvFactory);
+
+        q.add(summary.getEntryPP());
+        while (!q.isEmpty()) {
+            ProgramPoint pp = q.remove(q.size() - 1);
+            if (visited.contains(pp)) {
+                continue;
+            }
+            visited.add(pp);
+            for (ProgramPoint succ : pp.succs()) {
+                Set<ProgramPoint> predsForSucc = preds.get(succ);
+                if (predsForSucc == null) {
+                    predsForSucc = new HashSet<>();
+                    preds.put(succ, predsForSucc);
+                }
+                predsForSucc.add(pp);
+                if (!visited.contains(succ)) {
+                    q.add(succ);
+                }
+            }
+        }
+        int removedPPs = 0;
+        // we now have the pred relation.
+        for (ProgramPoint pp : preds.keySet()) {
+            if (this.registrar.getStmtAtPP(pp) != null) {
+                // this pp may modify the flow-sensitive part of the points to graph
+                continue;
+            }
+            Set<ProgramPoint> predSet = preds.get(pp);
+            if (predSet.size() == 1) {
+                ProgramPoint predPP = predSet.iterator().next();
+                if (this.registrar.getStmtAtPP(predPP) != null) {
+                    // this pp may modify the flow-sensitive part of the points to graph
+                    continue;
+                }
+                if (predPP.succs().size() == 1) {
+                    // woo hoo! we can clean it up!
+                    predPP.collapse(pp);
+                    removedPPs++;
+                }
+            }
+        }
+        return new int[] { visited.size(), removedPPs };
+    }
+
 }
 
 class ProgramPointFacts {

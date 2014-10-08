@@ -393,4 +393,15 @@ public class ProgramPoint {
         }
         return pp;
     }
+
+    /**
+     * Collapse this program point with pp.
+     */
+    public void collapse(ProgramPoint pp) {
+        assert this.succs.equals(Collections.singleton(pp)) : "Can only collapse with the unique successor.";
+        // should also check that we are the only predecessor of pp, but we don't bother
+        // to keep that data structure.
+        this.succs.clear();
+        this.succs.addAll(pp.succs());
+    }
 }

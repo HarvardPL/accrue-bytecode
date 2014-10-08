@@ -213,7 +213,7 @@ public class StatementRegistrar {
                 replacedVariableMap.put(m, duplicateResults.snd());
                 int newSize = newStatements.size();
 
-                removed += (oldSize - newSize);
+                removedStmts += (oldSize - newSize);
                 this.statementsForMethod.put(m, newStatements);
                 this.size += (newSize - oldSize);
 
@@ -232,6 +232,11 @@ public class StatementRegistrar {
                         throw new RuntimeException();
                     }
                 }
+
+                int[] stats = df.cleanUpProgramPoints();
+                removedProgramPoints += stats[1];
+                totalProgramPoints += stats[0] - stats[1];
+
                 return true;
             }
             finally {
@@ -250,12 +255,15 @@ public class StatementRegistrar {
         return false;
 
     }
+
     /**
      * A listener that will get notified of newly created statements.
      */
     private StatementListener stmtListener = null;
 
-    private static int removed = 0;
+    private static int removedStmts = 0;
+    private static int removedProgramPoints = 0;
+    private static int totalProgramPoints = 0;
 
     /**
      * Handle a particular instruction, this dispatches on the type of the instruction
@@ -914,10 +922,8 @@ public class StatementRegistrar {
                     + existing + "' and just tried to add '" + s + "'";
         }
 
-        if ((this.size + StatementRegistrar.removed) % 10000 == 0) {
-            System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removed) + ", removed: "
-                    + StatementRegistrar.removed
-                    + " effective: " + this.size);
+        if ((this.size + StatementRegistrar.removedStmts) % 10000 == 0) {
+            reportStats();
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {
@@ -927,6 +933,13 @@ public class StatementRegistrar {
             // }
             // }
         }
+    }
+
+    public void reportStats() {
+        System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removedStmts) + ", removed: "
+                + StatementRegistrar.removedStmts + " effective: " + this.size + " Total program points "
+                + totalProgramPoints() + " (removed " + totalProgramPointsRemoved() + ")");
+
     }
 
     /**
@@ -1385,6 +1398,14 @@ public class StatementRegistrar {
 
     public IMethod getEntryPoint() {
         return this.entryMethod;
+    }
+
+    public int totalProgramPoints() {
+        return totalProgramPoints;
+    }
+
+    public int totalProgramPointsRemoved() {
+        return removedProgramPoints;
     }
 
 }
