@@ -12,7 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.DenseIntMap;
 import util.intmap.IntMap;
+import util.intmap.ReadOnlyConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -104,7 +106,7 @@ public class PointsToGraph {
     /**
      * The PointsTo sets.
      */
-    private final ConcurrentIntMap<MutableIntSet> pointsTo = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<MutableIntSet> pointsTo = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * if "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
@@ -1350,5 +1352,21 @@ public class PointsToGraph {
         this.entryPoints = null;
         this.callGraphMap = null;
 
+        // make more compact, read-only versions of the sets.
+        IntIterator keyIterator = pointsTo.keyIterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            MutableIntSet ms = pointsTo.get(key);
+            MutableIntSet newMS = MutableSparseIntSet.make(ms);
+            pointsTo.put(key, newMS);
+        }
+
+        DenseIntMap<MutableIntSet> newPointsTo = new DenseIntMap<>(pointsTo.max());
+        keyIterator = pointsTo.keyIterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            newPointsTo.put(key, pointsTo.get(key));
+        }
+        this.pointsTo = new ReadOnlyConcurrentIntMap<>(newPointsTo);
     }
 }

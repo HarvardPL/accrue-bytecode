@@ -3,6 +3,7 @@ package analysis.pointer.graph;
 import java.util.Set;
 
 import util.intmap.ConcurrentIntMap;
+import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 
 import com.ibm.wala.util.intset.IntIterator;
@@ -31,7 +32,7 @@ public class AnnotatedIntRelation<T> {
 
         Set<T> s = m.get(b);
         if (s == null) {
-            s = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+            s = AnalysisUtil.createConcurrentSet();
             Set<T> existing = m.putIfAbsent(b, s);
             if (existing != null) {
                 s = existing;
