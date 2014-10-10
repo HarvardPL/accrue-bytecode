@@ -1372,6 +1372,9 @@ public class PointsToGraph {
         this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
     }
 
+    /**
+     * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
+     */
     private static <V> ConcurrentIntMap<V> compact(ConcurrentIntMap<V> m) {
         DenseIntMap<V> newMap = new DenseIntMap<>(Math.max(m.max(), 0));
         IntIterator keyIterator = m.keyIterator();
@@ -1382,7 +1385,10 @@ public class PointsToGraph {
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
 
-    private <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
+    /**
+     * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
+     */
+    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
         if (m.isEmpty()) {
             return new ReadOnlyConcurrentMap<>(Collections.<K, V> emptyMap());
         }
@@ -1396,7 +1402,7 @@ public class PointsToGraph {
     private static class ReadOnlyConcurrentMap<K, V> implements ConcurrentMap<K, V> {
         final Map<K, V> m;
 
-        private ReadOnlyConcurrentMap(Map<K, V> m) {
+        ReadOnlyConcurrentMap(Map<K, V> m) {
             this.m = m;
         }
 
