@@ -4,7 +4,6 @@ import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -373,7 +372,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         Set<StmtAndContext> s = this.interestingDepedencies.get(n);
         if (s == null) {
-            s = makeConcurrentSet();
+            s = AnalysisUtil.createConcurrentSet();
             Set<StmtAndContext> existing = this.interestingDepedencies.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;
@@ -382,17 +381,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         return s.add(sac);
     }
 
-    public static <T> Set<T> makeConcurrentSet() {
-        return Collections.newSetFromMap(new ConcurrentHashMap<T, Boolean>());
-    }
-
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentIntHashSet();
-        //        return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
+        return new ConcurrentIntHashSet(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentIntHashMap<>();
+        return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     /**

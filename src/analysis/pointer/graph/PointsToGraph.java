@@ -64,12 +64,12 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
-    private final ConcurrentMap<InstanceKey, Integer> reverseInstanceKeyDictionary = new ConcurrentHashMap<>();
+    private ConcurrentMap<InstanceKey, Integer> reverseInstanceKeyDictionary = new ConcurrentHashMap<>();
 
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    final ConcurrentIntMap<IClass> concreteTypeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    ConcurrentIntMap<IClass> concreteTypeDictionary = null;//PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -109,12 +109,12 @@ public class PointsToGraph {
     /**
      * if "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
      */
-    private final IntRelation isUnfilteredSubsetOf = new IntRelation();
+    private IntRelation isUnfilteredSubsetOf = new IntRelation();
 
     /**
      * if "a isFilteredSubsetOf b with filter" then the filter(pointsTo(a)) is a subset of pointsTo(b).
      */
-    private final AnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new AnnotatedIntRelation<>();
+    private AnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new AnnotatedIntRelation<>();
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
@@ -132,24 +132,24 @@ public class PointsToGraph {
     /**
      * The contexts that a method may appear in.
      */
-    private final ConcurrentMap<IMethod, Set<Context>> reachableContexts = new ConcurrentHashMap<>();
+    private ConcurrentMap<IMethod, Set<Context>> reachableContexts = new ConcurrentHashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static
      * initializers).
      */
-    private final Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
+    private Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
 
     /**
      * Entry points added during the pointer analysis
      */
-    private final Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
+    private Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
 
     /**
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>>> callGraphMap = new ConcurrentHashMap<>();
+    private ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>>> callGraphMap = AnalysisUtil.createConcurrentHashMap();
 
     private HafCallGraph callGraph = null;
 
@@ -247,12 +247,16 @@ public class PointsToGraph {
             // try a put if absent
             // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
             this.instanceKeyDictionary.put(h, heapContext);
-            this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
+            if (concreteTypeDictionary != null) {
+                this.concreteTypeDictionary.put(h, heapContext.getConcreteType());
+            }
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(heapContext, h);
             if (existing != null) {
                 // someone beat us. h will never be used.
                 this.instanceKeyDictionary.remove(h);
-                this.concreteTypeDictionary.remove(h);
+                if (concreteTypeDictionary != null) {
+                    this.concreteTypeDictionary.remove(h);
+                }
                 h = existing;
             }
         }
@@ -830,7 +834,7 @@ public class PointsToGraph {
         @SuppressWarnings("synthetic-access")
         @Override
         public boolean contains(int o) {
-            return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteTypeDictionary.get(o));
+            return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteType(o));
         }
 
         @Override
@@ -944,7 +948,7 @@ public class PointsToGraph {
         public boolean hasNext() {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
-                IClass type = PointsToGraph.this.concreteTypeDictionary.get(i);
+                IClass type = PointsToGraph.this.concreteType(i);
                 if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
@@ -1080,6 +1084,13 @@ public class PointsToGraph {
             }
         }
         return iter;
+    }
+
+    private IClass concreteType(/*InstanceKey*/int i) {
+        if (this.concreteTypeDictionary != null) {
+            return this.concreteTypeDictionary.get(i);
+        }
+        return this.instanceKeyDictionary.get(i).getConcreteType();
     }
 
     public static class ComposedIterators<T> implements Iterator<T> {
@@ -1325,6 +1336,19 @@ public class PointsToGraph {
 
     public void constructionFinished() {
         this.graphFinished = true;
+
+        // set various fields to null to allow them to be garbage collected.
+        this.reverseInstanceKeyDictionary = null;
+        this.concreteTypeDictionary = null;
+        this.isUnfilteredSubsetOf = null;
+        this.isFilteredSubsetOf = null;
+
+        // construct the call graph before we clear out a lot of stuff.
+        this.getCallGraph();
+        this.reachableContexts = null;
+        this.classInitializers = null;
+        this.entryPoints = null;
+        this.callGraphMap = null;
 
     }
 }
