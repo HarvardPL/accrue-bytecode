@@ -134,7 +134,7 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
 
     @Override
     public Map<ExitType, Unit> getResults(CGNode caller, CGNode callee, Unit input) {
-        if (!currentlyProcessing.contains(callee) && recordedResults.getRecord(callee) == null) {
+        if (!currentlyProcessing.contains(callee) && !recordedResults.containsRecord(callee)) {
             recordedResults.setInitialRecord(callee, new AnalysisRecord<>(Unit.VALUE, null, true));
             processCallGraphNode(callee);
         }

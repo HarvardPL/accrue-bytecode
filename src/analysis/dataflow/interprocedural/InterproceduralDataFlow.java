@@ -120,18 +120,20 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             if (getOutputLevel() >= 2) {
                 System.err.println("QUEUE_POLL: " + PrettyPrinter.cgNodeString(current));
             }
-            AnalysisRecord<F> results = recordedResults.getRecord(current);
-            if (getOutputLevel() >= 2) {
-                System.err.println("\tPREVIOUS RESULTS: " + results);
-            }
 
             F input;
-            if (current.equals(cg.getFakeRootNode()) || cg.getEntrypointNodes().contains(current)) {
+            if (current.equals(cg.getFakeRootNode()) || entryPoints.contains(current)) {
                 // This is an entry node
-                input = getInputForEntryPoint();
-                recordedResults.setInitialRecord(current, new AnalysisRecord<>(input, null, true));
+                if (!recordedResults.containsRecord(current)) {
+                    // Initialize the analysis record
+                    input = getInputForEntryPoint();
+                    recordedResults.setInitialRecord(current, new AnalysisRecord<>(input, null, true));
+                }
             } else {
-                assert results != null;
+                AnalysisRecord<F> results = recordedResults.getRecord(current);
+                if (getOutputLevel() >= 2) {
+                    System.err.println("\tPREVIOUS RESULTS: " + results);
+                }
                 input = results.getInput();
             }
 
@@ -257,24 +259,28 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
 
         incrementRequestCounter(callee);
-        AnalysisRecord<F> previous = recordedResults.getRecord(callee);
 
-        AnalysisRecord<F> results;
-        if (previous != null && existingResultSuitable(input, previous)) {
-            printResults(callee, "PREVIOUS", previous);
+        if (recordedResults.containsRecord(callee) && existingResultSuitable(input, recordedResults.getRecord(callee))) {
+            // The previous results are suitable, do nothing and leave them in the analysis record
+            printResults(callee, "PREVIOUS", recordedResults.getRecord(callee));
         } else {
-            if (previous == null) {
+            if (!recordedResults.containsRecord(callee)) {
                 AnalysisRecord<F> initial = new AnalysisRecord<>(input, getDefaultOutput(input), false);
+                if (callee.getMethod().isClinit()) {
+                    System.err.println("INITIALIZING FROM GET RESULTS: " + callee);
+                }
                 recordedResults.setInitialRecord(callee, initial);
             } else {
                 // TODO use widen for back edges
-                recordedResults.updateInput(callee, input.join(previous.getInput()), false);
+                recordedResults.updateInput(callee, input.join(recordedResults.getRecord(callee).getInput()), false);
             }
 
             if (currentlyProcessing.contains(callee)) {
-                // Already processing the callee, this is a recursive call, just
-                // use latest results and process this later with the new input
+                // Already processing the callee, this is a recursive call.
+                // Use the latest output and process this later with the new input
+                // (the latest output and new input are both already in the analysis record)
                 q.add(callee);
+
                 if (outputLevel >= 4) {
                     System.err.println("ALREADY PROCESSING: " + PrettyPrinter.cgNodeString(callee) + " requested from "
                                                     + PrettyPrinter.cgNodeString(caller));
@@ -285,7 +291,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             }
         }
 
-        results = recordedResults.getRecord(callee);
+        AnalysisRecord<F> results = recordedResults.getRecord(callee);
         if (!results.isSoundResult()) {
             // Ensure that the caller will be re-analyzed if the results for the
             // callee change
@@ -356,6 +362,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         if (latest.getOutput() == null || outputChanged(latest.getOutput(), output)) {
             // The output changed record the change and add dependencies to the queue
             recordedResults.updateOutput(n, output, isSoundResultsSoFar(n));
+
             q.addAll(getDependencies(n));
 
             if (outputLevel >= 4) {
@@ -649,7 +656,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
 
         /**
-         * Get the analysis record containing the latest input and output for the given call graph node.
+         * Get the analysis record containing the latest input and output for the given call graph node. This call is
+         * only valid if there is a record in the map. Call {@link AnalysisRecordMap#containsResultsForNode} if the node
+         * may be absent.
          *
          * @param n call graph node
          * @return Analysis input and output
@@ -667,8 +676,18 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
          * @param initialRecord record to put into the map
          */
         public void setInitialRecord(CGNode n, AnalysisRecord<F> initialRecord) {
-            assert recordedResults.getRecord(n) == null : "Already a record for " + PrettyPrinter.cgNodeString(n);
+            assert recordMap.get(n) == null : "Already a record for " + PrettyPrinter.cgNodeString(n);
             recordMap.put(n, initialRecord);
+        }
+
+        /**
+         * Check whether the given call graph node has a record in the map
+         *
+         * @param n node to check
+         * @return true if there is a record for the given map, false otherwise.
+         */
+        public boolean containsRecord(CGNode n) {
+            return recordMap.containsKey(n);
         }
     }
 }
