@@ -159,16 +159,17 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
-        System.gc();
-        System.err.println("   Memory utilization     : "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
-        System.err.println("\n\n");
 
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
         }
         g.constructionFinished();
+        System.gc();
+        System.err.println("   Memory utilization     : "
+                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+        System.err.println("\n\n");
+
         return g;
     }
 
