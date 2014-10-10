@@ -162,7 +162,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
         System.gc();
         System.err.println("   Memory utilization     : "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "Mb");
+                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
         System.err.println("\n\n");
 
         if (paranoidMode) {

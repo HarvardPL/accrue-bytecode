@@ -212,7 +212,7 @@ public class StatementRegistrationPass {
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
         System.gc();
         System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
-                + "Mb");
+                + "MB");
         if (PROFILE) {
             System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             try {

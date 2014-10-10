@@ -842,7 +842,7 @@ public class StatementRegistrar {
             stmtListener.newStatement(s);
         }
 
-        if ((this.size + StatementRegistrar.removed) % 10000 == 0) {
+        if ((this.size + StatementRegistrar.removed) % 100000 == 0) {
             System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removed) + ", removed: "
                     + StatementRegistrar.removed
                     + " effective: " + this.size);
