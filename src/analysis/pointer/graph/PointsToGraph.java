@@ -510,7 +510,7 @@ public class PointsToGraph {
         if (this.graphFinished && n < 0) {
             return Collections.emptyIterator();
         }
-        return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), originator));
+        return new IntToInstanceKeyIterator(this.pointsToIntIterator(n, originator));
     }
 
     public int graphNodeToInt(PointsToGraphNode n) {
