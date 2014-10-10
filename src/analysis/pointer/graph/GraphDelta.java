@@ -108,8 +108,10 @@ public class GraphDelta {
         return sb.toString();
     }
 
-    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
-        return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n)));
+    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode node) {
+        int n = g.lookupDictionary(node);
+        assert n >= 0;
+        return g.new IntToInstanceKeyIterator(pointsToIntIterator(n));
     }
 
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n) {

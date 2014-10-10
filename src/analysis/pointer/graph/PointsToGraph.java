@@ -235,6 +235,7 @@ public class PointsToGraph {
      */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
+        assert !this.graphFinished;
 
         int n = lookupDictionary(node);
 
@@ -328,6 +329,7 @@ public class PointsToGraph {
      * @return
      */
     public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
+        assert !this.graphFinished;
         int s = this.getRepresentative(lookupDictionary(source));
         int t = this.getRepresentative(lookupDictionary(target));
 
@@ -356,6 +358,7 @@ public class PointsToGraph {
     public GraphDelta copyFilteredEdges(PointsToGraphNode source,
                                         TypeFilter filter,
                                         PointsToGraphNode target) {
+        assert !this.graphFinished;
         // source is a subset of target, target is a subset of source.
         if (TypeFilter.IMPOSSIBLE.equals(filter)) {
             // impossible filter! Don't bother adding the relationship.
@@ -513,11 +516,8 @@ public class PointsToGraph {
         return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), originator));
     }
 
-    public int graphNodeToInt(PointsToGraphNode n) {
-        return lookupDictionary(n);
-    }
-
     public IntIterator pointsToIntIterator(PointsToGraphNode n, StmtAndContext origninator) {
+        assert !this.graphFinished;
         return pointsToIntIterator(lookupDictionary(n), origninator);
     }
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext originator) {
