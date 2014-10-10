@@ -307,6 +307,9 @@ public class PointsToGraph {
         Integer n = this.reverseGraphNodeDictionary.get(node);
         if (n == null) {
             // not in the dictionary yet
+            if (this.graphFinished) {
+                return -1;
+            }
             n = graphNodeCounter.getAndIncrement();
             Integer existing = this.reverseGraphNodeDictionary.putIfAbsent(node, n);
             if (existing != null) {
@@ -501,8 +504,12 @@ public class PointsToGraph {
         return pointsToIterator(n, null);
     }
 
-    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n, StmtAndContext originator) {
+    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode node, StmtAndContext originator) {
         assert this.graphFinished || originator != null;
+        int n = lookupDictionary(node);
+        if (this.graphFinished && n < 0) {
+            return Collections.emptyIterator();
+        }
         return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), originator));
     }
 
