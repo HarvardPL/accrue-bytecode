@@ -1389,6 +1389,8 @@ public class PointsToGraph {
             int key = keyIterator.next();
             newMap.put(key, m.get(key));
         }
+        System.err.println("Density: " + newMap.size() + " / " + (newMap.max() + 1) + " = " + (newMap.size())
+                / ((float) newMap.max() + 1));
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
 
