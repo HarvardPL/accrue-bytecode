@@ -1,8 +1,11 @@
 package analysis.pointer.graph;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Stack;
@@ -62,7 +65,7 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private final ConcurrentIntMap<InstanceKey> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<InstanceKey> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
@@ -81,7 +84,7 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
+    private ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
 
 
 
@@ -1361,12 +1364,119 @@ public class PointsToGraph {
             pointsTo.put(key, newMS);
         }
 
-        DenseIntMap<MutableIntSet> newPointsTo = new DenseIntMap<>(pointsTo.max());
-        keyIterator = pointsTo.keyIterator();
+        this.pointsTo = compact(this.pointsTo);
+        this.instanceKeyDictionary = compact(this.instanceKeyDictionary);
+        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
+    }
+
+    private static <V> ConcurrentIntMap<V> compact(ConcurrentIntMap<V> m) {
+        DenseIntMap<V> newMap = new DenseIntMap<>(Math.max(m.max(), 0));
+        IntIterator keyIterator = m.keyIterator();
         while (keyIterator.hasNext()) {
             int key = keyIterator.next();
-            newPointsTo.put(key, pointsTo.get(key));
+            newMap.put(key, m.get(key));
         }
-        this.pointsTo = new ReadOnlyConcurrentIntMap<>(newPointsTo);
+        return new ReadOnlyConcurrentIntMap<>(newMap);
     }
+
+    private <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
+        if (m.isEmpty()) {
+            return new ReadOnlyConcurrentMap<>(Collections.<K, V> emptyMap());
+        }
+        Map<K, V> newMap = new HashMap<>(m.size());
+        for (K key : m.keySet()) {
+            newMap.put(key, m.get(key));
+        }
+        return new ReadOnlyConcurrentMap<>(newMap);
+    }
+
+    private static class ReadOnlyConcurrentMap<K, V> implements ConcurrentMap<K, V> {
+        final Map<K, V> m;
+
+        private ReadOnlyConcurrentMap(Map<K, V> m) {
+            this.m = m;
+        }
+
+        @Override
+        public V putIfAbsent(K key, V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean remove(Object key, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean replace(K key, V oldValue, V newValue) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public V replace(K key, V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<java.util.Map.Entry<K, V>> entrySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return m.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return m.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return m.containsValue(value);
+        }
+
+        @Override
+        public V get(Object key) {
+            return m.get(key);
+        }
+
+        @Override
+        public V put(K key, V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public V remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends K, ? extends V> m) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<K> keySet() {
+            return m.keySet();
+        }
+
+        @Override
+        public Collection<V> values() {
+            return m.values();
+        }
+
+    }
+
 }
