@@ -16,6 +16,7 @@ import util.intmap.DenseIntMap;
 import util.intmap.IntMap;
 import util.intmap.ReadOnlyConcurrentIntMap;
 import util.intmap.SparseIntMap;
+import util.intset.EmptyIntSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.DependencyRecorder;
@@ -33,7 +34,6 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.collections.IntStack;
-import com.ibm.wala.util.intset.EmptyIntSet;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.IntSetAction;
@@ -825,7 +825,7 @@ public class PointsToGraph {
                     break;
                 }
             }
-            this.s = allImpossible ? EmptyIntSet.instance : s;
+            this.s = allImpossible ? EmptyIntSet.INSTANCE : s;
         }
 
         @Override
@@ -1208,7 +1208,7 @@ public class PointsToGraph {
 
         if (!srcIter.hasNext()) {
             // nothing in there, return an empty set.
-            return EmptyIntSet.instance;
+            return EmptyIntSet.INSTANCE;
         }
 
         MutableIntSet s = MutableSparseIntSet.makeEmpty();
@@ -1241,13 +1241,16 @@ public class PointsToGraph {
     }
     private MutableIntSet pointsToSet(/*PointsToGraphNode*/int n) {
         MutableIntSet s = this.pointsTo.get(n);
-        if (s == null) {
+        if (s == null && !graphFinished) {
             s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
             MutableIntSet ex = this.pointsTo.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!
                 s = ex;
             }
+        }
+        else if (s == null && graphFinished) {
+            return EmptyIntSet.INSTANCE;
         }
         return s;
     }
@@ -1319,7 +1322,7 @@ public class PointsToGraph {
         currentlyVisitingStack.push(n);
         IntSet children = this.isUnfilteredSubsetOf.forward(n);
         if (children == null) {
-            children = EmptyIntSet.instance;
+            children = EmptyIntSet.INSTANCE;
         }
         IntIterator childIterator = children.intIterator();
         while (childIterator.hasNext()) {
