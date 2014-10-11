@@ -1,20 +1,25 @@
 package analysis.pointer.graph;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.DenseIntMap;
 import util.intmap.IntMap;
+import util.intmap.ReadOnlyConcurrentIntMap;
 import util.intmap.SimpleConcurrentIntMap;
 import util.intmap.SparseIntMap;
+import util.intset.EmptyIntSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
@@ -35,7 +40,6 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.collections.IntStack;
-import com.ibm.wala.util.intset.EmptyIntSet;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.IntSetAction;
@@ -66,16 +70,16 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private final ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
-    private final ConcurrentMap<InstanceKeyRecency, Integer> reverseInstanceKeyDictionary = AnalysisUtil.createConcurrentHashMap();
+    private ConcurrentMap<InstanceKeyRecency, Integer> reverseInstanceKeyDictionary = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    final ConcurrentIntMap<IClass> concreteTypeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    ConcurrentIntMap<IClass> concreteTypeDictionary = null;//PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -85,12 +89,12 @@ public class PointsToGraph {
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private final ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = AnalysisUtil.createConcurrentHashMap();
+    private ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private final ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /* ******************
      * Record allocation sites
@@ -122,7 +126,7 @@ public class PointsToGraph {
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints). These are the flow-insensitive facts, i.e., they hold true at all program points.
      */
-    private final ConcurrentIntMap<MutableIntSet> pointsToFI = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<MutableIntSet> pointsToFI = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * Map from PointsToGraphNode to InstanceKeys, including the program points (actually, the interprogrampoint
@@ -134,12 +138,12 @@ public class PointsToGraph {
     /**
      * if "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
      */
-    private final IntRelation isUnfilteredSubsetOf = new IntRelation();
+    private IntRelation isUnfilteredSubsetOf = new IntRelation();
 
     /**
      * if "a isFilteredSubsetOf b with filter" then the filter(pointsTo(a)) is a subset of pointsTo(b).
      */
-    private final SetAnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new SetAnnotatedIntRelation<>();
+    private SetAnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new SetAnnotatedIntRelation<>();
 
     /**
      * if "a isFlowSensSubsetOf b with pps" then for all ippr \in pps, we have pointsTo(a, ippr) is a subset of
@@ -176,30 +180,30 @@ public class PointsToGraph {
     /**
      * The contexts that a method may appear in.
      */
-    private final ConcurrentMap<IMethod, Set<Context>> reachableContexts = new ConcurrentHashMap<>();
+    private ConcurrentMap<IMethod, Set<Context>> reachableContexts = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static
      * initializers).
      */
-    private final Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
+    private Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
 
     /**
      * Entry points added during the pointer analysis
      */
-    private final Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
+    private Set<IMethod> entryPoints = AnalysisUtil.createConcurrentSet();
 
     /**
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private final ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> callGraphMap = new ConcurrentHashMap<>();
+    private ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> callGraphMap = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> callGraphReverseMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> callGraphReverseMap = AnalysisUtil.createConcurrentHashMap();
 
     private HafCallGraph callGraph = null;
 
@@ -300,6 +304,7 @@ public class PointsToGraph {
      */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKeyRecency heapContext, InterProgramPointReplica ippr) {
         assert node != null && heapContext != null;
+        assert !this.graphFinished;
 
         assert !node.isFlowSensitive() : "Base nodes (i.e., nodes that point directly to heap contexts) should be flow-insensitive";
 
@@ -370,13 +375,17 @@ public class PointsToGraph {
             // int h, yet getting null when trying instanceKeyDictionary.get(h).)
             // try a put if absent
             // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
-            this.concreteTypeDictionary.put(n, key.getConcreteType());
+            if (concreteTypeDictionary != null) {
+                this.concreteTypeDictionary.put(n, key.getConcreteType());
+            }
             this.instanceKeyDictionary.put(n, key);
             Integer existing = this.reverseInstanceKeyDictionary.putIfAbsent(key, n);
             if (existing != null) {
                 // someone beat us. h will never be used.
                 this.instanceKeyDictionary.remove(n);
-                this.concreteTypeDictionary.remove(n);
+                if (concreteTypeDictionary != null) {
+                    this.concreteTypeDictionary.remove(n);
+                }
                 n = existing;
             }
         }
@@ -391,6 +400,9 @@ public class PointsToGraph {
         Integer n = this.reverseGraphNodeDictionary.get(node);
         if (n == null) {
             // not in the dictionary yet
+            if (this.graphFinished) {
+                return -1;
+            }
             n = graphNodeCounter.getAndIncrement();
 
             // Put the mapping into graphNodeDictionary
@@ -420,7 +432,7 @@ public class PointsToGraph {
     public GraphDelta copyEdges(PointsToGraphNode source, InterProgramPointReplica sourceIppr,
                                 PointsToGraphNode target, InterProgramPointReplica targetIppr) {
         assert !(source.isFlowSensitive() && target.isFlowSensitive()) : "At most one of the source and target should be flow sensitive";
-
+        assert !this.graphFinished;
         int s = this.getRepresentative(lookupDictionary(source));
         int t = this.getRepresentative(lookupDictionary(target));
 
@@ -472,6 +484,7 @@ public class PointsToGraph {
                                         TypeFilter filter,
                                         PointsToGraphNode target) {
         assert !source.isFlowSensitive() && !target.isFlowSensitive() : "Filtered subset relations can only be on flow-insensitive nodes";
+        assert !this.graphFinished;
         // source is a subset of target, target is a subset of source.
         if (TypeFilter.IMPOSSIBLE.equals(filter)) {
             // impossible filter! Don't bother adding the relationship.
@@ -785,15 +798,16 @@ public class PointsToGraph {
         }
     }
 
-    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr,
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode node, InterProgramPointReplica ippr,
                                                             StmtAndContext originator) {
         assert this.graphFinished || originator != null;
-        return new IntToInstanceKeyIterator(this.pointsToIntIterator(lookupDictionary(n), ippr, originator));
+        int n = lookupDictionary(node);
+        if (this.graphFinished && n < 0) {
+            return Collections.emptyIterator();
+        }
+        return new IntToInstanceKeyIterator(this.pointsToIntIterator(n, ippr, originator));
     }
 
-    public int graphNodeToInt(PointsToGraphNode n) {
-        return lookupDictionary(n);
-    }
 
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr,
                                            StmtAndContext originator) {
@@ -1100,7 +1114,7 @@ public class PointsToGraph {
                     break;
                 }
             }
-            this.s = allImpossible ? EmptyIntSet.instance : s;
+            this.s = allImpossible ? EmptyIntSet.INSTANCE : s;
         }
 
         @Override
@@ -1111,7 +1125,7 @@ public class PointsToGraph {
         @SuppressWarnings("synthetic-access")
         @Override
         public boolean contains(int o) {
-            return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteTypeDictionary.get(o));
+            return this.s.contains(o) && satisfiesAny(filters, PointsToGraph.this.concreteType(o));
         }
 
         @Override
@@ -1225,7 +1239,7 @@ public class PointsToGraph {
         public boolean hasNext() {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
-                IClass type = PointsToGraph.this.concreteTypeDictionary.get(i);
+                IClass type = PointsToGraph.this.concreteType(i);
                 if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
@@ -1401,6 +1415,13 @@ public class PointsToGraph {
         return iter;
     }
 
+    private IClass concreteType(/*InstanceKey*/int i) {
+        if (this.concreteTypeDictionary != null) {
+            return this.concreteTypeDictionary.get(i);
+        }
+        return this.instanceKeyDictionary.get(i).getConcreteType();
+    }
+
     public static class ComposedIterators<T> implements Iterator<T> {
         Iterator<T> iter1;
         Iterator<T> iter2;
@@ -1527,7 +1548,7 @@ public class PointsToGraph {
 
         if (!srcIter.hasNext()) {
             // nothing in there, return an empty set.
-            return EmptyIntSet.instance;
+            return EmptyIntSet.INSTANCE;
         }
 
         MutableIntSet s = MutableSparseIntSet.makeEmpty();
@@ -1563,13 +1584,16 @@ public class PointsToGraph {
     }
     private MutableIntSet pointsToSetFI(/*PointsToGraphNode*/int n) {
         MutableIntSet s = this.pointsToFI.get(n);
-        if (s == null) {
+        if (s == null && !graphFinished) {
             s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
             MutableIntSet ex = this.pointsToFI.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!
                 s = ex;
             }
+        }
+        else if (s == null && graphFinished) {
+            return EmptyIntSet.INSTANCE;
         }
         return s;
     }
@@ -1689,7 +1713,7 @@ public class PointsToGraph {
         currentlyVisitingStack.push(n);
         IntSet children = this.isUnfilteredSubsetOf.forward(n);
         if (children == null) {
-            children = EmptyIntSet.instance;
+            children = EmptyIntSet.INSTANCE;
         }
         IntIterator childIterator = children.intIterator();
         while (childIterator.hasNext()) {
@@ -1709,6 +1733,75 @@ public class PointsToGraph {
     public void constructionFinished() {
         this.graphFinished = true;
 
+        // set various fields to null to allow them to be garbage collected.
+        this.reverseInstanceKeyDictionary = null;
+        this.concreteTypeDictionary = null;
+        this.graphNodeDictionary = null;
+        this.isUnfilteredSubsetOf = null;
+        this.isFilteredSubsetOf = null;
+
+        // construct the call graph before we clear out a lot of stuff.
+        this.getCallGraph();
+        this.reachableContexts = null;
+        this.classInitializers = null;
+        this.entryPoints = null;
+        this.callGraphMap = null;
+
+        // make more compact, read-only versions of the sets.
+        IntIterator keyIterator = pointsToFI.keyIterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            MutableIntSet ms = pointsToFI.get(key);
+            MutableIntSet newMS = MutableSparseIntSet.make(ms);
+            pointsToFI.put(key, newMS);
+        }
+
+        this.pointsToFI = compact(this.pointsToFI);
+        this.instanceKeyDictionary = compact(this.instanceKeyDictionary);
+        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
+
+        keyIterator = pointsToFS.keyIterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            ConcurrentIntMap<ProgramPointSetClosure> ms = pointsToFS.get(key);
+            pointsToFS.put(key, compact(ms));
+        }
+    }
+
+    /**
+     * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
+     */
+    private static <V> ConcurrentIntMap<V> compact(ConcurrentIntMap<V> m) {
+        boolean dense = ((float) m.size() / ((float) (m.max() + 1))) > 0.5;
+
+        IntMap<V> newMap = dense ? new DenseIntMap<V>(Math.max(m.max() + 1, 0))
+                : new SparseIntMap<V>(Math.max(m.max() + 1, 0));
+        IntIterator keyIterator = m.keyIterator();
+        while (keyIterator.hasNext()) {
+            int key = keyIterator.next();
+            newMap.put(key, m.get(key));
+        }
+        if (dense) {
+            float util = ((DenseIntMap) newMap).utilization();
+            int length = Math.round(newMap.size() / util);
+            System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
+                    + (length - newMap.size()) + " empty slots out of " + length + ")");
+        }
+        return new ReadOnlyConcurrentIntMap<>(newMap);
+    }
+
+    /**
+     * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
+     */
+    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
+        if (m.isEmpty()) {
+            return new ReadOnlyConcurrentMap<>(Collections.<K, V> emptyMap());
+        }
+        Map<K, V> newMap = new HashMap<>(m.size());
+        for (K key : m.keySet()) {
+            newMap.put(key, m.get(key));
+        }
+        return new ReadOnlyConcurrentMap<>(newMap);
     }
 
     public boolean isMostRecentObject(/*InstanceKeyRecency*/int n) {
@@ -1723,7 +1816,7 @@ public class PointsToGraph {
         int n = this.lookupDictionary(ikr);
         Set<ProgramPointReplica> s = this.allocationSites.get(n);
         if (s == null) {
-            s = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+            s = AnalysisUtil.createConcurrentSet();
             Set<ProgramPointReplica> ex = this.allocationSites.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!
@@ -1751,4 +1844,94 @@ public class PointsToGraph {
         InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
         return this.lookupDictionary(ikr.recent(true));
     }
+
+    private static class ReadOnlyConcurrentMap<K, V> implements ConcurrentMap<K, V> {
+        final Map<K, V> m;
+
+        ReadOnlyConcurrentMap(Map<K, V> m) {
+            this.m = m;
+        }
+
+        @Override
+        public V putIfAbsent(K key, V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean remove(Object key, Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean replace(K key, V oldValue, V newValue) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public V replace(K key, V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<java.util.Map.Entry<K, V>> entrySet() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            return m.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return m.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return m.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return m.containsValue(value);
+        }
+
+        @Override
+        public V get(Object key) {
+            return m.get(key);
+        }
+
+        @Override
+        public V put(K key, V value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public V remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends K, ? extends V> m) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Set<K> keySet() {
+            return m.keySet();
+        }
+
+        @Override
+        public Collection<V> values() {
+            return m.values();
+        }
+
+    }
+
 }

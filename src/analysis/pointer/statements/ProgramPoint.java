@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 
-import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.AnalysisUtil;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -67,7 +67,7 @@ public class ProgramPoint {
 
     public boolean addSucc(ProgramPoint succ) {
         if (this.succs == null) {
-            this.succs = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+            this.succs = AnalysisUtil.createConcurrentSet();
         }
         return this.succs.add(succ);
     }

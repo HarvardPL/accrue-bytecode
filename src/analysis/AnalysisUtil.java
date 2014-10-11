@@ -2,6 +2,7 @@ package analysis;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -170,6 +171,9 @@ public class AnalysisUtil {
         AnalysisUtil.cha = ClassHierarchy.make(scope);
         System.out.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
+        System.gc();
+        System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
+                + "MB");
 
         Iterable<Entrypoint> entrypoints;
         if (entryPoint == null) {

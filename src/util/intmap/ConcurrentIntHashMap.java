@@ -3,6 +3,7 @@ package util.intmap;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.ibm.wala.util.intset.IntIterator;
@@ -76,6 +77,8 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
     final Segment<V>[] segments;
 
     transient MutableIntSet keySet;
+
+    AtomicInteger max = new AtomicInteger(-1);
 
     /**
      * ConcurrentHashMap list entry. Note that this is never exported out as a user-visible Map.Entry.
@@ -531,6 +534,17 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
         return ss == null ? null : (Segment<V>) UNSAFE.getObjectVolatile(ss, u);
     }
 
+    private void checkMax(int key) {
+        int lastReturned;
+        do {
+            lastReturned = this.max.get();
+            if (lastReturned >= key) {
+                return;
+            }
+            // we need to set the new max
+        } while (!this.max.compareAndSet(lastReturned, key));
+    }
+
     /**
      * Returns the segment for the given index, creating it and recording in segment table (via CAS) if not already
      * present.
@@ -847,7 +861,12 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
         (segments, (j << SSHIFT) + SBASE)) == null) {
             s = ensureSegment(j);
         }
-        return s.put(key, hash, value, false);
+        V ret = s.put(key, hash, value, false);
+        if (ret == null) {
+            // This is a key we haven't seen before.
+            checkMax(key);
+        }
+        return ret;
     }
 
     /**
@@ -869,7 +888,13 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
         if ((s = (Segment<V>) UNSAFE.getObject(segments, (j << SSHIFT) + SBASE)) == null) {
             s = ensureSegment(j);
         }
-        return s.put(key, hash, value, true);
+        V ret = s.put(key, hash, value, true);
+        if (ret == null) {
+            // This is a key we haven't seen before.
+            checkMax(key);
+        }
+        return ret;
+
     }
 
 
@@ -1053,7 +1078,7 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
 
     @Override
     public int max() {
-        throw new UnsupportedOperationException();
+        return this.max.get();
     }
 
     public static void main(String[] args) {

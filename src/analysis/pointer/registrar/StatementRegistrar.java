@@ -945,7 +945,7 @@ public class StatementRegistrar {
                     + existing + "' and just tried to add '" + s + "'";
         }
 
-        if ((this.size + StatementRegistrar.removedStmts) % 10000 == 0) {
+        if ((this.size + StatementRegistrar.removedStmts) % 100000 == 0) {
             reportStats();
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
@@ -1181,10 +1181,6 @@ public class StatementRegistrar {
      * @param thrown reference variable representing the value of the exception
      * @param types type information about local variables
      * @param pp pretty printer for the appropriate method
-     * @param useSingletonAllocForThisException If true then only one allocation will be made for exceptions like this
-     *            one, e.g. for all exceptions of this type or all generated exceptions of this type. This means that
-     *            there may be multiple identical exception assignment statements if the same type of exception is
-     *            caught by the same catch block
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,

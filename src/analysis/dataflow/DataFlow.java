@@ -49,6 +49,10 @@ public abstract class DataFlow<F> {
      * determines printing volume
      */
     protected int outputLevel = 0;
+    /**
+     * Output level for all dataflow subclasses
+     */
+    protected static int staticOutputLevel = 0;
 
     /**
      * Create a new intra-procedural data-flow
@@ -476,7 +480,7 @@ public abstract class DataFlow<F> {
      */
     private static final OrderedPair<ISSABasicBlock, ISSABasicBlock> getTrueFalseSuccessors(ISSABasicBlock bb,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        if (cfg.getSuccNodeCount(bb) != 2) {
+        if (staticOutputLevel > 0 && cfg.getSuccNodeCount(bb) != 2) {
             System.err.println("WARNING: Conditional branch, BB" + bb.getNumber() + ", has " + cfg.getSuccNodeCount(bb)
                     + " successor(s) in method " + PrettyPrinter.methodString(cfg.getMethod()));
         }
