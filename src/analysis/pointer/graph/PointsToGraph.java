@@ -1391,8 +1391,8 @@ public class PointsToGraph {
         }
         float util = newMap.utilization();
         int length = Math.round(newMap.size() / util);
-        System.err.println("   Utilization of DenseIntMap: " + util + "(approx " + (length - newMap.size())
-                + " empty slots out of " + length + ")");
+        System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
+                + (length - newMap.size()) + " empty slots out of " + length + ")");
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
 
