@@ -78,7 +78,10 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
 
     transient MutableIntSet keySet;
 
-    AtomicInteger max = new AtomicInteger(-1);
+    /**
+     * Best guess at the max key.
+     */
+    private AtomicInteger max = new AtomicInteger(-1);
 
     /**
      * ConcurrentHashMap list entry. Note that this is never exported out as a user-visible Map.Entry.

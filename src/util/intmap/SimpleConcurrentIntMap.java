@@ -2,6 +2,7 @@ package util.intmap;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.ibm.wala.util.intset.IntIterator;
 
@@ -12,6 +13,11 @@ import com.ibm.wala.util.intset.IntIterator;
  */
 public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
     public final ConcurrentHashMap<Integer, T> map = new ConcurrentHashMap<>();
+
+    /**
+     * Best guess at the max key.
+     */
+    private AtomicInteger max = new AtomicInteger(-1);
 
     public SimpleConcurrentIntMap() {
 
@@ -29,7 +35,24 @@ public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
 
     @Override
     public T put(int i, T val) {
-        return map.put(i, val);
+        T ret = map.put(i, val);
+        if (ret == null) {
+            // This is a key we haven't seen before.
+            checkMax(i);
+        }
+        return ret;
+
+    }
+
+    private void checkMax(int key) {
+        int lastReturned;
+        do {
+            lastReturned = this.max.get();
+            if (lastReturned >= key) {
+                return;
+            }
+            // we need to set the new max
+        } while (!this.max.compareAndSet(lastReturned, key));
     }
 
     @Override
@@ -61,7 +84,7 @@ public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
 
     @Override
     public int max() {
-        throw new UnsupportedOperationException();
+        return this.max.get();
     }
 
     @Override
@@ -71,7 +94,12 @@ public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
 
     @Override
     public T putIfAbsent(int key, T value) {
-        return map.putIfAbsent(key, value);
+        T ret = map.putIfAbsent(key, value);
+        if (ret == null) {
+            // This is a key we haven't seen before.
+            checkMax(key);
+        }
+        return ret;
     }
 
     @Override

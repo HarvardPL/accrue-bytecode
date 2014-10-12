@@ -29,3 +29,7 @@ XXX Special case for conditionals should only apply when arguments are booleans,
 TODO baseline WALA should work now since they accepted my pull requests
 
 XXX Call graph has a different number of nodes in different runs
+
+XXX Document and add "isPending" flag to data flow, change "input" to "mostRecentInput". 
+
+TODO maybe be more fine-grained for Strings, one site for literals? one site for the App vs. library code?

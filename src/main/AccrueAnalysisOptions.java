@@ -274,7 +274,7 @@ public final class AccrueAnalysisOptions {
     }
 
     public String getAnalysisClassPath() {
-        return analysisClassPath;
+        return analysisClassPath + ":classes/signatures";
     }
 
     /**
