@@ -28,6 +28,7 @@ import com.ibm.wala.ssa.DefUse;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.SSAAbstractInvokeInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
+import com.ibm.wala.types.Selector;
 import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.config.AnalysisScopeReader;
@@ -188,6 +189,18 @@ public class AnalysisUtil {
 
         addEntriesToRootMethod();
         setUpCommonClasses();
+        ensureSignatures();
+    }
+
+    private static void ensureSignatures() {
+        IClass systemClass = cha.lookupClass(TypeReference.JavaLangSystem);
+        Selector arrayCopy = Selector.make("arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V");
+        IMethod m = cha.resolveMethod(systemClass, arrayCopy);
+        if (getIR(m) == null) {
+            System.err.println("WARNING: cannot resolve signatures. Ensure \"classes/signatures\" is on the analysis classpath.");
+        } else {
+            System.err.println("Signatures: enabled");
+        }
     }
 
     private static void addEntriesToRootMethod() {
