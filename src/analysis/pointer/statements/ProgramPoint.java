@@ -21,6 +21,11 @@ public class ProgramPoint {
     private final boolean isNormalExitSummaryNode;
     private final boolean isExceptionExitSummaryNode;
 
+    /**
+     * Is this program point discarded, or is it still relevant.
+     */
+    private boolean isDiscarded = false;
+
     private Set<ProgramPoint> succs;
 
     private static int generator;
@@ -386,6 +391,7 @@ public class ProgramPoint {
     }
 
     public ProgramPoint divide(String debugStringPre, ProgramPoint pp) {
+        assert !(this.isEntrySummaryNode || this.isExceptionExitSummaryNode || this.isNormalExitSummaryNode);
         pp.addSuccs(this.succs);
         this.succs.clear();
         if (debugStringPre != null) {
@@ -394,14 +400,14 @@ public class ProgramPoint {
         return pp;
     }
 
-    /**
-     * Collapse this program point with pp.
-     */
-    public void collapse(ProgramPoint pp) {
-        assert this.succs.equals(Collections.singleton(pp)) : "Can only collapse with the unique successor.";
-        // should also check that we are the only predecessor of pp, but we don't bother
-        // to keep that data structure.
+    public void removeSucc(ProgramPoint pp) {
+        assert this.succs.contains(pp);
+        this.succs.remove(pp);
+
+    }
+
+    public void setIsDiscardedProgramPoint() {
         this.succs.clear();
-        this.succs.addAll(pp.succs());
+        this.isDiscarded = true;
     }
 }

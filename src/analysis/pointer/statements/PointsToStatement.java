@@ -34,7 +34,7 @@ public abstract class PointsToStatement {
     /**
      * Program point that created this statement.
      */
-    private final ProgramPoint pp;
+    private ProgramPoint pp;
 
     /**
      * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
@@ -225,5 +225,9 @@ public abstract class PointsToStatement {
      * relation of program points (i.e., statements that change the call graph).
      */
     public abstract boolean mayChangeFlowSensPointsToGraph();
+
+    public void setProgramPoint(ProgramPoint pp) {
+        this.pp = pp;
+    }
 
 }
