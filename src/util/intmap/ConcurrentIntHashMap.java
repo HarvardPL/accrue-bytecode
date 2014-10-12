@@ -534,7 +534,7 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
         return ss == null ? null : (Segment<V>) UNSAFE.getObjectVolatile(ss, u);
     }
 
-    private void setMax(int key) {
+    private void checkMax(int key) {
         int lastReturned;
         do {
             lastReturned = this.max.get();
@@ -862,8 +862,9 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
             s = ensureSegment(j);
         }
         V ret = s.put(key, hash, value, false);
-        if (ret != null) {
-            setMax(key);
+        if (ret == null) {
+            // This is a key we haven't seen before.
+            checkMax(key);
         }
         return ret;
     }
@@ -888,8 +889,9 @@ public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
             s = ensureSegment(j);
         }
         V ret = s.put(key, hash, value, true);
-        if (ret != null) {
-            setMax(key);
+        if (ret == null) {
+            // This is a key we haven't seen before.
+            checkMax(key);
         }
         return ret;
 

@@ -17,6 +17,10 @@ public class DenseIntMap<T> implements IntMap<T> {
     public DenseIntMap() {
         this(DEFAULT_INITIAL_CAPACITY);
     }
+
+    public float utilization() {
+        return (float) this.size / (float) array.length;
+    }
     @Override
     public boolean containsKey(int i) {
         if (i < 0 || i >= array.length) {
@@ -54,6 +58,7 @@ public class DenseIntMap<T> implements IntMap<T> {
             }
             // need to expand
             float newExtent = Math.max(array.length * getExpansionFactor() + 1, i + 1);
+            System.err.println("Extending to " + newExtent + " due to key " + i);
             Object[] tmp = new Object[(int) newExtent];
             System.arraycopy(array, 0, tmp, 0, array.length);
             this.array = tmp;

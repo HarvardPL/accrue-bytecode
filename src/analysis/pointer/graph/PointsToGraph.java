@@ -1383,14 +1383,16 @@ public class PointsToGraph {
      * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
      */
     private static <V> ConcurrentIntMap<V> compact(ConcurrentIntMap<V> m) {
-        DenseIntMap<V> newMap = new DenseIntMap<>(Math.max(m.max(), 0));
+        DenseIntMap<V> newMap = new DenseIntMap<>(Math.max(m.max() + 1, 0));
         IntIterator keyIterator = m.keyIterator();
         while (keyIterator.hasNext()) {
             int key = keyIterator.next();
             newMap.put(key, m.get(key));
         }
-        System.err.println("Density: " + newMap.size() + " / " + (newMap.max() + 1) + " = " + (newMap.size())
-                / ((float) newMap.max() + 1));
+        float util = newMap.utilization();
+        int length = Math.round(newMap.size() / util);
+        System.err.println("   Utilization of DenseIntMap: " + util + "(approx " + (length - newMap.size())
+                + " empty slots out of " + length + ")");
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
 
