@@ -459,8 +459,10 @@ public class PointsToGraph {
             // Choose the ippr to be the source or the target ippr, based on which is flow sensitive.
             InterProgramPointReplica ippr = source.isFlowSensitive() ? sourceIppr : targetIppr;
 
-            ExplicitProgramPointSet pps = isFlowSensSubsetOf.forward(s).get(t).fst();
-            if (pps == null || !pps.contains(ippr)) {
+            if (isFlowSensSubsetOf.addAnnotation(s,
+                                                 t,
+                                                 new OrderedPair<ExplicitProgramPointSet, Integer>(ExplicitProgramPointSet.singleton(ippr),
+                                                                                                   null))) {
                 // this is a new subset relation!
                 computeDeltaForAddedSubsetRelation(changed,
                                                    s,
