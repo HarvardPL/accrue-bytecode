@@ -99,7 +99,7 @@ public class ProgramPointSetClosure {
      * @return
      */
     private Collection<InterProgramPointReplica> getSources(PointsToGraph g) {
-        // XXX TODO turn this into an interator, so that we lazily look at these allocation sites.
+        // XXX TODO turn this into an iterator, so that we lazily look at these allocation sites.
         if (!g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
             List<InterProgramPointReplica> s = new ArrayList<>();
             s.addAll(this.sources);
@@ -108,6 +108,9 @@ public class ProgramPointSetClosure {
             int mostRecentVersion = g.mostRecentVersion(this.to);
 
             for (ProgramPointReplica allocPP : g.getAllocationSitesOf(mostRecentVersion)) {
+                //                if (originator != null) {
+                //                    g.recordRead(this.from, originator);
+                //                }
                 if (g.pointsTo(this.from, mostRecentVersion, allocPP.pre())) {
                     // the from node pointed to the most recent version before the allocation,
                     // so the from node points to the non-most recent version (i.e., "this.to")

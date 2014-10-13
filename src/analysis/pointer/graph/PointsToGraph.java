@@ -33,6 +33,7 @@ import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -449,7 +450,7 @@ public class PointsToGraph {
         if (!source.isFlowSensitive() && !target.isFlowSensitive()) {
             // neither source nor target is flow sensitive, so let's ignore ippr
             if (isUnfilteredSubsetOf.add(s, t)) {
-                computeDeltaForAddedSubsetRelation(changed, s, false, null, t, false, null);
+                computeDeltaForAddedSubsetRelation(changed, s, false, null, null, t, false, null);
             }
         }
         else {
@@ -468,6 +469,7 @@ public class PointsToGraph {
                                                    s,
                                                    source.isFlowSensitive(),
                                                    null,
+                                                   null,
                                                    t,
                                                    target.isFlowSensitive(),
                                                    ippr);
@@ -477,14 +479,46 @@ public class PointsToGraph {
     }
 
     /**
-     * Copy the pointsto set of the source to the pointsto set of the target.
-     * This should be used when the pointsto set of the target is a supserset of
-     * the pointsto set of the source.
+     * XXXXX UPDATE THIS!!!!
      *
-     * @param source
-     * @param target
-     * @return
      */
+    public GraphDelta copyEdgesForAllFields(InstanceKeyRecency newlyAllocated, ProgramPointReplica ppr) {
+        assert !this.graphFinished;
+        GraphDelta changed = new GraphDelta(this);
+
+        int ikrecent = lookupDictionary(newlyAllocated);
+        if (!isMostRecentObject(ikrecent)) {
+            // it's not the most recent object. Nothing to do.
+            return changed;
+        }
+
+        int iknotrecent = this.nonMostRecentVersion(ikrecent);
+
+        // for all fields fld in the concrete type of ik, we want to make sure that
+        // pointsToFS(ikrecent.fld, ppr_pre) \subseteq pointstoFI(iknotrecent.fle, ppr_post)
+
+        for (IField fld : newlyAllocated.getConcreteType().getAllInstanceFields()) {
+            int recFld = lookupDictionary(new ObjectField(newlyAllocated, fld.getReference()));
+            recFld = getRepresentative(recFld);
+
+            int notrecFld = lookupDictionary(new ObjectField(lookupInstanceKeyDictionary(iknotrecent),
+                                                             fld.getReference()));
+            notrecFld = getRepresentative(notrecFld);
+
+            assert isFlowSensitivePointsToGraphNode(recFld);
+            assert !isFlowSensitivePointsToGraphNode(notrecFld);
+            if (isFlowSensSubsetOf.addAnnotation(recFld,
+                                                 notrecFld,
+                                                 new OrderedPair<>(ExplicitProgramPointSet.singleton(ppr.pre()),
+                                                                   ikrecent))) {
+                // this is a new subset relation!
+                computeDeltaForAddedSubsetRelation(changed, recFld, true, null, ikrecent, notrecFld, false, ppr.pre());
+            }
+        }
+
+        return changed;
+    }
+
     public GraphDelta copyFilteredEdges(PointsToGraphNode source,
                                         TypeFilter filter,
                                         PointsToGraphNode target) {
@@ -506,7 +540,7 @@ public class PointsToGraph {
 
         GraphDelta changed = new GraphDelta(this);
         if (isFilteredSubsetOf.add(s, t, filter)) {
-            computeDeltaForAddedSubsetRelation(changed, s, false, filter, t, false, null);
+            computeDeltaForAddedSubsetRelation(changed, s, false, filter, null, t, false, null);
         }
         return changed;
     }
@@ -521,17 +555,30 @@ public class PointsToGraph {
      *    pointsToFI(source) \subseteq pointsToFS(target, ippr)   (if target is flow sensitive)
      */
     private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source,
-                                                    boolean sourceIsFlowSensitive, TypeFilter filter, /*PointsToGraphNode*/
+                                                    boolean sourceIsFlowSensitive, TypeFilter filter,
+                                                    /*InstanceKey*/Integer filterInstanceKey,
+                                                    /*PointsToGraphNode*/
                                                     int target, boolean targetIsFlowSensitive,
                                                     InterProgramPointReplica ippr) {
         assert !(sourceIsFlowSensitive && targetIsFlowSensitive) : "At most one can be flow sensitive";
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || filter == null : "If either is flow sensitive then filter must be null";
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || ippr != null : "If either is flow sensitive then ippr must be non null";
 
+        assert filterInstanceKey == null || (filterInstanceKey > 0 && isMostRecentObject(filterInstanceKey));
+        assert filterInstanceKey == null
+                || (filterInstanceKey == baseNodeForPointsToGraphNode(source) && sourceIsFlowSensitive);
+
         assert source >= 0 && target >= 0;
 
+
         // go through the points to set of source, and add anything that target doesn't already point to.
-        IntSet diff = this.getDifference(source, sourceIsFlowSensitive, filter, target, targetIsFlowSensitive, ippr);
+        IntSet diff = this.getDifference(source,
+                                         sourceIsFlowSensitive,
+                                         filter,
+                                         filterInstanceKey,
+                                         target,
+                                         targetIsFlowSensitive,
+                                         ippr);
 
         // Now take care of all the supersets of target...
         IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
@@ -735,7 +782,7 @@ public class PointsToGraph {
     private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, Set<TypeFilter> filters,
                                      ExplicitProgramPointSet targetPoints,
                                      /*Set<InstanceKeyRecency>*/IntSet setToAdd,
-                                     /*InstanceKey*/Integer filterInstanceKey, MutableIntSet currentlyAdding,
+                                     /*InstanceKeyRecency*/Integer filterInstanceKey, MutableIntSet currentlyAdding,
                                      IntStack currentlyAddingStack,
                                      Stack<Set<TypeFilter>> filterStack,
                                      Stack<ExplicitProgramPointSet> programPointStack, IntMap<MutableIntSet> toCollapse) {
@@ -747,15 +794,8 @@ public class PointsToGraph {
 
         IntIterator iter = filters == null ? setToAdd.intIterator() : new FilteredIterator(setToAdd.intIterator(), filters);
 
-        if (filterInstanceKey != null) {
-            assert !lookupPointsToGraphNodeDictionary(target).isFlowSensitive();
-            // if we have a filter instance key, then we need to modify the set of instance keys
-            // to replace filterInstanceKey with the non-most recent version of it.
-            iter = new ChangeRecentInstanceKeyIterator(iter, filterInstanceKey, this);
-        }
-
         // The set of elements that will be added to the superset.
-        IntSet diff = this.getDifference(iter, target, targetIsFlowSensitive, targetPoints);
+        IntSet diff = this.getDifference(iter, filterInstanceKey, target, targetIsFlowSensitive, targetPoints);
 
         filterStack.push(filters);
         addToSetAndSupersets(changed,
@@ -1061,7 +1101,7 @@ public class PointsToGraph {
 
     }
 
-    private void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
+    void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
         this.depRecorder.recordRead(node, sac);
     }
 
@@ -1576,9 +1616,9 @@ public class PointsToGraph {
      * @param target
      * @return
      */
-    IntSet getDifference(/*PointsToGraphNode*/int source, boolean sourceIsFlowSensitive, TypeFilter filter, /*PointsToGraphNode*/
-                         int target, boolean targetIsFlowSensitive,
-                         InterProgramPointReplica ippr) {
+    IntSet getDifference(/*PointsToGraphNode*/int source, boolean sourceIsFlowSensitive, TypeFilter filter,
+    /*InstanceKey*/Integer filterInstanceKey, /*PointsToGraphNode*/
+                         int target, boolean targetIsFlowSensitive, InterProgramPointReplica ippr) {
         source = this.getRepresentative(source);
 
         IntIterator srcIter;
@@ -1596,17 +1636,24 @@ public class PointsToGraph {
             assert sourceIsFlowSensitive;
             srcIter = new ProgramPointIntIterator(pointsToFS.get(source), ippr, this);
         }
-        return this.getDifference(srcIter,
-                                  target,
-                                  targetIsFlowSensitive,
-                                  ippr == null ? null : ExplicitProgramPointSet.singleton(ippr));
+        return this.getDifference(srcIter, filterInstanceKey, target, targetIsFlowSensitive, ippr == null ? null
+                : ExplicitProgramPointSet.singleton(ippr));
 
     }
 
     private IntSet getDifference(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
+    /*InstanceKey*/Integer filterInstanceKey,
     /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, ExplicitProgramPointSet addAtPoints) {
         assert !targetIsFlowSensitive || addAtPoints != null && !addAtPoints.isEmpty() : "If target is flow sensitive, then addAtPoints must be nonempty";
+        assert filterInstanceKey == null || (filterInstanceKey >= 0 && isMostRecentObject(filterInstanceKey));
         target = this.getRepresentative(target);
+
+        if (filterInstanceKey != null) {
+            assert !lookupPointsToGraphNodeDictionary(target).isFlowSensitive();
+            // if we have a filter instance key, then we need to modify the set of instance keys
+            // to replace filterInstanceKey with the non-most recent version of it.
+            srcIter = new ChangeRecentInstanceKeyIterator(srcIter, filterInstanceKey, this);
+        }
 
         if (!srcIter.hasNext()) {
             // nothing in there, return an empty set.
