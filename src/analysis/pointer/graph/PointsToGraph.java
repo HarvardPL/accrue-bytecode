@@ -58,6 +58,8 @@ public class PointsToGraph {
 
     public final StatementRegistrar registrar;
 
+    public final ProgramPointReachability ppReach;
+
     /* ***************************************************************************
      *
      * Fields for managing integer dictionaries.
@@ -235,6 +237,7 @@ public class PointsToGraph {
 
         this.haf = haf;
 
+        this.ppReach = new ProgramPointReachability(this);
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
 
@@ -1101,7 +1104,7 @@ public class PointsToGraph {
 
     }
 
-    void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
+    private void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
         this.depRecorder.recordRead(node, sac);
     }
 
@@ -2052,6 +2055,10 @@ public class PointsToGraph {
             return m.values();
         }
 
+    }
+
+    public ProgramPointReachability programPointReachability() {
+        return this.ppReach;
     }
 
 }

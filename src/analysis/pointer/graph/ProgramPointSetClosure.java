@@ -2,25 +2,16 @@ package analysis.pointer.graph;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import util.OrderedPair;
 import analysis.AnalysisUtil;
-import analysis.pointer.analyses.recency.InstanceKeyRecency;
-import analysis.pointer.statements.CallSiteProgramPoint;
-import analysis.pointer.statements.PointsToStatement;
-import analysis.pointer.statements.ProgramPoint;
-import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
-import analysis.pointer.statements.ProgramPoint.PostProgramPoint;
-import analysis.pointer.statements.ProgramPoint.PreProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
-import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.util.intset.EmptyIntSet;
+import com.ibm.wala.util.intset.IntSet;
+import com.ibm.wala.util.intset.SparseIntSet;
 
 /*
  * Represents a set of InterProgramPointReplicas. The set is represented
@@ -37,7 +28,7 @@ public class ProgramPointSetClosure {
      */
     private final Set<InterProgramPointReplica> sources;
 
-    private final/*PointsToGraphNode*/int from; // -1 if no relevant from node
+    private final/*PointsToGraphNode*/int from;
     /**
      * If this is a ProgramPointSetClosure for the edge from fromBase.f to toNode, this is the fromBase. Otherwise -1.
      */
@@ -48,6 +39,8 @@ public class ProgramPointSetClosure {
         this.sources = AnalysisUtil.createConcurrentSet();
         this.from = from;
         this.to = to;
+        assert from >= 0 && to >= 0;
+
         this.fromBase = g.baseNodeForPointsToGraphNode(from);
         assert (fromBase == -1 || g.isMostRecentObject(fromBase)) : "If we have a fromBase, it should be a most recent object, since these are the only ones we track flow sensitively.";
     }
@@ -75,19 +68,39 @@ public class ProgramPointSetClosure {
      * Does this set contain of the program points ippr?
      */
     public boolean contains(InterProgramPointReplica ippr, PointsToGraph g) {
-        // do a depth first search from each of the sources, to see if ippr can be reached.
-        Set<InterProgramPointReplica> visited = new HashSet<>();
+        return g.programPointReachability().reachable(this.getSources(g), ippr, this.noKill(), this.noAlloc(g));
+    }
 
-        for (InterProgramPointReplica src : this.getSources(g)) {
-            // do a depth first search from src
-            if (dfs(src, visited, ippr, g)) {
-                return true;
+
+    private IntSet noAlloc(PointsToGraph g) {
+        if (g.isMostRecentObject(this.to)) {
+            // to will be in the set!
+            if (this.fromBase >= 0) {
+                // fromBase is in the set, as is to.
+                return SparseIntSet.pair(this.to, this.fromBase);
+            }
+            else {
+                return SparseIntSet.singleton(this.to);
+            }
+
+        }
+        else {
+            // to will not be in the set.
+            if (this.fromBase >= 0) {
+                // fromBase is in the set
+                return SparseIntSet.singleton(this.fromBase);
+            }
+            else {
+                // nothing in the set
+                return EmptyIntSet.instance;
             }
         }
-        return false;
 
     }
 
+    private IntSet noKill() {
+        return SparseIntSet.singleton(this.from);
+    }
 
     /**
      * Return all sources where the "from" PointsToGraphNode starts pointing to the "to" InstanceKeyRecency.
@@ -123,100 +136,6 @@ public class ProgramPointSetClosure {
         return this.sources;
     }
 
-    private boolean dfs(InterProgramPointReplica i,
-                        Set<InterProgramPointReplica> visited, InterProgramPointReplica target, PointsToGraph g) {
-        if (i.equals(target)) {
-            return true;
-        }
-        if (visited.contains(i)) {
-            return false;
-        }
-        visited.add(i);
-
-        for (InterProgramPointReplica j : successors(i, g)) {
-            if (dfs(j, visited, target, g)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private Collection<InterProgramPointReplica> successors(InterProgramPointReplica i, PointsToGraph g) {
-        InterProgramPoint ipp = i.getInterPP();
-        ProgramPoint pp = ipp.getPP();
-        Context context = i.getContext();
-        if (ipp instanceof PreProgramPoint) {
-            if (pp instanceof CallSiteProgramPoint) {
-                OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp, context);
-                Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
-                if (calleeSet == null) {
-                    return Collections.emptySet();
-                }
-                List<InterProgramPointReplica> l = new ArrayList<>();
-                for (OrderedPair<IMethod, Context> callee: calleeSet) {
-                    ProgramPoint entry = g.registrar.getMethodSummary(callee.fst()).getEntryPP();
-                    l.add(InterProgramPointReplica.create(callee.snd(), entry.post()));
-                }
-                return l;
-            }
-            else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
-                // we will treat normal and exceptional exits the same. We could be
-                // more precise if call sites had two different program points to return to, one for normal
-                // returns, and one for exceptional returns.
-                OrderedPair<IMethod, Context> callee = new OrderedPair<>(pp.containingProcedure(), context);
-                Set<OrderedPair<CallSiteProgramPoint, Context>> callerSet = g.getCallGraphReverseMap().get(callee);
-                if (callerSet == null) {
-                    return Collections.emptySet();
-                }
-                List<InterProgramPointReplica> l = new ArrayList<>();
-                for (OrderedPair<CallSiteProgramPoint, Context> caller : callerSet) {
-                    l.add(InterProgramPointReplica.create(caller.snd(), caller.fst().post()));
-                }
-                return l;
-            }
-            else {
-                PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
-                // not a call or a return, it's just a normal statement.
-                // does ipp kill this.node?
-                if (stmt != null) {
-                    PointsToGraphNode killed = stmt.killed(context, g);
-                    if (killed != null && from == g.lookupDictionary(killed)) {
-                        return Collections.emptyList();
-                    }
-
-                    // is "to" allocated at this program point?
-                    InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
-                    if (justAllocated != null) {
-                        int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
-                        if (to == justAllocatedKey) {
-                            // The to node just got allocated, and the to node is the most recent object created by that allocation site
-                            assert g.lookupInstanceKeyDictionary(to).isRecent();
-                            return Collections.emptyList();
-                        }
-                        if (fromBase >= 0 && fromBase == justAllocatedKey) {
-                            // We are the set of program points pp such that "to \in pointsToFS(fromBase.f, pp)" is true,
-                            // and at this program point, fromBase just got allocated.
-                            assert g.lookupInstanceKeyDictionary(fromBase).isRecent();
-                            return Collections.emptyList();
-                        }
-                    }
-                }
-
-                return Collections.singletonList(InterProgramPointReplica.create(context, pp.post()));
-            }
-        }
-        else if (ipp instanceof PostProgramPoint) {
-            Set<ProgramPoint> ppSuccs = pp.succs();
-            List<InterProgramPointReplica> l = new ArrayList<>(ppSuccs.size());
-            for (ProgramPoint succ : ppSuccs) {
-                l.add(InterProgramPointReplica.create(context, succ.pre()));
-            }
-            return l;
-        }
-        else {
-            throw new IllegalArgumentException("Don't know about this kind of interprogrampoint");
-        }
-    }
 
     public boolean isEmpty() {
         return sources.isEmpty();
