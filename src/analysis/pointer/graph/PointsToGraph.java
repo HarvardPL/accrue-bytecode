@@ -647,7 +647,11 @@ public class PointsToGraph {
         }
 
         // Third, do the unfiltered flow-sensitive subset relations
-        IntMap<ExplicitProgramPointSet> flowSensSupersets = this.isFlowSensSubsetOf.forward(target);
+        OrderedPair<IntMap<ExplicitProgramPointSet>, Integer> flowSensSupersetsPair = this.isFlowSensSubsetOf.forward(target);
+        IntMap<ExplicitProgramPointSet> flowSensSupersets = flowSensSupersetsPair.fst();
+        Integer filterInstanceKey = flowSensSupersetsPair.snd();
+        assert filterInstanceKey != null ? XXXXfrombaseoftarget : true;
+
         iter = flowSensSupersets == null ? EmptyIntIterator.instance() : flowSensSupersets.keyIterator();
 
         while (iter.hasNext()) {
@@ -675,6 +679,7 @@ public class PointsToGraph {
                                 null,
                                 ppSetToAdd,
                                 setToAdd,
+                                filterInstanceKey,
                                 currentlyAdding,
                                 currentlyAddingStack,
                                 filterStack,
@@ -707,15 +712,24 @@ public class PointsToGraph {
      */
     private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, Set<TypeFilter> filters,
                                      ExplicitProgramPointSet targetPoints,
-                                     /*Set<InstanceKeyRecency>*/IntSet setToAdd, MutableIntSet currentlyAdding,
+                                     /*Set<InstanceKeyRecency>*/IntSet setToAdd,
+                                     /*InstanceKey*/Integer filterInstanceKey, MutableIntSet currentlyAdding,
                                       IntStack currentlyAddingStack,
                                      Stack<Set<TypeFilter>> filterStack,
                                      Stack<ExplicitProgramPointSet> programPointStack, IntMap<MutableIntSet> toCollapse) {
 
         assert !(targetIsFlowSensitive) || filters == null : "If target is flow sensitive then filter must be null";
         assert !(targetIsFlowSensitive) || targetPoints != null && !targetPoints.isEmpty() : "If target is flow sensitive then we must have target program points";
+        assert filterInstanceKey != null ? !targetIsFlowSensitive : true;
+        assert filterInstanceKey != null ? filters == null : true;
 
         IntIterator iter = filters == null ? setToAdd.intIterator() : new FilteredIterator(setToAdd.intIterator(), filters);
+
+        if (filterInstanceKey != null) {
+            // if we have a filter instance key, then we need to modify the set of instance keys
+            // to replace filterInstanceKey with the non-most recent version of it.
+            iter = new ChangeRecentInstanceKeyIterator(iter, filterInstanceKey, this);
+        }
 
         // The set of elements that will be added to the superset.
         IntSet diff = this.getDifference(iter, target, targetIsFlowSensitive, targetPoints);
@@ -1246,6 +1260,44 @@ public class PointsToGraph {
         }
     }
 
+    class ChangeRecentInstanceKeyIterator implements IntIterator {
+        private final IntIterator iter;
+        private final int recentInstanceKey;
+        private final PointsToGraph g;
+        private int next = -1;
+
+        ChangeRecentInstanceKeyIterator(IntIterator iter, int recentInstanceKey, PointsToGraph g) {
+            this.iter = iter;
+            this.recentInstanceKey = recentInstanceKey;
+            this.g = g;
+            assert g.isMostRecentObject(recentInstanceKey);
+        }
+        @Override
+        public boolean hasNext() {
+            while (this.next < 0 && this.iter.hasNext()) {
+                int i = this.iter.next();
+                if (i == this.recentInstanceKey) {
+                    this.next = this.g.nonMostRecentVersion(i);
+                }
+                else {
+                    this.next = i;
+                }
+            }
+
+            return this.next >= 0;
+        }
+
+        @Override
+        public int next() {
+            if (this.hasNext()) {
+                int x = this.next;
+                this.next = -1;
+                return x;
+            }
+            throw new NoSuchElementException();
+        }
+
+    }
     class ProgramPointIntIterator implements IntIterator {
         private final IntIterator iter;
         private final IntMap<ProgramPointSetClosure> ppmap;
@@ -1750,5 +1802,16 @@ public class PointsToGraph {
     public int mostRecentVersion(/*InstanceKeyRecency*/int n) {
         InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
         return this.lookupDictionary(ikr.recent(true));
+    }
+
+    /**
+     * XXX TODO Documentation
+     *
+     * @param n
+     * @return
+     */
+    public int nonMostRecentVersion(/*InstanceKeyRecency*/int n) {
+        InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
+        return this.lookupDictionary(ikr.recent(false));
     }
 }
