@@ -151,15 +151,18 @@ public class PointsToGraph {
      * if a is flow sensitive, we have: pointsToFS(a, ippr) \subseteq pointsToFI(b) and if b is flow sensitive we have
      * pointsToFI(a) \subseteq pointsToFS(b, ippr)
      */
-    private final AnnotatedIntRelation<ExplicitProgramPointSet> isFlowSensSubsetOf = new AnnotatedIntRelation<ExplicitProgramPointSet>() {
+    private final AnnotatedIntRelation<OrderedPair<ExplicitProgramPointSet, Integer>> isFlowSensSubsetOf = new AnnotatedIntRelation<OrderedPair<ExplicitProgramPointSet, Integer>>() {
         @Override
-        protected ExplicitProgramPointSet createInitialAnnotation() {
-            return new ExplicitProgramPointSet();
+        protected OrderedPair<ExplicitProgramPointSet, Integer> createInitialAnnotation() {
+            return new OrderedPair<>(new ExplicitProgramPointSet(), null);
         }
 
         @Override
-        protected boolean merge(ExplicitProgramPointSet existing, ExplicitProgramPointSet annotation) {
-            return existing.addAll(annotation);
+        protected boolean merge(OrderedPair<ExplicitProgramPointSet, Integer> existing,
+                                OrderedPair<ExplicitProgramPointSet, Integer> annotation) {
+            assert existing.snd() == annotation.snd() : "the ippr annotation doesn't match when merging";
+            return existing.fst().addAll(annotation.fst());
+
         }
 
     };
@@ -456,7 +459,7 @@ public class PointsToGraph {
             // Choose the ippr to be the source or the target ippr, based on which is flow sensitive.
             InterProgramPointReplica ippr = source.isFlowSensitive() ? sourceIppr : targetIppr;
 
-            ExplicitProgramPointSet pps = isFlowSensSubsetOf.forward(s).get(t);
+            ExplicitProgramPointSet pps = isFlowSensSubsetOf.forward(s).get(t).fst();
             if (pps == null || !pps.contains(ippr)) {
                 // this is a new subset relation!
                 computeDeltaForAddedSubsetRelation(changed,
@@ -625,6 +628,7 @@ public class PointsToGraph {
                                 null,
                                 null,
                                 setToAdd,
+                                null, // no filterInstanceKey
                                 currentlyAdding,
                                 currentlyAddingStack,
                                 filterStack,
@@ -651,6 +655,7 @@ public class PointsToGraph {
                                     filterSet,
                                     null, // no targetprogrampionts
                                     setToAdd,
+                                    null, // no filterInstanceKey
                                     currentlyAdding,
                                     currentlyAddingStack,
                                     filterStack,
@@ -660,19 +665,21 @@ public class PointsToGraph {
         }
 
         // Third, do the unfiltered flow-sensitive subset relations
-        OrderedPair<IntMap<ExplicitProgramPointSet>, Integer> flowSensSupersetsPair = this.isFlowSensSubsetOf.forward(target);
-        IntMap<ExplicitProgramPointSet> flowSensSupersets = flowSensSupersetsPair.fst();
-        Integer filterInstanceKey = flowSensSupersetsPair.snd();
-        assert filterInstanceKey != null ? XXXXfrombaseoftarget : true;
+        ConcurrentIntMap<OrderedPair<ExplicitProgramPointSet, Integer>> flowSensSupersetsMap = this.isFlowSensSubsetOf.forward(target);
 
-        iter = flowSensSupersets == null ? EmptyIntIterator.instance() : flowSensSupersets.keyIterator();
+        iter = flowSensSupersetsMap == null ? EmptyIntIterator.instance() : flowSensSupersetsMap.keyIterator();
 
         while (iter.hasNext()) {
             int m = iter.next();
+            OrderedPair<ExplicitProgramPointSet, Integer> annotation = flowSensSupersetsMap.get(m);
+            ExplicitProgramPointSet ppSet = annotation.fst();
+            /*InstanceKey*/Integer filterInstanceKey = annotation.snd();
             boolean mIsFlowSensitive = isFlowSensitivePointsToGraphNode(m);
             assert !(targetIsFlowSensitive && mIsFlowSensitive);
+            PointsToGraphNode source = lookupPointsToGraphNodeDictionary(m);
+            assert filterInstanceKey == null
+                    || (source instanceof ObjectField && ((ObjectField) source).receiver() == lookupInstanceKeyDictionary(filterInstanceKey));
 
-            ExplicitProgramPointSet ppSet = flowSensSupersets.get(m);
             // "target isFlowSensSubsetOf m with ppSet"
             if (targetIsFlowSensitive) {
                 // For all p \in ppSet, we want pointsToFS(target, p) \subset pointsToFI(m).
@@ -727,7 +734,7 @@ public class PointsToGraph {
                                      ExplicitProgramPointSet targetPoints,
                                      /*Set<InstanceKeyRecency>*/IntSet setToAdd,
                                      /*InstanceKey*/Integer filterInstanceKey, MutableIntSet currentlyAdding,
-                                      IntStack currentlyAddingStack,
+                                     IntStack currentlyAddingStack,
                                      Stack<Set<TypeFilter>> filterStack,
                                      Stack<ExplicitProgramPointSet> programPointStack, IntMap<MutableIntSet> toCollapse) {
 
@@ -739,6 +746,7 @@ public class PointsToGraph {
         IntIterator iter = filters == null ? setToAdd.intIterator() : new FilteredIterator(setToAdd.intIterator(), filters);
 
         if (filterInstanceKey != null) {
+            assert !lookupPointsToGraphNodeDictionary(target).isFlowSensitive();
             // if we have a filter instance key, then we need to modify the set of instance keys
             // to replace filterInstanceKey with the non-most recent version of it.
             iter = new ChangeRecentInstanceKeyIterator(iter, filterInstanceKey, this);
