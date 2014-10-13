@@ -61,4 +61,9 @@ public class ExplicitProgramPointSet implements Iterable<InterProgramPointReplic
         return this.points.iterator();
     }
 
+    @Override
+    public String toString() {
+        return "ExplicitProgramPointSet[" + points + "]";
+    }
+
 }
