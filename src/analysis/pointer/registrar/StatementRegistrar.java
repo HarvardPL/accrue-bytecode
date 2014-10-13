@@ -944,8 +944,12 @@ public class StatementRegistrar {
             assert (existing == null) : "More than one statement that may modify the points to graph at a program point: existing is '"
                     + existing + "' and just tried to add '" + s + "'";
         }
+        else {
+            // it shouldn't matter what program point we use for the statement
+            s.setProgramPoint(getMethodSummary(m).getEntryPP());
+        }
 
-        if ((this.size + StatementRegistrar.removedStmts) % 10000 == 0) {
+        if ((this.size + StatementRegistrar.removedStmts) % 100000 == 0) {
             reportStats();
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
@@ -959,9 +963,11 @@ public class StatementRegistrar {
     }
 
     public void reportStats() {
-        System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removedStmts) + ", removed: "
-                + StatementRegistrar.removedStmts + " effective: " + this.size + " Total program points "
-                + totalProgramPoints() + " (removed " + totalProgramPointsRemoved() + ")");
+        System.err.println("REGISTERED statements: " + (this.size + StatementRegistrar.removedStmts) + ", removed: "
+                + StatementRegistrar.removedStmts + ", effective: " + this.size + "\n           program points:  "
+                + (totalProgramPoints() + totalProgramPointsRemoved()) + ", removed: " + totalProgramPointsRemoved()
+                + ", effective: " + this.totalProgramPoints() + ", with stmt that may modify graph: "
+                + this.ppToStmtMap.size());
 
     }
 
@@ -1181,10 +1187,6 @@ public class StatementRegistrar {
      * @param thrown reference variable representing the value of the exception
      * @param types type information about local variables
      * @param pp pretty printer for the appropriate method
-     * @param useSingletonAllocForThisException If true then only one allocation will be made for exceptions like this
-     *            one, e.g. for all exceptions of this type or all generated exceptions of this type. This means that
-     *            there may be multiple identical exception assignment statements if the same type of exception is
-     *            caught by the same catch block
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,

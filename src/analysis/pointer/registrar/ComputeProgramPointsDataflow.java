@@ -568,51 +568,109 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
     public int[] cleanUpProgramPoints() {
         // try to clean up the program points. Let's first get a reverse mapping, and then check to see if there are any we can merge
         Map<ProgramPoint, Set<ProgramPoint>> preds = new HashMap<>();
-        Set<ProgramPoint> visited = new HashSet<>();
-        ArrayList<ProgramPoint> q = new ArrayList<>();
         MethodSummaryNodes summary = this.registrar.findOrCreateMethodSummary(this.ir.getMethod(), this.rvFactory);
-
-        q.add(summary.getEntryPP());
-        while (!q.isEmpty()) {
-            ProgramPoint pp = q.remove(q.size() - 1);
-            if (visited.contains(pp)) {
-                continue;
-            }
-            visited.add(pp);
-            for (ProgramPoint succ : pp.succs()) {
-                Set<ProgramPoint> predsForSucc = preds.get(succ);
-                if (predsForSucc == null) {
-                    predsForSucc = new HashSet<>();
-                    preds.put(succ, predsForSucc);
+        int totalProgramPoints = 0;
+        {
+            Set<ProgramPoint> visited = new HashSet<>();
+            ArrayList<ProgramPoint> q = new ArrayList<>();
+            q.add(summary.getEntryPP());
+            while (!q.isEmpty()) {
+                ProgramPoint pp = q.remove(q.size() - 1);
+                if (visited.contains(pp)) {
+                    continue;
                 }
-                predsForSucc.add(pp);
-                if (!visited.contains(succ)) {
-                    q.add(succ);
+                visited.add(pp);
+                for (ProgramPoint succ : pp.succs()) {
+                    Set<ProgramPoint> predsForSucc = preds.get(succ);
+                    if (predsForSucc == null) {
+                        predsForSucc = new HashSet<>();
+                        preds.put(succ, predsForSucc);
+                    }
+                    predsForSucc.add(pp);
+                    if (!visited.contains(succ)) {
+                        q.add(succ);
+                    }
                 }
             }
+            totalProgramPoints = visited.size();
         }
         int removedPPs = 0;
+
         // we now have the pred relation.
+        // Go through and collapse non-modifying PPs that have only one successor or predecessor
+        Set<ProgramPoint> removed = new HashSet<>();
         for (ProgramPoint pp : preds.keySet()) {
             if (this.registrar.getStmtAtPP(pp) != null) {
                 // this pp may modify the flow-sensitive part of the points to graph
                 continue;
             }
+            if (removed.contains(pp)) {
+                // this program point has already been removed.
+                continue;
+            }
+            if (pp.isEntrySummaryNode() || pp.isExceptionExitSummaryNode() || pp.isNormalExitSummaryNode()) {
+                // don't try to remove summary nodes
+                continue;
+            }
+
             Set<ProgramPoint> predSet = preds.get(pp);
             if (predSet.size() == 1) {
+                // we have one predecessor
+                // merge pp with the predecessor
                 ProgramPoint predPP = predSet.iterator().next();
-                if (this.registrar.getStmtAtPP(predPP) != null) {
-                    // this pp may modify the flow-sensitive part of the points to graph
-                    continue;
+                assert !removed.contains(predPP);
+                predSet.clear();
+
+                assert predPP.succs().contains(pp);
+                predPP.removeSucc(pp);
+                for (ProgramPoint ppSucc : pp.succs()) {
+                    assert !removed.contains(ppSucc);
+                    // for each successor of pp, remove pp as a predecessor, and add ppPred.
+                    assert preds.get(ppSucc) != null && preds.get(ppSucc).contains(pp);
+                    preds.get(ppSucc).remove(pp);
+                    preds.get(ppSucc).add(predPP);
+                    predPP.addSucc(ppSucc);
                 }
-                if (predPP.succs().size() == 1) {
-                    // woo hoo! we can clean it up!
-                    predPP.collapse(pp);
-                    removedPPs++;
-                }
+
+                removedPPs++;
+                removed.add(pp);
+                pp.setIsDiscardedProgramPoint();
+                predSet.clear();
+                assert pp.succs().isEmpty();
+                assert preds.get(pp).isEmpty();
+                continue;
             }
+            if (pp.succs().size() == 1) {
+                // we have one successor
+                // merge pp with the successor
+                ProgramPoint succPP = pp.succs().iterator().next();
+                assert !removed.contains(succPP);
+
+
+                Set<ProgramPoint> succPPpreds = preds.get(succPP);
+                assert succPPpreds.contains(pp);
+                succPPpreds.remove(pp);
+                for (ProgramPoint ppPred : predSet) {
+                    assert !removed.contains(ppPred);
+                    // for each predecessor of pp, remove pp as a successor, and add ppSucc.
+                    ppPred.removeSucc(pp);
+
+                    ppPred.addSucc(succPP);
+                    succPPpreds.add(ppPred);
+                }
+
+                pp.removeSucc(succPP);
+                predSet.clear();
+                assert pp.succs().isEmpty();
+                assert preds.get(pp).isEmpty();
+
+                removedPPs++;
+                removed.add(pp);
+                continue;
+            }
+
         }
-        return new int[] { visited.size(), removedPPs };
+        return new int[] { totalProgramPoints, removedPPs };
     }
 
 }

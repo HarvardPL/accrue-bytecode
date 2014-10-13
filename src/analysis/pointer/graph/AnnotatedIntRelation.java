@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Set;
 
 import util.intmap.ConcurrentIntMap;
+import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 
 import com.ibm.wala.util.intset.IntIterator;
@@ -149,7 +150,7 @@ public abstract class AnnotatedIntRelation<T> {
 
         @Override
         protected Set<T> createInitialAnnotation() {
-            return PointsToAnalysisMultiThreaded.makeConcurrentSet();
+            return AnalysisUtil.createConcurrentSet();
         }
 
         @Override

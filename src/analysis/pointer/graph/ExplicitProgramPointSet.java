@@ -3,7 +3,7 @@ package analysis.pointer.graph;
 import java.util.Iterator;
 import java.util.Set;
 
-import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.AnalysisUtil;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 /*
@@ -14,7 +14,7 @@ public class ExplicitProgramPointSet implements Iterable<InterProgramPointReplic
 
 
     public ExplicitProgramPointSet() {
-        this.points = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+        this.points = AnalysisUtil.createConcurrentSet();
     }
 
     public boolean add(InterProgramPointReplica ippr) {

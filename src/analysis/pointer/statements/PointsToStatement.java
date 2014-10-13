@@ -34,7 +34,7 @@ public abstract class PointsToStatement {
     /**
      * Program point that created this statement.
      */
-    private final ProgramPoint pp;
+    private ProgramPoint pp;
 
     /**
      * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
@@ -125,12 +125,12 @@ public abstract class PointsToStatement {
             // c2 may be the merge of two different types that both implement c1 and the assignment is safe OK
             // Unfortunately we've lost the information about which interfaces c2 implements at this point. It would be
             // nice if the type inference kept this information.
-            System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left
-                    + " = " + right + " is invalid");
-            System.err.println("\tassigned type: "
-                    + PrettyPrinter.typeString(left.getExpectedType())
-                    + " is an interface and the assignee is java.lang.Object. ");
-            System.err.println("\tBut since the type inference does not track interfaces the actual value may still implement the interface.");
+            if (PointsToAnalysis.outputLevel > 0) {
+                System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
+                System.err.println("\tassigned type: " + PrettyPrinter.typeString(left.getExpectedType())
+                        + " is an interface and the assignee is java.lang.Object. ");
+                System.err.println("\tBut since the type inference does not track interfaces the actual value may still implement the interface.");
+            }
             return true;
         }
 
@@ -225,5 +225,9 @@ public abstract class PointsToStatement {
      * relation of program points (i.e., statements that change the call graph).
      */
     public abstract boolean mayChangeFlowSensPointsToGraph();
+
+    public void setProgramPoint(ProgramPoint pp) {
+        this.pp = pp;
+    }
 
 }

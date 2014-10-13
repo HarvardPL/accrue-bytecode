@@ -27,8 +27,17 @@ public class SparseIntMap<T> implements IntMap<T> {
      * Subclasses should use this with extreme care.
      */
     public SparseIntMap() {
-        keys = null;
-        values = null;
+        this.keys = null;
+        this.values = null;
+        this.size = 0;
+    }
+
+    /**
+     * Subclasses should use this with extreme care.
+     */
+    public SparseIntMap(int initialSize) {
+        this.keys = new int[initialSize];
+        this.values = new Object[initialSize];
         this.size = 0;
     }
 

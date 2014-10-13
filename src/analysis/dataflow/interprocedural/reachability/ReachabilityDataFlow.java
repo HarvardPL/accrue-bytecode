@@ -289,17 +289,32 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         // See if both are constants
         Object left = null;
         Object right = null;
+        Double leftValue = null;
+        Double rightValue = null;
         if (st.isConstant(leftValNum) && st.isConstant(rightValNum)) {
             left = st.getConstantValue(leftValNum);
             right = st.getConstantValue(rightValNum);
+            if (st.isNumberConstant(leftValNum)) {
+                leftValue = st.getDoubleValue(leftValNum);
+            }
+
+            if (st.isNumberConstant(rightValNum)) {
+                rightValue = st.getDoubleValue(rightValNum);
+            }
         } else if (i.isIntegerComparison()) {
             // This may be the comparison between two booleans, lets see if both of them are constant
             // Note that literal constant booleans are turned into integers and that 0 is false
             if (booleanResults.isConstant(i, leftValNum)) {
                 left = booleanResults.getConstant(i, leftValNum);
+                if (left != null) {
+                    leftValue = ((Boolean) left).booleanValue() ? 1.0 : 0;
+                }
             }
             if (booleanResults.isConstant(i, rightValNum)) {
                 right = booleanResults.getConstant(i, rightValNum);
+                if (right != null) {
+                    rightValue = ((Boolean) right).booleanValue() ? 1.0 : 0;
+                }
             }
         }
 
@@ -318,22 +333,30 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
                 result = !left.equals(right);
                 break;
 
-            // The rest are only numerical comparisons and Double is always a safe (widening, loss-less) cast
+            // The rest are numerical comparisons
             case "lt":
                 // if (left < right)
-                result = st.getDoubleValue(leftValNum) < st.getDoubleValue(rightValNum);
+                assert leftValue != null;
+                assert rightValue != null;
+                result = leftValue < rightValue;
                 break;
             case "ge":
                 // if (left >= right)
-                result = st.getDoubleValue(leftValNum) >= st.getDoubleValue(rightValNum);
+                assert leftValue != null;
+                assert rightValue != null;
+                result = leftValue >= rightValue;
                 break;
             case "gt":
                 // if (left > right)
-                result = st.getDoubleValue(leftValNum) > st.getDoubleValue(rightValNum);
+                assert leftValue != null;
+                assert rightValue != null;
+                result = leftValue > rightValue;
                 break;
             case "le":
                 // if (left <= right)
-                result = st.getDoubleValue(leftValNum) <= st.getDoubleValue(rightValNum);
+                assert leftValue != null;
+                assert rightValue != null;
+                result = leftValue <= rightValue;
                 break;
             default:
                 throw new IllegalArgumentException("operator not found " + i.getOperator());

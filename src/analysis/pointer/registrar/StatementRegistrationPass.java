@@ -104,7 +104,8 @@ public class StatementRegistrationPass {
         Set<IClass> seenInstancesOf = new HashSet<>();
         Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
 
-        Set<MethodReference> alreadyDispatched = new HashSet<>();
+        Set<MethodReference> alreadyProcessedVirtual = new HashSet<>();
+        Set<MethodReference> alreadyProcessedStaticAndSpecial = new HashSet<>();
 
         init(q);
 
@@ -169,8 +170,14 @@ public class StatementRegistrationPass {
                     // This is an invocation, add statements for callee to work queue
                     SSAInvokeInstruction inv = (SSAInvokeInstruction) i;
 
-                    if (!alreadyDispatched.add(inv.getDeclaredTarget())) {
-                        // we have seen this declared target before, no need to process again
+                    if ((inv.isSpecial() || inv.isStatic())
+                            && !alreadyProcessedStaticAndSpecial.add(inv.getDeclaredTarget())) {
+                        // Already processed this static or special method
+                        continue;
+                    }
+
+                    if (inv.isDispatch() && !alreadyProcessedVirtual.add(inv.getDeclaredTarget())) {
+                        // Already processed this virtually dispatched method
                         continue;
                     }
 
@@ -211,8 +218,9 @@ public class StatementRegistrationPass {
             System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
         }
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
+        System.gc();
         System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
-                + "Mb");
+                + "MB");
         if (PROFILE) {
             System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             try {

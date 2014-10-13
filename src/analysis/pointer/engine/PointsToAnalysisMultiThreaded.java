@@ -1,11 +1,11 @@
 package analysis.pointer.engine;
 
+import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -65,8 +65,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         long startTime = System.currentTimeMillis();
 
 
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
-        //final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
         //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
         //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
         //                                                                                               null,
@@ -158,7 +158,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Total time             : " + totalTime / 1000 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
-        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+        //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+        System.gc();
+        System.err.println("   Memory utilization     : "
+                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
         System.err.println("\n\n");
 
         if (paranoidMode) {
@@ -166,6 +169,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             this.processAllStatements(g, registrar);
         }
         g.constructionFinished();
+        System.gc();
+        System.err.println("   Memory post compression: "
+                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+        System.err.println("\n\n");
+
         return g;
     }
 
@@ -376,7 +384,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         Set<StmtAndContext> s = this.interestingDepedencies.get(n);
         if (s == null) {
-            s = makeConcurrentSet();
+            s = AnalysisUtil.createConcurrentSet();
             Set<StmtAndContext> existing = this.interestingDepedencies.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;
@@ -385,17 +393,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         return s.add(sac);
     }
 
-    public static <T> Set<T> makeConcurrentSet() {
-        return Collections.newSetFromMap(new ConcurrentHashMap<T, Boolean>());
-    }
-
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentIntHashSet();
-        //        return new MutableIntSetFromMap(PointsToAnalysisMultiThreaded.<Boolean> makeConcurrentIntMap());
+        return new ConcurrentIntHashSet(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentIntHashMap<>();
+        return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     /**

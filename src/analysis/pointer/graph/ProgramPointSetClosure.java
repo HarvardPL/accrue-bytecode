@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Set;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
-import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
@@ -45,7 +45,7 @@ public class ProgramPointSetClosure {
     private final/*InstanceKeyRecency*/int to;
 
     public ProgramPointSetClosure(/*PointsToGraphNode*/int from, /*InstanceKeyRecency*/int to, PointsToGraph g) {
-        this.sources = PointsToAnalysisMultiThreaded.makeConcurrentSet();
+        this.sources = AnalysisUtil.createConcurrentSet();
         this.from = from;
         this.to = to;
         this.fromBase = g.baseNodeForPointsToGraphNode(from);

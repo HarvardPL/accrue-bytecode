@@ -225,8 +225,10 @@ public class GraphDelta {
         return sb.toString();
     }
 
-    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode n, InterProgramPointReplica ippr) {
-        return g.new IntToInstanceKeyIterator(pointsToIntIterator(g.lookupDictionary(n), ippr));
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode node, InterProgramPointReplica ippr) {
+        int n = g.lookupDictionary(node);
+        assert n >= 0;
+        return g.new IntToInstanceKeyIterator(pointsToIntIterator(n, ippr));
     }
 
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr) {
