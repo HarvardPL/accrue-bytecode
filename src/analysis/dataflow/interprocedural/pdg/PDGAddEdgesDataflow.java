@@ -723,6 +723,9 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             // TODO if no NPE throw WrongMethodTypeException
         }
 
+        // The PC at the call site is the PC if no exception was thrown
+        PDGNode callSitePC = normal.getPCNode();
+
         // Add dependencies from actuals to nodes representing the assignment to
         // formals right before the call
         List<PDGNode> formalAssignments = new LinkedList<>();
@@ -733,18 +736,16 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                                             new OrderedPair<>(i, j));
             formalAssignments.add(formalAssign);
             addEdge(params.get(j), formalAssign, PDGEdgeType.COPY);
-            addEdge(normal.getPCNode(), formalAssign, PDGEdgeType.IMPLICIT);
+            addEdge(callSitePC, formalAssign, PDGEdgeType.IMPLICIT);
         }
 
         // Collect nodes and add edges for each possible callee
-        Set<PDGNode> calleeNormalReturns = new LinkedHashSet<>();
-        Set<PDGNode> calleeExceptionValues = new LinkedHashSet<>();
-        Set<PDGNode> calleeNormalPCs = new LinkedHashSet<>();
-        Set<PDGNode> calleeExceptionalPCs = new LinkedHashSet<>();
+        Set<OrderedPair<CGNode, PDGContext>> normalExits = new LinkedHashSet<>();
+        Set<OrderedPair<CGNode, PDGContext>> exceptionExits = new LinkedHashSet<>();
         for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
             ProcedureSummaryPDGNodes calleeSummary = PDGNodeFactory.findOrCreateProcedureSummary(callee);
             PDGContext calleeEntry = calleeSummary.getEntryContext();
-            addEdge(normal.getPCNode(), calleeEntry.getPCNode(), PDGEdgeType.MERGE, entry);
+            addEdge(callSitePC, calleeEntry.getPCNode(), PDGEdgeType.MERGE, entry);
 
             // Add dependency from nodes representing the assignment to
             // formals right before the call to the formals themselves
@@ -755,64 +756,134 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
             if (canProcedureTerminateNormally(callee)) {
                 PDGContext calleeNormal = calleeSummary.getNormalExitContext();
-                calleeNormalReturns.add(calleeNormal.getReturnNode());
-                calleeNormalPCs.add(calleeNormal.getPCNode());
+                normalExits.add(new OrderedPair<>(callee, calleeNormal));
             }
 
             if (interProc.getPreciseExceptionResults().canProcedureThrowAnyException(callee)) {
                 PDGContext calleeEx = calleeSummary.getExceptionalExitContext();
-                calleeExceptionValues.add(calleeEx.getExceptionNode());
-                calleeExceptionalPCs.add(calleeEx.getPCNode());
+                exceptionExits.add(new OrderedPair<>(callee, calleeEx));
+
             }
         }
 
-        if (!calleeNormalPCs.isEmpty()) {
+        if (!normalExits.isEmpty()) {
             // at least one callee can terminate normally
-
-            OrderedPair<ISSABasicBlock, ExitType> normalKey = new OrderedPair<>(current, ExitType.NORMAL);
-            PDGNode calleeNormPC = mergeIfNecessary(calleeNormalPCs, "CALLEE NORMAL PC MERGE", PDGNodeType.PC_MERGE,
-                                            normalKey);
-
-            // Join the caller PC before the call to the PC after the call, this
-            // captures the fact that we can only exit the procedure if we call
-            // it first
 
             ISSABasicBlock normalSucc = getNormalSuccs(current, cfg).iterator().next();
             PDGNode normalExitPC = outputFacts.get(current).get(normalSucc).getPCNode();
-            addEdge(calleeNormPC, normalExitPC, PDGEdgeType.CONJUNCTION, exit);
-            addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
 
+            PDGNode result = null;
             if (i.getNumberOfReturnValues() > 0) {
-                PDGNode calleeReturn = mergeIfNecessary(calleeNormalReturns, "CALLEE RETURN MERGE",
-                                                PDGNodeType.OTHER_EXPRESSION, normalKey);
-                PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
-                addEdge(calleeReturn, result, PDGEdgeType.COPY, exit);
-                addEdge(normalExitPC, result, PDGEdgeType.IMPLICIT);
+                // Method has a return
+                result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
             }
+
+            // Connect up the callee summary nodes to nodes in the caller
+            handleCalleeExit(callSitePC, normalExits, exit, i, result, normalExitPC, ExitType.NORMAL);
         }
 
-        if (!calleeExceptionalPCs.isEmpty()) {
+        if (!exceptionExits.isEmpty()) {
             // some callee may throw an exception
-
-            OrderedPair<ISSABasicBlock, ExitType> exKey = new OrderedPair<>(current, ExitType.EXCEPTIONAL);
-            PDGNode calleeException = mergeIfNecessary(calleeExceptionValues, "CALLEE EXCEPTION MERGE",
-                                            PDGNodeType.EXCEPTION_MERGE, exKey);
-            PDGNode calleeExPC = mergeIfNecessary(calleeExceptionalPCs, "CALLEE EXCEPTION PC MERGE",
-                                            PDGNodeType.PC_MERGE, exKey);
-
-            // Join the caller PC before the call to the PC after the exception,
-            // this captures the fact that we can only throw an exception if we
-            // first call the procedure
-
             PDGContext exExitContext = calleeExceptionContexts.get(i);
-            addEdge(calleeExPC, exExitContext.getPCNode(), PDGEdgeType.CONJUNCTION, exit);
-            addEdge(normal.getPCNode(), exExitContext.getPCNode(), PDGEdgeType.CONJUNCTION);
 
-            addEdge(calleeException, exExitContext.getExceptionNode(), PDGEdgeType.COPY, exit);
-            addEdge(exExitContext.getPCNode(), exExitContext.getExceptionNode(), PDGEdgeType.IMPLICIT);
+            // Connect up the callee summary nodes to nodes in the caller
+            handleCalleeExit(callSitePC,
+                             exceptionExits,
+                             exit,
+                             i,
+                             exExitContext.getExceptionNode(),
+                             exExitContext.getPCNode(),
+                             ExitType.EXCEPTIONAL);
         }
 
         return factToMap(Unit.VALUE, current, cfg);
+    }
+
+    /**
+     * Connect the summary nodes for callees in <code>exits</code> to the result and pcResult from the caller
+     *
+     * @param callSitePC pc at the call site before the call
+     * @param exits Possible concrete callees and the corresponding exit contexts
+     * @param exitLabel label for the return site
+     * @param i call instruction
+     * @param result node in the caller for the value resulting from the call (either the exception or return value if
+     *            any)
+     * @param pcResult pc node for the program point in the caller after the call
+     * @param type either exceptional or normal exit
+     */
+    private void handleCalleeExit(PDGNode callSitePC, Set<OrderedPair<CGNode, PDGContext>> exits,
+                                  CallSiteEdgeLabel exitLabel, SSAInvokeInstruction i, PDGNode result,
+                                  PDGNode pcResult, ExitType type) {
+        assert !exits.isEmpty() : "No exits for " + i + " for " + type;
+        assert callSitePC.getNodeType().isPathCondition();
+        assert exitLabel != null;
+        assert pcResult != null;
+        assert pcResult.getNodeType().isPathCondition();
+        assert result != null || (type == ExitType.NORMAL && i.getNumberOfReturnValues() == 0) : "Only void return methods should have no result node";
+        Set<PDGNode> pcJoins = new LinkedHashSet<>();
+        Set<PDGNode> exitAssignments = new LinkedHashSet<>();
+        OrderedPair<SSAInvokeInstruction, ExitType> k = new OrderedPair<>(i, type);
+        for (OrderedPair<CGNode, PDGContext> p : exits) {
+            OrderedPair<PDGNode, PDGNode> res = addCallerExitEdges(callSitePC, p, exitLabel, k);
+            pcJoins.add(res.fst());
+            if (result != null) {
+                exitAssignments.add(res.snd());
+            }
+        }
+        PDGNode pcMerge = mergeIfNecessary(pcJoins, type + "_PC_MERGE", PDGNodeType.PC_MERGE, k);
+        addEdge(pcMerge, pcResult, PDGEdgeType.COPY);
+
+        if (result != null) {
+            PDGNode retMerge = mergeIfNecessary(exitAssignments, type + "_RET_MERGE", PDGNodeType.OTHER_EXPRESSION, k);
+            addEdge(retMerge, result, PDGEdgeType.COPY);
+        }
+    }
+
+    /**
+     * Add edges in the caller for a particular resolved method call
+     *
+     * @param callSitePC pc at the call site before the call
+     * @param callee callee call graph node and summary exit context
+     * @param exitLabel label for the return site
+     * @param callKey instruction and whether adding edges for normal or exceptional return
+     * @return Pair of PDG nodes, the first is the new PC after the call (in the caller) and the second is the exit
+     *         assignment node (in the caller)
+     */
+    private OrderedPair<PDGNode, PDGNode> addCallerExitEdges(PDGNode callSitePC,
+                                                             OrderedPair<CGNode, PDGContext> callee,
+                                                             CallSiteEdgeLabel exitLabel,
+                                                             OrderedPair<SSAInvokeInstruction, ExitType> callKey) {
+        assert callSitePC.getNodeType().isPathCondition();
+        assert callee != null;
+        assert exitLabel != null;
+        assert exitLabel.getType() == SiteType.EXIT;
+        assert callKey != null;
+        OrderedPair<OrderedPair<SSAInvokeInstruction, ExitType>, CGNode> key = new OrderedPair<>(callKey, callee.fst());
+        String methodName = PrettyPrinter.methodString(callee.fst().getMethod());
+        ExitType type = callKey.snd();
+        PDGContext context = callee.snd();
+
+        // Create a PC node that is the program point right after returning from the callee
+        String desc = type + "_EXIT_PC after " + methodName;
+        PDGNode newPC = PDGNodeFactory.findOrCreateOther(desc, PDGNodeType.EXIT_PC_JOIN, currentNode, key);
+        // The new PC is only reached if the method was called (oldPC) and the method returned normally (calleeNormal.getPCNode)
+        addEdge(callSitePC, newPC, PDGEdgeType.CONJUNCTION);
+        addEdge(context.getPCNode(), newPC, PDGEdgeType.CONJUNCTION, exitLabel);
+
+        PDGNode exitAssignment = null;
+        if (type == ExitType.EXCEPTIONAL || callKey.fst().getNumberOfReturnValues() > 0) {
+            // Create a node representing the assignment of the return value in the caller
+            String s = type + "_RET after " + methodName;
+            exitAssignment = PDGNodeFactory.findOrCreateOther(s, PDGNodeType.EXIT_ASSIGNMENT, currentNode, key);
+
+            // Add edges constraining the exit assignment node
+            addEdge(newPC, exitAssignment, PDGEdgeType.IMPLICIT);
+            PDGNode exitNode = (type == ExitType.NORMAL) ? context.getReturnNode() : context.getExceptionNode();
+            assert exitNode != null;
+            addEdge(exitNode, exitAssignment, PDGEdgeType.COPY, exitLabel);
+        }
+
+        return new OrderedPair<>(newPC, exitAssignment);
     }
 
     @Override

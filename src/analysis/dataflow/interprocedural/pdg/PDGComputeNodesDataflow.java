@@ -666,13 +666,17 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
 
         // Node to representing the join of the caller PC before the call and
         // the PC after the call
-        String normalDesc = "NORMAL EXIT-PC-JOIN after " + PrettyPrinter.methodString(i.getDeclaredTarget());
-        PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther(normalDesc, PDGNodeType.EXIT_PC_JOIN, currentNode,
-                                        new OrderedPair<>(i, ExitType.NORMAL));
+        String normalDesc = "NORMAL-EXIT-PC after " + PrettyPrinter.methodString(i.getDeclaredTarget());
+        PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther(normalDesc,
+                                                                PDGNodeType.PC_OTHER,
+                                                                currentNode,
+                                                                new OrderedPair<>(i, ExitType.NORMAL));
 
-        String exDesc = "EX EXIT-PC-JOIN after " + PrettyPrinter.methodString(i.getDeclaredTarget());
-        PDGNode exExitPC = PDGNodeFactory.findOrCreateOther(exDesc, PDGNodeType.EXIT_PC_JOIN, currentNode,
-                                        new OrderedPair<>(i, ExitType.EXCEPTIONAL));
+        String exDesc = "EX-EXIT-PC after " + PrettyPrinter.methodString(i.getDeclaredTarget());
+        PDGNode exExitPC = PDGNodeFactory.findOrCreateOther(exDesc,
+                                                            PDGNodeType.PC_OTHER,
+                                                            currentNode,
+                                                            new OrderedPair<>(i, ExitType.EXCEPTIONAL));
 
         PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode, pp);
         PDGContext exContext = new PDGContext(null, exValue, exExitPC);
