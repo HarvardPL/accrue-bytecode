@@ -16,8 +16,10 @@ import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.classLoader.NewSiteReference;
+import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSACache;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstanceofInstruction;
@@ -25,6 +27,7 @@ import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInstructionFactory;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
+import com.ibm.wala.ssa.SSAOptions;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.Descriptor;
@@ -118,10 +121,26 @@ public class Signatures {
         }
 
         MethodReference actual = actualMethod.getReference();
-        if (isSigType(actual.getDeclaringClass())) {
-            // requesting signature for a signature type just record and return null
+        TypeReference declaringType = actual.getDeclaringClass();
+        if (isSigType(declaringType) && findRealTypeForSigType(declaringType) != null) {
+            // requesting signature for a signature type with an associated "real" type just record and return null
             signatures.put(actualMethod, null);
             return null;
+        }
+
+        if (isSigType(actual.getDeclaringClass())) {
+            // requesting signature for a signature type with no associated "real" type.
+            // rewrite the IR to replace all mentions of signature types
+            IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(actual);
+            SSACache cache = AnalysisUtil.getCache().getSSACache();
+            SSAOptions options = AnalysisUtil.getOptions().getSSAOptions();
+            // Get the actual IR
+            IR sigIR = cache.findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options);
+            // Replace all signature classes with real counterparts
+            IR newIR = rewriteIR(sigIR, actualMethod);
+            // Put the IR in the signature cache
+            signatures.put(actualMethod, new SoftReference<>(newIR));
+            return newIR;
         }
 
         TypeReference actualTarget = actual.getDeclaringClass();
@@ -622,5 +641,26 @@ public class Signatures {
      */
     public static boolean isSigType(TypeReference type) {
         return type.toString().contains("Lsignatures/library/");
+    }
+
+    /**
+     * Check whether the given type is one of the immutable wrapper classes (String, Integer, etc.)
+     *
+     * @param t type to check
+     * @return true if the type is an immutable wrapper (or is the signature type for one)
+     */
+    public static boolean isImmutableWrapper(TypeReference t) {
+        if (t.getName().equals(TypeReference.JavaLangString.getName())) {
+            return true;
+        }
+        if (isSigType(t)) {
+            // This is a signature type try the real type
+            TypeReference realType = findRealTypeForSigType(t);
+            if (realType == null) {
+                return false;
+            }
+            return isImmutableWrapper(realType);
+        }
+        return false;
     }
 }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import signatures.Signatures;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -55,6 +56,7 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
+import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -206,14 +208,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowInstruction(SSAInstruction i, Set<Unit> inItems,
                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                         ISSABasicBlock current) {
-        for (int j = 0; j < i.getNumberOfUses(); j++) {
-            int use = i.getUse(j);
-            if (ir.getSymbolTable().isStringConstant(use)) {
-                // Add an edge from the "data" field of the string literal to the node for the String object
-                PDGNode stringLit = PDGNodeFactory.findOrCreateLocal(use, currentNode, pp);
-                addEdgesForNewHack(use, TypeReference.JavaLangString, "count", stringLit, new OrderedPair<>(i, use));
-            }
-        }
         return super.flowInstruction(i, inItems, cfg, current);
     }
 
@@ -700,6 +694,17 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
     private Map<ISSABasicBlock, Unit> flowInvoke(SSAInvokeInstruction i,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        PDGContext in = instructionInput.get(i);
+
+        if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())) {
+            if (!i.getDeclaredTarget().getName().equals(MethodReference.clinitName)) { // not the class init method
+                // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
+                // The Objects are handled as if they were a primitive.
+                addEdgesForImmutableWrapper(i, in.getPCNode());
+                return factToMap(Unit.VALUE, current, cfg);
+            }
+        }
+
         // Labels for the entry and exit to this particular call these are used
         // to associate call sites with the associated exit (normal or
         // exceptional) sites
@@ -710,8 +715,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
             params.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp));
         }
-
-        PDGContext in = instructionInput.get(i);
 
         PDGContext normal = in;
         if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
@@ -797,6 +800,70 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         }
 
         return factToMap(Unit.VALUE, current, cfg);
+    }
+
+    private void addEdgesForImmutableWrapper(SSAInvokeInstruction i, PDGNode pcNode) {
+        int startIndex;
+        PDGNode targetNode;
+        PDGNode arrayContents = null;
+        if (i.getNumberOfReturnValues() == 0) {
+            // Void method, should be a constructor since the Object is immutable once created
+            assert i.getDeclaredTarget().isInit();
+            if (i.getNumberOfUses() == 1) {
+                // No-arg constructor. There are no edges to add.
+                return;
+            }
+
+            startIndex = 1;
+            targetNode = PDGNodeFactory.findOrCreateLocal(i.getUse(0), currentNode, pp);
+            // Replace the string for the local with something more descriptive
+            targetNode.setDescription(targetNode.toString() + " = " + pp.instructionString(i));
+        }
+        else {
+            // This method returns a value, add edges to the return node
+            startIndex = 0;
+            targetNode = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
+
+            // If this is an array then get a node for the contents to later add edges to
+            if (i.getDeclaredTarget().getReturnType().isArrayType()) {
+                Set<PDGNode> locNodes = new LinkedHashSet<>();
+                for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getReturnValue(0), currentNode)) {
+                    locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+                }
+                arrayContents = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+            }
+        }
+
+        // Node representing an uninterpretted expression of the arguments
+        PDGNode expr = PDGNodeFactory.findOrCreateOther(PrettyPrinter.methodString(i.getDeclaredTarget())
+                + " SIGNATURE", PDGNodeType.OTHER_EXPRESSION, currentNode, new OrderedPair<>("SIGNATURE_EXPRESSION", i));
+
+        // Add edges from the arguments to the expression
+        for (int j = startIndex; j < i.getNumberOfUses(); j++) {
+            PDGNode arg_j = PDGNodeFactory.findOrCreateLocal(i.getUse(j), currentNode, pp);
+            addEdge(arg_j, expr, PDGEdgeType.EXP);
+
+            // If the argument is an array then add an edge from contents of the array as well
+            if (i.getDeclaredTarget().getParameterType(j - startIndex).isArrayType()) {
+                Set<PDGNode> locNodes = new LinkedHashSet<>();
+                for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getUse(j), currentNode)) {
+                    locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+                }
+                PDGNode locMerge = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
+                addEdge(locMerge, expr, PDGEdgeType.EXP);
+            }
+        }
+
+        // Add edges into the assignment node from the expression and the PC node
+        addEdge(expr, targetNode, PDGEdgeType.COPY);
+        addEdge(pcNode, targetNode, PDGEdgeType.IMPLICIT);
+
+        if (arrayContents != null) {
+            // Add edges into the array contents if the return is an array
+            addEdge(expr, arrayContents, PDGEdgeType.COPY);
+            addEdge(pcNode, arrayContents, PDGEdgeType.IMPLICIT);
+        }
+        // XXX What about exceptions thrown by this callee?
     }
 
     /**
@@ -953,6 +1020,12 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Map<ISSABasicBlock, Unit> flowNewObject(SSANewInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        if (Signatures.isImmutableWrapper(i.getConcreteType())) {
+            // Immutable wrappers (e.g. String, Integer, etc.) are handled when the constructor is called in addEdgesForImmutableWrapper
+            // They are treated as primitives
+            return factToMap(Unit.VALUE, current, cfg);
+        }
+
         PDGNode allocNode = PDGNodeFactory.findOrCreateOther(pp.rightSideString(i), PDGNodeType.BASE_VALUE,
                                         currentNode, i);
         PDGNode result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
@@ -975,17 +1048,12 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      */
     private void addEdgesForNewHack(SSANewInstruction i, PDGNode newObj) {
 
-        TypeReference stringType = TypeReference.JavaLangString;
         TypeReference doubleType = TypeReference.JavaLangDouble;
         TypeReference floatType = TypeReference.JavaLangFloat;
         TypeReference integerType = TypeReference.JavaLangInteger;
         TypeReference booleanType = TypeReference.JavaLangBoolean;
 
         TypeReference newType = i.getConcreteType();
-        if (newType.equals(stringType)) {
-            addEdgesForNewHack(i.getDef(), stringType, "count", newObj, i);
-        }
-
         if (newType.equals(integerType)) {
             addEdgesForNewHack(i.getDef(), integerType, "value", newObj, i);
         }

@@ -9,29 +9,29 @@ import java.util.Locale;
  * Signature for java.lang.String meant to be simple, but capture information
  * flows.
  */
-public class String implements java.io.Serializable, Comparable<String>, CharSequence {
+public class String_ThroughField implements java.io.Serializable, Comparable<String_ThroughField>, CharSequence {
 
     /**
      * All data will flow through this "count" field. We use the name "count" since flow from/to int fields are easier
      * to fake and it is a valid field name in java.lang.String. Really this is more like the "value" field, but using a
      * char[] introduces another level of indirection through the contents of the array.
      */
-    private int count;
+    int count;
     private static final long serialVersionUID = -6849794470754667710L;
 
-    public String() {
+    public String_ThroughField() {
         this.count = 0;
     }
 
-    public String(String original) {
+    public String_ThroughField(String_ThroughField original) {
         this.count = original.count;
     }
 
-    public String(char value[]) {
+    public String_ThroughField(char value[]) {
         this.count = value[0];
     }
 
-    public String(char value[], int offset, int count) {
+    public String_ThroughField(char value[], int offset, int count) {
         if (offset < 0) {
             throw new StringIndexOutOfBoundsException(offset);
         }
@@ -44,7 +44,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         this.count = value[0] + offset + count;
     }
 
-    public String(int[] codePoints, int offset, int count) {
+    public String_ThroughField(int[] codePoints, int offset, int count) {
         if (offset < 0) {
             throw new StringIndexOutOfBoundsException(offset);
         }
@@ -59,7 +59,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     }
 
     @Deprecated
-    public String(byte ascii[], int hibyte, int offset, int count) {
+    public String_ThroughField(byte ascii[], int hibyte, int offset, int count) {
         if (count < 0) {
             throw new StringIndexOutOfBoundsException(count);
         }
@@ -77,7 +77,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        this(ascii, hibyte, 0, ascii.length);
     //    }
 
-    public String(byte bytes[], int offset, int length, String charsetName)
+    public String_ThroughField(byte bytes[], int offset, int length, String_ThroughField charsetName)
             throws UnsupportedEncodingException
     {
         if (charsetName == null) {
@@ -100,7 +100,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         this.count = temp;
     }
 
-    public String(byte bytes[], int offset, int length, Charset charset) {
+    public String_ThroughField(byte bytes[], int offset, int length, Charset charset) {
         if (charset == null) {
             throw new NullPointerException("charset");
         }
@@ -125,7 +125,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        this(bytes, 0, bytes.length, charset);
     //    }
 
-    public String(byte bytes[], int offset, int length) {
+    public String_ThroughField(byte bytes[], int offset, int length) {
         if (offset < 0) {
             throw new StringIndexOutOfBoundsException(offset);
         }
@@ -140,7 +140,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
     // TODO WALA screws up the arrays so that they show up as Objects, should fix this bug in WALA some time
     //    public String(byte bytes[], int offset, int length)
-    public String(Object o, int offset, int length) {
+    public String_ThroughField(Object o, int offset, int length) {
         char[] value = (char[]) o;
         if (offset < 0) {
             throw new StringIndexOutOfBoundsException(offset);
@@ -172,7 +172,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        this.offset = result.offset;
     //    }
 
-    String(int offset, int count, char value[]) {
+    String_ThroughField(int offset, int count, char value[]) {
         this.count = offset + count + value[0];
     }
 
@@ -252,7 +252,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         dst[0] = (byte) (count + srcBegin + srcEnd + dstBegin);
     }
 
-    public byte[] getBytes(String charsetName) throws UnsupportedEncodingException {
+    public byte[] getBytes(String_ThroughField charsetName) throws UnsupportedEncodingException {
         if (charsetName == null) {
             throw new NullPointerException();
         }
@@ -281,8 +281,8 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         if (this == anObject) {
             return true;
         }
-        if (anObject instanceof String) {
-            String anotherString = (String) anObject;
+        if (anObject instanceof String_ThroughField) {
+            String_ThroughField anotherString = (String_ThroughField) anObject;
             return this.count == anotherString.count;
         }
         return false;
@@ -301,18 +301,18 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return temp > 0;
     }
 
-    public boolean equalsIgnoreCase(String anotherString) {
+    public boolean equalsIgnoreCase(String_ThroughField anotherString) {
         return count == anotherString.count;
     }
 
     @Override
-    public int compareTo(String anotherString) {
+    public int compareTo(String_ThroughField anotherString) {
         return count + anotherString.count;
     }
 
-    public static final Comparator<String> CASE_INSENSITIVE_ORDER = new CaseInsensitiveComparator();
+    public static final Comparator<String_ThroughField> CASE_INSENSITIVE_ORDER = new CaseInsensitiveComparator();
 
-    private static class CaseInsensitiveComparator implements Comparator<String>, java.io.Serializable {
+    private static class CaseInsensitiveComparator implements Comparator<String_ThroughField>, java.io.Serializable {
 
         private static final long serialVersionUID = 1L;
 
@@ -320,7 +320,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         }
 
         @Override
-        public int compare(String s1, String s2) {
+        public int compare(String_ThroughField s1, String_ThroughField s2) {
             return s1.count + s2.count;
         }
     }
@@ -329,17 +329,17 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        return CASE_INSENSITIVE_ORDER.compare(this, str);
     //    }
 
-    public boolean regionMatches(int toffset, String other, int ooffset,
+    public boolean regionMatches(int toffset, String_ThroughField other, int ooffset,
             int len) {
         return count + toffset + other.count + ooffset + len > 0;
     }
 
     public boolean regionMatches(boolean ignoreCase, int toffset,
-            String other, int ooffset, int len) {
+            String_ThroughField other, int ooffset, int len) {
         return count + toffset + other.count + ooffset + len > 0 && ignoreCase;
     }
 
-    public boolean startsWith(String prefix, int toffset) {
+    public boolean startsWith(String_ThroughField prefix, int toffset) {
         return count + prefix.count + toffset > 0;
     }
 
@@ -347,7 +347,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        return startsWith(prefix, 0);
     //    }
 
-    public boolean endsWith(String suffix) {
+    public boolean endsWith(String_ThroughField suffix) {
         return this.count + suffix.count > 0;
     }
 
@@ -376,7 +376,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        return indexOf(str, 0);
     //    }
 
-    public int indexOf(String str, int fromIndex) {
+    public int indexOf(String_ThroughField str, int fromIndex) {
         return this.count + str.count + fromIndex;
     }
 
@@ -385,11 +385,11 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return source[0] + sourceOffset + sourceCount + target[0] + targetOffset + targetCount + fromIndex;
     }
 
-    public int lastIndexOf(String str) {
+    public int lastIndexOf(String_ThroughField str) {
         return this.count + str.count;
     }
 
-    public int lastIndexOf(String str, int fromIndex) {
+    public int lastIndexOf(String_ThroughField str, int fromIndex) {
         return this.count + str.count + fromIndex;
     }
 
@@ -398,16 +398,16 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return source[0] + sourceOffset + sourceCount + target[0] + targetOffset + targetCount + fromIndex;
     }
 
-    public String substring(int beginIndex) {
+    public String_ThroughField substring(int beginIndex) {
         if (beginIndex < 0) {
             throw new StringIndexOutOfBoundsException(beginIndex);
         }
-        String s = new String();
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + beginIndex;
         return s;
     }
 
-    public String substring(int beginIndex, int endIndex) {
+    public String_ThroughField substring(int beginIndex, int endIndex) {
         if (beginIndex < 0) {
             throw new StringIndexOutOfBoundsException(beginIndex);
         }
@@ -417,7 +417,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         if (beginIndex > endIndex) {
             throw new StringIndexOutOfBoundsException(endIndex - beginIndex);
         }
-        String s = new String();
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + beginIndex + endIndex;
         return s;
     }
@@ -427,19 +427,19 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return substring(beginIndex, endIndex);
     }
 
-    public String concat(String str) {
-        String s = new String();
+    public String_ThroughField concat(String_ThroughField str) {
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + str.count;
         return s;
     }
 
-    public String replace(char oldChar, char newChar) {
-        String s = new String();
+    public String_ThroughField replace(char oldChar, char newChar) {
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + oldChar + newChar;
         return s;
     }
 
-    public boolean matches(String regex) {
+    public boolean matches(String_ThroughField regex) {
         return this.count + regex.count > 0;
     }
 
@@ -447,19 +447,19 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return contentEquals(s);
     }
 
-    public String replaceFirst(String regex, String replacement) {
-        String s = new String();
+    public String_ThroughField replaceFirst(String_ThroughField regex, String_ThroughField replacement) {
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + regex.count + replacement.count;
         return s;
     }
 
-    public String replaceAll(String regex, String replacement) {
-        String s = new String();
+    public String_ThroughField replaceAll(String_ThroughField regex, String_ThroughField replacement) {
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + regex.count + replacement.count;
         return s;
     }
 
-    public String replace(CharSequence target, CharSequence replacement) {
+    public String_ThroughField replace(CharSequence target, CharSequence replacement) {
 
         int i1 = (this.count);
         for (int i = 0; i < target.length(); i++) {
@@ -471,32 +471,32 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
             i2 += (replacement.charAt(0));
         }
 
-        String s = new String();
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + i1 + i2;
         return s;
     }
 
-    public String[] split(String regex, int limit) {
-        String[] a = new String[limit+1];
-        String s = new String();
+    public String_ThroughField[] split(String_ThroughField regex, int limit) {
+        String_ThroughField[] a = new String_ThroughField[limit+1];
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + regex.count;
         a[0] = s;
         return a;
     }
 
-    public String[] split(String regex) {
-        String[] a = new String[1];
-        String s = new String();
+    public String_ThroughField[] split(String_ThroughField regex) {
+        String_ThroughField[] a = new String_ThroughField[1];
+        String_ThroughField s = new String_ThroughField();
         s.count = (this.count + regex.count);
         a[0] = s;
         return a;
     }
 
-    public String toLowerCase(Locale locale) {
+    public String_ThroughField toLowerCase(Locale locale) {
         if (locale == null) {
             throw new NullPointerException();
         }
-        String s = new String();
+        String_ThroughField s = new String_ThroughField();
         // XXX hashcode is a hack
         s.count = this.count + locale.hashCode();
         return s;
@@ -506,11 +506,11 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        return toLowerCase(Locale.getDefault());
     //    }
 
-    public String toUpperCase(Locale locale) {
+    public String_ThroughField toUpperCase(Locale locale) {
         if (locale == null) {
             throw new NullPointerException();
         }
-        String s = new String();
+        String_ThroughField s = new String_ThroughField();
         // XXX hashcode is a hack
         s.count = this.count + locale.hashCode();
         return s;
@@ -520,8 +520,8 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
     //        return toUpperCase(Locale.getDefault());
     //    }
 
-    public String trim() {
-        String s = new String();
+    public String_ThroughField trim() {
+        String_ThroughField s = new String_ThroughField();
         s.count = this.count + 42;
         return s;
     }
@@ -534,8 +534,8 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return new char[] { (char) (count + 42) };
     }
 
-    public static String format(String format, Object... args) {
-        String s = new String();
+    public static String_ThroughField format(String_ThroughField format, Object... args) {
+        String_ThroughField s = new String_ThroughField();
         s.count = format.count;
         for (Object arg : args) {
             // XXX hashcode hack
@@ -544,8 +544,8 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return s;
     }
 
-    public static String format(Locale l, String format, Object... args) {
-        String s = new String();
+    public static String_ThroughField format(Locale l, String_ThroughField format, Object... args) {
+        String_ThroughField s = new String_ThroughField();
         // XXX hashcode hack
         s.count = format.count + l.hashCode();
         for (Object arg : args) {
@@ -579,38 +579,38 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
         return b ? "true" : "false";
     }
 
-    public static String valueOf(char c) {
-        String s = new String();
+    public static String_ThroughField valueOf(char c) {
+        String_ThroughField s = new String_ThroughField();
         s.count = c + 42;
         return s;
     }
 
-    public static String valueOf(int i) {
-        String s = new String();
+    public static String_ThroughField valueOf(int i) {
+        String_ThroughField s = new String_ThroughField();
         s.count = i + 42;
         return s;
     }
 
-    public static String valueOf(long l) {
-        String s = new String();
+    public static String_ThroughField valueOf(long l) {
+        String_ThroughField s = new String_ThroughField();
         s.count = ((int) l) + 42;
         return s;
     }
 
-    public static String valueOf(float f) {
-        String s = new String();
+    public static String_ThroughField valueOf(float f) {
+        String_ThroughField s = new String_ThroughField();
         s.count = ((int) f) + 42;
         return s;
     }
 
-    public static String valueOf(double d) {
-        String s = new String();
+    public static String_ThroughField valueOf(double d) {
+        String_ThroughField s = new String_ThroughField();
         s.count = ((int) d) + 42;
         return s;
     }
 
     // native method signature
-    public String intern() {
+    public String_ThroughField intern() {
         return this;
     }
 }
