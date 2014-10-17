@@ -536,7 +536,7 @@ public class ProgramDependenceGraph implements AnalysisResults, JSONSerializable
             try {
                 json.put("source", JSONUtil.getNodeID(source));
                 json.put("dest", JSONUtil.getNodeID(target));
-                json.put("type", type.toString());
+                JSONUtil.addJSON(json, "type", type.toString());
                 JSONUtil.addJSON(json, label);
             } catch (JSONException e) {
                 throw new RuntimeException("Serialization error for PDGEdge " + this + ", message: " + e.getMessage());

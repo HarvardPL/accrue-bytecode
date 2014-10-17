@@ -23,7 +23,7 @@ public class JSONUtil {
 
     /**
      * Get the unique identifier for this pdg node
-     * 
+     *
      * @param n
      *            node
      * @return integer unique to that node
@@ -39,7 +39,7 @@ public class JSONUtil {
 
     /**
      * Serialize the given {@link PDGNode}
-     * 
+     *
      * @param n
      *            node to serialize
      * @return {@link JSONObject} containing the serialized form
@@ -47,15 +47,15 @@ public class JSONUtil {
     public static JSONObject toJSON(PDGNode n) {
         JSONObject json = new JSONObject();
         try {
-            json.put("class", n.getClassName());
+            addJSON(json, "class", n.getClassName().toString());
             // TODO could try to get line numbers here
             // See pdg-polices for "position" format
             json.put("position", JSONObject.NULL);
             json.put("nodeid", getNodeID(n));
-            json.put("name", n.toString());
-            json.put("type", n.getNodeType().toString());
-            json.put("group", n.groupingName());
-            json.put("context", n.contextString());
+            addJSON(json, "name", n.toString());
+            addJSON(json, "type", n.getNodeType().toString());
+            addJSON(json, "group", n.groupingName());
+            addJSON(json, "context", n.contextString());
         } catch (JSONException e) {
             System.err.println("Serialization error in " + n.toString() + ", message: " + e.getMessage());
         }
@@ -64,7 +64,7 @@ public class JSONUtil {
 
     /**
      * Add an edge label to the given {@link JSONObject}. The existing {@link JSONObject} will be modified
-     * 
+     *
      * @param json
      *            The edge label will be added to this
      * @param label
@@ -78,8 +78,8 @@ public class JSONUtil {
         }
         try {
             JSONObject labelJson = new JSONObject();
-            labelJson.put("type", label.getType().toString());
-            labelJson.put("id", label.getCallSiteID());
+            addJSON(labelJson, "type", label.getType().toString());
+            labelJson.put("id", label.getCallSiteID().intValue());
             json.put("label", labelJson);
         } catch (JSONException e) {
             System.err.println("Serialization error for EdgeLabel: " + label + ", message: " + e.getMessage());
@@ -88,7 +88,7 @@ public class JSONUtil {
 
     /**
      * Add the (key,value) pair to the given JSONObject. The existing {@link JSONObject} will be modified.
-     * 
+     *
      * @param json
      *            the (key,value) pair will be added to this
      * @param key
@@ -106,7 +106,7 @@ public class JSONUtil {
 
     /**
      * Add the (key,value) pair to the given JSONObject. The existing {@link JSONObject} will be modified.
-     * 
+     *
      * @param json
      *            the (key,value) pair will be added to this
      * @param key
