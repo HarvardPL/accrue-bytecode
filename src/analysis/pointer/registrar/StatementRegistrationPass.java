@@ -102,6 +102,9 @@ public class StatementRegistrationPass {
         // the classes for which we have registered an instance methods.
         // These are the classes that might have instances when we execute
         Set<IClass> seenInstancesOf = new HashSet<>();
+        // Add String to the list of seen instance methods.
+        // There will be a String somewhere and this covers the rare case that the only String objects seen are literals.
+        seenInstancesOf.add(AnalysisUtil.getStringClass());
         Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
 
         Set<MethodReference> alreadyProcessedVirtual = new HashSet<>();
