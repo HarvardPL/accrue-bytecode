@@ -33,3 +33,5 @@ XXX Call graph has a different number of nodes in different runs
 XXX Document and add "isPending" flag to data flow, change "input" to "mostRecentInput". 
 
 TODO maybe be more fine-grained for Strings, one site for literals? one site for the App vs. library code?
+
+PDG should default to Java 1.7
