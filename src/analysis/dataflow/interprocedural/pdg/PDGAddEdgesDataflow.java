@@ -831,7 +831,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             }
         }
         PDGNode pcMerge = mergeIfNecessary(pcJoins, type + "_PC_MERGE", PDGNodeType.PC_MERGE, k);
-        addEdge(pcMerge, pcResult, PDGEdgeType.COPY);
+        addEdge(pcMerge, pcResult, PDGEdgeType.CONJUNCTION);
 
         if (result != null) {
             PDGNode retMerge = mergeIfNecessary(exitAssignments, type + "_RET_MERGE", PDGNodeType.OTHER_EXPRESSION, k);
