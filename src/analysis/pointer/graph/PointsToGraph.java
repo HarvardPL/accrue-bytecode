@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -163,7 +164,8 @@ public class PointsToGraph {
         @Override
         protected boolean merge(OrderedPair<ExplicitProgramPointSet, Integer> existing,
                                 OrderedPair<ExplicitProgramPointSet, Integer> annotation) {
-            assert existing.snd() == annotation.snd() : "the ippr annotation doesn't match when merging";
+            assert existing.snd() == annotation.snd() : "the ippr annotation doesn't match when merging: " + existing
+                    + " and " + annotation;
             return existing.fst().addAll(annotation.fst());
 
         }
@@ -2059,6 +2061,23 @@ public class PointsToGraph {
 
     public ProgramPointReachability programPointReachability() {
         return this.ppReach;
+    }
+
+    public Set<OrderedPair<IMethod, Context>> getCalleesOf(OrderedPair<IMethod, Context> caller) {
+        Set<OrderedPair<IMethod, Context>> callees = new LinkedHashSet<>();
+        for (CallSiteProgramPoint cs : this.registrar.getCallSitesForMethod(caller.fst())) {
+            Set<OrderedPair<IMethod, Context>> t = this.callGraphMap.get(cs);
+            callees.addAll(t);
+        }
+        return callees;
+    }
+
+    public Set<OrderedPair<IMethod, Context>> getCallersOf(OrderedPair<IMethod, Context> callee) {
+        Set<OrderedPair<IMethod, Context>> callers = new LinkedHashSet<>();
+        for (OrderedPair<CallSiteProgramPoint, Context> cs : this.callGraphReverseMap.get(callee)) {
+            callers.add(new OrderedPair<>(cs.fst().containingProcedure(), cs.snd()));
+        }
+        return callers;
     }
 
 }
