@@ -81,6 +81,10 @@ public class StatementRegistrar {
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
+    /**
+     * Map from method to the CallSiteProgramPoints that are in that method.
+     */
+    private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesForMethod;
 
     /*
      * Program point to statement map
@@ -165,6 +169,7 @@ public class StatementRegistrar {
                               boolean useSingleAllocForStrings) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
+        this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
         this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
@@ -259,6 +264,23 @@ public class StatementRegistrar {
                 int[] stats = df.cleanUpProgramPoints();
                 removedProgramPoints += stats[1];
                 totalProgramPoints += stats[0] - stats[1];
+
+                for (PointsToStatement stmt : newStatements) {
+                    if (stmt.programPoint() instanceof CallSiteProgramPoint) {
+                        CallSiteProgramPoint pp = (CallSiteProgramPoint) stmt.programPoint();
+                        assert !pp.isDiscarded();
+                        Set<CallSiteProgramPoint> scpps = this.callSitesForMethod.get(m);
+                        if (scpps == null) {
+                            scpps = AnalysisUtil.createConcurrentSet();
+                            Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(m, scpps);
+                            if (existing != null) {
+                                // someone else got there first.
+                                scpps = existing;
+                            }
+                        }
+                        scpps.add(pp);
+                    }
+                }
 
                 return true;
             }
@@ -1442,5 +1464,13 @@ public class StatementRegistrar {
 
     public boolean shouldUseSingleAllocForGenEx() {
         return useSingleAllocForGenEx;
+    }
+
+    public Set<CallSiteProgramPoint> getCallSitesForMethod(IMethod m) {
+        Set<CallSiteProgramPoint> s = this.callSitesForMethod.get(m);
+        if (s == null) {
+            return Collections.emptySet();
+        }
+        return s;
     }
 }
