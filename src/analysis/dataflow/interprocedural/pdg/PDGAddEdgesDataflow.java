@@ -695,12 +695,34 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     private Map<ISSABasicBlock, Unit> flowInvoke(SSAInvokeInstruction i,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGContext in = instructionInput.get(i);
+        PDGContext normal = in;
+
+        ISSABasicBlock normalSucc = getNormalSuccs(current, cfg).iterator().next();
+        PDGNode normalExitPC = outputFacts.get(current).get(normalSucc).getPCNode();
+
+        List<PDGNode> params = new LinkedList<>();
+        for (int j = 0; j < i.getNumberOfParameters(); j++) {
+            params.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp));
+        }
+
+        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
+            // Could throw NPE due to null receiver
+            String desc = pp.valString(i.getReceiver()) + " == null";
+            normal = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                             params.get(0),
+                                             in,
+                                             desc,
+                                             current);
+
+            // TODO if no NPE throw WrongMethodTypeException
+        }
 
         if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())) {
             if (!i.getDeclaredTarget().getName().equals(MethodReference.clinitName)) { // not the class init method
                 // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
                 // The Objects are handled as if they were a primitive.
-                addEdgesForImmutableWrapper(i, in.getPCNode());
+                addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
+                addEdgesForImmutableWrapper(i, normal.getPCNode());
                 return factToMap(Unit.VALUE, current, cfg);
             }
         }
@@ -710,21 +732,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // exceptional) sites
         CallSiteEdgeLabel entry = new CallSiteEdgeLabel(i, currentNode, SiteType.ENTRY);
         CallSiteEdgeLabel exit = new CallSiteEdgeLabel(i, currentNode, SiteType.EXIT);
-
-        List<PDGNode> params = new LinkedList<>();
-        for (int j = 0; j < i.getNumberOfParameters(); j++) {
-            params.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp));
-        }
-
-        PDGContext normal = in;
-        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
-            // Could throw NPE due to null receiver
-            String desc = pp.valString(i.getReceiver()) + " == null";
-            normal = handlePossibleException(TypeReference.JavaLangNullPointerException, params.get(0), in, desc,
-                                            current);
-
-            // TODO if no NPE throw WrongMethodTypeException
-        }
 
         // The PC at the call site is the PC if no exception was thrown
         PDGNode callSitePC = normal.getPCNode();
@@ -771,10 +778,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         if (!normalExits.isEmpty()) {
             // at least one callee can terminate normally
-
-            ISSABasicBlock normalSucc = getNormalSuccs(current, cfg).iterator().next();
-            PDGNode normalExitPC = outputFacts.get(current).get(normalSucc).getPCNode();
-
             PDGNode result = null;
             if (i.getNumberOfReturnValues() > 0) {
                 // Method has a return
@@ -842,6 +845,11 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         for (int j = startIndex; j < i.getNumberOfUses(); j++) {
             PDGNode arg_j = PDGNodeFactory.findOrCreateLocal(i.getUse(j), currentNode, pp);
             addEdge(arg_j, expr, PDGEdgeType.EXP);
+
+            if (startIndex == 0 && j == 0) {
+                // Receiver can never be an array
+                continue;
+            }
 
             // If the argument is an array then add an edge from contents of the array as well
             if (i.getDeclaredTarget().getParameterType(j - startIndex).isArrayType()) {
