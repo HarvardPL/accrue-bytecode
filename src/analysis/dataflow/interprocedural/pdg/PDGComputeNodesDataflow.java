@@ -655,23 +655,21 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         }
 
         boolean canCalleeThrowNPE = false;
-        if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())) {
-            // This is a call to a reciever that is an immutable wrapper (e.g. String, Integer)
-            // These are handled specially so do not trigger the callees here
-            // We are also assuming that the procedure cannot throw a null pointer exception
-            // XXX Exceptions
-        }
-        else {
-            for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
-                // Trigger the analysis of the callee
-                interProc.getResults(currentNode, callee, Unit.VALUE);
+        // This is a call to a reciever that is an immutable wrapper (e.g. String, Integer)
+        boolean immutableWrapperCall = Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass());
 
-                if (interProc.getPreciseExceptionResults()
-                             .canProcedureThrowException(TypeReference.JavaLangNullPointerException, callee)) {
-                    canCalleeThrowNPE = true;
-                }
+        for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
+            if (!immutableWrapperCall) {
+                // Trigger the analysis of the callee. Immutable wrappers are handled specially so do not trigger the callees.
+                interProc.getResults(currentNode, callee, Unit.VALUE);
+            }
+
+            if (interProc.getPreciseExceptionResults()
+                         .canProcedureThrowException(TypeReference.JavaLangNullPointerException, callee)) {
+                canCalleeThrowNPE = true;
             }
         }
+
 
         // Node to representing the join of the caller PC before the call and
         // the PC after the call
@@ -691,21 +689,27 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGContext exContext = new PDGContext(null, exValue, exExitPC);
         calleeExceptionContexts.put(i, exContext);
 
-        PDGContext npeExitContext = npe;
-        if (npe != null && canCalleeThrowNPE) {
-            // The receiver could be null AND the callee may throw an NPE. Need
-            // to merge the contexts to use on NPE exit edges.
-            npeExitContext = mergeContexts(new OrderedPair<>(i, "NPE_MERGE"), npe, exContext);
-        }
-
+        // If the receiver could be null AND the callee may throw an exception then we need to use a merged context
+        PDGContext mergedContext = null;
         PreciseExceptionResults pe = interProc.getPreciseExceptionResults();
         for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
             if (!isUnreachable(current, succ)) {
-                boolean hasNPE = pe.getExceptions(current, succ, currentNode).contains(
-                                                TypeReference.JavaLangNullPointerException);
+                Set<TypeReference> exceptionsOnEdge = pe.getExceptions(current, succ, currentNode);
+                boolean hasNPE = exceptionsOnEdge.contains(TypeReference.JavaLangNullPointerException);
                 if (hasNPE && npe != null) {
                     // This edge has an NPE and the receiver may be null
-                    out.put(succ, npeExitContext);
+                    if (canCalleeThrowNPE || exceptionsOnEdge.size() > 1) {
+                        if (mergedContext == null) {
+                            mergedContext = mergeContexts(new OrderedPair<>(i, "NPE_MERGE"), npe, exContext);
+                        }
+
+                        // The receiver could be null AND the callee could throw an exception, use the merged context
+                        out.put(succ, mergedContext);
+                    }
+                    else {
+                        // Use the NPE context, the callee cannot throw on this edge
+                        out.put(succ, npe);
+                    }
                 } else {
                     out.put(succ, exContext);
                 }

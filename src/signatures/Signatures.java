@@ -2,7 +2,9 @@ package signatures;
 
 import java.lang.ref.SoftReference;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import util.InstructionType;
 import util.print.CFGWriter;
@@ -643,6 +645,8 @@ public class Signatures {
         return type.toString().contains("Lsignatures/library/");
     }
 
+    private static Set<TypeName> immutableWrappers = new HashSet<>();
+
     /**
      * Check whether the given type is one of the immutable wrapper classes (String, Integer, etc.)
      *
@@ -650,7 +654,45 @@ public class Signatures {
      * @return true if the type is an immutable wrapper (or is the signature type for one)
      */
     public static boolean isImmutableWrapper(TypeReference t) {
-        if (t.getName().equals(TypeReference.JavaLangString.getName())) {
+        if (immutableWrappers.isEmpty()) {
+            // Initialize the set of wrapper types
+            immutableWrappers.add(TypeReference.JavaLangString.getName());
+            immutableWrappers.add(TypeReference.JavaLangByte.getName());
+            immutableWrappers.add(TypeReference.JavaLangShort.getName());
+            immutableWrappers.add(TypeReference.JavaLangInteger.getName());
+            immutableWrappers.add(TypeReference.JavaLangLong.getName());
+            immutableWrappers.add(TypeReference.JavaLangFloat.getName());
+            immutableWrappers.add(TypeReference.JavaLangDouble.getName());
+            immutableWrappers.add(TypeReference.JavaLangCharacter.getName());
+            immutableWrappers.add(TypeReference.JavaLangBoolean.getName());
+            // BigInteger and BigDecimal are immutable, but not final so they can be subclassed
+            // Add them if they don't get subclassed
+            TypeName bigDecimal = TypeName.findOrCreate("Ljava/math/BigDecimal");
+            TypeReference bigDecimalTR = TypeReference.findOrCreate(CLASS_LOADER, bigDecimal);
+            if (AnalysisUtil.getClassHierarchy().computeSubClasses(bigDecimalTR).size() == 1) {
+                // No subclasses
+                immutableWrappers.add(bigDecimal);
+            }
+            else {
+                System.err.println("WARNING: BigDecimal has subclasses "
+                        + AnalysisUtil.getClassHierarchy().computeSubClasses(bigDecimalTR)
+                        + ". It may not be immutable.");
+            }
+
+            TypeName bigInteger = TypeName.findOrCreate("Ljava/math/BigInteger");
+            TypeReference bigIntegerTR = TypeReference.findOrCreate(CLASS_LOADER, bigInteger);
+            if (AnalysisUtil.getClassHierarchy().computeSubClasses(bigIntegerTR).size() == 1) {
+                // No subclasses
+                immutableWrappers.add(bigInteger);
+            }
+            else {
+                System.err.println("WARNING: BigInteger has subclasses "
+                        + AnalysisUtil.getClassHierarchy().computeSubClasses(bigIntegerTR)
+                        + ". It may not be immutable.");
+            }
+        }
+
+        if (immutableWrappers.contains(t.getName())) {
             return true;
         }
         if (isSigType(t)) {
