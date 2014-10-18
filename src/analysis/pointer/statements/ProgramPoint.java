@@ -115,6 +115,10 @@ public class ProgramPoint {
         return isExceptionExitSummaryNode;
     }
 
+    public boolean isDiscarded() {
+        return this.isDiscarded;
+    }
+
     @Override
     public boolean equals(Object o) {
         return (this == o);
@@ -168,6 +172,11 @@ public class ProgramPoint {
             return this.pp;
         }
 
+        @Override
+        public InterProgramPointReplica getReplica(Context context) {
+            return InterProgramPointReplica.create(context, this);
+        }
+
     }
 
     public static class PostProgramPoint implements InterProgramPoint {
@@ -216,6 +225,11 @@ public class ProgramPoint {
         @Override
         public ProgramPoint getPP() {
             return this.pp;
+        }
+
+        @Override
+        public InterProgramPointReplica getReplica(Context context) {
+            return InterProgramPointReplica.create(context, this);
         }
 
     }
@@ -300,6 +314,8 @@ public class ProgramPoint {
     }
     public static interface InterProgramPoint {
         public ProgramPoint getPP();
+
+        public InterProgramPointReplica getReplica(Context context);
     }
 
     public static class InterProgramPointReplica {
@@ -340,6 +356,10 @@ public class ProgramPoint {
 
         public InterProgramPoint getInterPP() {
             return ipp;
+        }
+
+        public IMethod getContainingProcedure() {
+            return ipp.getPP().containingProcedure;
         }
 
         @Override
