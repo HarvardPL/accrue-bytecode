@@ -85,7 +85,7 @@ public class LocalToArrayStatement extends PointsToStatement {
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive();
 
-                GraphDelta d1 = g.copyEdges(v, pre, contents, post);
+                GraphDelta d1 = g.copyEdges(v, pre, contents, post, originator);
                 changed = changed.combine(d1);
             }
         }
@@ -93,7 +93,7 @@ public class LocalToArrayStatement extends PointsToStatement {
             // delta is non null. Let's do this smart!
             // We check if a has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents =
                         new ObjectField(arrHeapContext,
@@ -103,7 +103,7 @@ public class LocalToArrayStatement extends PointsToStatement {
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive() : "Contents should never be flow sensitive";
 
-                GraphDelta d1 = g.copyEdges(v, pre, contents, post);
+                GraphDelta d1 = g.copyEdges(v, pre, contents, post, originator);
                 changed = changed.combine(d1);
             }
         }

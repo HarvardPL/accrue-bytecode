@@ -59,6 +59,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
 
     /**
+     * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
+     * program points set that allocate ikr requires reevaluation of sac.
+     */
+    private IntMap<Set<StmtAndContext>> allocationDepedencies = new SparseIntMap<>();
+
+    /**
      * New pointer analysis engine
      *
      * @param haf Abstraction factory for this points-to analysis
@@ -130,6 +136,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             @Override
             public void recordRead(int n, StmtAndContext sac) {
                 PointsToAnalysisSingleThreaded.this.addInterestingDependency(n, sac);
+            }
+
+            @Override
+            public void recordAllocationDependency(int ikr, StmtAndContext sac) {
+                PointsToAnalysisSingleThreaded.this.addAllocationDependency(ikr, sac);
             }
 
             @Override
@@ -360,7 +371,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 queue.add(new OrderedPair<>(sac, changes));
             }
         }
-
+        iter = changes.newAllocationSitesIterator();
+        while (iter.hasNext()) {
+            int n = iter.next();
+            for (StmtAndContext sac : this.getAllocationDependencies(n)) {
+                queue.add(new OrderedPair<>(sac, changes));
+            }
+        }
     }
 
     /**
@@ -434,7 +451,36 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return s.add(sac);
     }
 
+    /**
+     * Get any (statement,context) pairs that depend on the given instance key recency
+     *
+     * @param n node to get the dependencies for
+     * @return set of dependencies
+     */
+    private Set<StmtAndContext> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
+        Set<StmtAndContext> sacs = this.allocationDepedencies.get(ikr);
+        if (sacs == null) {
+            return Collections.emptySet();
+        }
+        return sacs;
+    }
 
+    /**
+     * Add the (statement, context) pair as a dependency of the allocation sites of the specified IntanceKeyRecency ikr.
+     * This means that if the allocation sites of ikr changes , then sac will need to be processed again.
+     *
+     * @param n node the statement depends on
+     * @param sac statement and context that depends on <code>n</code>
+     * @return true if the dependency did not already exist
+     */
+    boolean addAllocationDependency(/*InstanceKeyRecency*/int ikr, StmtAndContext sac) {
+        Set<StmtAndContext> s = this.allocationDepedencies.get(ikr);
+        if (s == null) {
+            s = new HashSet<>();
+            this.interestingDepedencies.put(ikr, s);
+        }
+        return s.add(sac);
+    }
 
     /**
      *

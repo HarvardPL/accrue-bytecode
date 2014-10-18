@@ -86,9 +86,14 @@ public class NewStatement extends PointsToStatement {
         g.recordAllocation(newHeapContext, ppr);
 
         // add the edge
-        GraphDelta d = g.addEdge(r, newHeapContext, ppr.post());
+        GraphDelta d = g.addEdge(r, newHeapContext, ppr.post(), originator);
 
-        return d.combine(g.copyEdgesForAllFields(newHeapContext, ppr));
+        d = d.combine(g.copyEdgesForAllFields(newHeapContext, ppr, originator));
+
+        // add the allocation site to delta
+        d.addAllocationSite(newHeapContext, ppr);
+
+        return d;
     }
 
     @Override

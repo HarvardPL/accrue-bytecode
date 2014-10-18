@@ -94,9 +94,9 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
         // don't need to use delta, as this just adds a subset edge
         if (this.filter == null) {
-            return g.copyEdges(r, pre, l, post);
+            return g.copyEdges(r, pre, l, post, originator);
         }
-        return g.copyFilteredEdges(r, this.filter, l);
+        return g.copyFilteredEdges(r, this.filter, l, originator);
 
     }
 

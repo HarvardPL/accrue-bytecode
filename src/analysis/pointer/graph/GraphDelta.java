@@ -1,13 +1,18 @@
 package analysis.pointer.graph;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Set;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
+import analysis.pointer.graph.PointsToGraph.ProgramPointIntIterator;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
+import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.intset.IntIterator;
@@ -37,12 +42,18 @@ public class GraphDelta {
      */
     private final IntMap<IntMap<ProgramPointSetClosure>> deltaFS;
 
+    /**
+     *
+     */
+    private final IntMap<Set<ProgramPointReplica>> deltaAllocationSites;
+
     public GraphDelta(PointsToGraph g) {
         this.g = g;
         // Map doesn't need to be thread safe, since when it is being modified it is thread local
         // and when it is shared, it is read only.
         this.deltaFI = new SparseIntMap<>();
         this.deltaFS = new SparseIntMap<>();
+        this.deltaAllocationSites = new SparseIntMap<>();
     }
 
 
@@ -62,7 +73,22 @@ public class GraphDelta {
 
         if (!nIsFlowSensitive) {
             // flow insensitive!
-            return getOrCreateFISet(n, setSizeBestGuess(set)).addAll(set);
+            assert !g.isFlowSensitivePointsToGraphNode(n);
+
+            MutableIntSet s = getOrCreateFISet(n, setSizeBestGuess(set));
+            boolean changed = false;
+            IntIterator iter = set.intIterator();
+            while (iter.hasNext()) {
+                int next = iter.next();
+                changed |= s.add(next);
+                if (g.isMostRecentObject(next)) {
+                    // n is a flow-insensitive pointstographnode, so if it
+                    // points to the most resent version, also points to
+                    // the non-most recent version.
+                    changed |= s.add(g.nonMostRecentVersion(next));
+                }
+            }
+            return changed;
         }
         // flow sensitive
         // int fromBase = this.g.baseNodeForPointsToGraphNode(n);
@@ -107,6 +133,14 @@ public class GraphDelta {
         return p.addAll(toAdd);
     }
 
+    public boolean addAllocationSite(InstanceKeyRecency ikr, ProgramPointReplica ppr) {
+        Set<ProgramPointReplica> p = deltaAllocationSites.get(g.lookupDictionary(ikr));
+        if (p == null) {
+            p = Collections.emptySet();
+        }
+        return p.add(ppr);
+    }
+
     private MutableIntSet getOrCreateFISet(/*PointsToGraphNode*/int src, Integer initialSize) {
         MutableIntSet s = deltaFI.get(src);
         if (s == null) {
@@ -126,28 +160,28 @@ public class GraphDelta {
                 ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
     }
 
-    protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
-        MutableIntSet oldFI = deltaFI.remove(n);
-        assert oldFI == null || oldFI.isSubset(deltaFI.get(rep));
-        IntMap<ProgramPointSetClosure> oldFS = deltaFS.remove(n);
-        assert (oldFS == null || containsAll(deltaFS.get(rep), oldFS));
-    }
+    //    protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
+    //        MutableIntSet oldFI = deltaFI.remove(n);
+    //        assert oldFI == null || oldFI.isSubset(deltaFI.get(rep));
+    //        IntMap<ProgramPointSetClosure> oldFS = deltaFS.remove(n);
+    //        assert (oldFS == null || containsAll(deltaFS.get(rep), oldFS));
+    //    }
 
-    private boolean containsAll(IntMap<ProgramPointSetClosure> superset, IntMap<ProgramPointSetClosure> subset) {
-        IntIterator iter = subset.keyIterator();
-        while (iter.hasNext()) {
-            int key = iter.next();
-            if (superset.containsKey(key)) {
-                if (!superset.get(key).containsAll(subset.get(key), g)) {
-                    return false;
-                }
-            }
-            else {
-                return false;
-            }
-        }
-        return true;
-    }
+    //    private boolean containsAll(IntMap<ProgramPointSetClosure> superset, IntMap<ProgramPointSetClosure> subset) {
+    //        IntIterator iter = subset.keyIterator();
+    //        while (iter.hasNext()) {
+    //            int key = iter.next();
+    //            if (superset.containsKey(key)) {
+    //                if (!superset.get(key).containsAll(subset.get(key), g)) {
+    //                    return false;
+    //                }
+    //            }
+    //            else {
+    //                return false;
+    //            }
+    //        }
+    //        return true;
+    //    }
 
 
     /**
@@ -225,18 +259,33 @@ public class GraphDelta {
         return sb.toString();
     }
 
-    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode node, InterProgramPointReplica ippr) {
+    public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode node, InterProgramPointReplica ippr,
+                                                         StmtAndContext originator) {
         int n = g.lookupDictionary(node);
         assert n >= 0;
-        return g.new IntToInstanceKeyIterator(pointsToIntIterator(n, ippr));
+        return g.new IntToInstanceKeyIterator(pointsToIntIterator(n, ippr, originator));
     }
 
-    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr) {
+    public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr,
+                                           StmtAndContext originator) {
+
+        assert deltaFS.isEmpty() || deltaAllocationSites.isEmpty() : "Should not have both new flow sensitive points to variables and new allocation sites.";
+
+        Integer node;
+
+        if (g.isFlowSensitivePointsToGraphNode(n) && deltaFS.isEmpty() && !deltaAllocationSites.isEmpty()) {
+            // n is a flow sensitive points to node, and this delta is for new allocation sites.
+            // What we want to do is return the program point iterator for (the representative of n)
+            // that only uses the new allocation sites.
+            node = g.getRepresentative(n);
+            return new ProgramPointIntIterator(g.pointsToSetFS(n), ippr, g, originator, this.deltaAllocationSites);
+        }
+
         ArrayList<IntIterator> iterators = new ArrayList<>(10);
         // we need to look in delta for all the possible representatives that n has been known by.
         // This is because this GraphDelta may have been created sometime
         // before n got collapsed.
-        Integer node = n;
+        node = n;
         do {
             MutableIntSet s = deltaFI.get(node);
             if (s != null) {
@@ -245,11 +294,12 @@ public class GraphDelta {
             node = g.getImmediateRepresentative(node);
         } while (node != null);
 
+
         node = n;
         do {
             IntMap<ProgramPointSetClosure> s = deltaFS.get(node);
             if (s != null) {
-                iterators.add(g.new ProgramPointIntIterator(s, ippr, g));
+                iterators.add(new ProgramPointIntIterator(s, ippr, g, originator));
             }
             node = g.getImmediateRepresentative(node);
         } while (node != null);
@@ -286,6 +336,10 @@ public class GraphDelta {
 
     public IntIterator flowSensitiveDomainIterator() {
         return deltaFS.keyIterator();
+    }
+
+    public IntIterator newAllocationSitesIterator() {
+        return deltaAllocationSites.keyIterator();
     }
 
     public IntMap<ProgramPointSetClosure> flowSensitivePointsTo(/*PointsToGraphNode*/int n) {

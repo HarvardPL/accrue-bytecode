@@ -83,7 +83,7 @@ public class FieldToLocalStatement extends PointsToStatement {
                 InstanceKeyRecency recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, this.declaredField);
                 //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
-                GraphDelta d1 = g.copyEdges(f, pre, left, post);
+                GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
                 changed = changed.combine(d1);
             }
         }
@@ -91,10 +91,10 @@ public class FieldToLocalStatement extends PointsToStatement {
             // we have a delta. Let's be smart about how we use it.
             // Statement is v = o.f. First check if o points to anything new. If it does now point to some new abstract
             // object k, add everything that k.f points to to v's set.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, this.declaredField);
-                GraphDelta d1 = g.copyEdges(f, pre, left, post);
+                GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
                 changed = changed.combine(d1);
             }
 
