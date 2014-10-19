@@ -61,7 +61,7 @@ public class ReturnStatement extends PointsToStatement {
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
 
         // don't need to use delta, as this just adds a subset edge
-        return g.copyEdges(returnRes, pre, summaryRes, post);
+        return g.copyEdges(returnRes, pre, summaryRes, post, originator);
 
     }
 

@@ -2,10 +2,13 @@ package analysis.pointer.graph;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import util.intmap.IntMap;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -67,10 +70,42 @@ public class ProgramPointSetClosure {
     /**
      * Does this set contain of the program points ippr?
      */
-    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g) {
-        return g.programPointReachability().reachable(this.getSources(g), ippr, this.noKill(), this.noAlloc(g));
+    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, StmtAndContext originator) {
+        return g.programPointReachability().reachable(this.getSources(g, originator),
+                                                      ippr,
+                                                      this.noKill(),
+                                                      this.noAlloc(g));
     }
 
+    /**
+     * Does this set contain of the program points ippr?
+     */
+    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, StmtAndContext originator,
+                            IntMap<Set<ProgramPointReplica>> newAllocationSites) {
+        if (newAllocationSites != null && g.isTrackingMostRecentObject(to) && !g.isMostRecentObject(to)) {
+            // we only want the points to information that is a result of the new allocation sites.
+            return g.programPointReachability()
+                    .reachable(convertToPost(newAllocationSites.get(g.mostRecentVersion(to))),
+                                                          ippr,
+                                                          this.noKill(),
+                                                          this.noAlloc(g));
+        }
+        return g.programPointReachability().reachable(this.getSources(g, originator),
+                                                      ippr,
+                                                      this.noKill(),
+                                                      this.noAlloc(g));
+    }
+
+
+    private Set<InterProgramPointReplica> convertToPost(Set<ProgramPointReplica> set) {
+        //XXX make this more effiicient sometime in the future. Use an iterator instead of
+        // realizing a set
+        Set<InterProgramPointReplica> s = new LinkedHashSet<>();
+        for (ProgramPointReplica ppr : set) {
+            s.add(ppr.post());
+        }
+        return s;
+    }
 
     private IntSet noAlloc(PointsToGraph g) {
         if (g.isMostRecentObject(this.to)) {
@@ -111,7 +146,7 @@ public class ProgramPointSetClosure {
      *
      * @return
      */
-    private Collection<InterProgramPointReplica> getSources(PointsToGraph g) {
+    private Collection<InterProgramPointReplica> getSources(PointsToGraph g, StmtAndContext originator) {
         // XXX TODO turn this into an iterator, so that we lazily look at these allocation sites.
         if (!g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
             List<InterProgramPointReplica> s = new ArrayList<>();
@@ -119,12 +154,10 @@ public class ProgramPointSetClosure {
             // we need to add allocation sites of the to object, where from pointed to
             // the most recent version just before the allocation.
             int mostRecentVersion = g.mostRecentVersion(this.to);
+            g.recordAllocationDependency(mostRecentVersion, originator);
 
             for (ProgramPointReplica allocPP : g.getAllocationSitesOf(mostRecentVersion)) {
-                //                if (originator != null) {
-                //                    g.recordRead(this.from, originator);
-                //                }
-                if (g.pointsTo(this.from, mostRecentVersion, allocPP.pre())) {
+                if (g.pointsTo(this.from, mostRecentVersion, allocPP.pre(), originator)) {
                     // the from node pointed to the most recent version before the allocation,
                     // so the from node points to the non-most recent version (i.e., "this.to")
                     // after the allocation
@@ -141,19 +174,19 @@ public class ProgramPointSetClosure {
         return sources.isEmpty();
     }
 
-    public boolean containsAll(ExplicitProgramPointSet pps, PointsToGraph g) {
+    public boolean containsAll(ExplicitProgramPointSet pps, PointsToGraph g, StmtAndContext originator) {
         for (InterProgramPointReplica ippr : pps) {
-            if (!this.contains(ippr, g)) {
+            if (!this.contains(ippr, g, originator)) {
                 return false;
             }
         }
         return true;
     }
 
-    public boolean containsAll(ProgramPointSetClosure pps, PointsToGraph g) {
+    public boolean containsAll(ProgramPointSetClosure pps, PointsToGraph g, StmtAndContext originator) {
         assert this.to == pps.to;
         for (InterProgramPointReplica ippr : pps.sources) {
-            if (!this.sources.contains(ippr) && !this.contains(ippr, g)) {
+            if (!this.sources.contains(ippr) && !this.contains(ippr, g, originator)) {
                 return false;
             }
         }

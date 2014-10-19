@@ -79,10 +79,16 @@ public class SpecialCallStatement extends CallStatement {
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
 
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
-                : delta.pointsToIterator(receiverRep, pre);
+                : delta.pointsToIterator(receiverRep, pre, originator);
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
-            changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
+            changed = changed.combine(this.processCall(context,
+                                                       recHeapCtxt,
+                                                       this.callee,
+                                                       g,
+                                                       haf,
+                                                       this.calleeSummary,
+                                                       originator));
         }
         return changed;
 

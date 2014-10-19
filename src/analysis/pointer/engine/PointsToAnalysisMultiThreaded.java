@@ -34,6 +34,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
+    /**
+     * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
+     * program points set that allocate ikr requires reevaluation of sac.
+     */
+    private ConcurrentIntMap<Set<StmtAndContext>> allocationDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
      * are no changes.
@@ -77,6 +84,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             @Override
             public void recordRead(int n, StmtAndContext sac) {
                 addInterestingDependency(n, sac);
+            }
+
+            @Override
+            public void recordAllocationDependency(int ikr, StmtAndContext sac) {
+                addAllocationDependency(ikr, sac);
             }
 
             @Override
@@ -200,7 +212,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 execService.submitTask(depSaC, changes);
             }
         }
-
+        iter = changes.newAllocationSitesIterator();
+        while (iter.hasNext()) {
+            int ikr = iter.next();
+            for (StmtAndContext depSaC : this.getAllocationDependencies(ikr)) {
+                execService.submitTask(depSaC, changes);
+            }
+        }
     }
 
 
@@ -387,6 +405,34 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
             Set<StmtAndContext> existing = this.interestingDepedencies.putIfAbsent(n, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        return s.add(sac);
+    }
+
+    /**
+     * XXX
+     */
+    private Set<StmtAndContext> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
+        Set<StmtAndContext> sacs = this.allocationDepedencies.get(ikr);
+        if (sacs == null) {
+            return Collections.emptySet();
+        }
+        return sacs;
+    }
+
+    /**
+     * XXX
+     */
+    boolean addAllocationDependency(/*InstanceKeyRecency*/int ikr, StmtAndContext sac) {
+        // use double checked approach...
+
+        Set<StmtAndContext> s = this.allocationDepedencies.get(ikr);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<StmtAndContext> existing = this.allocationDepedencies.putIfAbsent(ikr, s);
             if (existing != null) {
                 s = existing;
             }

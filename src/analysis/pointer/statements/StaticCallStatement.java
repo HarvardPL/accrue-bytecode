@@ -64,7 +64,7 @@ public class StaticCallStatement extends CallStatement {
     @Override
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        return this.processCall(context, null, this.callee, g, haf, this.calleeSummary);
+        return this.processCall(context, null, this.callee, g, haf, this.calleeSummary, originator);
     }
 
     @Override

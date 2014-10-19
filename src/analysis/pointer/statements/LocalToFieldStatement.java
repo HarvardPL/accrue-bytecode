@@ -79,17 +79,17 @@ public class LocalToFieldStatement extends PointsToStatement {
 
                 ObjectField of = new ObjectField(recHeapContext, this.field);
                 // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyEdges(local, pre, of, post);
+                GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
                 changed = changed.combine(d1);
             }
         }
         else {
             // We check if o has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre); iter.hasNext();) {
+            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 ObjectField of = new ObjectField(recHeapContext, this.field);
-                GraphDelta d1 = g.copyEdges(local, pre, of, post);
+                GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
                 changed = changed.combine(d1);
             }
         }

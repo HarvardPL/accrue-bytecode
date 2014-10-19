@@ -78,7 +78,7 @@ public class VirtualCallStatement extends CallStatement {
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
 
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
-                : delta.pointsToIterator(receiverRep, pre);
+                : delta.pointsToIterator(receiverRep, pre, originator);
 
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();
@@ -105,7 +105,8 @@ public class VirtualCallStatement extends CallStatement {
                                                        g,
                                                        haf,
                                                        registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                           this.rvFactory)));
+                                                                                           this.rvFactory),
+                                                       originator));
         }
         return changed;
     }

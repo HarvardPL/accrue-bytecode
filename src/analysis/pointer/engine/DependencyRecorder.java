@@ -15,6 +15,13 @@ public interface DependencyRecorder {
     void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac);
 
     /**
+     * Record that sac needs to be rerun when the allocation sites set of ikr changes
+     *
+     * @param node
+     */
+    void recordAllocationDependency(int ikr, StmtAndContext sac);
+
+    /**
      * Record that node n has started to be collapsed, and will be represented by node rep.
      *
      * @param n
@@ -24,7 +31,7 @@ public interface DependencyRecorder {
 
     /**
      * Record that we have finished collapsing n and it will now be represented by rep.
-     * 
+     *
      * @param n
      * @param rep
      */
@@ -37,6 +44,4 @@ public interface DependencyRecorder {
      * @param calleeContext
      */
     void recordNewContext(IMethod callee, Context calleeContext);
-
-
 }
