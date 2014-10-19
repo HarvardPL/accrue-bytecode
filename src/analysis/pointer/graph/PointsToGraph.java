@@ -164,10 +164,19 @@ public class PointsToGraph {
         @Override
         protected boolean merge(OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet> existing,
                                 OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet> annotation) {
-            assert existing.snd() == annotation.snd() : "the ippr annotation doesn't match when merging: " + existing
-                    + " and " + annotation;
-            return existing.fst().addAll(annotation.fst()) || existing.snd().addAll(annotation.snd());
+            boolean changed = false;
 
+            ExplicitProgramPointSet f = annotation.fst();
+            if (f != null) {
+                changed |= (existing.fst().addAll(f));
+            }
+
+            ExplicitProgramPointSet s = annotation.snd();
+            if (s != null) {
+                changed |= (existing.snd().addAll(s));
+            }
+
+            return changed;
         }
 
     };
@@ -747,9 +756,10 @@ public class PointsToGraph {
             ExplicitProgramPointSet noFilterPPSet = annotation.fst();
             ExplicitProgramPointSet filterPPSet = annotation.snd();
 
+
             boolean mIsFlowSensitive = isFlowSensitivePointsToGraphNode(m);
             assert !(targetIsFlowSensitive && mIsFlowSensitive);
-            PointsToGraphNode source = lookupPointsToGraphNodeDictionary(m);
+
 
             // "target isFlowSensSubsetOf m with ppSet"
             if (targetIsFlowSensitive) {
@@ -758,6 +768,10 @@ public class PointsToGraph {
                 if (!(noFilterPPSet.containsAny(targetPoints) || filterPPSet.containsAny(targetPoints))) {
                     continue;
                 }
+            }
+            else {
+                // target is not flow sensitive, and so
+                // for all p \in ppSet, we want pointsToFI(target) \subset pointsToFS(m, p)
             }
 
             ExplicitProgramPointSet noFilterPPSetToAdd = targetIsFlowSensitive ? null : noFilterPPSet;
