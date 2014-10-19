@@ -197,9 +197,9 @@ public class AnalysisUtil {
         Selector arrayCopy = Selector.make("arraycopy(Ljava/lang/Object;ILjava/lang/Object;II)V");
         IMethod m = cha.resolveMethod(systemClass, arrayCopy);
         if (getIR(m) == null) {
-            System.err.println("WARNING: cannot resolve signatures. Ensure \"classes/signatures\" is on the analysis classpath.");
+            System.err.println("WARNING: cannot resolve signatures. Ensure \"classes/signatures\" is on the analysis classpath set with \"-cp\".");
         } else {
-            System.err.println("Signatures: enabled");
+            System.err.println("Signatures: ENABLED");
         }
     }
 

@@ -18,6 +18,8 @@ public class BigIntegerIntValueSubclass {
      */
     public static class BigIntegerSubClass extends BigInteger {
 
+        private static final long serialVersionUID = -7442425342352487210L;
+
         public BigIntegerSubClass(String val) {
             super(val);
         }

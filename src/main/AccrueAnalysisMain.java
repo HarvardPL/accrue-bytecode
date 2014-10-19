@@ -97,6 +97,7 @@ public class AccrueAnalysisMain {
         boolean singleThrowable = options.shouldUseSingleAllocPerThrowableType();
         boolean singlePrimArray = options.shouldUseSingleAllocForPrimitiveArrays();
         boolean singleString = options.shouldUseSingleAllocForStrings();
+        boolean singleWrappers = options.shouldUseSingleAllocForImmutableWrappers();
 
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
@@ -126,7 +127,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            singleWrappers);
             g = results.fst();
 //            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
             ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
@@ -162,7 +164,8 @@ public class AccrueAnalysisMain {
                                singleGenEx,
                                singleThrowable,
                                singlePrimArray,
-                               singleString);
+                               singleString,
+                               singleWrappers);
             break;
         case "nonnull":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
@@ -172,7 +175,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            singleWrappers);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -187,7 +191,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            singleWrappers);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -203,7 +208,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            singleWrappers);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -217,7 +223,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            singleWrappers);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -248,7 +255,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            singleWrappers);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -370,6 +378,10 @@ public class AccrueAnalysisMain {
      * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
      *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
      *            precision for strings.
+     * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for each type of
+     *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
+     *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
+     *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
@@ -378,7 +390,8 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForGenEx,
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
-                                                                                            boolean useSingleAllocForStrings) {
+                                                                                            boolean useSingleAllocForStrings,
+                                                                                            boolean useSingleAllocForImmutableWrappers) {
         //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
@@ -390,7 +403,8 @@ public class AccrueAnalysisMain {
                                                useSingleAllocForGenEx,
                                                useSingleAllocForThrowable,
                                                useSingleAllocForPrimitiveArrays,
-                                               useSingleAllocForStrings);
+                                               useSingleAllocForStrings,
+                                               useSingleAllocForImmutableWrappers);
             g = analysis.solveAndRegister(registrar);
         }
         else {
@@ -398,7 +412,8 @@ public class AccrueAnalysisMain {
                                                                            useSingleAllocForGenEx,
                                                                            useSingleAllocForThrowable,
                                                                            useSingleAllocForPrimitiveArrays,
-                                                                           useSingleAllocForStrings);
+                                                                           useSingleAllocForStrings,
+                                                                           useSingleAllocForImmutableWrappers);
             pass.run();
             registrar = pass.getRegistrar();
             PointsToAnalysis.outputLevel = outputLevel;
@@ -529,18 +544,24 @@ public class AccrueAnalysisMain {
      * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
      *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
      *            precision for strings.
+     * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for each type of
+     *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
+     *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
+     *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
                                            String outputDir, boolean isOnline, boolean useSingleAllocForGenEx,
                                            boolean useSingleAllocForThrowable,
-                                           boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings) {
+                                           boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
+                                           boolean useSingleAllocForImmutableWrappers) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            isOnline,
                                                                                            useSingleAllocForGenEx,
                                                                                            useSingleAllocForThrowable,
                                                                                            useSingleAllocForPrimitiveArrays,
-                                                                                           useSingleAllocForStrings);
+                                                                                           useSingleAllocForStrings,
+                                                                                           useSingleAllocForImmutableWrappers);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {
