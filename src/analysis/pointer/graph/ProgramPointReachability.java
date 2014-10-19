@@ -375,6 +375,7 @@ public class ProgramPointReachability {
                     // does ipp kill this.node?
                     if (stmt != null) {
                         boolean changed = false;
+                        // !@!XXX record dependency, since stmt.killed actually looks up the points to information.
                         PointsToGraphNode killed = stmt.killed(context, g);
                         if (killed != null) {
                             changed |= current.addKill(g.lookupDictionary(killed));
@@ -678,7 +679,7 @@ public class ProgramPointReachability {
                     // not a call or a return, it's just a normal statement.
                     // does ipp kill this.node?
                     if (stmt != null) {
-                        boolean changed = false;
+                        // !@!XXX record dependency, since stmt.killed actually looks up the points to information.
                         PointsToGraphNode killed = stmt.killed(currentContext, g);
                         if (killed != null && noKill.contains(g.lookupDictionary(killed))) {
                             // dang! we killed something we shouldn't. Prune the search.
