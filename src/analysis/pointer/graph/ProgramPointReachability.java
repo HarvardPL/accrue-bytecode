@@ -26,6 +26,7 @@ import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 import com.ibm.wala.util.intset.MutableSparseIntSet;
@@ -36,15 +37,33 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  */
 public class ProgramPointReachability {
     /**
-     * A KilledAndAlloced !@!XXX
+     * Keep a reference to the PointsToGraph for convenience.
+     */
+    private final PointsToGraph g;
+
+    ProgramPointReachability(PointsToGraph g) {
+        this.g = g;
+    }
+
+    /**
+     * A KilledAndAlloced object is simply the pair of two sets, one set which records which PointsTGraphNodes have been
+     * killed, and the other set records which InstanceKeys have been allocated.
+     *
+     * KilledAndAlloced objects are used as program analysis facts. That is, when analyzing a method, we may record for
+     * each program point pp in the method, which PointsToGraphNodes must have been killed on all path from the method
+     * entry to pp, and which InstanceKeyRecency must have been newly allocated on all paths from the method entry to
+     * pp.
      */
     public static class KilledAndAlloced {
-        /*
-         * Conceputally, the UNREACHABLE KilledAndAlloced kills all fields and allocates all objects.
+        /**
+         * We use a distinguished constant for unreachable program points. The null value for the killed and alloced
+         * sets represents the "universe" sets, e.g., if killed == null, then it means that all fields are killed on all
+         * paths to the program point.
          */
         static final KilledAndAlloced UNREACHABLE = new KilledAndAlloced(null, null);
-        private MutableIntSet killed;
-        private MutableIntSet alloced;
+
+        private/*Set<PointsToGraphNode>*/MutableIntSet killed;
+        private/*Set<InstanceKeyRecency>*/MutableIntSet alloced;
 
         KilledAndAlloced(MutableIntSet killed, MutableIntSet alloced) {
             this.killed = killed;
@@ -52,18 +71,32 @@ public class ProgramPointReachability {
             assert (killed == null && alloced == null) || (killed != null && alloced != null);
         }
 
+        /**
+         * Take the intersection of the killed and alloced sets with the corresponding sets in res. This method
+         * imperatively updates the killed and alloced sets. It returns true if and only if the killed or alloced sets
+         * of this object changed.
+         */
         public boolean update(KilledAndAlloced res) {
+            assert (this != UNREACHABLE) : "Can't update the UNREACHABLE constant";
+            assert (killed == null && alloced == null) || (killed != null && alloced != null);
+            assert (res.killed == null && res.alloced == null) || (res.killed != null && res.alloced != null);
+
             if (this == res || res.killed == null) {
+                // no change to this object.
                 return false;
             }
             if (this.killed == null) {
-                assert this.alloced == null;
+                // we represent the "universal" sets, so intersecting with
+                // the sets in res just gives us directly the sets in res.
+                // So copy over the sets res.killed and res.alloced.
                 this.killed = MutableSparseIntSet.createMutableSparseIntSet(0);
                 this.killed.copySet(res.killed);
                 this.alloced = MutableSparseIntSet.createMutableSparseIntSet(0);
                 this.alloced.copySet(res.alloced);
                 return true;
             }
+
+            // intersect the sets, and see if the size of either of them changed.
             int origKilledSize = this.killed.size();
             int origAllocedSize = this.alloced.size();
             this.killed.intersectWith(res.killed);
@@ -71,27 +104,35 @@ public class ProgramPointReachability {
             return (this.killed.size() != origKilledSize || this.alloced.size() != origAllocedSize);
         }
 
+        /**
+         * Add a points to graph node to the kill set.
+         */
         public boolean addKill(/*PointsToGraphNode*/int n) {
             assert killed != null;
             return this.killed.add(n);
         }
 
+        /**
+         * Add an instance key to the alloced set.
+         */
         public boolean addAlloced(/*InstanceKeyRecency*/int justAllocatedKey) {
             assert alloced != null;
             return this.alloced.add(justAllocatedKey);
         }
 
+        /**
+         * Set the killed and alloced sets to empty. This should be used only as the first operation called after the
+         * constructor.
+         */
         public void setEmpty() {
-            assert killed == null;
+            assert killed == null && alloced == null;
             this.killed = MutableSparseIntSet.createMutableSparseIntSet(0);
             this.alloced = MutableSparseIntSet.createMutableSparseIntSet(0);
         }
 
         /**
-         *
-         * @param noKill
-         * @param noAlloc
-         * @return
+         * Returns false if this.killed intersects with noKill, or if this.alloced intersents with noAlloc. Otherwise,
+         * it returns true.
          */
         public boolean allows(IntSet noKill, IntSet noAlloc) {
             return (this.killed != null && !this.killed.containsAny(noKill))
@@ -100,322 +141,6 @@ public class ProgramPointReachability {
 
     }
 
-    private final PointsToGraph g;
-
-    private final Set<MemoResult> positiveCache = AnalysisUtil.createConcurrentSet();
-
-    private static class MemoKey {
-        final InterProgramPointReplica source;
-        final InterProgramPointReplica destination;
-
-        MemoKey(InterProgramPointReplica source, InterProgramPointReplica destination) {
-            this.source = source;
-            this.destination = destination;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + destination.hashCode();
-            result = prime * result + source.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof MemoKey)) {
-                return false;
-            }
-            MemoKey other = (MemoKey) obj;
-            if (!destination.equals(other.destination)) {
-                return false;
-            }
-            if (!source.equals(other.source)) {
-                return false;
-            }
-            return true;
-        }
-
-    }
-
-    private static class MemoResult extends MemoKey {
-        final/*Set<PointsToGraphNode>*/IntSet noKill;
-        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
-
-        MemoResult(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
-                   IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc) {
-            super(source, destination);
-            this.noKill = noKill;
-            this.noAlloc = noAlloc;
-
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = super.hashCode();
-            result = prime * result + noAlloc.hashCode();
-            result = prime * result + noKill.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (!super.equals(obj)) {
-                return false;
-            }
-            if (!(obj instanceof MemoResult)) {
-                return false;
-            }
-            MemoResult other = (MemoResult) obj;
-            if (!noAlloc.equals(other.noAlloc)) {
-                return false;
-            }
-            if (!noKill.equals(other.noKill)) {
-                return false;
-            }
-            return true;
-        }
-
-    }
-
-    ProgramPointReachability(PointsToGraph g) {
-        this.g = g;
-    }
-
-    private static class ReachabilityResult {
-        /**
-         * Map from source iipr to target ippr with a pair of killed and allocated. Note that all source and target
-         * ipprs in m should be from the same method.
-         *
-         * If (s, t, _, _) is not in the map, then it means that t is not reachable from s (or at least we haven't found
-         * out that it is, or are not interested in recording that fact).
-         *
-         * If (s, t, killed, alloced) is in the map, then this means that t is reachable from s, but all paths from s to
-         * t will kill the PointsToGraphNodes in killed, and allocate the InstanceKeyRecencys in alloced.
-         *
-         * XXX which sources and targets are in the map???
-         */
-        final ConcurrentMap<InterProgramPointReplica, ConcurrentMap<InterProgramPointReplica, KilledAndAlloced>> m = AnalysisUtil.createConcurrentHashMap();
-
-        public static ReachabilityResult createInitial() {
-            return new ReachabilityResult();
-        }
-
-        public KilledAndAlloced getResult(InterProgramPointReplica source, InterProgramPointReplica target) {
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> s = m.get(source);
-            if (s == null) {
-                return KilledAndAlloced.UNREACHABLE;
-            }
-            KilledAndAlloced p = s.get(target);
-            if (p == null) {
-                return KilledAndAlloced.UNREACHABLE;
-            }
-            return p;
-        }
-
-        public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
-            assert res != null;
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
-            KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
-            assert existing == null;
-        }
-
-        public void update(ReachabilityResult res) {
-            for (InterProgramPointReplica s : res.m.keySet()) {
-                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> resTargetMap = res.m.get(s);
-                if (resTargetMap != null) {
-                    ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(s);
-                    for (InterProgramPointReplica t : resTargetMap.keySet()) {
-                        KilledAndAlloced resResult = resTargetMap.get(t);
-                        KilledAndAlloced thisResult = getTargetResult(thisTargetMap, t, resResult);
-                        thisResult.update(resResult);
-                    }
-                }
-            }
-
-        }
-
-        private static KilledAndAlloced getTargetResult(ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> targetMap,
-                                                        InterProgramPointReplica t, KilledAndAlloced initialResult) {
-            KilledAndAlloced p = targetMap.get(t);
-            if (p != null) {
-                // great, a result already exists. return it.
-                return p;
-            }
-            p = targetMap.putIfAbsent(t, initialResult);
-            if (p != null) {
-                // someone else beat us.
-                return p;
-            }
-            // we successfully put in the initial result.
-            return initialResult;
-        }
-
-        private ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> tm = this.m.get(s);
-            if (tm == null) {
-                tm = AnalysisUtil.createConcurrentHashMap();
-                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> existing = this.m.putIfAbsent(s, tm);
-                if (existing != null) {
-                    tm = existing;
-                }
-            }
-            return tm;
-        }
-
-    }
-
-    private final ConcurrentMap<IMethod, ReachabilityResult> memoization = AnalysisUtil.createConcurrentHashMap();
-
-    /*
-     * Get the reachability results for a method.
-     */
-    ReachabilityResult getReachabilityForMethod(IMethod m, Context context) {
-        ReachabilityResult res = memoization.get(m);
-        if (res != null) {
-            return res;
-        }
-        // no results yet.
-        res = ReachabilityResult.createInitial();
-        ReachabilityResult existing = memoization.putIfAbsent(m, res);
-        if (existing != null) {
-            // someone beat us to it, and is currently working on the results.
-            return existing;
-        }
-        res = computeReachabilityForMethod(m, context);
-        return updateMemoization(m, res);
-    }
-
-    private ReachabilityResult updateMemoization(IMethod m, ReachabilityResult res) {
-        ReachabilityResult existing = memoization.get(m);
-        assert existing != null;
-        existing.update(res);
-        return existing;
-    }
-
-    private ReachabilityResult computeReachabilityForMethod(IMethod m, Context context) {
-        // XXX at the moment we will just record from the start node.
-
-        // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
-
-        Map<InterProgramPoint, KilledAndAlloced> results = new HashMap<>();
-
-        WorkQueue<InterProgramPoint> q = new WorkQueue<>();
-        MethodSummaryNodes summ = g.registrar.getMethodSummary(m);
-        PostProgramPoint entryIPP = summ.getEntryPP().post();
-        q.add(entryIPP);
-        getOrCreate(results, entryIPP).setEmpty();
-
-        while (!q.isEmpty()) {
-            InterProgramPoint ipp = q.poll();
-            ProgramPoint pp = ipp.getPP();
-            assert pp.containingProcedure().equals(m);
-
-            KilledAndAlloced current = getOrCreate(results, ipp);
-            assert current.killed != null;
-
-            if (ipp instanceof PreProgramPoint) {
-                if (pp instanceof CallSiteProgramPoint) {
-                    // this is a method call! Register the dependency and get some cached results
-                    //XXX!@! register dependency from this result to the call site.
-
-                    OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp,
-                            context);
-                    Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
-                    if (calleeSet == null) {
-                        // no callees, so nothing to do
-                        continue;
-                    }
-
-                    KilledAndAlloced post = getOrCreate(results, pp.post());
-                    boolean changed = post.update(current);
-                    for (OrderedPair<IMethod, Context> callee : calleeSet) {
-                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
-                        MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
-                        InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
-                                                                                              calleeSummary.getEntryPP())
-                                                                                              .post();
-                        KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
-                                                                             ProgramPointReplica.create(callee.snd(),
-                                                                                                        calleeSummary.getNormalExitPP())
-                                                                                                        .pre());
-                        KilledAndAlloced exRet = calleeResults.getResult(calleeEntryIPPR,
-                                                                         ProgramPointReplica.create(callee.snd(),
-                                                                                                    calleeSummary.getExceptionExitPP())
-                                                                                                    .pre());
-
-                        // HERE WE SHOULD BE MORE PRECISE ABOUT PROGRAM POINT SUCCESSORS, AND PAY ATTENTION TO NORMAL VS EXCEPTIONAL EXIT
-                        changed |= post.update(normalRet);
-                        changed |= post.update(exRet);
-
-                    }
-                    if (changed) {
-                        q.add(pp.post());
-                    }
-
-                }
-                else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
-                    // not much to do here. The results will be copied once the work queue finishes.
-                    continue;
-                }
-                else {
-                    PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
-                    // not a call or a return, it's just a normal statement.
-                    // does ipp kill this.node?
-                    if (stmt != null) {
-                        boolean changed = false;
-                        // !@!XXX record dependency, since stmt.killed actually looks up the points to information.
-                        PointsToGraphNode killed = stmt.killed(context, g);
-                        if (killed != null) {
-                            changed |= current.addKill(g.lookupDictionary(killed));
-                        }
-
-                        // is "to" allocated at this program point?
-                        InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
-                        if (justAllocated != null) {
-                            int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
-                            changed |= current.addAlloced(justAllocatedKey);
-                        }
-                        if (changed) {
-                            q.add(pp.post());
-                        }
-                    }
-                }
-            }
-            else if (ipp instanceof PostProgramPoint) {
-                Set<ProgramPoint> ppSuccs = pp.succs();
-                for (ProgramPoint succ : ppSuccs) {
-                    KilledAndAlloced succResults = getOrCreate(results, succ.pre());
-                    if (succResults.update(current)) {
-                        q.add(succ.pre());
-                    }
-                }
-            }
-            else {
-                throw new IllegalArgumentException("Don't know about this kind of interprogrampoint");
-            }
-
-        }
-
-        ReachabilityResult rr = new ReachabilityResult();
-        PreProgramPoint normExitIPP = summ.getNormalExitPP().pre();
-        PreProgramPoint exExitIPP = summ.getExceptionExitPP().pre();
-
-        rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), results.get(normExitIPP));
-        rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), results.get(exExitIPP));
-        return rr;
-    }
 
     /**
      * Given a map from InterProgramPoints to KilledAndAlloceds, either get the existing KilledAndAlloced for ipp, or
@@ -441,6 +166,8 @@ public class ProgramPointReachability {
      */
     public boolean reachable(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
                              /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc) {
+
+        assert allMostRecent(noAlloc);
         // check the caches
         for (InterProgramPointReplica src : sources) {
             if (this.positiveCache.contains(new MemoResult(src, destination, noKill, noAlloc))) {
@@ -473,6 +200,17 @@ public class ProgramPointReachability {
         // we didn't find it.
         // Store in the negative cache sometime...
         return false;
+    }
+
+    private boolean allMostRecent(IntSet s) {
+        IntIterator iter = s.intIterator();
+        while (iter.hasNext()) {
+            int ik = iter.next();
+            if (!g.isMostRecentObject(ik)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -648,8 +386,8 @@ public class ProgramPointReachability {
                         if (relevantNodes.contains(caller)) {
                             // this is a relevant node, and we need to dig into it.
                             InterProgramPointReplica callerSiteReplica = callerSite.fst()
-                                                                                   .post()
-                                                                                   .getReplica(callerSite.snd());
+                                    .post()
+                                    .getReplica(callerSite.snd());
                             if (inSameMethod) {
                                 // let's delay it as long as possible, in case we find the destination here
                                 delayed.add(callerSiteReplica);
@@ -688,9 +426,12 @@ public class ProgramPointReachability {
 
                         // is "to" allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(currentContext, g);
-                        if (justAllocated != null && noAlloc.contains(g.lookupDictionary(justAllocated))) {
-                            // dang! we killed allocated we shouldn't. Prune the search.
-                            continue;
+                        if (justAllocated != null) {
+                            int justAllocatedKey = g.lookupDictionary(justAllocated);
+                            if (g.isMostRecentObject(justAllocatedKey) && g.isTrackingMostRecentObject(justAllocatedKey) && noAlloc.contains(g.lookupDictionary(justAllocated))) {
+                                // dang! we killed allocated we shouldn't. Prune the search.
+                                continue;
+                            }
                         }
                         // otherwise, we're OK. visited the successor
                         InterProgramPointReplica post = pp.post().getReplica(currentContext);
@@ -722,4 +463,317 @@ public class ProgramPointReachability {
         // we didn't find it
         return false;
     }
+
+    /* *****************************************************************************
+    *
+    * METHOD REACHABILITY CODE
+    *
+    * The following code is responsible for computing the reachability results of an
+    * entire method.
+    */
+
+    /**
+     * A ReachabilityResult records the reachability results of a single method in a context, that is, which for a
+     * subset of the source and destination pairs of InterProgramPointReplica in the method and context, what are the
+     * KilledAndAlloced sets that summarize all paths from the source to the destination.
+     *
+     * This object must be thread safe.
+     */
+    private static class ReachabilityResult {
+        /**
+         * Map from source iipr to target ippr with a pair of killed and allocated. Note that all source and target
+         * ipprs in m should be from the same method.
+         *
+         * If (s, t, _, _) is not in the map, then it means that t is not reachable from s (or at least we haven't found
+         * out that it is, or are not interested in recording that fact).
+         *
+         * If (s, t, killed, alloced) is in the map, then this means that t is reachable from s, but all paths from s to
+         * t will kill the PointsToGraphNodes in killed, and allocate the InstanceKeyRecencys in alloced.
+         */
+        final ConcurrentMap<InterProgramPointReplica, ConcurrentMap<InterProgramPointReplica, KilledAndAlloced>> m = AnalysisUtil.createConcurrentHashMap();
+
+        public static ReachabilityResult createInitial() {
+            return new ReachabilityResult();
+        }
+
+        public KilledAndAlloced getResult(InterProgramPointReplica source, InterProgramPointReplica target) {
+            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> s = m.get(source);
+            if (s == null) {
+                return KilledAndAlloced.UNREACHABLE;
+            }
+            KilledAndAlloced p = s.get(target);
+            if (p == null) {
+                return KilledAndAlloced.UNREACHABLE;
+            }
+            return p;
+        }
+
+        public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
+            assert res != null;
+            assert source.getContainingProcedure().equals(target.getContainingProcedure());
+            assert source.getContext().equals(target.getContext());
+            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
+            KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
+            assert existing == null;
+        }
+
+        public void update(ReachabilityResult res) {
+            for (InterProgramPointReplica s : res.m.keySet()) {
+                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> resTargetMap = res.m.get(s);
+                if (resTargetMap != null) {
+                    ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(s);
+                    for (InterProgramPointReplica t : resTargetMap.keySet()) {
+                        KilledAndAlloced resResult = resTargetMap.get(t);
+                        KilledAndAlloced thisResult = getTargetResult(thisTargetMap, t, resResult);
+                        thisResult.update(resResult);
+                    }
+                }
+            }
+
+        }
+
+        private static KilledAndAlloced getTargetResult(ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> targetMap,
+                                                        InterProgramPointReplica t, KilledAndAlloced initialResult) {
+            KilledAndAlloced p = targetMap.get(t);
+            if (p != null) {
+                // great, a result already exists. return it.
+                return p;
+            }
+            p = targetMap.putIfAbsent(t, initialResult);
+            if (p != null) {
+                // someone else beat us.
+                return p;
+            }
+            // we successfully put in the initial result.
+            return initialResult;
+        }
+
+        private ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
+            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> tm = this.m.get(s);
+            if (tm == null) {
+                tm = AnalysisUtil.createConcurrentHashMap();
+                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> existing = this.m.putIfAbsent(s, tm);
+                if (existing != null) {
+                    tm = existing;
+                }
+            }
+            return tm;
+        }
+
+    }
+
+    private final ConcurrentMap<IMethod, ReachabilityResult> memoization = AnalysisUtil.createConcurrentHashMap();
+
+    /*
+     * Get the reachability results for a method.
+     */
+    ReachabilityResult getReachabilityForMethod(IMethod m, Context context) {
+        ReachabilityResult res = memoization.get(m);
+        if (res != null) {
+            return res;
+        }
+        // no results yet.
+        res = ReachabilityResult.createInitial();
+        ReachabilityResult existing = memoization.putIfAbsent(m, res);
+        if (existing != null) {
+            // someone beat us to it, and is currently working on the results.
+            return existing;
+        }
+        res = computeReachabilityForMethod(m, context);
+        return updateMemoization(m, res);
+    }
+
+    private ReachabilityResult updateMemoization(IMethod m, ReachabilityResult res) {
+        ReachabilityResult existing = memoization.get(m);
+        assert existing != null;
+        existing.update(res);
+        return existing;
+    }
+
+    private ReachabilityResult computeReachabilityForMethod(IMethod m, Context context) {
+        // XXX at the moment we will just record from the start node.
+
+        // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
+
+        Map<InterProgramPoint, KilledAndAlloced> results = new HashMap<>();
+
+        WorkQueue<InterProgramPoint> q = new WorkQueue<>();
+        MethodSummaryNodes summ = g.registrar.getMethodSummary(m);
+        PostProgramPoint entryIPP = summ.getEntryPP().post();
+        q.add(entryIPP);
+        getOrCreate(results, entryIPP).setEmpty();
+
+        while (!q.isEmpty()) {
+            InterProgramPoint ipp = q.poll();
+            ProgramPoint pp = ipp.getPP();
+            assert pp.containingProcedure().equals(m);
+
+            KilledAndAlloced current = getOrCreate(results, ipp);
+            assert current.killed != null;
+
+            if (ipp instanceof PreProgramPoint) {
+                if (pp instanceof CallSiteProgramPoint) {
+                    // this is a method call! Register the dependency and get some cached results
+                    //XXX!@! register dependency from this result to the call site.
+
+                    OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp,
+                                                                                          context);
+                    Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
+                    if (calleeSet == null) {
+                        // no callees, so nothing to do
+                        continue;
+                    }
+
+                    KilledAndAlloced post = getOrCreate(results, pp.post());
+                    boolean changed = post.update(current);
+                    for (OrderedPair<IMethod, Context> callee : calleeSet) {
+                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
+                        MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
+                        InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
+                                                                                              calleeSummary.getEntryPP())
+                                                                                      .post();
+                        KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
+                                                                             ProgramPointReplica.create(callee.snd(),
+                                                                                                        calleeSummary.getNormalExitPP())
+                                                                                                .pre());
+                        KilledAndAlloced exRet = calleeResults.getResult(calleeEntryIPPR,
+                                                                         ProgramPointReplica.create(callee.snd(),
+                                                                                                    calleeSummary.getExceptionExitPP())
+                                                                                            .pre());
+
+                        // HERE WE SHOULD BE MORE PRECISE ABOUT PROGRAM POINT SUCCESSORS, AND PAY ATTENTION TO NORMAL VS EXCEPTIONAL EXIT
+                        changed |= post.update(normalRet);
+                        changed |= post.update(exRet);
+
+                    }
+                    if (changed) {
+                        q.add(pp.post());
+                    }
+
+                }
+                else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
+                    // not much to do here. The results will be copied once the work queue finishes.
+                    continue;
+                }
+                else {
+                    PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
+                    // not a call or a return, it's just a normal statement.
+                    // does ipp kill this.node?
+                    if (stmt != null) {
+                        boolean changed = false;
+                        // !@!XXX record dependency, since stmt.killed actually looks up the points to information.
+                        PointsToGraphNode killed = stmt.killed(context, g);
+                        if (killed != null) {
+                            changed |= current.addKill(g.lookupDictionary(killed));
+                        }
+
+                        // is "to" allocated at this program point?
+                        InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
+                        if (justAllocated != null) {
+                            int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
+                            if (g.isMostRecentObject(justAllocatedKey)
+                                    && g.isTrackingMostRecentObject(justAllocatedKey)) {
+                                changed |= current.addAlloced(justAllocatedKey);
+                            }
+                        }
+                        if (changed) {
+                            q.add(pp.post());
+                        }
+                    }
+                }
+            }
+            else if (ipp instanceof PostProgramPoint) {
+                Set<ProgramPoint> ppSuccs = pp.succs();
+                for (ProgramPoint succ : ppSuccs) {
+                    KilledAndAlloced succResults = getOrCreate(results, succ.pre());
+                    if (succResults.update(current)) {
+                        q.add(succ.pre());
+                    }
+                }
+            }
+            else {
+                throw new IllegalArgumentException("Don't know about this kind of interprogrampoint");
+            }
+
+        }
+
+        ReachabilityResult rr = new ReachabilityResult();
+        PreProgramPoint normExitIPP = summ.getNormalExitPP().pre();
+        PreProgramPoint exExitIPP = summ.getExceptionExitPP().pre();
+
+        rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), results.get(normExitIPP));
+        rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), results.get(exExitIPP));
+        return rr;
+    }
+
+
+    /* *****************************************************************************
+     *
+     * REACHABILITY QUERY RESULT MEMOIZATION
+     *
+     * The following code is responsible for memoizing query results.
+     */
+
+    /**
+     * Cache of the positive answers. i.e., if (source, destination, noKill, noAlloc) in positiveCache, then there is a
+     * path from source to destination that does not kill any object in noKill, nor does it allocate any object in
+     * noAlloc.
+     */
+    private final Set<MemoResult> positiveCache = AnalysisUtil.createConcurrentSet();
+
+    private static class MemoResult {
+        final InterProgramPointReplica source;
+        final InterProgramPointReplica destination;
+        final/*Set<PointsToGraphNode>*/IntSet noKill;
+        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
+
+        MemoResult(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+                   IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc) {
+            this.source = source;
+            this.destination = destination;
+            this.noKill = noKill;
+            this.noAlloc = noAlloc;
+
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = super.hashCode();
+            result = prime * result + destination.hashCode();
+            result = prime * result + source.hashCode();
+            result = prime * result + noAlloc.hashCode();
+            result = prime * result + noKill.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!super.equals(obj)) {
+                return false;
+            }
+            if (!(obj instanceof MemoResult)) {
+                return false;
+            }
+            MemoResult other = (MemoResult) obj;
+            if (!source.equals(other.source)) {
+                return false;
+            }
+            if (!destination.equals(other.destination)) {
+                return false;
+            }
+            if (!noAlloc.equals(other.noAlloc)) {
+                return false;
+            }
+            if (!noKill.equals(other.noKill)) {
+                return false;
+            }
+            return true;
+        }
+
+    }
+
 }
