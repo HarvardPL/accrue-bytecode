@@ -41,62 +41,62 @@ public class IntSetIntersection extends AbstractIntSet {
         return new SortedIntSetIntersectionIterator(this.a.intIterator(), this.b.intIterator());
     }
 
-}
 
-class SortedIntSetIntersectionIterator implements IntIterator {
-    final IntIterator a;
-    final IntIterator b;
-    int aNext = -1;
-    int bNext = -1;
-    boolean aNextValid = false;
-    boolean bNextValid = false;
+    public static class SortedIntSetIntersectionIterator implements IntIterator {
+        final IntIterator a;
+        final IntIterator b;
+        int aNext = -1;
+        int bNext = -1;
+        boolean aNextValid = false;
+        boolean bNextValid = false;
 
-    SortedIntSetIntersectionIterator(IntIterator a, IntIterator b) {
-        this.a = a;
-        this.b = b;
-    }
-
-    @Override
-    public boolean hasNext() {
-        while (!(aNextValid && bNextValid && aNext == bNext)) {
-            // Make sure that a and b are valid.
-            if (!this.aNextValid && this.a.hasNext()) {
-                int t = this.a.next();
-                assert (t > this.aNext) : "Interator a is not in ascending order";
-                this.aNext = t;
-                this.aNextValid = true;
-            }
-            if (!this.bNextValid && this.b.hasNext()) {
-                int t = this.b.next();
-                assert (t > this.bNext) : "Interator b is not in ascending order";
-                this.bNext = t;
-                this.bNextValid = true;
-            }
-            if (!this.aNextValid || !this.bNextValid) {
-                // no more left...
-                return false;
-            }
-            if (aNext < bNext) {
-                // get the next a element.
-                aNextValid = false;
-            }
-            else if (bNext < aNext) {
-                // get the next b element.
-                bNextValid = false;
-            }
+        public SortedIntSetIntersectionIterator(IntIterator a, IntIterator b) {
+            this.a = a;
+            this.b = b;
         }
-        return true;
-    }
 
-    @Override
-    public int next() {
-        if (!this.hasNext()) {
-            throw new NoSuchElementException();
+        @Override
+        public boolean hasNext() {
+            while (!(aNextValid && bNextValid && aNext == bNext)) {
+                // Make sure that a and b are valid.
+                if (!this.aNextValid && this.a.hasNext()) {
+                    int t = this.a.next();
+                    assert (t > this.aNext) : "Interator a is not in ascending order";
+                    this.aNext = t;
+                    this.aNextValid = true;
+                }
+                if (!this.bNextValid && this.b.hasNext()) {
+                    int t = this.b.next();
+                    assert (t > this.bNext) : "Interator b is not in ascending order";
+                    this.bNext = t;
+                    this.bNextValid = true;
+                }
+                if (!this.aNextValid || !this.bNextValid) {
+                    // no more left...
+                    return false;
+                }
+                if (aNext < bNext) {
+                    // get the next a element.
+                    aNextValid = false;
+                }
+                else if (bNext < aNext) {
+                    // get the next b element.
+                    bNextValid = false;
+                }
+            }
+            return true;
         }
-        assert (aNextValid && bNextValid && aNext == bNext);
-        this.aNextValid = false;
-        this.bNextValid = false;
-        return this.aNext;
-    }
 
+        @Override
+        public int next() {
+            if (!this.hasNext()) {
+                throw new NoSuchElementException();
+            }
+            assert (aNextValid && bNextValid && aNext == bNext);
+            this.aNextValid = false;
+            this.bNextValid = false;
+            return this.aNext;
+        }
+
+    }
 }

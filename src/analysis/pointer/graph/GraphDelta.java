@@ -5,6 +5,7 @@ import java.util.Iterator;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
+import util.intset.IntSetUnion;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -141,7 +142,7 @@ public class GraphDelta {
             for (int i = 0; i < iterators.size(); i += 2) {
                 IntIterator iter;
                 if (i + 1 < iterators.size()) {
-                    iter = g.new SortedIntSetUnionIterator(iterators.get(i), iterators.get(i + 1));
+                    iter = new IntSetUnion.SortedIntSetUnionIterator(iterators.get(i), iterators.get(i + 1));
                 }
                 else {
                     iter = iterators.get(i);
