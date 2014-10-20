@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import signatures.Signatures;
 import types.TypeRepository;
 import util.InstructionType;
 import util.OrderedPair;
@@ -106,6 +107,15 @@ public class StatementRegistrar {
     private final boolean useSingleAllocForStrings;
 
     /**
+     * If true then only one allocation will be made for any immutable wrapper class. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.
+     * <p>
+     * These classes are java.lang.String, all the primitive wrappers, and BigInteger and BigDecimal if they are not
+     * subclassed.
+     */
+    private final boolean useSingleAllocForImmutableWrappers;
+
+    /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
@@ -145,10 +155,13 @@ public class StatementRegistrar {
      * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
      *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
      *            precision for strings.
+     * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for any immutable wrapper
+     *            class. This will reduce the size of the points-to graph (and speed up the points-to analysis), but
+     *            result in a loss of precision for these classes.
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
-                              boolean useSingleAllocForStrings) {
+                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
@@ -158,12 +171,16 @@ public class StatementRegistrar {
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
         this.useSingleAllocForPrimitiveArrays = useSingleAllocForPrimitiveArrays;
-        System.err.println("Singleton allocation site per primitive array type: " + useSingleAllocForPrimitiveArrays);
-        this.useSingleAllocForStrings = useSingleAllocForStrings;
-        System.err.println("Singleton allocation site for java.lang.String: " + useSingleAllocForStrings);
+        System.err.println("Singleton allocation site per primitive array type: "
+                + this.useSingleAllocForPrimitiveArrays);
+        this.useSingleAllocForStrings = useSingleAllocForStrings || useSingleAllocForImmutableWrappers;
+        System.err.println("Singleton allocation site for java.lang.String: " + this.useSingleAllocForStrings);
         this.useSingleAllocPerThrowableType = useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per java.lang.Throwable subtype: "
-                + useSingleAllocPerThrowableType);
+                + this.useSingleAllocPerThrowableType);
+        this.useSingleAllocForImmutableWrappers = useSingleAllocForImmutableWrappers;
+        System.err.println("Singleton allocation site per immutable wrapper type: "
+                + this.useSingleAllocForImmutableWrappers);
     }
 
     /**
@@ -661,6 +678,11 @@ public class StatementRegistrar {
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
 
+        }
+        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapper(allocType)) {
+            // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
+            ReferenceVariable rv = getOrCreateSingleton(allocType);
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
         }
         else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings

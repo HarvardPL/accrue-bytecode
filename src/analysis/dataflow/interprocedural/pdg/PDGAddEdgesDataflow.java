@@ -23,10 +23,10 @@ import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryPDGNodes;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.Unit;
+import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.shrikeBT.IConditionalBranchInstruction.Operator;
@@ -695,12 +695,55 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     private Map<ISSABasicBlock, Unit> flowInvoke(SSAInvokeInstruction i,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGContext in = instructionInput.get(i);
+        PDGContext normal = in;
+
+        PDGNode normalExitPC;
+        ISSABasicBlock normalSucc = getNormalSuccs(current, cfg).iterator().next();
+        if (outputFacts.get(current).get(normalSucc) == null) {
+            // There was no fact for the normal successor, the only way this could happen is if all possible callees cannot terminate normally.
+            for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
+                assert !canProcedureTerminateNormally(callee);
+            }
+            normalExitPC = null;
+        }
+        else {
+            normalExitPC = outputFacts.get(current).get(normalSucc).getPCNode();
+        }
+
+        List<PDGNode> params = new LinkedList<>();
+        for (int j = 0; j < i.getNumberOfParameters(); j++) {
+            params.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp));
+        }
+
+        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
+            // Could throw NPE due to null receiver
+            String desc = pp.valString(i.getReceiver()) + " == null";
+            normal = handlePossibleException(TypeReference.JavaLangNullPointerException,
+                                             params.get(0),
+                                             in,
+                                             desc,
+                                             current);
+
+            // TODO if no NPE throw WrongMethodTypeException
+        }
 
         if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())) {
             if (!i.getDeclaredTarget().getName().equals(MethodReference.clinitName)) { // not the class init method
                 // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
                 // The Objects are handled as if they were a primitive.
-                addEdgesForImmutableWrapper(i, in.getPCNode());
+                assert normalExitPC != null : "Callees for " + i + " cannot terminate normally.";
+                addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
+
+                // Can this callee throw an exception?
+                boolean canThrowException = false;
+                for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
+                    if (interProc.getPreciseExceptionResults().canProcedureThrowAnyException(callee)) {
+                        canThrowException = true;
+                        break;
+                    }
+                }
+
+                addEdgesForImmutableWrapper(i, normal.getPCNode(), canThrowException);
                 return factToMap(Unit.VALUE, current, cfg);
             }
         }
@@ -710,21 +753,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // exceptional) sites
         CallSiteEdgeLabel entry = new CallSiteEdgeLabel(i, currentNode, SiteType.ENTRY);
         CallSiteEdgeLabel exit = new CallSiteEdgeLabel(i, currentNode, SiteType.EXIT);
-
-        List<PDGNode> params = new LinkedList<>();
-        for (int j = 0; j < i.getNumberOfParameters(); j++) {
-            params.add(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp));
-        }
-
-        PDGContext normal = in;
-        if (!i.isStatic() && !interProc.getNonNullResults().isNonNull(i.getReceiver(), i, currentNode, null)) {
-            // Could throw NPE due to null receiver
-            String desc = pp.valString(i.getReceiver()) + " == null";
-            normal = handlePossibleException(TypeReference.JavaLangNullPointerException, params.get(0), in, desc,
-                                            current);
-
-            // TODO if no NPE throw WrongMethodTypeException
-        }
 
         // The PC at the call site is the PC if no exception was thrown
         PDGNode callSitePC = normal.getPCNode();
@@ -771,10 +799,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         if (!normalExits.isEmpty()) {
             // at least one callee can terminate normally
-
-            ISSABasicBlock normalSucc = getNormalSuccs(current, cfg).iterator().next();
-            PDGNode normalExitPC = outputFacts.get(current).get(normalSucc).getPCNode();
-
             PDGNode result = null;
             if (i.getNumberOfReturnValues() > 0) {
                 // Method has a return
@@ -782,6 +806,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             }
 
             // Connect up the callee summary nodes to nodes in the caller
+            assert normalExitPC != null : "Should be no normal exits if callees cannot terminate normally";
             handleCalleeExit(callSitePC, normalExits, exit, i, result, normalExitPC, ExitType.NORMAL);
         }
 
@@ -802,49 +827,77 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         return factToMap(Unit.VALUE, current, cfg);
     }
 
-    private void addEdgesForImmutableWrapper(SSAInvokeInstruction i, PDGNode pcNode) {
-        int startIndex;
+    /**
+     * Add edges directly to the PDG for a method call into an immutable wrapper class (e.g. String, Integer, etc.)
+     *
+     * @param i invocation instruction
+     * @param pcNode PC node at the call site
+     */
+    private void addEdgesForImmutableWrapper(SSAInvokeInstruction i, PDGNode pcNode, boolean canThrowException) {
+        MethodReference mr = i.getDeclaredTarget();
+        // Target of the edges to be added
         PDGNode targetNode;
-        PDGNode arrayContents = null;
-        if (i.getNumberOfReturnValues() == 0) {
-            // Void method, should be a constructor since the Object is immutable once created
-            assert i.getDeclaredTarget().isInit();
-            if (i.getNumberOfUses() == 1) {
-                // No-arg constructor. There are no edges to add.
-                return;
-            }
+        // When looping over source nodes where to start in the "use" list
+        int startIndex;
+        // If the target is an array this is the contents
+        Set<PDGNode> arrayContents = null;
 
+        if (i.getNumberOfReturnValues() == 0 && mr.isInit()) {
             startIndex = 1;
-            targetNode = PDGNodeFactory.findOrCreateLocal(i.getUse(0), currentNode, pp);
+            // Instance initializer add edges to the receiver
+            targetNode = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
             // Replace the string for the local with something more descriptive
             targetNode.setDescription(targetNode.toString() + " = " + pp.instructionString(i));
+        }
+        else if (i.getNumberOfReturnValues() == 0) {
+            // void return methods. They all copy into an array passed in as an argument
+
+            // No target node, just edges into the contents of the array
+            targetNode = null;
+            startIndex = 0;
+
+            for (int j = 0; j < i.getNumberOfUses(); j++) {
+                if (j > 0 && mr.getParameterType(j - 1).isArrayType()) {
+                    arrayContents = new LinkedHashSet<>();
+                    for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getUse(j), currentNode)) {
+                        arrayContents.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+                    }
+                }
+            }
+            assert arrayContents != null : "One of the arguments should be an array for " + i;
         }
         else {
             // This method returns a value, add edges to the return node
             startIndex = 0;
             targetNode = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
 
-            // If this is an array then get a node for the contents to later add edges to
+            // If the return is an array then record nodes for the contents and add edges later
             if (i.getDeclaredTarget().getReturnType().isArrayType()) {
-                Set<PDGNode> locNodes = new LinkedHashSet<>();
+                arrayContents = new LinkedHashSet<>();
                 for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getReturnValue(0), currentNode)) {
-                    locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+                    arrayContents.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
                 }
-                arrayContents = mergeIfNecessary(locNodes, "ABS LOC MERGE", PDGNodeType.LOCATION_SUMMARY, i);
             }
         }
 
         // Node representing an uninterpretted expression of the arguments
-        PDGNode expr = PDGNodeFactory.findOrCreateOther(PrettyPrinter.methodString(i.getDeclaredTarget())
+        PDGNode expr = PDGNodeFactory.findOrCreateOther(PrettyPrinter.methodString(mr)
                 + " SIGNATURE", PDGNodeType.OTHER_EXPRESSION, currentNode, new OrderedPair<>("SIGNATURE_EXPRESSION", i));
 
-        // Add edges from the arguments to the expression
-        for (int j = startIndex; j < i.getNumberOfUses(); j++) {
-            PDGNode arg_j = PDGNodeFactory.findOrCreateLocal(i.getUse(j), currentNode, pp);
-            addEdge(arg_j, expr, PDGEdgeType.EXP);
+        // Offset of parameter number and use number
+        int offset;
+        if (i.isStatic()) {
+            offset = 0;
+        }
+        else {
+            offset = 1;
+        }
 
-            // If the argument is an array then add an edge from contents of the array as well
-            if (i.getDeclaredTarget().getParameterType(j - startIndex).isArrayType()) {
+        for (int j = startIndex; j < i.getNumberOfUses(); j++) {
+            addEdge(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp), expr, PDGEdgeType.EXP);
+
+            // If this argument is an array add an edge from the contents as well
+            if ((j - offset) > 0 && mr.getParameterType(j - offset).isArrayType()) {
                 Set<PDGNode> locNodes = new LinkedHashSet<>();
                 for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getUse(j), currentNode)) {
                     locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
@@ -854,16 +907,40 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             }
         }
 
-        // Add edges into the assignment node from the expression and the PC node
-        addEdge(expr, targetNode, PDGEdgeType.COPY);
-        addEdge(pcNode, targetNode, PDGEdgeType.IMPLICIT);
-
-        if (arrayContents != null) {
-            // Add edges into the array contents if the return is an array
-            addEdge(expr, arrayContents, PDGEdgeType.COPY);
-            addEdge(pcNode, arrayContents, PDGEdgeType.IMPLICIT);
+        if (targetNode != null) {
+            // Add edges into the assignment node from the expression and the PC node
+            addEdge(expr, targetNode, PDGEdgeType.COPY);
+            addEdge(pcNode, targetNode, PDGEdgeType.IMPLICIT);
         }
-        // XXX What about exceptions thrown by this callee?
+        else {
+            assert i.getNumberOfReturnValues() == 0 && !mr.isInit() : "Non-void or init method resulted in a null target";
+        }
+
+        // Add edges into the array contents if the return is an array
+        if (arrayContents != null) {
+            PDGNode contentsNode = PDGNodeFactory.findOrCreateOther(PointsToGraph.ARRAY_CONTENTS + " = SIGNATURE",
+                                                                    PDGNodeType.OTHER_EXPRESSION,
+                                                                    currentNode,
+                                                                    new OrderedPair<>("SIGNATURE_CONTENTS", i));
+            addEdge(expr, contentsNode, PDGEdgeType.COPY);
+            addEdge(pcNode, contentsNode, PDGEdgeType.IMPLICIT);
+            for (PDGNode contents : arrayContents) {
+                addEdge(contentsNode, contents, PDGEdgeType.MERGE);
+            }
+        }
+
+        // Handle exceptions thrown by this callee
+        if (canThrowException) {
+            PDGContext exExitContext = calleeExceptionContexts.get(i);
+            PDGNode exAssign = PDGNodeFactory.findOrCreateOther("EXCEPTION = SIGNATURE",
+                                                                    PDGNodeType.OTHER_EXPRESSION,
+                                                                    currentNode,
+                                                                    new OrderedPair<>("SIGNATURE_EXCEPTION", i));
+            PDGNode exceptionNode = exExitContext.getExceptionNode();
+            addEdge(expr, exAssign, PDGEdgeType.COPY);
+            addEdge(pcNode, exAssign, PDGEdgeType.IMPLICIT);
+            addEdge(exAssign, exceptionNode, PDGEdgeType.COPY);
+        }
     }
 
     /**
@@ -1035,66 +1112,9 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         addEdge(allocNode, result, PDGEdgeType.COPY);
         addEdge(in.getPCNode(), result, PDGEdgeType.IMPLICIT);
 
-        // Add edges from a containing field to the allocation node for certain immutable objects
-        // (e.g. java.lang.String, java.lang.Integer)
-        addEdgesForNewHack(i, allocNode);
-
         return factToMap(Unit.VALUE, current, cfg);
     }
 
-    /**
-     * Hack that makes new objects (i.e. pointers) depend on a field inside them
-     *
-     */
-    private void addEdgesForNewHack(SSANewInstruction i, PDGNode newObj) {
-
-        TypeReference doubleType = TypeReference.JavaLangDouble;
-        TypeReference floatType = TypeReference.JavaLangFloat;
-        TypeReference integerType = TypeReference.JavaLangInteger;
-        TypeReference booleanType = TypeReference.JavaLangBoolean;
-
-        TypeReference newType = i.getConcreteType();
-        if (newType.equals(integerType)) {
-            addEdgesForNewHack(i.getDef(), integerType, "value", newObj, i);
-        }
-
-        if (newType.equals(floatType)) {
-            addEdgesForNewHack(i.getDef(), floatType, "value", newObj, i);
-        }
-
-        if (newType.equals(doubleType)) {
-            addEdgesForNewHack(i.getDef(), doubleType, "value", newObj, i);
-        }
-
-        if (newType.equals(booleanType)) {
-            addEdgesForNewHack(i.getDef(), booleanType, "value", newObj, i);
-        }
-    }
-
-    /**
-     * Hack that makes new objects (i.e. pointers) depend on a field inside them
-     *
-     */
-    private void addEdgesForNewHack(int newObjectValNum, TypeReference type, String fieldName, PDGNode newObjectNode,
-                                    Object disambiguationKey) {
-        IClass newClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
-        for (IField f : newClass.getAllInstanceFields()) {
-            if (f.getName().toString().equals(fieldName)) {
-                // Add edges from the field to the result
-                Set<PDGNode> locNodes = new LinkedHashSet<>();
-                for (AbstractLocation loc : interProc.getLocationsForNonStaticField(newObjectValNum,
-                                                                                    f.getReference(),
-                                                                                    currentNode)) {
-                    locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
-                }
-                PDGNode locMerge = mergeIfNecessary(locNodes,
-                                                    "ABS LOC MERGE",
-                                                    PDGNodeType.LOCATION_SUMMARY,
-                                                    disambiguationKey);
-                addEdge(locMerge, newObjectNode, PDGEdgeType.EXP);
-            }
-        }
-    }
 
     @Override
     protected Map<ISSABasicBlock, Unit> flowPutField(SSAPutInstruction i, Set<Unit> previousItems,

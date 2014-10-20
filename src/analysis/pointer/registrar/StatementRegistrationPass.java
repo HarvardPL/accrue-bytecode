@@ -51,15 +51,20 @@ public class StatementRegistrationPass {
      * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
      *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
      *            precision for strings.
+     * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for each type of
+     *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
+     *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
+     *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      */
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
-                                     boolean useSingleAllocForStrings) {
+                                     boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers) {
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
                                            useSingleAllocForThrowable,
                                            useSingleAllocForPrimitiveArrays,
-                                           useSingleAllocForStrings);
+                                           useSingleAllocForStrings,
+                                           useSingleAllocForImmutableWrappers);
     }
 
     /**
@@ -102,6 +107,9 @@ public class StatementRegistrationPass {
         // the classes for which we have registered an instance methods.
         // These are the classes that might have instances when we execute
         Set<IClass> seenInstancesOf = new HashSet<>();
+        // Add String to the list of seen instance methods.
+        // There will be a String somewhere and this covers the rare case that the only String objects seen are literals.
+        seenInstancesOf.add(AnalysisUtil.getStringClass());
         Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
 
         Set<MethodReference> alreadyProcessedVirtual = new HashSet<>();

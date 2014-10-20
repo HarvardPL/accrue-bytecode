@@ -321,7 +321,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
         @Override
         public int compare(String s1, String s2) {
-            return s1.count + s2.count;
+            return s1.length() + s2.length();
         }
     }
 

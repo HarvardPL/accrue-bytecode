@@ -28,10 +28,12 @@ XXX Special case for conditionals should only apply when arguments are booleans,
 
 TODO baseline WALA should work now since they accepted my pull requests
 
-XXX Call graph has a different number of nodes in different runs
-
 XXX Document and add "isPending" flag to data flow, change "input" to "mostRecentInput". 
 
 TODO maybe be more fine-grained for Strings, one site for literals? one site for the App vs. library code?
 
-PDG should default to Java 1.7
+TODO PDG should default to Java 1.7
+
+XXX Do we want to add an edge from CONTENTS to the array itself when handling a newarray in the PDG?
+
+TODO make the "new Foo" 

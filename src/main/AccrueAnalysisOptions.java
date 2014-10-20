@@ -132,6 +132,15 @@ public final class AccrueAnalysisOptions {
     private boolean useSingleAllocForStrings = false;
 
     /**
+     * If true then only one allocation will be made for each type of immutable wrapper. This will reduce the size of
+     * the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.
+     */
+    @Parameter(
+        names = { "-useSingleAllocForImmutableWrappers" },
+        description = "If set then only one allocation site will be used for each type of immutable wrapper classes. These are: java.lang.String, all primitive wrapper classes, and BigDecimal and BigInteger (if not overridden). This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.")
+    private boolean useSingleAllocForImmutableWrappers = false;
+
+    /**
      * Name of the analysis to be run
      */
     @Parameter(names = { "-n", "-analyisName" }, validateWith = AccrueAnalysisOptions.AnalysisNameValidator.class, description = "Name of the analysis to run.")
@@ -767,5 +776,17 @@ public final class AccrueAnalysisOptions {
      */
     public boolean shouldUseSingleAllocForStrings() {
         return useSingleAllocForStrings;
+    }
+
+    /**
+     * If true then only one allocation will be made for each type of immutable wrapper class. These are:
+     * java.lang.String, all primitive wrapper classes, and BigDecimal and BigInteger (if not overridden). This will
+     * reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision
+     * for these classes.
+     *
+     * @return whether to use a single allocation site for all immutable wrapper objects
+     */
+    public boolean shouldUseSingleAllocForImmutableWrappers() {
+        return useSingleAllocForImmutableWrappers;
     }
 }
