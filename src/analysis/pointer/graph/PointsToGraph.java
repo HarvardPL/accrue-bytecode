@@ -150,10 +150,15 @@ public class PointsToGraph {
     private SetAnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new SetAnnotatedIntRelation<>();
 
     /**
-     * if "a isFlowSensSubsetOf b with pps" then for all ippr \in pps, we have pointsTo(a, ippr) is a subset of
-     * pointsTo(b, ippr). At least one of a and b is a flow-sensitive PointsToGraphNode. That is, if ippr \in pps, then
-     * if a is flow sensitive, we have: pointsToFS(a, ippr) \subseteq pointsToFI(b) and if b is flow sensitive we have
-     * pointsToFI(a) \subseteq pointsToFS(b, ippr)
+     * if "a isFlowSensSubsetOf b with (noFilterPPSet, filterPPSet)" then for all ippr \in noFilterPPSet, we have
+     * pointsTo(a, ippr) is a subset of pointsTo(b, ippr). At least one of a and b is a flow-sensitive
+     * PointsToGraphNode. That is, if ippr \in noFilterPPSet, then if a is flow sensitive, we have: pointsToFS(a, ippr)
+     * \subseteq pointsToFI(b) and if b is flow sensitive we have pointsToFI(a) \subseteq pointsToFS(b, ippr).
+     *
+     * filterPPSet is specifically used for the preservation of FS object-field o.f across program points that allocate
+     * o. More specifically, if filterPPSet is not empty, a is flowsensitive and b is not and they should represent the
+     * same o.f. Also, pointsToFS(a, ippr) \subseteq pointsToFI(b) except that any InstanceKeyRecency ikr == o in
+     * pointsToFS(a, ippr) will be replaced with the non-most recent version of o.
      */
     private final AnnotatedIntRelation<OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet>> isFlowSensSubsetOf = new AnnotatedIntRelation<OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet>>() {
         @Override
@@ -497,8 +502,8 @@ public class PointsToGraph {
     }
 
     /**
-     * XXX UPDATE THIS!!!!
-     *
+     * This function is only used when processing new allocation sites. It ensures that the PointsToFS of o.f before the
+     * program point ppr will be copied to PointsToFI of o.f if ppr is an allocation site of o.
      */
     public GraphDelta copyEdgesForAllFields(InstanceKeyRecency newlyAllocated, ProgramPointReplica ppr,
                                             StmtAndContext originator) {
@@ -774,6 +779,7 @@ public class PointsToGraph {
                 // for all p \in ppSet, we want pointsToFI(target) \subset pointsToFS(m, p)
             }
 
+            // extract the filter and non-filter set from the annotation and pass it to propagateDifference
             ExplicitProgramPointSet noFilterPPSetToAdd = targetIsFlowSensitive ? null : noFilterPPSet;
             ExplicitProgramPointSet filterPPSetToAdd = targetIsFlowSensitive ? null : filterPPSet;
             programPointStack.pop();
@@ -835,7 +841,7 @@ public class PointsToGraph {
         IntIterator iter = filters == null ? setToAdd.intIterator() : new FilteredIterator(setToAdd.intIterator(), filters);
         filterStack.push(filters);
 
-        // The set of elements that will be added to the superset.
+        // The set of elements that will be added to the superset at target points that are not filtered
         IntSet noFilterDiff = this.getDifference(iter,
                                                  target,
                                                  targetIsFlowSensitive,
@@ -854,6 +860,7 @@ public class PointsToGraph {
                              toCollapse,
                              originator);
 
+        // The set of elements that will be added to the superset at target points that are filtered
         IntSet filterDiff = this.getDifference(iter,
                                                target,
                                                targetIsFlowSensitive,
@@ -1744,8 +1751,8 @@ public class PointsToGraph {
 
         if (filtered) {
             assert !lookupPointsToGraphNodeDictionary(target).isFlowSensitive();
-            // if we have a filter instance key, then we need to modify the set of instance keys
-            // to replace filterInstanceKey with the non-most recent version of it.
+            // if the subset relation is filtered at addAtPoints, then we need to modify the set of instance keys
+            // to replace the base of target with the non-most recent version of it.
             srcIter = new ChangeRecentInstanceKeyIterator(srcIter, baseNodeForPointsToGraphNode(target), this);
         }
 
@@ -2061,10 +2068,7 @@ public class PointsToGraph {
     }
 
     /**
-     * XXX TODO Documentation
-     *
-     * @param n
-     * @return
+     * Get the integer representation of the most recent version of InstanceKeyRecency ikr that is mapped by n
      */
     public int mostRecentVersion(/*InstanceKeyRecency*/int n) {
         InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
@@ -2072,10 +2076,7 @@ public class PointsToGraph {
     }
 
     /**
-     * XXX TODO Documentation
-     *
-     * @param n
-     * @return
+     * Get the integer representation of the non-most recent version of InstanceKeyRecency ikr that is mapped by n
      */
     public int nonMostRecentVersion(/*InstanceKeyRecency*/int n) {
         InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
