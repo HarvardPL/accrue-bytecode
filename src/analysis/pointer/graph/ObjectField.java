@@ -21,6 +21,10 @@ public final class ObjectField implements PointsToGraphNode {
      */
     private final String fieldName;
     /**
+     * FieldReference, if one exists for this field. (FieldReferences won't exist for "dummy" fields.
+     */
+    private final FieldReference fieldReference;
+    /**
      * Type of the field
      */
     private final TypeReference expectedType;
@@ -43,16 +47,10 @@ public final class ObjectField implements PointsToGraphNode {
      * @param expectedType
      *            type of the field
      */
-    public ObjectField(InstanceKeyRecency receiver, String fieldName, TypeReference expectedType,
+    public ObjectField(InstanceKeyRecency receiver, String fieldName,
+                       TypeReference expectedType,
                        boolean isArrayContentsDummyField) {
-        assert receiver != null;
-        assert fieldName != null;
-        assert expectedType != null;
-        this.receiver = receiver;
-        this.fieldName = fieldName;
-        this.expectedType = expectedType;
-        this.isArrayContentsDummyField = isArrayContentsDummyField;
-        memoizedHashCode = computeHashCode();
+        this(receiver, null, fieldName, expectedType, isArrayContentsDummyField);
     }
 
     /**
@@ -64,9 +62,22 @@ public final class ObjectField implements PointsToGraphNode {
      *            the field
      */
     public ObjectField(InstanceKeyRecency receiver, FieldReference fieldReference) {
-        this(receiver,
-             fieldReference.getName().toString(),
- fieldReference.getFieldType(), false);
+        this(receiver, fieldReference, fieldReference.getName().toString(), fieldReference.getFieldType(), false);
+    }
+
+    private ObjectField(InstanceKeyRecency receiver, FieldReference fieldReference, String fieldName,
+                        TypeReference expectedType, boolean isArrayContentsDummyField) {
+        assert receiver != null;
+        assert fieldName != null;
+        assert expectedType != null;
+        assert fieldReference == null ? isArrayContentsDummyField : true;
+
+        this.receiver = receiver;
+        this.fieldReference = fieldReference;
+        this.fieldName = fieldName;
+        this.expectedType = expectedType;
+        this.isArrayContentsDummyField = isArrayContentsDummyField;
+        memoizedHashCode = computeHashCode();
     }
 
     @Override
@@ -135,6 +146,11 @@ public final class ObjectField implements PointsToGraphNode {
         return receiver;
     }
 
+    public FieldReference fieldReference() {
+        return fieldReference;
+    }
+
+
     public String fieldName() {
         return fieldName;
     }
@@ -159,6 +175,11 @@ public final class ObjectField implements PointsToGraphNode {
         if (this.receiver == newReceiver || this.receiver.equals(newReceiver)) {
             return this;
         }
-        return new ObjectField(newReceiver, this.fieldName, this.expectedType, this.isArrayContentsDummyField);
+        return new ObjectField(newReceiver,
+                               this.fieldReference,
+                               this.fieldName,
+                               this.expectedType,
+                               this.isArrayContentsDummyField);
     }
+
 }
