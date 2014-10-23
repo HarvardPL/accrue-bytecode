@@ -583,14 +583,21 @@ public class PointsToGraph {
         return changed;
     }
 
-    /*
-     * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta,
-     * and recurses.
+    /**
+     * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta, and recurses.
      *
-     * If ippr is not null it means either:
-     *    pointsToFS(source, ippr) \subseteq pointsToFI(target)   (if source is flow sensitive)
-     * or
-     *    pointsToFI(source) \subseteq pointsToFS(target, ippr)   (if target is flow sensitive)
+     * If ippr is not null it means either: pointsToFS(source, ippr) \subseteq pointsToFI(target) (if source is flow
+     * sensitive) or pointsToFI(source) \subseteq pointsToFS(target, ippr) (if target is flow sensitive)
+     *
+     * @param changed
+     * @param source
+     * @param sourceIsFlowSensitive
+     * @param filter
+     * @param filterInstanceKey
+     * @param target
+     * @param targetIsFlowSensitive
+     * @param ippr
+     * @param originator
      */
     private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source,
                                                     boolean sourceIsFlowSensitive, TypeFilter filter,
@@ -602,9 +609,9 @@ public class PointsToGraph {
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || filter == null : "If either is flow sensitive then filter must be null";
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || ippr != null : "If either is flow sensitive then ippr must be non null";
 
-        assert filterInstanceKey == null || (filterInstanceKey > 0 && isMostRecentObject(filterInstanceKey));
-        assert filterInstanceKey == null
-                || (filterInstanceKey == baseNodeForPointsToGraphNode(source) && sourceIsFlowSensitive);
+        assert filterInstanceKey != null ? (filterInstanceKey >= 0 && isMostRecentObject(filterInstanceKey)) : true;
+        assert filterInstanceKey != null
+                ? (filterInstanceKey == baseNodeForPointsToGraphNode(source) && sourceIsFlowSensitive) : true;
 
         assert source >= 0 && target >= 0;
 
@@ -1714,17 +1721,34 @@ public class PointsToGraph {
     }
 
     /**
-     * Return the set of InstanceKeys that are in source (and satisfy filter)
-     * but are not in target.
+     * Return the set of InstanceKeys that are pointed to by source (and satisfy filter) but are not pointed to by
+     * target.
      *
-     * @param source
-     * @param filter
-     * @param target
+     * If ippr is not null it means we are interested either in:
+     *
+     * - the difference between pointsToFS(source, ippr) and pointsToFI(target) (if source is flow sensitive)
+     * 
+     * or
+     * 
+     * - the difference between pointsToFI(source) and pointsToFS(target, ippr) (if target is flow sensitive)
+     *
+     *
+     *
+     * @param source the source PointsToGraphNode
+     * @param sourceIsFlowSensitive is the source PointsToGraphNode flow sensitive? Should be equal to
+     *            this.isFlowSensitivePointsToGraphNode(source)
+     * @param filter TypeFilter to use to filter the contents of the points to set of source.
+     * @param target The target node.
+     * @param targetIsFlowSensitive is the target PointsToGraphNode flow sensitive? Should be equal to
+     *            this.isFlowSensitivePointsToGraphNode(target)
+     * @param ippr the InterProgramPointReplica for the flow sensitive points to set.
+     * @param originator The StmtAndContext that is responsible for causing this to run.
      * @return
      */
-    IntSet getDifference(/*PointsToGraphNode*/int source, boolean sourceIsFlowSensitive, TypeFilter filter,
+    private IntSet getDifference(/*PointsToGraphNode*/int source, boolean sourceIsFlowSensitive, TypeFilter filter,
     /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, InterProgramPointReplica ippr,
                          StmtAndContext originator) {
+
         source = this.getRepresentative(source);
 
         IntIterator srcIter;
@@ -1751,6 +1775,18 @@ public class PointsToGraph {
 
     }
 
+    /**
+     * Compute the difference between the set implied by srcIter and the set pointed to by target. XXX need more info
+     * here.
+     *
+     * @param srcIter
+     * @param target
+     * @param targetIsFlowSensitive
+     * @param addAtPoints
+     * @param filterBaseNodeOfField
+     * @param originator
+     * @return
+     */
     private IntSet getDifference(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
     /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, ExplicitProgramPointSet addAtPoints,
                                  boolean filterBaseNodeOfField, StmtAndContext originator) {
@@ -2186,15 +2222,23 @@ public class PointsToGraph {
         return this.ppReach;
     }
 
-    public Set<OrderedPair<IMethod, Context>> getCalleesOf(OrderedPair<IMethod, Context> caller) {
-        Set<OrderedPair<IMethod, Context>> callees = new LinkedHashSet<>();
+    public Set<ProgramPointReplica> getCallSitesOf(OrderedPair<IMethod, Context> caller) {
+        Set<ProgramPointReplica> callSites = new LinkedHashSet<>();
         for (CallSiteProgramPoint cs : this.registrar.getCallSitesForMethod(caller.fst())) {
-            Set<OrderedPair<IMethod, Context>> t = this.callGraphMap.get(cs);
-            if (t != null) {
-                callees.addAll(t);
-            }
+            callSites.add(cs.getReplica(caller.snd()));
         }
-        return callees;
+        return callSites;
+    }
+
+    public Set<OrderedPair<IMethod, Context>> getCalleesOf(ProgramPointReplica callSite) {
+        OrderedPair<CallSiteProgramPoint, Context> callSiteNode = new OrderedPair<>((CallSiteProgramPoint) callSite.getPP(),
+                                                                                    callSite.getContext());
+        Set<OrderedPair<IMethod, Context>> calleeCallGraphNodes = this.callGraphMap.get(callSiteNode);
+        if (calleeCallGraphNodes != null) {
+            return calleeCallGraphNodes;
+        }
+        return Collections.emptySet();
+
     }
 
     public Set<OrderedPair<IMethod, Context>> getCallersOf(OrderedPair<IMethod, Context> callee) {
@@ -2207,5 +2251,6 @@ public class PointsToGraph {
         }
         return callers;
     }
+
 
 }

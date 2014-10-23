@@ -8,6 +8,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,7 +103,7 @@ public class ProgramPointReachability {
                 return UNREACHABLE;
             }
             MutableIntSet killed = MutableSparseIntSet.createMutableSparseIntSet(a.killed.size() + b.killed.size());
-            Set<FieldReference> maybeKilledFields = new HashSet<>();
+            Set<FieldReference> maybeKilledFields = new LinkedHashSet<>();
             MutableIntSet alloced = MutableSparseIntSet.createMutableSparseIntSet(a.alloced.size() + b.alloced.size());
 
             killed.addAll(a.killed);
@@ -137,7 +138,7 @@ public class ProgramPointReachability {
                 // So copy over the sets res.killed and res.alloced.
                 this.killed = MutableSparseIntSet.createMutableSparseIntSet(2);
                 this.killed.copySet(res.killed);
-                this.maybeKilledFields = new HashSet<>(res.maybeKilledFields);
+                this.maybeKilledFields = new LinkedHashSet<>(res.maybeKilledFields);
                 this.alloced = MutableSparseIntSet.createMutableSparseIntSet(2);
                 this.alloced.copySet(res.alloced);
                 return true;
@@ -245,9 +246,6 @@ public class ProgramPointReachability {
     public boolean reachable(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, StmtAndContext originatingSaC,
                              Set<StmtAndContext> sacsToReprocess) {
-        System.err.println("Starting reachable query " + sources + " to " + destination + " nokill " + noKill
-                + " noalloc "
-                + noAlloc);
         assert allMostRecent(noAlloc);
         // check the caches
         List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
@@ -269,13 +267,7 @@ public class ProgramPointReachability {
             return false;
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
-        boolean ret = computeQuery(unknown, destination, noKill, noAlloc, originatingSaC, sacsToReprocess);
-
-        System.err.println("Finished reachable query " + sources + " to " + destination + " nokill " + noKill
-                + " noalloc "
-                + noAlloc);
-
-        return ret;
+        return computeQuery(unknown, destination, noKill, noAlloc, originatingSaC, sacsToReprocess);
     }
 
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
@@ -288,24 +280,18 @@ public class ProgramPointReachability {
             MemoResult query = new MemoResult(src, destination, noKill, noAlloc);
             assert !positiveCache.contains(query);
 
-            System.err.println("  **Starting query " + src + " to " + destination + " nokill " + noKill + " noalloc "
-                    + noAlloc);
-
             // First check the call graph to find the set of relevant call graph nodes.
             OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
                     src.getContext());
-            Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(sourceMethod, destinationMethod);
-            System.err.println("    Point Z: returned from relevant nodes ");
+            Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(sourceMethod, destinationMethod, query);
+
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
-                System.err.println("    Point A: no relevant nodes ");
-
                 addSaCDependency(query, originatingSaC);
                 recordQueryResult(query, false, sacsToReprocess);
                 continue;
             }
             // Now try a depth first search through the relevant nodes...
-            System.err.println("    Point B: starting searchThrough relevant nodes");
             if (searchThroughRelevantNodes(src,
                                            destination,
                                            noKill,
@@ -316,11 +302,8 @@ public class ProgramPointReachability {
                                            sacsToReprocess)) {
                 // we found it!
                 recordQueryResult(query, true, sacsToReprocess);
-
-                System.err.println("    Point C: positive result from searchThrough relevant nodes");
                 return true;
             }
-            System.err.println("    Point D: negative result from searchThrough relevant nodes");
             addSaCDependency(query, originatingSaC);
             recordQueryResult(query, false, sacsToReprocess);
         }
@@ -338,6 +321,7 @@ public class ProgramPointReachability {
      * @param sacsToReprocess
      */
     private void recordQueryResult(MemoResult mr, boolean b, Set<StmtAndContext> sacsToReprocess) {
+        System.err.println("Recording query result : " + b + " " + mr);
         if (b) {
             positiveCache.add(mr);
             if (negativeCache.remove(mr)) {
@@ -368,10 +352,11 @@ public class ProgramPointReachability {
      *
      * @param sourceCGNode
      * @param destinationCGNode
+     * @param query
      * @return
      */
     private Set<OrderedPair<IMethod, Context>> findRelevantNodes(OrderedPair<IMethod, Context> sourceCGNode,
-                                                                 OrderedPair<IMethod, Context> destinationCGNode) {
+                                                                 OrderedPair<IMethod, Context> destinationCGNode, MemoResult query) {
         Set<OrderedPair<IMethod, Context>> s = new HashSet<>();
         // first find the CG nodes reachable from sourceCGNode
         Deque<OrderedPair<IMethod, Context>> q = new ArrayDeque<>();
@@ -379,11 +364,16 @@ public class ProgramPointReachability {
         s.add(sourceCGNode);
         while (!q.isEmpty()) {
             OrderedPair<IMethod, Context> cgnode = q.poll();
-            for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(cgnode)) {
-                if (s.add(callee)) {
-                    q.add(callee);
+            for (ProgramPointReplica callSite : g.getCallSitesOf(cgnode)) {
+                this.addCalleeDependency(query, callSite);
+                for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
+                    if (s.add(callee)) {
+                        q.add(callee);
+                    }
                 }
+
             }
+            this.addCallerDependency(query, cgnode);
             for (OrderedPair<IMethod, Context> caller : g.getCallersOf(cgnode)) {
                 if (s.add(caller)) {
                     q.add(caller);
@@ -401,11 +391,15 @@ public class ProgramPointReachability {
         t.add(destinationCGNode);
         while (!q.isEmpty()) {
             OrderedPair<IMethod, Context> cgnode = q.poll();
-            for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(cgnode)) {
-                if (s.contains(callee) && t.add(callee)) {
-                    q.add(callee);
+            for (ProgramPointReplica callSite : g.getCallSitesOf(cgnode)) {
+                this.addCalleeDependency(query, callSite);
+                for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
+                    if (s.contains(callee) && t.add(callee)) {
+                        q.add(callee);
+                    }
                 }
             }
+            this.addCallerDependency(query, cgnode);
             for (OrderedPair<IMethod, Context> caller : g.getCallersOf(cgnode)) {
                 if (s.contains(caller) && t.add(caller)) {
                     q.add(caller);
@@ -741,19 +735,20 @@ public class ProgramPointReachability {
 
     }
 
-    private final ConcurrentMap<IMethod, ReachabilityResult> memoization = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, ReachabilityResult> memoization = AnalysisUtil.createConcurrentHashMap();
 
     /*
      * Get the reachability results for a method.
      */
     ReachabilityResult getReachabilityForMethod(IMethod m, Context context, Set<StmtAndContext> sacsToReprocess) {
-        ReachabilityResult res = memoization.get(m);
+        OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
+        ReachabilityResult res = memoization.get(cgnode);
         if (res != null) {
             return res;
         }
         // no results yet.
         res = ReachabilityResult.createInitial();
-        ReachabilityResult existing = memoization.putIfAbsent(m, res);
+        ReachabilityResult existing = memoization.putIfAbsent(cgnode, res);
         if (existing != null) {
             // someone beat us to it, and is currently working on the results.
             return existing;
@@ -761,10 +756,13 @@ public class ProgramPointReachability {
         return computeReachabilityForMethod(m, context, sacsToReprocess);
     }
 
-    private void recordMethodReachability(IMethod m, ReachabilityResult res, Set<StmtAndContext> sacsToReprocess) {
-        if (memoization.put(m, res) != null) {
+    private void recordMethodReachability(IMethod m, Context context, ReachabilityResult res,
+                                          Set<StmtAndContext> sacsToReprocess) {
+        System.err.println("Recording method reachavility result : " + m + " " + context);
+        OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
+        if (memoization.put(cgnode, res) != null) {
             // trigger update for dependencies.
-            methodReachabilityChanged(m, sacsToReprocess);
+            methodReachabilityChanged(m, context, sacsToReprocess);
         }
     }
 
@@ -906,7 +904,7 @@ public class ProgramPointReachability {
         rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), results.get(normExitIPP));
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), results.get(exExitIPP));
 
-        recordMethodReachability(m, rr, sacsToReprocess);
+        recordMethodReachability(m, context, rr, sacsToReprocess);
 
         return rr;
     }
@@ -980,6 +978,12 @@ public class ProgramPointReachability {
             return true;
         }
 
+        @Override
+        public String toString() {
+            return "MemoResult [" + source + " => " + destination + ", noKill=" + noKill
+                    + ", noAlloc=" + noAlloc + "]";
+        }
+
     }
 
     /* *****************************************************************************
@@ -997,6 +1001,13 @@ public class ProgramPointReachability {
     private final ConcurrentIntMap<Set<MemoResult>> killQueryDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     private final ConcurrentIntMap<Set<OrderedPair<IMethod, Context>>> killMethodDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
+    /**
+     * Record the fact that the result of query depends on the callees of callSite, and thus, if the callees change,
+     * then query may need to be reevaluated.
+     *
+     * @param query
+     * @param callSite
+     */
     private void addCalleeDependency(MemoResult query, ProgramPointReplica callSite) {
         assert callSite.getPP() instanceof CallSiteProgramPoint;
 
@@ -1197,15 +1208,16 @@ public class ProgramPointReachability {
 
     }
 
-    private void methodReachabilityChanged(IMethod m, Set<StmtAndContext> sacsToReprocess) {
-        Set<OrderedPair<IMethod, Context>> meths = methodMethodDependencies.get(m);
+    private void methodReachabilityChanged(IMethod m, Context context, Set<StmtAndContext> sacsToReprocess) {
+        OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
+        Set<OrderedPair<IMethod, Context>> meths = methodMethodDependencies.get(cgnode);
         if (meths != null) {
             for (OrderedPair<IMethod, Context> p : meths) {
                 // need to re-run the analysis of p
                 computeReachabilityForMethod(p.fst(), p.snd(), sacsToReprocess);
             }
         }
-        Set<MemoResult> queries = methodQueryDependencies.get(m);
+        Set<MemoResult> queries = methodQueryDependencies.get(cgnode);
         if (queries != null) {
             Iterator<MemoResult> iter = queries.iterator();
             while (iter.hasNext()) {
