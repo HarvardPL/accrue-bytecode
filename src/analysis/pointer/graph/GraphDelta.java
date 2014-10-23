@@ -1,8 +1,8 @@
 package analysis.pointer.graph;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import util.intmap.IntMap;
@@ -137,7 +137,7 @@ public class GraphDelta {
         int n = g.lookupDictionary(ikr);
         Set<ProgramPointReplica> p = deltaAllocationSites.get(n);
         if (p == null) {
-            p = new HashSet<>();
+            p = new LinkedHashSet<>();
             deltaAllocationSites.put(n, p);
         }
         return p.add(ppr);
