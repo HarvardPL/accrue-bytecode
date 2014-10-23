@@ -131,7 +131,10 @@ public class AbstractLocation {
         if (isArrayContents) {
             return receiverContext + "." + PointsToGraph.ARRAY_CONTENTS;
         }
-        return PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
-                                        + (receiverContext == null ? " (static)" : " in " + receiverContext);
+        if (field == null) {
+            System.err.println("WARNING: null field in AbstractLocation in  " + receiverContext);
+        }
+        return (field != null ? PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
+                : "NULL FIELD") + (receiverContext == null ? " (static)" : " in " + receiverContext);
     }
 }
