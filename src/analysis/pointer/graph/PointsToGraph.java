@@ -523,7 +523,10 @@ public class PointsToGraph {
         // for all fields fld in the concrete type of ik, we want to make sure that
         // pointsToFS(ikrecent.fld, ppr_pre) \subseteq pointstoFI(iknotrecent.fle, ppr_post)
 
-        for (IField fld : newlyAllocated.getConcreteType().getAllInstanceFields()) {
+        IClass concreteType = newlyAllocated.getConcreteType();
+        assert !concreteType.isArrayClass() : "We don't currently track the most recent version of arrays.";
+
+        for (IField fld : concreteType.getAllInstanceFields()) {
             int recFld = lookupDictionary(new ObjectField(newlyAllocated, fld.getReference()));
             recFld = getRepresentative(recFld);
 
@@ -536,7 +539,7 @@ public class PointsToGraph {
             if (isFlowSensSubsetOf.addAnnotation(recFld,
                                                  notrecFld,
                                                  new OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet>(null,
-                                                                   ExplicitProgramPointSet.singleton(ppr.pre())))) {
+                                                                                                                   ExplicitProgramPointSet.singleton(ppr.pre())))) {
                 // this is a new subset relation!
                 computeDeltaForAddedSubsetRelation(changed,
                                                    recFld,
@@ -670,7 +673,7 @@ public class PointsToGraph {
                     foundAt = i;
                 }
                 hasMeaningfulFilter |= filterStack.get(i) != null;
-                isFlowSensitive |= programPointStack.get(i) != null; // for the moment, we won't try to do anything smart with flow-sensitive cycles. Could do a lot better...
+                //isFlowSensitive |= programPointStack.get(i) != null; // for the moment, we won't try to do anything smart with flow-sensitive cycles. Could do a lot better...
             }
             if (!hasMeaningfulFilter && !isFlowSensitive) {
                 // we can collapse some nodes together!
@@ -696,7 +699,6 @@ public class PointsToGraph {
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
-        programPointStack.push(null);
 
         // propagate to the immediate supersets
 
@@ -784,9 +786,6 @@ public class PointsToGraph {
             // extract the filter and non-filter set from the annotation and pass it to propagateDifference
             ExplicitProgramPointSet noFilterPPSetToAdd = targetIsFlowSensitive ? null : noFilterPPSet;
             ExplicitProgramPointSet filterPPSetToAdd = targetIsFlowSensitive ? null : filterPPSet;
-            programPointStack.pop();
-            programPointStack.push(noFilterPPSetToAdd);
-            programPointStack.push(filterPPSetToAdd);
 
             propagateDifference(changed,
                                 m,
@@ -805,8 +804,6 @@ public class PointsToGraph {
         }
         currentlyAdding.remove(target);
         currentlyAddingStack.pop();
-        programPointStack.pop();
-        programPointStack.pop();
 
     }
 
@@ -827,13 +824,12 @@ public class PointsToGraph {
      * @param programPointStack
      * @param toCollapse
      */
-    private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, Set<TypeFilter> filters,
+    private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target,
+                                     boolean targetIsFlowSensitive, Set<TypeFilter> filters,
                                      ExplicitProgramPointSet noFilterTargetPoints,
                                      ExplicitProgramPointSet filterTargetPoints,
-                                     /*Set<InstanceKeyRecency>*/IntSet setToAdd,
- MutableIntSet currentlyAdding,
-                                     IntStack currentlyAddingStack,
-                                     Stack<Set<TypeFilter>> filterStack,
+                                     /*Set<InstanceKeyRecency>*/IntSet setToAdd, MutableIntSet currentlyAdding,
+                                     IntStack currentlyAddingStack, Stack<Set<TypeFilter>> filterStack,
                                      Stack<ExplicitProgramPointSet> programPointStack,
                                      IntMap<MutableIntSet> toCollapse, StmtAndContext originator) {
 
@@ -842,6 +838,10 @@ public class PointsToGraph {
 
         IntIterator iter = filters == null ? setToAdd.intIterator() : new FilteredIterator(setToAdd.intIterator(), filters);
         filterStack.push(filters);
+
+        assert targetIsFlowSensitive
+                ? ((noFilterTargetPoints != null && !noFilterTargetPoints.isEmpty()) || (filterTargetPoints != null && !filterTargetPoints.isEmpty()))
+                : true : "If target is flow sensitive, then one of noFilterTargetPoints or filterTargetPoints must be nonempty";
 
         // The set of elements that will be added to the superset at target points that are not filtered
         IntSet noFilterDiff = this.getDifference(iter,
@@ -1422,6 +1422,7 @@ public class PointsToGraph {
             this.iter = iter;
             this.recentInstanceKey = recentInstanceKey;
             this.g = g;
+            assert recentInstanceKey >= 0;
             assert g.isMostRecentObject(recentInstanceKey);
         }
         @Override
@@ -1752,16 +1753,17 @@ public class PointsToGraph {
 
     private IntSet getDifference(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
     /*PointsToGraphNode*/int target, boolean targetIsFlowSensitive, ExplicitProgramPointSet addAtPoints,
-                                 boolean filtered,
-                                 StmtAndContext originator) {
-        assert !targetIsFlowSensitive || (addAtPoints != null && !addAtPoints.isEmpty()) : "If target is flow sensitive, then addAtPoints must be nonempty";
+                                 boolean filterBaseNodeOfField, StmtAndContext originator) {
         target = this.getRepresentative(target);
 
-        if (filtered) {
+        if (filterBaseNodeOfField) {
             assert !lookupPointsToGraphNodeDictionary(target).isFlowSensitive();
             // if the subset relation is filtered at addAtPoints, then we need to modify the set of instance keys
             // to replace the base of target with the non-most recent version of it.
-            srcIter = new ChangeRecentInstanceKeyIterator(srcIter, baseNodeForPointsToGraphNode(target), this);
+            int baseNode = baseNodeForPointsToGraphNode(target);
+            if (baseNode >= 0) { // XXX Should we really have to do this check? Shouldn't the caller be smarter?
+                srcIter = new ChangeRecentInstanceKeyIterator(srcIter, baseNode, this);
+            }
         }
 
         if (!srcIter.hasNext()) {
@@ -2188,15 +2190,20 @@ public class PointsToGraph {
         Set<OrderedPair<IMethod, Context>> callees = new LinkedHashSet<>();
         for (CallSiteProgramPoint cs : this.registrar.getCallSitesForMethod(caller.fst())) {
             Set<OrderedPair<IMethod, Context>> t = this.callGraphMap.get(cs);
-            callees.addAll(t);
+            if (t != null) {
+                callees.addAll(t);
+            }
         }
         return callees;
     }
 
     public Set<OrderedPair<IMethod, Context>> getCallersOf(OrderedPair<IMethod, Context> callee) {
         Set<OrderedPair<IMethod, Context>> callers = new LinkedHashSet<>();
-        for (OrderedPair<CallSiteProgramPoint, Context> cs : this.callGraphReverseMap.get(callee)) {
-            callers.add(new OrderedPair<>(cs.fst().containingProcedure(), cs.snd()));
+        Set<OrderedPair<CallSiteProgramPoint, Context>> callerCallGraphNodes = this.callGraphReverseMap.get(callee);
+        if (callerCallGraphNodes != null) {
+            for (OrderedPair<CallSiteProgramPoint, Context> cs : callerCallGraphNodes) {
+                callers.add(new OrderedPair<>(cs.fst().containingProcedure(), cs.snd()));
+            }
         }
         return callers;
     }
