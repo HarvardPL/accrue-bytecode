@@ -97,7 +97,12 @@ public class NewStatement extends PointsToStatement {
 
     @Override
     public InstanceKeyRecency justAllocated(Context context, PointsToGraph g) {
-        return g.getHaf().record(alloc, context);
+        InstanceKeyRecency i = g.getHaf().record(alloc, context);
+        if (i.isTrackingMostRecent()) {
+            assert i.isRecent();
+            return i;
+        }
+        return null;
     }
 
     @Override
