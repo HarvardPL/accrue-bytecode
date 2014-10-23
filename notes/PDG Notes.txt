@@ -2,23 +2,15 @@ TODO no need for {v1} after "this" for variable names
 
 TODO Gen exceptions should carry the PC? They didn't in Infoflow, fix this in Infoflow
 
-TODO ReferenceVariableFactory is not threadsafe
-
-TODO signature for getClassLoader() etc
+TODO signature for getClassLoader(), array.clone() etc
 
 TODO mark Native nodes as "estimated type"
 
 TODO remove trailing semicolon from callgraph
 
-XXX Policy 2 for tax doesn't work, we can get explicit flows, but not PC flows.
-
-TODO all flags in StatementRegistrar should be full-fleged options
-
 TODO option to not use signature for non-native methods
  
 XXX clinit sneaking in twice when we turn off "seenInstanceOf" in the registrar
-
-TODO extra dot at the end of procedure names in heap nodes for instance init methods
 
 TODO language needs an "is nonempty" for debugging purposes
 
