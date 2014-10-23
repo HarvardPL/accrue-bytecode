@@ -430,4 +430,8 @@ public class ProgramPoint {
         this.succs.clear();
         this.isDiscarded = true;
     }
+
+    public ProgramPointReplica getReplica(Context context) {
+        return ProgramPointReplica.create(context, this);
+    }
 }
