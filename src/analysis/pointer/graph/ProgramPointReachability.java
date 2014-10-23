@@ -801,7 +801,6 @@ public class ProgramPointReachability {
             assert pp.containingProcedure().equals(m);
 
             KilledAndAlloced current = getOrCreate(results, ipp);
-            assert current.killed != null;
 
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
