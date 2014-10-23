@@ -61,6 +61,7 @@ public class InstanceKeyRecency implements InstanceKey {
     }
 
     public InstanceKeyRecency recent(boolean recent) {
+        assert isTrackingMostRecent : "Should only be calling this on instance keys that we are tracking the most recent.";
         if (this.recent == recent) {
             return this;
         }
