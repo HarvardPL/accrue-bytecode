@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentMap;
 import util.OrderedPair;
 import util.WorkQueue;
 import util.intmap.ConcurrentIntMap;
+import util.intset.EmptyIntSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -102,16 +103,24 @@ public class ProgramPointReachability {
                 // represents everything!
                 return UNREACHABLE;
             }
-            MutableIntSet killed = MutableSparseIntSet.createMutableSparseIntSet(a.killed.size() + b.killed.size());
+            int killedSize = a.killed.size() + b.killed.size();
+            MutableIntSet killed = killedSize == 0 ? EmptyIntSet.INSTANCE
+                    : MutableSparseIntSet.createMutableSparseIntSet(killedSize);
             Set<FieldReference> maybeKilledFields = new LinkedHashSet<>();
-            MutableIntSet alloced = MutableSparseIntSet.createMutableSparseIntSet(a.alloced.size() + b.alloced.size());
+            int allocedSize = a.alloced.size() + b.alloced.size();
+            MutableIntSet alloced = allocedSize == 0 ? EmptyIntSet.INSTANCE
+                    : MutableSparseIntSet.createMutableSparseIntSet(allocedSize);
 
-            killed.addAll(a.killed);
-            killed.addAll(b.killed);
+            if (killedSize > 0) {
+                killed.addAll(a.killed);
+                killed.addAll(b.killed);
+            }
             maybeKilledFields.addAll(a.maybeKilledFields);
             maybeKilledFields.addAll(b.maybeKilledFields);
-            alloced.addAll(a.alloced);
-            alloced.addAll(b.alloced);
+            if (allocedSize > 0) {
+                alloced.addAll(a.alloced);
+                alloced.addAll(b.alloced);
+            }
 
             return new KilledAndAlloced(killed, maybeKilledFields, alloced);
         }
@@ -321,7 +330,7 @@ public class ProgramPointReachability {
      * @param sacsToReprocess
      */
     private void recordQueryResult(MemoResult mr, boolean b, Set<StmtAndContext> sacsToReprocess) {
-        System.err.println("Recording query result : " + b + " " + mr);
+        //System.err.println("Recording query result : " + b + " " + mr);
         if (b) {
             positiveCache.add(mr);
             if (negativeCache.remove(mr)) {
@@ -696,13 +705,19 @@ public class ProgramPointReachability {
         }
 
         public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
-            assert res != null;
             assert target != null;
             assert source.getContainingProcedure().equals(target.getContainingProcedure());
             assert source.getContext().equals(target.getContext());
             ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
-            KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
-            assert existing == null;
+            if (res != null) {
+                KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
+                assert existing == null;
+            }
+            else {
+                // we are putting in null, i.e., the target is not reachable from the source.
+                assert !thisTargetMap.containsKey(target);
+                //thisTargetMap.remove(target);
+            }
         }
 
         private static KilledAndAlloced getTargetResult(ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> targetMap,
@@ -901,8 +916,8 @@ public class ProgramPointReachability {
         PreProgramPoint normExitIPP = summ.getNormalExitPP().pre();
         PreProgramPoint exExitIPP = summ.getExceptionExitPP().pre();
 
-        rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), results.get(normExitIPP));
-        rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), results.get(exExitIPP));
+        rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), getOrCreate(results, normExitIPP));
+        rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
         recordMethodReachability(m, context, rr, sacsToReprocess);
 
