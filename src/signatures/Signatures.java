@@ -648,6 +648,25 @@ public class Signatures {
     private static Set<TypeName> immutableWrappers = new HashSet<>();
 
     /**
+     * Is this method System.arraycopy
+     * 
+     * @param mr method to check
+     * @return true if the method is System.arraycopy
+     */
+    public static boolean isArraycopy(MethodReference mr) {
+        return false;
+        //        TypeName name = mr.getDeclaringClass().getName();
+        //        if (!name.equals(TypeReference.JavaLangSystem.getName())) {
+        //            return false;
+        //        }
+        //
+        //        if (mr.getName().toString().contains("arraycopy")) {
+        //            return true;
+        //        }
+        //        return false;
+    }
+
+    /**
      * Check whether the given type is one of the immutable wrapper classes (String, Integer, etc.)
      *
      * @param t type to check

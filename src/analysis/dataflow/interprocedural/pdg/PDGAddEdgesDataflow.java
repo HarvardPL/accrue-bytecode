@@ -727,7 +727,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             // TODO if no NPE throw WrongMethodTypeException
         }
 
-        if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())) {
+        if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())
+                || Signatures.isArraycopy(i.getDeclaredTarget())) {
             if (!i.getDeclaredTarget().getName().equals(MethodReference.clinitName)) { // not the class init method
                 // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
                 // The Objects are handled as if they were a primitive.
@@ -797,23 +798,20 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             }
         }
 
-        if (!normalExits.isEmpty()) {
-            // at least one callee can terminate normally
-            PDGNode result = null;
-            if (i.getNumberOfReturnValues() > 0) {
-                // Method has a return
-                result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
-            }
+        PDGNode result = null;
+        if (i.getNumberOfReturnValues() > 0) {
+            // Method has a return
+            result = PDGNodeFactory.findOrCreateLocalDef(i, currentNode, pp);
+        }
 
+        if (normalExitPC != null) {
             // Connect up the callee summary nodes to nodes in the caller
-            assert normalExitPC != null : "Should be no normal exits if callees cannot terminate normally";
             handleCalleeExit(callSitePC, normalExits, exit, i, result, normalExitPC, ExitType.NORMAL);
         }
 
-        if (!exceptionExits.isEmpty()) {
-            // some callee may throw an exception
-            PDGContext exExitContext = calleeExceptionContexts.get(i);
-
+        // some callee may throw an exception
+        PDGContext exExitContext = calleeExceptionContexts.get(i);
+        if (exExitContext != null) {
             // Connect up the callee summary nodes to nodes in the caller
             handleCalleeExit(callSitePC,
                              exceptionExits,
@@ -842,7 +840,17 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // If the target is an array this is the contents
         Set<PDGNode> arrayContents = null;
 
-        if (i.getNumberOfReturnValues() == 0 && mr.isInit()) {
+        if (Signatures.isArraycopy(i.getDeclaredTarget())) {
+            targetNode = null;
+            startIndex = 0;
+
+            // The third argument is the destination array
+            arrayContents = new LinkedHashSet<>();
+            for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getUse(2), currentNode)) {
+                arrayContents.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
+            }
+        }
+        else if (i.getNumberOfReturnValues() == 0 && mr.isInit()) {
             startIndex = 1;
             // Instance initializer add edges to the receiver
             targetNode = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
@@ -897,7 +905,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             addEdge(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp), expr, PDGEdgeType.EXP);
 
             // If this argument is an array add an edge from the contents as well
-            if ((j - offset) > 0 && mr.getParameterType(j - offset).isArrayType()) {
+            if ((j - offset) >= 0 && interProc.isArray(i.getUse(j), currentNode, mr.getParameterType(j - offset))) {
                 Set<PDGNode> locNodes = new LinkedHashSet<>();
                 for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getUse(j), currentNode)) {
                     locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
@@ -958,7 +966,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     private void handleCalleeExit(PDGNode callSitePC, Set<OrderedPair<CGNode, PDGContext>> exits,
                                   CallSiteEdgeLabel exitLabel, SSAInvokeInstruction i, PDGNode result,
                                   PDGNode pcResult, ExitType type) {
-        assert !exits.isEmpty() : "No exits for " + i + " for " + type;
+        // assert !exits.isEmpty() : "No exits for " + i + " for " + type;
         assert callSitePC.getNodeType().isPathCondition();
         assert exitLabel != null;
         assert pcResult != null;
@@ -974,11 +982,31 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                 exitAssignments.add(res.snd());
             }
         }
-        PDGNode pcMerge = mergeIfNecessary(pcJoins, type + "_PC_MERGE", PDGNodeType.PC_MERGE, k);
+        PDGNode pcMerge;
+        if (pcJoins.isEmpty()) {
+            // Just copy the callSite PC to the result if there are no calls to process
+            System.err.println("\tNO CALLEES for " + i);
+            String methodName = PrettyPrinter.methodString(i.getDeclaredTarget());
+            String desc = "SYNTHETIC " + type + "_EXIT_PC after " + methodName;
+            pcMerge = PDGNodeFactory.findOrCreateOther(desc, PDGNodeType.EXIT_PC_JOIN, currentNode, k);
+            addEdge(callSitePC, pcMerge, PDGEdgeType.CONJUNCTION);
+        }
+        else {
+            pcMerge = mergeIfNecessary(pcJoins, type + "_PC_MERGE", PDGNodeType.PC_MERGE, k);
+        }
         addEdge(pcMerge, pcResult, PDGEdgeType.CONJUNCTION);
 
         if (result != null) {
-            PDGNode retMerge = mergeIfNecessary(exitAssignments, type + "_RET_MERGE", PDGNodeType.OTHER_EXPRESSION, k);
+            PDGNode retMerge;
+            if (exitAssignments.isEmpty()) {
+                // Also make sure that the exit assignment gets implicitly guarded appropriately
+                String methodName = PrettyPrinter.methodString(i.getDeclaredTarget());
+                String s = "SYNTHETIC " + type + "_RET after " + methodName;
+                retMerge = PDGNodeFactory.findOrCreateOther(s, PDGNodeType.EXIT_ASSIGNMENT, currentNode, k);
+                addEdge(pcResult, retMerge, PDGEdgeType.IMPLICIT);
+            } else {
+                retMerge = mergeIfNecessary(exitAssignments, type + "_RET_MERGE", PDGNodeType.OTHER_EXPRESSION, k);
+            }
             addEdge(retMerge, result, PDGEdgeType.COPY);
         }
     }
