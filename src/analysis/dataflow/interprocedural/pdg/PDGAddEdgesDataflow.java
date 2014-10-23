@@ -985,7 +985,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         PDGNode pcMerge;
         if (pcJoins.isEmpty()) {
             // Just copy the callSite PC to the result if there are no calls to process
-            System.err.println("\tNO CALLEES for " + i);
             String methodName = PrettyPrinter.methodString(i.getDeclaredTarget());
             String desc = "SYNTHETIC " + type + "_EXIT_PC after " + methodName;
             pcMerge = PDGNodeFactory.findOrCreateOther(desc, PDGNodeType.EXIT_PC_JOIN, currentNode, k);
