@@ -72,12 +72,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         long startTime = System.currentTimeMillis();
 
 
-        //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
         final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
-        //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
-        //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-        //                                                                                               null,
-        //                                                                                               true));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -123,9 +118,18 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     execService.submitTask(newSaC);
                 }
             }
+
         };
 
-        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder);
+
+        PointsToAnalysisHandle analysisHandle = new PointsToAnalysisHandle() {
+            @Override
+            public void submitStmtAndContext(StmtAndContext sac) {
+                execService.submitTask(sac);
+            }
+        };
+
+        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
         execService.setGraphAndRegistrar(g, registrar);
 
         // Add initial contexts
@@ -205,18 +209,30 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // nothing to do.
             return;
         }
+        Set<StmtAndContext> reprocess = execService.g.ppReach.checkPointsToGraphDelta(changes);
+        for (StmtAndContext sac : reprocess) {
+            // run the task, but with an empty delta to force the appropriate reading of
+            // kill nodes.
+            execService.submitTask(sac, null);
+        }
+
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
             for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
-                execService.submitTask(depSaC, changes);
+                if (!reprocess.contains(depSaC)) {
+                    execService.submitTask(depSaC, changes);
+                    reprocess.add(depSaC);
+                }
             }
         }
         iter = changes.newAllocationSitesIterator();
         while (iter.hasNext()) {
             int ikr = iter.next();
             for (StmtAndContext depSaC : this.getAllocationDependencies(ikr)) {
-                execService.submitTask(depSaC, changes);
+                if (!reprocess.contains(depSaC)) {
+                    execService.submitTask(depSaC, changes);
+                }
             }
         }
     }
@@ -237,14 +253,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private AtomicLong totalTasksNoDelta;
         private AtomicLong totalTasksWithDelta;
-        private AtomicLong totalPropagateTasks;
 
         public ExecutorServiceCounter(ExecutorService exec) {
             this.exec = exec;
             this.numTasks = new AtomicLong(0);
             this.totalTasksNoDelta = new AtomicLong(0);
             this.totalTasksWithDelta = new AtomicLong(0);
-            this.totalPropagateTasks = new AtomicLong(0);
         }
 
 

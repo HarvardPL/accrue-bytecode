@@ -26,6 +26,7 @@ import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
+import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.AnnotatedIntRelation.SetAnnotatedIntRelation;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -246,14 +247,15 @@ public class PointsToGraph {
 
     private int outputLevel = 0;
 
-    public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf, DependencyRecorder depRecorder) {
+    public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf,
+                         DependencyRecorder depRecorder, PointsToAnalysisHandle analysisHandle) {
         this.depRecorder = depRecorder;
 
         this.registrar = registrar;
 
         this.haf = haf;
 
-        this.ppReach = new ProgramPointReachability(this);
+        this.ppReach = new ProgramPointReachability(this, analysisHandle);
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
 
@@ -1012,6 +1014,12 @@ public class PointsToGraph {
             }
         }
         t.add(callerPair);
+
+        if (changed) {
+            // we added a new edge in the call graph.
+            // Let the pp reach know.
+            this.ppReach.addCallGraphEdge(callSite, callerContext, callee, calleeContext);
+        }
         return changed;
     }
 
@@ -2015,7 +2023,7 @@ public class PointsToGraph {
             newMap.put(key, m.get(key));
         }
         if (dense) {
-            float util = ((DenseIntMap) newMap).utilization();
+            float util = ((DenseIntMap<?>) newMap).utilization();
             int length = Math.round(newMap.size() / util);
             System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
                     + (length - newMap.size()) + " empty slots out of " + length + ")");

@@ -1,19 +1,26 @@
 package analysis.pointer.graph;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import util.WorkQueue;
+import util.intmap.ConcurrentIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
+import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -26,6 +33,7 @@ import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
@@ -41,8 +49,16 @@ public class ProgramPointReachability {
      */
     private final PointsToGraph g;
 
-    ProgramPointReachability(PointsToGraph g) {
+    /**
+     * A reference ot allow us to submit a StmtAndContext for reprocessing
+     *
+     * @param g
+     */
+    private final PointsToAnalysisHandle analysisHandle;
+
+    ProgramPointReachability(PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
         this.g = g;
+        this.analysisHandle = analysisHandle;
     }
 
     /**
@@ -60,15 +76,43 @@ public class ProgramPointReachability {
          * sets represents the "universe" sets, e.g., if killed == null, then it means that all fields are killed on all
          * paths to the program point.
          */
-        static final KilledAndAlloced UNREACHABLE = new KilledAndAlloced(null, null);
+        static final KilledAndAlloced UNREACHABLE = new KilledAndAlloced(null, null, null);
 
         private/*Set<PointsToGraphNode>*/MutableIntSet killed;
         private/*Set<InstanceKeyRecency>*/MutableIntSet alloced;
+        private Set<FieldReference> maybeKilledFields;
 
-        KilledAndAlloced(MutableIntSet killed, MutableIntSet alloced) {
+        KilledAndAlloced(MutableIntSet killed, Set<FieldReference> maybeKilledFields, MutableIntSet alloced) {
             this.killed = killed;
+            this.maybeKilledFields = maybeKilledFields;
             this.alloced = alloced;
-            assert (killed == null && alloced == null) || (killed != null && alloced != null);
+            assert (killed == null && maybeKilledFields == null && alloced == null)
+                    || (killed != null && maybeKilledFields != null && alloced != null);
+        }
+
+        /**
+         * Combine (union) a and b.
+         *
+         * @param a
+         * @param b
+         */
+        public static KilledAndAlloced join(KilledAndAlloced a, KilledAndAlloced b) {
+            if (a.killed == null || b.killed == null) {
+                // represents everything!
+                return UNREACHABLE;
+            }
+            MutableIntSet killed = MutableSparseIntSet.createMutableSparseIntSet(a.killed.size() + b.killed.size());
+            Set<FieldReference> maybeKilledFields = new HashSet<>();
+            MutableIntSet alloced = MutableSparseIntSet.createMutableSparseIntSet(a.alloced.size() + b.alloced.size());
+
+            killed.addAll(a.killed);
+            killed.addAll(b.killed);
+            maybeKilledFields.addAll(a.maybeKilledFields);
+            maybeKilledFields.addAll(b.maybeKilledFields);
+            alloced.addAll(a.alloced);
+            alloced.addAll(b.alloced);
+
+            return new KilledAndAlloced(killed, maybeKilledFields, alloced);
         }
 
         /**
@@ -76,10 +120,12 @@ public class ProgramPointReachability {
          * imperatively updates the killed and alloced sets. It returns true if and only if the killed or alloced sets
          * of this object changed.
          */
-        public boolean update(KilledAndAlloced res) {
+        public boolean meet(KilledAndAlloced res) {
             assert (this != UNREACHABLE) : "Can't update the UNREACHABLE constant";
-            assert (killed == null && alloced == null) || (killed != null && alloced != null);
-            assert (res.killed == null && res.alloced == null) || (res.killed != null && res.alloced != null);
+            assert (killed == null && maybeKilledFields == null && alloced == null)
+                    || (killed != null && maybeKilledFields != null && alloced != null);
+            assert (res.killed == null && res.maybeKilledFields == null && res.alloced == null)
+                    || (res.killed != null && res.maybeKilledFields != null && res.alloced != null);
 
             if (this == res || res.killed == null) {
                 // no change to this object.
@@ -91,6 +137,7 @@ public class ProgramPointReachability {
                 // So copy over the sets res.killed and res.alloced.
                 this.killed = MutableSparseIntSet.createMutableSparseIntSet(0);
                 this.killed.copySet(res.killed);
+                this.maybeKilledFields = new HashSet<>(res.maybeKilledFields);
                 this.alloced = MutableSparseIntSet.createMutableSparseIntSet(0);
                 this.alloced.copySet(res.alloced);
                 return true;
@@ -101,7 +148,9 @@ public class ProgramPointReachability {
             int origAllocedSize = this.alloced.size();
             this.killed.intersectWith(res.killed);
             this.alloced.intersectWith(res.alloced);
-            return (this.killed.size() != origKilledSize || this.alloced.size() != origAllocedSize);
+            boolean changed = this.maybeKilledFields.retainAll(res.maybeKilledFields);
+            return changed || (this.killed.size() != origKilledSize || this.alloced.size() != origAllocedSize);
+
         }
 
         /**
@@ -111,6 +160,12 @@ public class ProgramPointReachability {
             assert killed != null;
             return this.killed.add(n);
         }
+
+        public boolean addMaybeKilledField(FieldReference f) {
+            assert maybeKilledFields != null;
+            return this.maybeKilledFields.add(f);
+        }
+
 
         /**
          * Add an instance key to the alloced set.
@@ -125,20 +180,38 @@ public class ProgramPointReachability {
          * constructor.
          */
         public void setEmpty() {
-            assert killed == null && alloced == null;
-            this.killed = MutableSparseIntSet.createMutableSparseIntSet(0);
-            this.alloced = MutableSparseIntSet.createMutableSparseIntSet(0);
+            assert killed == null && maybeKilledFields == null && alloced == null;
+            this.killed = MutableSparseIntSet.createMutableSparseIntSet(1);
+            this.maybeKilledFields = Collections.EMPTY_SET;
+            this.alloced = MutableSparseIntSet.createMutableSparseIntSet(1);
         }
 
         /**
          * Returns false if this.killed intersects with noKill, or if this.alloced intersents with noAlloc. Otherwise,
          * it returns true.
+         *
+         * @param g
          */
-        public boolean allows(IntSet noKill, IntSet noAlloc) {
-            return (this.killed != null && !this.killed.containsAny(noKill))
-                    && (this.alloced != null && !this.alloced.containsAny(noAlloc));
+        public boolean allows(IntSet noKill, IntSet noAlloc, PointsToGraph g) {
+            if ((this.killed != null && !this.killed.containsAny(noKill))
+                    && (this.alloced != null && !this.alloced.containsAny(noAlloc))) {
+                // check if the killed fields might be a problem.
+                if (!this.maybeKilledFields.isEmpty()) {
+                    IntIterator iter = noKill.intIterator();
+                    while (iter.hasNext()) {
+                        int n = iter.next();
+                        PointsToGraphNode node = g.lookupPointsToGraphNodeDictionary(n);
+                        if (node instanceof ObjectField
+                                && this.maybeKilledFields.contains(((ObjectField) node).fieldReference())) {
+                            // the field may be killed.
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
         }
-
     }
 
 
@@ -153,7 +226,7 @@ public class ProgramPointReachability {
     private static KilledAndAlloced getOrCreate(Map<InterProgramPoint, KilledAndAlloced> results, InterProgramPoint ipp) {
         KilledAndAlloced res = results.get(ipp);
         if (res == null) {
-            res = new KilledAndAlloced(null, null);
+            res = new KilledAndAlloced(null, null, null);
             results.put(ipp, res);
         }
         return res;
@@ -165,42 +238,96 @@ public class ProgramPointReachability {
      * without going through a program point that allocates any InstanceKey in noAlloc?
      */
     public boolean reachable(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
-                             /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc) {
+    /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, StmtAndContext originatingSaC,
+                             Set<StmtAndContext> sacsToReprocess) {
 
         assert allMostRecent(noAlloc);
         // check the caches
+        List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
         for (InterProgramPointReplica src : sources) {
-            if (this.positiveCache.contains(new MemoResult(src, destination, noKill, noAlloc))) {
+            MemoResult mr = new MemoResult(src, destination, noKill, noAlloc);
+            if (this.positiveCache.contains(mr)) {
                 return true;
+            }
+            else if (this.negativeCache.contains(mr)) {
+                // we know it's a negative result for this one.
+            }
+            else {
+                unknown.add(src);
             }
         }
 
-        // check the negative cache, when we have such a thing...
+        if (unknown.isEmpty()) {
+            // all were negative!
+            return false;
+        }
+        // The cache didn't help. Try getting an answer for the unknown elements.
+        return computeQuery(unknown, destination, noKill, noAlloc, originatingSaC, sacsToReprocess);
+    }
 
+    private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
+                                 IntSet noKill, IntSet noAlloc, StmtAndContext originatingSaC, Set<StmtAndContext> sacsToReprocess) {
         // try to solve it for each source.
         OrderedPair<IMethod, Context> destinationMethod = new OrderedPair<>(destination.getContainingProcedure(),
                 destination.getContext());
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
+            MemoResult query = new MemoResult(src, destination, noKill, noAlloc);
+            assert !positiveCache.contains(query);
+
             // First check the call graph to find the set of relevant call graph nodes.
             OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
                     src.getContext());
             Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(sourceMethod, destinationMethod);
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
+                addSaCDependency(query, originatingSaC);
+                recordQueryResult(query, false, sacsToReprocess);
                 continue;
             }
             // Now try a depth first search through the relevant nodes...
-            if (searchThroughRelevantNodes(src, destination, noKill, noAlloc, relevantNodes, visited)) {
+            if (searchThroughRelevantNodes(src,
+                                           destination,
+                                           noKill,
+                                           noAlloc,
+                                           relevantNodes,
+                                           visited,
+                                           query,
+                                           sacsToReprocess)) {
                 // we found it!
-                positiveCache.add(new MemoResult(src, destination, noKill, noAlloc));
+                recordQueryResult(query, true, sacsToReprocess);
+
                 return true;
             }
+            addSaCDependency(query, originatingSaC);
+            recordQueryResult(query, false, sacsToReprocess);
         }
         // we didn't find it.
-        // Store in the negative cache sometime...
         return false;
     }
+
+    /**
+     * Record in the caches that the result of query mr is b. If this is a change (from negative to positive), then some
+     * StmtAndContexts may need to be rerun. If set sacsToReprocess is non-null then the StmtAndContexts will be added
+     * to the set. Otherwise, they will be submitted to the PointsToEngine.
+     *
+     * @param mr
+     * @param b
+     * @param sacsToReprocess
+     */
+    private void recordQueryResult(MemoResult mr, boolean b, Set<StmtAndContext> sacsToReprocess) {
+        if (b) {
+            positiveCache.add(mr);
+            if (negativeCache.remove(mr)) {
+                // we previously thought it was negative.
+                queryResultChanged(mr, sacsToReprocess);
+            }
+        }
+        else {
+            negativeCache.add(mr);
+        }
+    }
+
 
     private boolean allMostRecent(IntSet s) {
         IntIterator iter = s.intIterator();
@@ -275,12 +402,14 @@ public class ProgramPointReachability {
      * @param noAlloc
      * @param noKill
      * @param relevantNodes
+     * @param query The query that caused this search, used to track dependencies
      * @return
      */
     private boolean searchThroughRelevantNodes(InterProgramPointReplica src, InterProgramPointReplica destination,
                                                IntSet noKill, IntSet noAlloc,
                                                Set<OrderedPair<IMethod, Context>> relevantNodes,
-                                               Set<InterProgramPointReplica> visited) {
+                                               Set<InterProgramPointReplica> visited, MemoResult query,
+                                               Set<StmtAndContext> sacsToReprocess) {
         if (!visited.add(src)) {
             // we've already tried it...
             return false;
@@ -309,7 +438,7 @@ public class ProgramPointReachability {
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
                     // this is a method call! Register the dependency and use some cached results
-                    //XXX!@! register dependency from this result to the call site.
+                    addCalleeDependency(query, pp.getReplica(ippr.getContext()));
 
                     OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp,
                             ippr.getContext());
@@ -331,14 +460,24 @@ public class ProgramPointReachability {
                             }
                             else {
                                 // let's explore the callee now.
-                                if (searchThroughRelevantNodes(calleeEntryIPPR, destination, noKill, noAlloc, relevantNodes, visited)) {
+                                if (searchThroughRelevantNodes(calleeEntryIPPR,
+                                                               destination,
+                                                               noKill,
+                                                               noAlloc,
+                                                               relevantNodes,
+                                                               visited,
+                                                               query,
+                                                               sacsToReprocess)) {
                                     // we found it!
                                     return true;
                                 }
                             }
                         }
                         // now use the summary results.
-                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
+                        addMethodDependency(query, callee);
+                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(),
+                                                                                    callee.snd(),
+                                                                                    sacsToReprocess);
                         KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
                                                                              calleeSummary.getNormalExitPP()
                                                                              .pre()
@@ -351,7 +490,7 @@ public class ProgramPointReachability {
                         // HERE WE SHOULD BE MORE PRECISE ABOUT PROGRAM POINT SUCCESSORS, AND PAY ATTENTION TO NORMAL VS EXCEPTIONAL EXIT
 
 
-                        if (normalRet.allows(noKill, noAlloc) || exRet.allows(noKill, noAlloc)) {
+                        if (normalRet.allows(noKill, noAlloc, g) || exRet.allows(noKill, noAlloc, g)) {
                             // we don't kill things we aren't meant to, not allocated things we aren't meant to!
                             InterProgramPointReplica post = pp.post().getReplica(currentContext);
                             if (visited.add(post)) {
@@ -369,7 +508,8 @@ public class ProgramPointReachability {
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // We are exiting the current method!
-                    //XXX!@! register dependency from this result to the callee. i.e., we should be notified if someone else calls us.
+                    // register dependency from this result to the callee. i.e., we should be notified if a new caller is added
+                    addCallerDependency(query, currentCallGraphNode);
 
                     // let's explore the callers
                     Set<OrderedPair<CallSiteProgramPoint, Context>> callers = g.getCallGraphReverseMap()
@@ -379,7 +519,7 @@ public class ProgramPointReachability {
                         continue;
                     }
                     for (OrderedPair<CallSiteProgramPoint, Context> callerSite : callers) {
-                        OrderedPair<IMethod, Context> caller = new OrderedPair<IMethod, Context>(callerSite.fst()
+                        OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSite.fst()
                                 .containingProcedure(),
                                 callerSite.snd());
 
@@ -399,7 +539,9 @@ public class ProgramPointReachability {
                                                                noKill,
                                                                noAlloc,
                                                                relevantNodes,
-                                                               visited)) {
+                                                               visited,
+                                                               query,
+                                                               sacsToReprocess)) {
                                     // we found it!
                                     return true;
                                 }
@@ -417,16 +559,37 @@ public class ProgramPointReachability {
                     // not a call or a return, it's just a normal statement.
                     // does ipp kill this.node?
                     if (stmt != null) {
-                        // !@!XXX record dependency, since stmt.killed actually looks up the points to information.
-                        PointsToGraphNode killed = stmt.killed(currentContext, g);
-                        if (killed != null && noKill.contains(g.lookupDictionary(killed))) {
-                            // dang! we killed something we shouldn't. Prune the search.
-                            continue;
+                        OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
+                        if (killed != null) {
+                            if (!killed.fst()) {
+                                // not enough info available yet.
+                                //add a depedency since more information may change this search
+                                addKillDependency(query, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                                // for the moment, assume conservatively that this statement
+                                // may kill a field we are interested in.
+                                continue;
+                            }
+                            else if (killed.snd() != null && noKill.contains(g.lookupDictionary(killed.snd()))) {
+                                // dang! we killed something we shouldn't. Prune the search.
+                                // add a depedency in case this changes in the future.
+                                addKillDependency(query,
+                                                  stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                                continue;
+                            }
+                            else if (killed.snd() == null) {
+                                // we have enough information to know that this statement does not kill a node we care about
+                                removeKillDependency(query,
+                                                     stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                            }
+                            // we have enough information to determine whether this statement kills a field, and it does not
+                            // kill anything we care about. So we can continue with the search.
+                            assert killed.fst() && (killed.snd() == null || !noKill.contains(g.lookupDictionary(killed.snd())));
                         }
 
                         // is "to" allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(currentContext, g);
                         if (justAllocated != null) {
+                            assert justAllocated.isRecent();
                             int justAllocatedKey = g.lookupDictionary(justAllocated);
                             if (g.isMostRecentObject(justAllocatedKey) && g.isTrackingMostRecentObject(justAllocatedKey) && noAlloc.contains(g.lookupDictionary(justAllocated))) {
                                 // dang! we killed allocated we shouldn't. Prune the search.
@@ -456,7 +619,14 @@ public class ProgramPointReachability {
         }
         while (!delayed.isEmpty()) {
             InterProgramPointReplica ippr = delayed.poll();
-            if (searchThroughRelevantNodes(ippr, destination, noKill, noAlloc, relevantNodes, visited)) {
+            if (searchThroughRelevantNodes(ippr,
+                                           destination,
+                                           noKill,
+                                           noAlloc,
+                                           relevantNodes,
+                                           visited,
+                                           query,
+                                           sacsToReprocess)) {
                 return true;
             }
         }
@@ -471,6 +641,7 @@ public class ProgramPointReachability {
     * The following code is responsible for computing the reachability results of an
     * entire method.
     */
+
 
     /**
      * A ReachabilityResult records the reachability results of a single method in a context, that is, which for a
@@ -517,21 +688,6 @@ public class ProgramPointReachability {
             assert existing == null;
         }
 
-        public void update(ReachabilityResult res) {
-            for (InterProgramPointReplica s : res.m.keySet()) {
-                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> resTargetMap = res.m.get(s);
-                if (resTargetMap != null) {
-                    ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(s);
-                    for (InterProgramPointReplica t : resTargetMap.keySet()) {
-                        KilledAndAlloced resResult = resTargetMap.get(t);
-                        KilledAndAlloced thisResult = getTargetResult(thisTargetMap, t, resResult);
-                        thisResult.update(resResult);
-                    }
-                }
-            }
-
-        }
-
         private static KilledAndAlloced getTargetResult(ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> targetMap,
                                                         InterProgramPointReplica t, KilledAndAlloced initialResult) {
             KilledAndAlloced p = targetMap.get(t);
@@ -567,7 +723,7 @@ public class ProgramPointReachability {
     /*
      * Get the reachability results for a method.
      */
-    ReachabilityResult getReachabilityForMethod(IMethod m, Context context) {
+    ReachabilityResult getReachabilityForMethod(IMethod m, Context context, Set<StmtAndContext> sacsToReprocess) {
         ReachabilityResult res = memoization.get(m);
         if (res != null) {
             return res;
@@ -579,18 +735,18 @@ public class ProgramPointReachability {
             // someone beat us to it, and is currently working on the results.
             return existing;
         }
-        res = computeReachabilityForMethod(m, context);
-        return updateMemoization(m, res);
+        return computeReachabilityForMethod(m, context, sacsToReprocess);
     }
 
-    private ReachabilityResult updateMemoization(IMethod m, ReachabilityResult res) {
-        ReachabilityResult existing = memoization.get(m);
-        assert existing != null;
-        existing.update(res);
-        return existing;
+    private void recordMethodReachability(IMethod m, ReachabilityResult res, Set<StmtAndContext> sacsToReprocess) {
+        if (memoization.put(m, res) != null) {
+            // trigger update for dependencies.
+            methodReachabilityChanged(m, sacsToReprocess);
+        }
     }
 
-    private ReachabilityResult computeReachabilityForMethod(IMethod m, Context context) {
+    private ReachabilityResult computeReachabilityForMethod(IMethod m, Context context,
+                                                            Set<StmtAndContext> sacsToReprocess) {
         // XXX at the moment we will just record from the start node.
 
         // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
@@ -614,7 +770,7 @@ public class ProgramPointReachability {
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
                     // this is a method call! Register the dependency and get some cached results
-                    //XXX!@! register dependency from this result to the call site.
+                    addCalleeDependency(m, context, pp.getReplica(context));
 
                     OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp,
                                                                                           context);
@@ -625,9 +781,12 @@ public class ProgramPointReachability {
                     }
 
                     KilledAndAlloced post = getOrCreate(results, pp.post());
-                    boolean changed = post.update(current);
+                    boolean changed = false;
                     for (OrderedPair<IMethod, Context> callee : calleeSet) {
-                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
+                        addMethodDependency(m, context, callee);
+                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(),
+                                                                                    callee.snd(),
+                                                                                    sacsToReprocess);
                         MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
                         InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
                                                                                               calleeSummary.getEntryPP())
@@ -642,8 +801,8 @@ public class ProgramPointReachability {
                                                                                             .pre());
 
                         // HERE WE SHOULD BE MORE PRECISE ABOUT PROGRAM POINT SUCCESSORS, AND PAY ATTENTION TO NORMAL VS EXCEPTIONAL EXIT
-                        changed |= post.update(normalRet);
-                        changed |= post.update(exRet);
+                        changed |= post.meet(KilledAndAlloced.join(current, normalRet));
+                        changed |= post.meet(KilledAndAlloced.join(current, exRet));
 
                     }
                     if (changed) {
@@ -661,15 +820,35 @@ public class ProgramPointReachability {
                     // does ipp kill this.node?
                     if (stmt != null) {
                         boolean changed = false;
-                        // !@!XXX record dependency, since stmt.killed actually looks up the points to information.
-                        PointsToGraphNode killed = stmt.killed(context, g);
+                        OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
                         if (killed != null) {
-                            changed |= current.addKill(g.lookupDictionary(killed));
+                            if (!killed.fst()) {
+                                // not enough info available yet.
+                                // add a depedency since more information may change this search
+                                // conservatively assume that it kills any kind of the field we give it.
+                                changed |= current.addMaybeKilledField(stmt.getMaybeKilledField());
+                                addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
+
+                            }
+                            else if (killed.snd() != null && killed.snd() != null) {
+                                // this statement really does kill something.
+                                changed |= current.addKill(g.lookupDictionary(killed.snd()));
+                                // record it, including the dependency.
+                                addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
+                            }
+                            else if (killed.snd() == null) {
+                                // we have enough information to know that this statement does not kill a node we care about
+                                removeKillDependency(m,
+                                                     context,
+                                                     stmt.getReadDependencyForKillField(context, g.getHaf()));
+                            }
                         }
+
 
                         // is "to" allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
                         if (justAllocated != null) {
+                            assert justAllocated.isRecent();
                             int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
                             if (g.isMostRecentObject(justAllocatedKey)
                                     && g.isTrackingMostRecentObject(justAllocatedKey)) {
@@ -686,7 +865,7 @@ public class ProgramPointReachability {
                 Set<ProgramPoint> ppSuccs = pp.succs();
                 for (ProgramPoint succ : ppSuccs) {
                     KilledAndAlloced succResults = getOrCreate(results, succ.pre());
-                    if (succResults.update(current)) {
+                    if (succResults.meet(current)) {
                         q.add(succ.pre());
                     }
                 }
@@ -703,6 +882,9 @@ public class ProgramPointReachability {
 
         rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), results.get(normExitIPP));
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), results.get(exExitIPP));
+
+        recordMethodReachability(m, rr, sacsToReprocess);
+
         return rr;
     }
 
@@ -720,6 +902,7 @@ public class ProgramPointReachability {
      * noAlloc.
      */
     private final Set<MemoResult> positiveCache = AnalysisUtil.createConcurrentSet();
+    private final Set<MemoResult> negativeCache = AnalysisUtil.createConcurrentSet();
 
     private static class MemoResult {
         final InterProgramPointReplica source;
@@ -776,4 +959,345 @@ public class ProgramPointReachability {
 
     }
 
+    /* *****************************************************************************
+     *
+     * DEPENDENCY TRACKING
+     *
+     * The following code is responsible for recording dependencies
+     */
+    private final ConcurrentMap<MemoResult, Set<StmtAndContext>> sacDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<ProgramPointReplica, Set<MemoResult>> calleeQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<ProgramPointReplica, Set<OrderedPair<IMethod, Context>>> calleeMethodDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<MemoResult>> callerQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<MemoResult>> methodQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> methodMethodDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentIntMap<Set<MemoResult>> killQueryDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<Set<OrderedPair<IMethod, Context>>> killMethodDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
+    private void addCalleeDependency(MemoResult query, ProgramPointReplica callSite) {
+        assert callSite.getPP() instanceof CallSiteProgramPoint;
+
+        Set<MemoResult> s = calleeQueryDependencies.get(callSite);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<MemoResult> existing = calleeQueryDependencies.putIfAbsent(callSite, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(query);
+    }
+
+    /**
+     * query needs to be re-run if there is a new caller of callGraphNode.
+     *
+     * @param query
+     * @param callGraphNode
+     */
+    private void addCallerDependency(MemoResult query, OrderedPair<IMethod, Context> callGraphNode) {
+        Set<MemoResult> s = callerQueryDependencies.get(callGraphNode);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<MemoResult> existing = callerQueryDependencies.putIfAbsent(callGraphNode, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(query);
+    }
+
+    /**
+     * We need to reanalyze the method results for (m, context) if the reachability results for callGraphNode changes.
+     *
+     * @param m
+     * @param context
+     * @param callGraphNode
+     */
+    private void addMethodDependency(MemoResult query, OrderedPair<IMethod, Context> callGraphNode) {
+        Set<MemoResult> s = methodQueryDependencies.get(callGraphNode);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<MemoResult> existing = methodQueryDependencies.putIfAbsent(callGraphNode, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(query);
+    }
+
+    private void addKillDependency(MemoResult query, ReferenceVariableReplica readDependencyForKillField) {
+        if (readDependencyForKillField == null) {
+            return;
+        }
+        int n = g.lookupDictionary(readDependencyForKillField);
+        Set<MemoResult> s = killQueryDependencies.get(n);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<MemoResult> existing = killQueryDependencies.putIfAbsent(n, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(query);
+    }
+
+    private void removeKillDependency(MemoResult query, ReferenceVariableReplica readDependencyForKillField) {
+        if (readDependencyForKillField == null) {
+            return;
+        }
+        int n = g.lookupDictionary(readDependencyForKillField);
+
+        Set<MemoResult> s = killQueryDependencies.get(n);
+        if (s != null) {
+            s.remove(query);
+        }
+    }
+
+    private void addCalleeDependency(IMethod m, Context context, ProgramPointReplica callSite) {
+        assert callSite.getPP() instanceof CallSiteProgramPoint;
+
+        Set<OrderedPair<IMethod, Context>> s = calleeMethodDependencies.get(callSite);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = calleeMethodDependencies.putIfAbsent(callSite, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(new OrderedPair<>(m, context));
+    }
+
+    /**
+     * We need to reanalyze the method results for (m, context) if the reachability results for callGraphNode changes.
+     *
+     * @param m
+     * @param context
+     * @param callGraphNode
+     */
+    private void addMethodDependency(IMethod m, Context context, OrderedPair<IMethod, Context> callGraphNode) {
+        Set<OrderedPair<IMethod, Context>> s = methodMethodDependencies.get(callGraphNode);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = methodMethodDependencies.putIfAbsent(callGraphNode, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(new OrderedPair<>(m, context));
+    }
+
+    private void addKillDependency(IMethod m, Context context, ReferenceVariableReplica readDependencyForKillField) {
+        if (readDependencyForKillField == null) {
+            return;
+        }
+        OrderedPair<IMethod, Context> callGraphNode = new OrderedPair<>(m, context);
+        int n = g.lookupDictionary(readDependencyForKillField);
+
+        Set<OrderedPair<IMethod, Context>> s = killMethodDependencies.get(n);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = killMethodDependencies.putIfAbsent(n, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(callGraphNode);
+    }
+
+    private void removeKillDependency(IMethod m, Context context, ReferenceVariableReplica readDependencyForKillField) {
+        if (readDependencyForKillField == null) {
+            return;
+        }
+        int n = g.lookupDictionary(readDependencyForKillField);
+
+        OrderedPair<IMethod, Context> callGraphNode = new OrderedPair<>(m, context);
+        Set<OrderedPair<IMethod, Context>> s = killMethodDependencies.get(n);
+        if (s != null) {
+            s.remove(callGraphNode);
+        }
+    }
+
+    /**
+     * This method is invoked to let us know that a new edge in the
+     * call graph has been added from the callSite.
+     *
+     *  We use this method to make sure that we re-run any method reachability results
+     *  and (negative) queries depended on the call site.
+     * @param callSite
+     */
+    public void calleeAddedTo(ProgramPointReplica callSite) {
+        assert callSite.getPP() instanceof CallSiteProgramPoint;
+        Set<OrderedPair<IMethod, Context>> meths = calleeMethodDependencies.get(callSite);
+        if (meths != null) {
+            for (OrderedPair<IMethod, Context> p : meths) {
+                // need to re-run the analysis of p
+                computeReachabilityForMethod(p.fst(), p.snd(), null);
+            }
+        }
+        Set<MemoResult> queries = calleeQueryDependencies.get(callSite);
+        if (queries != null) {
+
+            Iterator<MemoResult> iter = queries.iterator();
+            while (iter.hasNext()) {
+                MemoResult mr = iter.next();
+                // need to re-run the query of mr
+                if (!rerunQuery(mr, null)) {
+                    // whoops, no need to rerun this anymore.
+                    iter.remove();
+                }
+            }
+        }
+
+    }
+
+    /**
+     * This method is invoked to let us know that a new edge in the
+     * call graph has been added that goes to the callGraphNode
+     *
+     *  We use this method to make sure that we re-run any
+     *   queries that depended on the call site.
+     * @param callSite
+     */
+    public void callerAddedTo(OrderedPair<IMethod, Context> callGraphNode) {
+        Set<MemoResult> queries = callerQueryDependencies.get(callGraphNode);
+        if (queries != null) {
+            Iterator<MemoResult> iter = queries.iterator();
+            while (iter.hasNext()) {
+                MemoResult mr = iter.next();
+                // need to re-run the query of mr
+                if (!rerunQuery(mr, null)) {
+                    // whoops, no need to rerun this anymore.
+                    iter.remove();
+                }
+            }
+        }
+
+    }
+
+    private void methodReachabilityChanged(IMethod m, Set<StmtAndContext> sacsToReprocess) {
+        Set<OrderedPair<IMethod, Context>> meths = methodMethodDependencies.get(m);
+        if (meths != null) {
+            for (OrderedPair<IMethod, Context> p : meths) {
+                // need to re-run the analysis of p
+                computeReachabilityForMethod(p.fst(), p.snd(), sacsToReprocess);
+            }
+        }
+        Set<MemoResult> queries = methodQueryDependencies.get(m);
+        if (queries != null) {
+            Iterator<MemoResult> iter = queries.iterator();
+            while (iter.hasNext()) {
+                MemoResult mr = iter.next();
+                // need to re-run the query of mr
+                if (!rerunQuery(mr, sacsToReprocess)) {
+                    // whoops, no need to rerun this anymore.
+                    iter.remove();
+                }
+            }
+        }
+    }
+
+    /**
+     * Rerun the query mr if necessary. Will return true if the query was rerun,
+     * false if it did not need to be rerurn.
+     * @param mr
+     */
+    private boolean rerunQuery(MemoResult mr, Set<StmtAndContext> sacsToReprocess) {
+        if (this.positiveCache.contains(mr)) {
+            // the query is already guaranteed to be true.
+            return false;
+        }
+        computeQuery(Collections.singleton(mr.source), mr.destination, mr.noKill, mr.noAlloc, null, sacsToReprocess);
+        return true;
+    }
+
+    /**
+     * The result of the query changed, from negative to positive. Make sure to reprocess any StmtAndContexts that depended on it, either by adding
+     * it to stmtsToReprocess, or giving it to the engine immediately.
+     *
+     */
+    private void queryResultChanged(MemoResult mr, Set<StmtAndContext> sacsToReprocess) {
+        assert this.positiveCache.contains(mr);
+
+        // since the query is positive, it will never change in the future.
+        // Let's save some memory by removing the set of dependent SaCs.
+        Set<StmtAndContext> deps = this.sacDependencies.remove(mr);
+        if (deps == null) {
+            // nothing to do.
+            return;
+        }
+        if (sacsToReprocess != null) {
+            sacsToReprocess.addAll(deps);
+        }
+        else {
+            // immediately execute the sacs
+            for (StmtAndContext sac : deps) {
+                this.analysisHandle.submitStmtAndContext(sac);
+            }
+        }
+    }
+
+    /**
+     * This is invoked by the PointsToGraph to let us know that a new edge has been
+     * added to the call graph. This allows us to retrigger computation as needed.
+     *
+     */
+    void addCallGraphEdge(CallSiteProgramPoint callSite, Context callerContext, IMethod callee,
+                                Context calleeContext) {
+
+        // XXX turn these into separate tasks that can be run concurrently
+        calleeAddedTo(callSite.getReplica(callerContext));
+        callerAddedTo(new OrderedPair<>(callee, calleeContext));
+
+
+    }
+
+    /**
+     * Add a dependency that originatingSaC depends on the result of query.
+     * @param query
+     * @param originatingSaC
+     */
+    private void addSaCDependency(MemoResult query, StmtAndContext originatingSaC) {
+        if (originatingSaC == null) {
+            // nothing to do
+            return;
+        }
+        Set<StmtAndContext> deps = this.sacDependencies.get(query);
+        if (deps == null) {
+            deps = AnalysisUtil.createConcurrentSet();
+            Set<StmtAndContext> existing = sacDependencies.putIfAbsent(query, deps);
+            if (existing != null) {
+                deps = existing;
+            }
+        }
+        deps.add(originatingSaC);
+
+    }
+
+    public Set<StmtAndContext> checkPointsToGraphDelta(GraphDelta delta) {
+        Set<StmtAndContext> stmtsToReprocess = new HashSet<>();
+        IntIterator domainIter = delta.domainIterator();
+        while (domainIter.hasNext()) {
+            int n = domainIter.next();
+            Set<OrderedPair<IMethod, Context>> meths = killMethodDependencies.get(n);
+            if (meths != null) {
+                for (OrderedPair<IMethod, Context> p : meths) {
+                    // need to re-run the analysis of p
+                    computeReachabilityForMethod(p.fst(), p.snd(), stmtsToReprocess);
+                }
+            }
+            Set<MemoResult> queries = killQueryDependencies.get(n);
+            if (queries != null) {
+                Iterator<MemoResult> iter = queries.iterator();
+                while (iter.hasNext()) {
+                    MemoResult mr = iter.next();
+                    // need to re-run the query of mr
+                    if (!rerunQuery(mr, stmtsToReprocess)) {
+                        // whoops, no need to rerun this anymore.
+                        iter.remove();
+                    }
+                }
+            }
+        }
+        return stmtsToReprocess;
+    }
 }

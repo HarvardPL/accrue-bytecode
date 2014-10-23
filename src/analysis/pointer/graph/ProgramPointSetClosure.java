@@ -48,7 +48,6 @@ public class ProgramPointSetClosure {
         assert (fromBase == -1 || g.isMostRecentObject(fromBase)) : "If we have a fromBase, it should be a most recent object, since these are the only ones we track flow sensitively.";
     }
 
-
     public boolean add(InterProgramPointReplica ippr) {
         return this.sources.add(ippr);
     }
@@ -66,7 +65,6 @@ public class ProgramPointSetClosure {
         return this.sources.addAll(toAdd.sources);
     }
 
-
     /**
      * Does this set contain of the program points ippr?
      */
@@ -74,7 +72,9 @@ public class ProgramPointSetClosure {
         return g.programPointReachability().reachable(this.getSources(g, originator),
                                                       ippr,
                                                       this.noKill(),
-                                                      this.noAlloc(g));
+                                                      this.noAlloc(g),
+                                                      originator,
+                                                      null);
     }
 
     /**
@@ -86,16 +86,19 @@ public class ProgramPointSetClosure {
             // we only want the points to information that is a result of the new allocation sites.
             return g.programPointReachability()
                     .reachable(convertToPost(newAllocationSites.get(g.mostRecentVersion(to))),
-                                                          ippr,
-                                                          this.noKill(),
-                                                          this.noAlloc(g));
+                               ippr,
+                               this.noKill(),
+                               this.noAlloc(g),
+                               originator,
+                               null);
         }
         return g.programPointReachability().reachable(this.getSources(g, originator),
                                                       ippr,
                                                       this.noKill(),
-                                                      this.noAlloc(g));
+                                                      this.noAlloc(g),
+                                                      originator,
+                                                      null);
     }
-
 
     private Set<InterProgramPointReplica> convertToPost(Set<ProgramPointReplica> set) {
         //XXX make this more effiicient sometime in the future. Use an iterator instead of
@@ -168,7 +171,6 @@ public class ProgramPointSetClosure {
         }
         return this.sources;
     }
-
 
     public boolean isEmpty() {
         return sources.isEmpty();
