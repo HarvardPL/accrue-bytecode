@@ -1489,6 +1489,10 @@ public class PointsToGraph {
 
     }
 
+    /**
+     * A ProgramPointIntIterator filters an underlying intinterator (iter) so that it returns only those
+     * InstanceKeyRecencys such that ppmap points to it at program point replica ippr.
+     */
     static class ProgramPointIntIterator implements IntIterator {
         private final IntIterator iter;
         private final IntMap<ProgramPointSetClosure> ppmap;
@@ -1515,11 +1519,12 @@ public class PointsToGraph {
             this.ippr = ippr;
             this.g = g;
             this.originator = originator;
-            this.newAllocationSites = newAllocationSites;
+            this.newAllocationSites = newAllocationSites.isEmpty() ? null : newAllocationSites;
         }
 
         @Override
         public boolean hasNext() {
+            assert newAllocationSites == null || !newAllocationSites.isEmpty();
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 ProgramPointSetClosure pps;

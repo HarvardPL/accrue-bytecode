@@ -271,19 +271,31 @@ public class GraphDelta {
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr,
                                            StmtAndContext originator) {
 
-        assert deltaFS.isEmpty() || deltaAllocationSites.isEmpty() : "Should not have both new flow sensitive points to variables and new allocation sites.";
-
         Integer node;
-
-        if (g.isFlowSensitivePointsToGraphNode(n) && deltaFS.isEmpty() && !deltaAllocationSites.isEmpty()) {
-            // n is a flow sensitive points to node, and this delta is for new allocation sites.
-            // What we want to do is return the program point iterator for (the representative of n)
-            // that only uses the new allocation sites.
-            node = g.getRepresentative(n);
-            return new ProgramPointIntIterator(g.pointsToSetFS(n), ippr, g, originator, this.deltaAllocationSites);
-        }
-
         ArrayList<IntIterator> iterators = new ArrayList<>(10);
+
+        if (g.isFlowSensitivePointsToGraphNode(n)) {
+            if (!deltaAllocationSites.isEmpty()) {
+                IntIterator deltaAllocationSitesAware = new ProgramPointIntIterator(g.pointsToSetFS(n),
+                                                                                    ippr,
+                                                                                    g,
+                                                                                    originator,
+                                                                                    this.deltaAllocationSites);
+
+                if (deltaFS.isEmpty()) {
+                    // n is a flow sensitive points to node, and this delta is for new allocation sites.
+                    // What we want to do is return the program point iterator for (the representative of n)
+                    // that only uses the new allocation sites.
+                    return deltaAllocationSitesAware;
+                }
+
+                // there is both a nonempty deltaAllocationSites and a nonempty deltaFS
+                // add deltaAllocationSitesAware to the union.
+                iterators.add(deltaAllocationSitesAware);
+            }
+        }
+        // deltaAllocationSites is empty, and/or n is not flow sensitive. Either way, we can ignore deltaAllocationSites.
+
         // we need to look in delta for all the possible representatives that n has been known by.
         // This is because this GraphDelta may have been created sometime
         // before n got collapsed.

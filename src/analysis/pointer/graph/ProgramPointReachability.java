@@ -224,9 +224,54 @@ public class ProgramPointReachability {
         }
 
         @Override
-        public boolean equals(Object o) {
-            throw new UnsupportedOperationException();
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((alloced == null) ? 0 : alloced.size());
+            result = prime * result + ((killed == null) ? 0 : killed.size());
+            result = prime * result + ((maybeKilledFields == null) ? 0 : maybeKilledFields.hashCode());
+            return result;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof KilledAndAlloced)) {
+                return false;
+            }
+            KilledAndAlloced other = (KilledAndAlloced) obj;
+            if (alloced == null) {
+                if (other.alloced != null) {
+                    return false;
+                }
+            }
+            else if (!alloced.sameValue(other.alloced)) {
+                return false;
+            }
+            if (killed == null) {
+                if (other.killed != null) {
+                    return false;
+                }
+            }
+            else if (!killed.sameValue(other.killed)) {
+                return false;
+            }
+            if (maybeKilledFields == null) {
+                if (other.maybeKilledFields != null) {
+                    return false;
+                }
+            }
+            else if (!maybeKilledFields.equals(other.maybeKilledFields)) {
+                return false;
+            }
+            return true;
+        }
+
     }
 
 
@@ -748,6 +793,34 @@ public class ProgramPointReachability {
             return tm;
         }
 
+        @Override
+        public int hashCode() {
+            return m.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof ReachabilityResult)) {
+                return false;
+            }
+            ReachabilityResult other = (ReachabilityResult) obj;
+            if (m == null) {
+                if (other.m != null) {
+                    return false;
+                }
+            }
+            else if (!m.equals(other.m)) {
+                return false;
+            }
+            return true;
+        }
+
     }
 
     private final ConcurrentMap<OrderedPair<IMethod, Context>, ReachabilityResult> memoization = AnalysisUtil.createConcurrentHashMap();
@@ -775,7 +848,8 @@ public class ProgramPointReachability {
                                           Set<StmtAndContext> sacsToReprocess) {
         System.err.println("Recording method reachavility result : " + m + " " + context);
         OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
-        if (memoization.put(cgnode, res) != null) {
+        ReachabilityResult existing = memoization.put(cgnode, res);
+        if (existing != null && !existing.equals(res)) {
             // trigger update for dependencies.
             methodReachabilityChanged(m, context, sacsToReprocess);
         }

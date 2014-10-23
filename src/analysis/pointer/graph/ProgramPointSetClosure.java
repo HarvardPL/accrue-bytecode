@@ -78,7 +78,8 @@ public class ProgramPointSetClosure {
     }
 
     /**
-     * Does this set contain of the program points ippr?
+     * Does this set contain of the program points ippr? Pays attention to the newAllocationSites, much like a
+     * GraphDelta.
      */
     public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, StmtAndContext originator,
                             IntMap<Set<ProgramPointReplica>> newAllocationSites) {
