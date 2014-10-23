@@ -322,6 +322,16 @@ public class PointsToGraph {
         return -1;
     }
 
+    protected/*InstanceKeyRecency*/int baseNodeForAnyPointsToGraphNode(int/*PointsToGaphNode*/n) {
+        assert n >= 0;
+        PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
+        if (fromGraphNode instanceof ObjectField) {
+            ObjectField of = (ObjectField) fromGraphNode;
+            return this.reverseInstanceKeyDictionary.get(of.receiver());
+        }
+        return -1;
+    }
+
     /**
      * Add an edge from node to heapContext in the graph.
      *
@@ -783,9 +793,8 @@ public class PointsToGraph {
 
             assert filterPPSet != null && !filterPPSet.isEmpty() ? targetIsFlowSensitive && !mIsFlowSensitive : true;
             assert filterPPSet != null && !filterPPSet.isEmpty()
-                    ? nonMostRecentVersion(baseNodeForPointsToGraphNode(target)) == baseNodeForPointsToGraphNode(m)
-                    : true : "target is " + target + " = " + lookupPointsToGraphNodeDictionary(target) + " and m is "
-                    + m + " = " + lookupPointsToGraphNodeDictionary(m);
+                    ? nonMostRecentVersion(baseNodeForPointsToGraphNode(target)) == baseNodeForAnyPointsToGraphNode(m)
+                    : true;
 
             // Let's do the nofilterpp set first.
             // "target isFlowSensSubsetOf m with ppSet"
@@ -831,7 +840,7 @@ public class PointsToGraph {
                 // for all ippr in filterPPSet, we have
                 // { f(n) | n \in PointsToFS(target, ippr) } \subseteq PointsToFI(m)
                 // where f(n) = o_{notmostrecent} if n==o_{mostrecent} where target = o_{mostrecent}.fld and m = o_{notmostrecent}.fld
-                assert baseNodeForPointsToGraphNode(target) == baseNodeForPointsToGraphNode(m);
+                assert nonMostRecentVersion(baseNodeForPointsToGraphNode(target)) == baseNodeForAnyPointsToGraphNode(m);
                 assert baseNodeForPointsToGraphNode(target) >= 0;
 
                 MutableIntSet filteredSetToAdd = MutableSparseIntSet.createMutableSparseIntSet(setToAdd.size());
