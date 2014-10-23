@@ -26,6 +26,7 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Manages the running of an inter-procedural data-flow analysis
@@ -596,6 +597,28 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             ret.add(loc);
         }
         return ret;
+    }
+
+    /**
+     * Check whether the variable with the given value number is an array
+     */
+    public boolean isArray(int array, CGNode n, TypeReference type) {
+        if (type.isArrayType()) {
+            return true;
+        }
+        if (!type.getName().equals(TypeReference.JavaLangObject.getName())) {
+            // This is not an array type or an Object (which could also be an array)
+            return false;
+        }
+        // This is a java.lang.Object, but might point to an array
+        Iterator<InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
+        while (pointsToIter.hasNext()) {
+            InstanceKey o = pointsToIter.next();
+            if (o.getConcreteType().isArrayClass()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
