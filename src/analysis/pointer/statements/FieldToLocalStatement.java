@@ -1,12 +1,10 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import analysis.pointer.analyses.HeapAbstractionFactory;
+import util.OrderedPair;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -105,8 +103,9 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return assignee.isFlowSensitive() ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, assignee.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null);
     }
 
     @Override
@@ -132,24 +131,6 @@ public class FieldToLocalStatement extends PointsToStatement {
      */
     public FieldReference getField() {
         return this.declaredField;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
-
-        List<Object> uses = new ArrayList<>(2);
-        uses.add(rec);
-        uses.add(this.declaredField);
-
-        return uses;
-
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, this.assignee, haf));
     }
 
     @Override

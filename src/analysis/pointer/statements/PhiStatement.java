@@ -1,11 +1,8 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
-import analysis.pointer.analyses.HeapAbstractionFactory;
+import util.OrderedPair;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -80,9 +77,11 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return assignee.isFlowSensitive() ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, assignee.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null);
     }
+
 
     @Override
     public String toString() {
@@ -110,24 +109,6 @@ public class PhiStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return assignee;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
-        for (ReferenceVariable use : uses) {
-            ReferenceVariableReplica n =
- new ReferenceVariableReplica(ctxt, use, haf);
-            l.add(n);
-        }
-        return l;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, assignee, haf));
     }
 
     @Override

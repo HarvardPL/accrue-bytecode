@@ -1,11 +1,10 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import analysis.pointer.analyses.HeapAbstractionFactory;
+import util.OrderedPair;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -94,9 +93,11 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return value.isFlowSensitive() ? new ReferenceVariableReplica(context, value, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, value.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, value, g.getHaf()) : null);
     }
+
 
     @Override
     public String toString() {
@@ -117,19 +118,6 @@ public class ArrayToLocalStatement extends PointsToStatement {
     @Override
     public List<ReferenceVariable> getUses() {
         return Collections.singletonList(array);
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
-        return Collections.singleton(a);
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, value, haf));
     }
 
     @Override

@@ -1,12 +1,10 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import util.OrderedPair;
 import util.print.PrettyPrinter;
-import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -18,7 +16,6 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
@@ -82,9 +79,11 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return left.isFlowSensitive() ? new ReferenceVariableReplica(context, left, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, left.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, left, g.getHaf()) : null);
     }
+
 
     @Override
     public String toString() {
@@ -106,35 +105,6 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return left;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right, haf);
-
-        if (!isFromMethodSummaryVariable) {
-            return Collections.singleton(r);
-        }
-        List<Object> uses = new ArrayList<>(3);
-        uses.add(r);
-        // the assignment is from a method summary node, e.g., for an argument.
-        // Add the IMethod so that we can get an appropriate dependency
-        // for the callers.
-        IMethod m = getMethod();
-        uses.add(m);
-
-        if (!m.isStatic() && !m.isPrivate()) {
-            // add the possible Selector that VirtualCalls may use
-            // to dispatch to us.
-            uses.add(getMethod().getSelector());
-        }
-
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, left, haf));
     }
 
     @Override

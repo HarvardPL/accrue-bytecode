@@ -1,10 +1,9 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import analysis.pointer.analyses.HeapAbstractionFactory;
+import util.OrderedPair;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -66,8 +65,9 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return local.isFlowSensitive() ? new ReferenceVariableReplica(context, local, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, local.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, local, g.getHaf()) : null);
     }
 
     @Override
@@ -97,17 +97,6 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return local;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local, haf);
-        return Collections.singleton(l);
     }
 
     @Override

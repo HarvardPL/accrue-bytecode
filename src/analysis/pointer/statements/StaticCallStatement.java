@@ -1,16 +1,12 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -108,54 +104,6 @@ public class StaticCallStatement extends CallStatement {
         return this.getResult();
     }
 
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> uses = new ArrayList<>(2 + this.getActuals()
-                .size());
-
-        for (ReferenceVariable use : this.getActuals()) {
-            if (use != null) {
-                ReferenceVariableReplica n =
- new ReferenceVariableReplica(ctxt, use, haf);
-                uses.add(n);
-            }
-        }
-        Context calleeContext = haf.merge(this.programPoint(), null, ctxt);
-        ReferenceVariableReplica ex = new ReferenceVariableReplica(calleeContext,
-                                                                   this.calleeSummary.getException(),
-                                                                   haf);
-        uses.add(ex);
-        if (this.callee.getReturnType().isReferenceType()) {
-            // Say that we read the return of the callee.
-            ReferenceVariableReplica n = new ReferenceVariableReplica(calleeContext,
-                                                                      this.calleeSummary.getReturn(),
-                                                                      haf);
-            uses.add(n);
-        }
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> defs = new ArrayList<>(2 + this.callee.getNumberOfParameters());
-
-        if (this.getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
-        }
-        if (this.getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
-        }
-        // Write to the arguments of the callee.
-        Context calleeContext = haf.merge(this.programPoint(), null, ctxt);
-        for (int i = 0; i < this.callee.getNumberOfParameters(); i++) {
-            ReferenceVariable rv = this.calleeSummary.getFormal(i);
-            if (rv != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(calleeContext, rv, haf);
-                defs.add(n);
-            }
-        }
-        return defs;
-    }
 
     /**
      * Get the resolved callee

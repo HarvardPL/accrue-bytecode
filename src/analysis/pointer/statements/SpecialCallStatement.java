@@ -1,12 +1,10 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
 import util.print.PrettyPrinter;
-import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -148,39 +146,6 @@ public class SpecialCallStatement extends CallStatement {
         return this.getResult();
     }
 
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> uses = new ArrayList<>(this.getActuals()
-                .size() + 3);
-        uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
-        for (ReferenceVariable use : this.getActuals()) {
-            if (use != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
-                uses.add(n);
-            }
-        }
-
-        // Add the exception variable. Can't be more precise here unfortunately...
-        uses.add(this.calleeSummary.getException());
-
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> defs = new ArrayList<>(3);
-
-        if (this.getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
-        }
-        if (this.getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
-        }
-        // add the IMethod of the callee so that we get run before
-        // the local-to-local's of the callee's method summaries
-        defs.add(this.callee);
-        return defs;
-    }
 
     /**
      * Get the resolved method being called

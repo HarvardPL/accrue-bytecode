@@ -1,10 +1,9 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import analysis.pointer.analyses.HeapAbstractionFactory;
+import util.OrderedPair;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -102,8 +101,9 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return result.isFlowSensitive() ? new ReferenceVariableReplica(context, result, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, result.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, result, g.getHaf()) : null);
     }
 
     @Override
@@ -124,16 +124,6 @@ public class NewStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return result;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
     }
 
     @Override

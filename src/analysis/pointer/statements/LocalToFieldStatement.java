@@ -1,11 +1,10 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import util.OrderedPair;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
@@ -97,19 +96,29 @@ public class LocalToFieldStatement extends PointsToStatement {
         return changed;
     }
 
-    @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        ReferenceVariableReplica l = new ReferenceVariableReplica(context, receiver, g.getHaf());
-        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
-        Iterator<InstanceKeyRecency> iter = g.pointsToIterator(l, pre, new StmtAndContext(this, context));
 
-        if (iter.hasNext()) {
-            InstanceKeyRecency pointedTo = iter.next();
-            if (!iter.hasNext() && pointedTo.isRecent()) {
-                return new ObjectField(pointedTo, field);
-            }
+    @Override
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        ReferenceVariableReplica receiverReplica = new ReferenceVariableReplica(context, receiver, g.getHaf());
+        InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
+        Iterator<InstanceKeyRecency> iter = g.pointsToIterator(receiverReplica, pre, new StmtAndContext(this, context));
+
+        if (!iter.hasNext()) {
+            // the receiver currently point to nothing. Too early to tell if we kill a node
+            return new OrderedPair(Boolean.FALSE, null);
         }
-        return null;
+        // the receiver point to at least one object.
+        InstanceKeyRecency pointedTo = iter.next();
+
+        if (!iter.hasNext() && pointedTo.isRecent()) {
+            // The receiver points to exactly one object, and it is the most recent.
+            // So we will kill the field!
+            // We definitely kill the ObjectField(pointedTo, field);
+            return new OrderedPair(Boolean.TRUE, new ObjectField(pointedTo, field));
+        }
+        // the receiver either points to more than one object, or points to a non-most recent object.
+        // either way, we don't kill the field.
+        return new OrderedPair(Boolean.TRUE, null);
     }
 
     @Override
@@ -145,22 +154,13 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
-        ReferenceVariableReplica var =
- new ReferenceVariableReplica(ctxt, this.localVar, haf);
-        List<Object> uses = new ArrayList<>(2);
-        uses.add(rec);
-        uses.add(var);
-
-        return uses;
-
+    public ReferenceVariableReplica getReadDependencyForKillField(Context ctxt, HeapAbstractionFactory haf) {
+        return new ReferenceVariableReplica(ctxt, this.receiver, haf);
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(this.field);
+    public FieldReference getMaybeKilledField() {
+        return this.getField();
     }
 
     /**

@@ -1,10 +1,10 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import types.TypeRepository;
+import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -25,6 +25,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
+import com.ibm.wala.types.FieldReference;
 
 /**
  * Defines how to process points-to graph information for a particular statement
@@ -79,10 +80,40 @@ public abstract class PointsToStatement {
     public abstract GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g,
                                        GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator);
 
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
+
+    /**
+     * Does this statement kill a PointsToGraphNode? Null is returned if this statement definitely cannot kill a
+     * PointsToGraphNode. If this statement might kill a PointsToGraphNode, then a non-null value is returned. The first
+     * element of the pair is false if not enough information is available yet to determine whether a PointsToGraphNode
+     * is killed. If the first element is true, then enough information is available to determine whether a
+     * PointsToGraphNode is killed. the second element may be a PointsToGraphNode (if it really does kill a node), and
+     * null if it does not. If this method returns (true, null), then all subsequent calls to the method will always
+     * return (true, null), even if more points to edges are added to the graph.
+     *
+     * @param context
+     * @param g
+     * @return
+     */
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         return null;
     }
 
+    /**
+     * Return the field that this statement may kill.
+     *
+     * @return
+     */
+    public FieldReference getMaybeKilledField() {
+        return null;
+    }
+
+    /**
+     * The InstanceKeyRecency that this statement allocates, if any.
+     *
+     * @param context
+     * @param g
+     * @return
+     */
     public InstanceKeyRecency justAllocated(Context context, PointsToGraph g) {
         return null;
     }
@@ -201,23 +232,14 @@ public abstract class PointsToStatement {
     public abstract ReferenceVariable getDef();
 
     /**
-     * Get the objects that processing this PointsToStatement in the
-     * specified context will "read". One PointsToStatement depends on another
-     * if the first "reads" an object that the other "writes". The objects
-     * are typically ReferenceVariableReplicas, but may use other objects
-     * (e.g., FieldReferences and IMethods) to express dependencies between
-     * statements.
+     * Get the objects that invoking killed(Context context, PointsToGraph g) will "read". One PointsToStatement depends
+     * on another if the first "reads" an object that the other "writes". The objects are typically
+     * ReferenceVariableReplicas, but may use other objects (e.g., FieldReferences and IMethods) to express dependencies
+     * between statements.
      */
-    public abstract Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf);
-
-    /**
-     * Get the objects that processing this PointsToStatement in the
-     * specified context will "write". See documentation for
-     * getReadDependencies
-     */
-    public abstract Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf);
+    public ReferenceVariableReplica getReadDependencyForKillField(Context ctxt, HeapAbstractionFactory haf) {
+        return null;
+    }
 
     /**
      * Is it possible that processing this statement will modify the flow-sensitive portion of the points to graph? This
@@ -229,5 +251,4 @@ public abstract class PointsToStatement {
     public void setProgramPoint(ProgramPoint pp) {
         this.pp = pp;
     }
-
 }

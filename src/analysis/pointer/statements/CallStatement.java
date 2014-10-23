@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.List;
 
+import util.OrderedPair;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -175,9 +176,11 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * The result node is killed after the call
      */
+
     @Override
-    public PointsToGraphNode killed(Context context, PointsToGraph g) {
-        return result.isFlowSensitive() ? new ReferenceVariableReplica(context, result, g.getHaf()) : null;
+    public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, result.isFlowSensitive()
+                ? new ReferenceVariableReplica(context, result, g.getHaf()) : null);
     }
 
     /**

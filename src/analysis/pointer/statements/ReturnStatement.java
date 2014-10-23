@@ -1,10 +1,8 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -84,19 +82,6 @@ public class ReturnStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return null;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, result, haf);
-        return Collections.singleton(r);
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, returnSummary, haf));
     }
 
     @Override
