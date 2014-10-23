@@ -188,7 +188,7 @@ public class StatementRegistrationPass {
                         continue;
                     }
 
-                    Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
+                    Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, bb.getMethod());
                     if (inv.isSpecial() || inv.isStatic()) {
                         // it is a special or a static method, so add the target(s) to the queue
                         q.addAll(targets);
@@ -218,6 +218,7 @@ public class StatementRegistrationPass {
         }
 
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
+        System.err.println("Saw " + registrar.swingClasses + " allocations from the Swing libraries.");
         System.gc();
         System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
                 + "MB");

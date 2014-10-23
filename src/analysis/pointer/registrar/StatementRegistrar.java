@@ -115,6 +115,8 @@ public class StatementRegistrar {
      */
     private final boolean useSingleAllocForImmutableWrappers;
 
+    private final boolean useSingleAllocForSwing = true;
+
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
@@ -259,6 +261,7 @@ public class StatementRegistrar {
      * A listener that will get notified of newly created statements.
      */
     private StatementListener stmtListener = null;
+    int swingClasses = 0;
 
     private static int removed = 0;
 
@@ -543,7 +546,7 @@ public class StatementRegistrar {
         }
 
         if (PointsToAnalysis.outputLevel >= 2) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
             if (resolvedMethods.isEmpty()) {
                 System.err.println("No resolved methods for " + pp.instructionString(i) + " method: "
                         + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
@@ -560,9 +563,8 @@ public class StatementRegistrar {
         // //////////// Resolve methods add statements ////////////
 
         if (i.isStatic()) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
             if (resolvedMethods.isEmpty()) {
-                System.err.println("No method found for " + PrettyPrinter.methodString(i.getDeclaredTarget()));
                 return;
             }
             assert resolvedMethods.size() == 1;
@@ -577,7 +579,11 @@ public class StatementRegistrar {
                                                      calleeSummary));
         }
         else if (i.isSpecial()) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
+            if (resolvedMethods.isEmpty()) {
+                // XXX No methods found!
+                return;
+            }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
@@ -593,7 +599,7 @@ public class StatementRegistrar {
         else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             if (ir.getSymbolTable().isNullConstant(i.getReceiver())) {
-                // Similar to the check above sometimes the receiver is a null constant
+                // Sometimes the receiver is a null constant
                 return;
             }
             this.addStatement(stmtFactory.virtualCall(i.getCallSite(),
@@ -666,7 +672,8 @@ public class StatementRegistrar {
                                    TypeRepository types, PrettyPrinter pp) {
         // all "new" instructions are assigned to a local
         TypeReference resultType = i.getConcreteType();
-        assert resultType.getName().equals(types.getType(i.getDef()).getName());
+        assert resultType.getName().equals(types.getType(i.getDef()).getName()) : resultType + " != "
+                + types.getType(i.getDef()) + " in " + ir.getMethod();
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pp);
 
         TypeReference allocType = i.getNewSite().getDeclaredType();
@@ -689,6 +696,16 @@ public class StatementRegistrar {
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
 
+        }
+        else if (useSingleAllocForSwing
+                && (klass.toString().contains("Ljavax/swing/") || klass.toString().contains("Lsun/swing/") || klass.toString()
+                                                                                                                   .contains("Lcom/sun/java/swing"))) {
+            swingClasses++;
+            ReferenceVariable rv = getOrCreateSingleton(allocType);
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+        }
+        else if (klass.toString().contains("swing")) {
+            System.err.println("SWING CLASS: " + klass);
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(result,
@@ -810,7 +827,7 @@ public class StatementRegistrar {
      * @param inv method invocation to resolve methods for
      * @return Set of methods the invocation could call
      */
-    static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv) {
+    static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IMethod caller) {
         Set<IMethod> targets = null;
         if (inv.isStatic()) {
             IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
@@ -835,6 +852,13 @@ public class StatementRegistrar {
         if (targets == null || targets.isEmpty()) {
             // XXX HACK These methods seem to be using non-existant TreeMap methods and fields
             // Let's hope they are never really called
+            System.err.println("WARNING Unable to resolve " + PrettyPrinter.methodString(inv.getDeclaredTarget()));
+            if (PointsToAnalysis.outputLevel > 0) {
+                PrettyPrinter pp = new PrettyPrinter(AnalysisUtil.getIR(caller));
+                System.err.println("\tIN : " + PrettyPrinter.methodString(pp.getIR().getMethod()) + " line: "
+                        + pp.getLineNumber(inv));
+                System.err.println("\tFOR: " + inv);
+            }
             return Collections.emptySet();
         }
         return targets;
