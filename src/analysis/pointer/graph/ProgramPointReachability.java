@@ -135,10 +135,10 @@ public class ProgramPointReachability {
                 // we represent the "universal" sets, so intersecting with
                 // the sets in res just gives us directly the sets in res.
                 // So copy over the sets res.killed and res.alloced.
-                this.killed = MutableSparseIntSet.createMutableSparseIntSet(0);
+                this.killed = MutableSparseIntSet.createMutableSparseIntSet(2);
                 this.killed.copySet(res.killed);
                 this.maybeKilledFields = new HashSet<>(res.maybeKilledFields);
-                this.alloced = MutableSparseIntSet.createMutableSparseIntSet(0);
+                this.alloced = MutableSparseIntSet.createMutableSparseIntSet(2);
                 this.alloced.copySet(res.alloced);
                 return true;
             }
@@ -212,6 +212,11 @@ public class ProgramPointReachability {
             }
             return false;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            throw new UnsupportedOperationException();
+        }
     }
 
 
@@ -240,7 +245,9 @@ public class ProgramPointReachability {
     public boolean reachable(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, StmtAndContext originatingSaC,
                              Set<StmtAndContext> sacsToReprocess) {
-
+        System.err.println("Starting reachable query " + sources + " to " + destination + " nokill " + noKill
+                + " noalloc "
+                + noAlloc);
         assert allMostRecent(noAlloc);
         // check the caches
         List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
@@ -262,7 +269,13 @@ public class ProgramPointReachability {
             return false;
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
-        return computeQuery(unknown, destination, noKill, noAlloc, originatingSaC, sacsToReprocess);
+        boolean ret = computeQuery(unknown, destination, noKill, noAlloc, originatingSaC, sacsToReprocess);
+
+        System.err.println("Finished reachable query " + sources + " to " + destination + " nokill " + noKill
+                + " noalloc "
+                + noAlloc);
+
+        return ret;
     }
 
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
@@ -275,17 +288,24 @@ public class ProgramPointReachability {
             MemoResult query = new MemoResult(src, destination, noKill, noAlloc);
             assert !positiveCache.contains(query);
 
+            System.err.println("  **Starting query " + src + " to " + destination + " nokill " + noKill + " noalloc "
+                    + noAlloc);
+
             // First check the call graph to find the set of relevant call graph nodes.
             OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
                     src.getContext());
             Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(sourceMethod, destinationMethod);
+            System.err.println("    Point Z: returned from relevant nodes ");
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
+                System.err.println("    Point A: no relevant nodes ");
+
                 addSaCDependency(query, originatingSaC);
                 recordQueryResult(query, false, sacsToReprocess);
                 continue;
             }
             // Now try a depth first search through the relevant nodes...
+            System.err.println("    Point B: starting searchThrough relevant nodes");
             if (searchThroughRelevantNodes(src,
                                            destination,
                                            noKill,
@@ -297,8 +317,10 @@ public class ProgramPointReachability {
                 // we found it!
                 recordQueryResult(query, true, sacsToReprocess);
 
+                System.err.println("    Point C: positive result from searchThrough relevant nodes");
                 return true;
             }
+            System.err.println("    Point D: negative result from searchThrough relevant nodes");
             addSaCDependency(query, originatingSaC);
             recordQueryResult(query, false, sacsToReprocess);
         }
@@ -681,6 +703,7 @@ public class ProgramPointReachability {
 
         public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
             assert res != null;
+            assert target != null;
             assert source.getContainingProcedure().equals(target.getContainingProcedure());
             assert source.getContext().equals(target.getContext());
             ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
@@ -925,8 +948,8 @@ public class ProgramPointReachability {
             int result = super.hashCode();
             result = prime * result + destination.hashCode();
             result = prime * result + source.hashCode();
-            result = prime * result + noAlloc.hashCode();
-            result = prime * result + noKill.hashCode();
+            result = prime * result + noAlloc.size();
+            result = prime * result + noKill.size();
             return result;
         }
 
@@ -948,10 +971,10 @@ public class ProgramPointReachability {
             if (!destination.equals(other.destination)) {
                 return false;
             }
-            if (!noAlloc.equals(other.noAlloc)) {
+            if (!noAlloc.sameValue(other.noAlloc)) {
                 return false;
             }
-            if (!noKill.equals(other.noKill)) {
+            if (!noKill.sameValue(other.noKill)) {
                 return false;
             }
             return true;
