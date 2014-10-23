@@ -16,6 +16,10 @@ public class RecencyHeapAbstractionFactory extends HeapAbstractionFactory {
     @Override
     public InstanceKeyRecency record(AllocSiteNode allocationSite, Context context) {
         InstanceKey ik = haf.record(allocationSite, context);
+        if (allocationSite.getAllocatedClass().isArrayClass()) {
+            // we don't bother using the recency abstraction for  arrays
+            return create(ik, false, false);
+        }
         // A newly created object is always the most recent one...
         return create(ik, true, true);
 
