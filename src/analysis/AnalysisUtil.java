@@ -170,7 +170,7 @@ public class AnalysisUtil {
         long start = System.currentTimeMillis();
 
         AnalysisUtil.cha = ClassHierarchy.make(scope);
-        System.out.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
+        System.err.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
         System.gc();
         System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
