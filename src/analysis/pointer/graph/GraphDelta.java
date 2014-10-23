@@ -1,7 +1,7 @@
 package analysis.pointer.graph;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -134,9 +134,11 @@ public class GraphDelta {
     }
 
     public boolean addAllocationSite(InstanceKeyRecency ikr, ProgramPointReplica ppr) {
-        Set<ProgramPointReplica> p = deltaAllocationSites.get(g.lookupDictionary(ikr));
+        int n = g.lookupDictionary(ikr);
+        Set<ProgramPointReplica> p = deltaAllocationSites.get(n);
         if (p == null) {
-            p = Collections.emptySet();
+            p = new HashSet<>();
+            deltaAllocationSites.put(n, p);
         }
         return p.add(ppr);
     }
