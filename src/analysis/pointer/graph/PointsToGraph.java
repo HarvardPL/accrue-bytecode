@@ -962,7 +962,7 @@ public class PointsToGraph {
             if (s == null) {
                 return false;
             }
-            ProgramPointSetClosure ppsc = s.get(from);
+            ProgramPointSetClosure ppsc = s.get(to);
             if (ppsc == null) {
                 return false;
             }
