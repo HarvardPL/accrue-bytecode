@@ -735,16 +735,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                 assert normalExitPC != null : "Callees for " + i + " cannot terminate normally.";
                 addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
 
-                // Can this callee throw an exception?
-                boolean canThrowException = false;
-                for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
-                    if (interProc.getPreciseExceptionResults().canProcedureThrowAnyException(callee)) {
-                        canThrowException = true;
-                        break;
-                    }
-                }
-
-                addEdgesForImmutableWrapper(i, normal.getPCNode(), canThrowException);
+                addEdgesForImmutableWrapper(i, normal.getPCNode());
                 return factToMap(Unit.VALUE, current, cfg);
             }
         }
@@ -822,6 +813,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
                              ExitType.EXCEPTIONAL);
         }
 
+
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -831,7 +823,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      * @param i invocation instruction
      * @param pcNode PC node at the call site
      */
-    private void addEdgesForImmutableWrapper(SSAInvokeInstruction i, PDGNode pcNode, boolean canThrowException) {
+    private void addEdgesForImmutableWrapper(SSAInvokeInstruction i, PDGNode pcNode) {
         MethodReference mr = i.getDeclaredTarget();
         // Target of the edges to be added
         PDGNode targetNode;
@@ -938,8 +930,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         }
 
         // Handle exceptions thrown by this callee
-        if (canThrowException) {
-            PDGContext exExitContext = calleeExceptionContexts.get(i);
+        PDGContext exExitContext = calleeExceptionContexts.get(i);
+        if (exExitContext != null) {
             PDGNode exAssign = PDGNodeFactory.findOrCreateOther("EXCEPTION = SIGNATURE",
                                                                     PDGNodeType.OTHER_EXPRESSION,
                                                                     currentNode,
@@ -948,6 +940,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             addEdge(expr, exAssign, PDGEdgeType.COPY);
             addEdge(pcNode, exAssign, PDGEdgeType.IMPLICIT);
             addEdge(exAssign, exceptionNode, PDGEdgeType.COPY);
+            addEdge(pcNode, exExitContext.getPCNode(), PDGEdgeType.CONJUNCTION);
         }
     }
 
