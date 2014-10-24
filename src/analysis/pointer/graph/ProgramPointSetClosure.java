@@ -152,12 +152,13 @@ public class ProgramPointSetClosure {
      */
     private Collection<InterProgramPointReplica> getSources(PointsToGraph g, StmtAndContext originator) {
         // XXX TODO turn this into an iterator, so that we lazily look at these allocation sites.
-        if (!g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
+        if (!g.isMostRecentObject(this.to) && g.isTrackingMostRecentObject(this.to)) {
             List<InterProgramPointReplica> s = new ArrayList<>();
             s.addAll(this.sources);
             // we need to add allocation sites of the to object, where from pointed to
             // the most recent version just before the allocation.
             int mostRecentVersion = g.mostRecentVersion(this.to);
+            assert mostRecentVersion != this.to;
             g.recordAllocationDependency(mostRecentVersion, originator);
 
             for (ProgramPointReplica allocPP : g.getAllocationSitesOf(mostRecentVersion)) {
