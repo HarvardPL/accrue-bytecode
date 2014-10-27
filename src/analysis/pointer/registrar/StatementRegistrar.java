@@ -99,9 +99,9 @@ public class StatementRegistrar {
     private int size;
 
     /**
-     * String literals that new allocation sites have already been created for
+     * String and null literals that allocation statements have already been created for
      */
-    private final Set<ReferenceVariable> handledStringLit;
+    private final Set<ReferenceVariable> handledLiterals;
     /**
      * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
@@ -174,7 +174,7 @@ public class StatementRegistrar {
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
         this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
-        this.handledStringLit = AnalysisUtil.createConcurrentSet();
+        this.handledLiterals = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
         this.entryMethodProgramPoints = AnalysisUtil.createConcurrentSet();
         this.stmtFactory = factory;
@@ -330,7 +330,7 @@ public class StatementRegistrar {
 
         ProgramPoint pp = df.getProgramPoint(i, bb);
         // Add statements for any string literals in the instruction
-        pp = this.findAndRegisterStringLiterals(i, ir, pp, this.rvFactory, printer);
+        pp = this.findAndRegisterStringAndNullLiterals(i, ir, pp, this.rvFactory, printer);
 
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
         pp = this.findAndRegisterGeneratedExceptions(i, bb, ir, pp, this.rvFactory, types, printer);
@@ -1035,13 +1035,13 @@ public class StatementRegistrar {
     }
 
     /**
-     * Look for String literals in the instruction and create allocation sites for them
+     * Look for String and null literals in the instruction and create allocation sites for them
      *
      * @param i instruction to create string literals for
      * @param ir code containing the instruction
      * @param stringClass WALA representation of the java.lang.String class
      */
-    private ProgramPoint findAndRegisterStringLiterals(SSAInstruction i, IR ir, ProgramPoint pp,
+    private ProgramPoint findAndRegisterStringAndNullLiterals(SSAInstruction i, IR ir, ProgramPoint pp,
                                                ReferenceVariableFactory rvFactory,
                                                PrettyPrinter pprint) {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
@@ -1051,17 +1051,33 @@ public class StatementRegistrar {
                                                                             TypeReference.JavaLangString,
                                                                             ir.getMethod(),
                                                                             pprint);
-                if (this.handledStringLit.contains(newStringLit)) {
+                if (!this.handledLiterals.add(newStringLit)) {
                     // Already handled this allocation
-                    return pp;
+                    continue;
                 }
-                this.handledStringLit.add(newStringLit);
 
                 // The fake root method always allocates a String so the clinit has already been called, even if we are
                 // flow sensitive
 
                 // add points to statements to simulate the allocation
                 pp = this.registerStringLiteral(newStringLit, use, pp, pprint);
+            }
+            else if (ir.getSymbolTable().isNullConstant(use)) {
+                ReferenceVariable newNullLit = rvFactory.getOrCreateLocal(use,
+                                                                          TypeReference.JavaLangString,
+                                                                          ir.getMethod(),
+                                                                          pprint);
+                if (!this.handledLiterals.add(newNullLit)) {
+                    // Already handled this allocation
+                    continue;
+                }
+
+                // add points to statements to simulate the allocation
+                ProgramPoint newPP = pp.divide("null-lit");
+                pp.addSucc(newPP);
+                this.addStatement(stmtFactory.nullToLocal(newNullLit, pp));
+                pp = newPP;
+
             }
         }
         return pp;

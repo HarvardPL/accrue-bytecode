@@ -386,6 +386,22 @@ public class StatementFactory {
     }
 
     /**
+     * Statement for a local assignment of null left = null.
+     *
+     * @param left assignee
+     * @param m method the points-to statement came from
+     * @return statement to be processed during pointer analysis
+     */
+    public NullToLocalStatement nullToLocal(ReferenceVariable left, ProgramPoint pp) {
+        assert left != null;
+        assert pp != null;
+
+        NullToLocalStatement s = new NullToLocalStatement(left, pp);
+        assert map.put(new StatementKey(left), s) == null;
+        return s;
+    }
+
+    /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
      *
      * @param v value assigned into
