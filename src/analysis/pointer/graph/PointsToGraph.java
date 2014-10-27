@@ -1866,7 +1866,7 @@ public class PointsToGraph {
                     // target is a flow-insensitive pointstographnode, so if it
                     // points to the most recent version, also points to
                     // the non-most recent version.
-                    if (!targetSet.contains(nonMostRecentVersion(i)) && !isNullInstanceKey(i)) {
+                    if (!targetSet.contains(nonMostRecentVersion(i))) {
                         s.add(nonMostRecentVersion(i));
                     }
                 }
@@ -1963,7 +1963,7 @@ public class PointsToGraph {
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (isMostRecentObject(next) && !isNullInstanceKey(next)) {
+                if (isMostRecentObject(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, also points to
                     // the non-most recent version.
