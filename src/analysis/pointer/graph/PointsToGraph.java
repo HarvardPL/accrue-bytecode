@@ -204,7 +204,7 @@ public class PointsToGraph {
     /**
      * InstanceKey pointed to at null allocation sites. Represented by one node in the points to graph.
      */
-    private final InstanceKeyRecency nullInstanceKey = new InstanceKeyRecency(null, true, true);
+    private final InstanceKeyRecency nullInstanceKey = new InstanceKeyRecency(null, false, false);
 
     /**
      * Int representation of nullInstanceKey.
@@ -319,7 +319,7 @@ public class PointsToGraph {
     /**
      * Return the int for the InstanceKeyRecency for the base node of the PointsToGraphNode n, if n is an ObjectField.
      * Otherwise return -1.
-     * 
+     *
      * @param n
      * @return
      */
@@ -386,6 +386,7 @@ public class PointsToGraph {
         }
         else if (node.isFlowSensitive()) {
             // in this case, heapContext should be nullInstanceKey
+            assert h == this.nullInstanceKeyInt;
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
             addToSetAndSupersets(delta,
                                  n,

@@ -79,10 +79,15 @@ public class FieldToLocalStatement extends PointsToStatement {
             // let's do the normal processing
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-                ObjectField f = new ObjectField(recHeapContext, this.declaredField);
-                //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
-                GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
-                changed = changed.combine(d1);
+                if (!g.isNullInstanceKey(recHeapContext)) {
+                    ObjectField f = new ObjectField(recHeapContext, this.declaredField);
+                    //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
+                    GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
+                    changed = changed.combine(d1);
+                }
+                else {
+                    // we ignore it if the receiver points to null.
+                }
             }
         }
         else {
@@ -91,9 +96,15 @@ public class FieldToLocalStatement extends PointsToStatement {
             // object k, add everything that k.f points to to v's set.
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-                ObjectField f = new ObjectField(recHeapContext, this.declaredField);
-                GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
-                changed = changed.combine(d1);
+                if (!g.isNullInstanceKey(recHeapContext)) {
+                    ObjectField f = new ObjectField(recHeapContext, this.declaredField);
+                    GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
+                    changed = changed.combine(d1);
+                }
+                else {
+                    // we ignore it if the receiver points to null.
+                }
+
             }
 
             // Note: we do not need to check if there are any k.f's that have changed, since that will be

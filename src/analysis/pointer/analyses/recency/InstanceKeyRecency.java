@@ -18,7 +18,7 @@ public class InstanceKeyRecency implements InstanceKey {
         this.ik = ik;
         this.recent = recent;
         this.isTrackingMostRecent = isTrackingMostRecent;
-        assert (ik == null || !recent || isTrackingMostRecent) : "If this is the most recent, then we are definitely tracking the most recent";
+        assert recent ? isTrackingMostRecent : true : "If this is the most recent, then we are definitely tracking the most recent";
     }
 
     public boolean isRecent() {
@@ -34,21 +34,44 @@ public class InstanceKeyRecency implements InstanceKey {
     }
 
 
+
     @Override
-    public boolean equals(Object o) {
-        InstanceKeyRecency that = (InstanceKeyRecency) o;
-        if (that.ik == null && this.ik == null) {
+    public boolean equals(Object obj) {
+        if (this == obj) {
             return true;
         }
-        return (this.ik.equals(that.ik) && this.recent == that.recent);
+        if (obj == null) {
+            return false;
+        }
+        if (!(obj instanceof InstanceKeyRecency)) {
+            return false;
+        }
+        InstanceKeyRecency other = (InstanceKeyRecency) obj;
+        if (ik == null) {
+            if (other.ik != null) {
+                return false;
+            }
+        }
+        else if (!ik.equals(other.ik)) {
+            return false;
+        }
+        if (isTrackingMostRecent != other.isTrackingMostRecent) {
+            return false;
+        }
+        if (recent != other.recent) {
+            return false;
+        }
+        return true;
     }
 
     @Override
     public int hashCode() {
-        if (ik == null) {
-            return 1234;
-        }
-        return ik.hashCode() ^ (recent ? 7867 : -56);
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((ik == null) ? 0 : ik.hashCode());
+        result = prime * result + (isTrackingMostRecent ? 1231 : 1237);
+        result = prime * result + (recent ? 1231 : 1237);
+        return result;
     }
 
     @Override

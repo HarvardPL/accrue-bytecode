@@ -62,6 +62,7 @@ public final class ObjectField implements PointsToGraphNode {
      */
     public ObjectField(InstanceKeyRecency receiver, FieldReference fieldReference) {
         this(receiver, fieldReference, fieldReference.getName().toString(), fieldReference.getFieldType(), false);
+        assert receiver != null && receiver.getConcreteType() != null : "Bad receiver, should be non null";
     }
 
     private ObjectField(InstanceKeyRecency receiver, FieldReference fieldReference, String fieldName,

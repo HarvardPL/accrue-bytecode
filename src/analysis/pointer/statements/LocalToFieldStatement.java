@@ -81,6 +81,9 @@ public class LocalToFieldStatement extends PointsToStatement {
                     GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
                     changed = changed.combine(d1);
                 }
+                else {
+                    // we ignore it if the receiver points to null.
+                }
             }
         }
         else {
@@ -92,6 +95,9 @@ public class LocalToFieldStatement extends PointsToStatement {
                     ObjectField of = new ObjectField(recHeapContext, this.field);
                     GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
                     changed = changed.combine(d1);
+                }
+                else {
+                    // we ignore it if the receiver points to null.
                 }
             }
         }

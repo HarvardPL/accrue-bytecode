@@ -78,7 +78,7 @@ public class NewStatement extends PointsToStatement {
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
         InstanceKeyRecency newHeapContext = haf.record(alloc, context);
-        assert newHeapContext != null;
+        assert newHeapContext != null && newHeapContext.getConcreteType() != null;
 
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result, haf);
         ProgramPointReplica ppr = ProgramPointReplica.create(context, this.programPoint());
@@ -94,9 +94,9 @@ public class NewStatement extends PointsToStatement {
         d = d.combine(g.copyEdgesForAllFields(newHeapContext, ppr, originator));
 
         // all the fields of the newly allocated object should point to null.
-        IClass allocatedCalss = alloc.getAllocatedClass();
-        if (!allocatedCalss.isArrayClass()) {
-            for (IField fld : allocatedCalss.getAllInstanceFields()) {
+        IClass allocatedClass = alloc.getAllocatedClass();
+        if (!allocatedClass.isArrayClass()) {
+            for (IField fld : allocatedClass.getAllInstanceFields()) {
                 ObjectField objfld = new ObjectField(newHeapContext, fld.getReference());
                 d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post(), originator));
             }
