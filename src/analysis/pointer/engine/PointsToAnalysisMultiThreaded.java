@@ -158,13 +158,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             registrar.setStatementListener(stmtListener);
         }
 
+        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
 
         // start up...
         while (execService.containsPending()) {
             execService.waitUntilAllFinished();
         }
 
-        System.out.println("all the tasks are done");
         // all the tasks are done.
         // Shut down the executer service
         execService.shutdownAndAwaitTermination();
@@ -196,18 +196,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
     void processSaC(StmtAndContext sac, GraphDelta delta, ExecutorServiceCounter execService) {
-
-        System.err.println("start processing " + sac);
-
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
 
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
 
         handleChanges(changes, execService);
-
-        System.err.println("finish processing " + sac);
-
     }
 
     private void handleChanges(GraphDelta changes, ExecutorServiceCounter execService) {
@@ -314,7 +308,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public boolean containsPending() {
-            System.err.println("pending..." + numTasks.get());
             return numTasks.get() > 0;
         }
 
@@ -323,7 +316,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void waitUntilAllFinished() {
-            System.err.println("waiting...");
             if (this.containsPending()) {
                 synchronized (this) {
                     try {

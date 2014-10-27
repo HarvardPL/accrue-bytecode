@@ -1,5 +1,7 @@
 package analysis.pointer.registrar;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -1473,5 +1475,38 @@ public class StatementRegistrar {
             return Collections.emptySet();
         }
         return s;
+    }
+
+    public void dumpProgramPointSuccGraphToFile(String filename) {
+        String file = filename;
+        String fullFilename = file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpProgramPointSuccGraph(out);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    public Writer dumpProgramPointSuccGraph(Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        // Need to differentiate between different nodes with the same string
+        writer.write("/******************** NODES ********************/\n");
+        for (MethodSummaryNodes methSum : methods.values()) {
+            ProgramPoint pp = methSum.getEntryPP();
+            String ppStr = escape(pp + ":" + getStmtAtPP(pp));
+            writer.write("\t\"" + ppStr + "\";\n");
+        }
+
+        writer.write("\n};\n");
+        return writer;
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
