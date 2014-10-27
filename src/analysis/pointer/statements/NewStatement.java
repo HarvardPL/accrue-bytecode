@@ -8,6 +8,7 @@ import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
+import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -17,6 +18,7 @@ import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
@@ -87,7 +89,18 @@ public class NewStatement extends PointsToStatement {
         // add the edge
         GraphDelta d = g.addEdge(r, newHeapContext, ppr.post(), originator);
 
+        // ensures that the PointsToFS of newHeapContext.f before this program point will
+        // be copied to PointsToFI of newHeapContext.f.
         d = d.combine(g.copyEdgesForAllFields(newHeapContext, ppr, originator));
+
+        // all the fields of the newly allocated object should point to null.
+        IClass allocatedCalss = alloc.getAllocatedClass();
+        if (!allocatedCalss.isArrayClass()) {
+            for (IField fld : allocatedCalss.getAllInstanceFields()) {
+                ObjectField objfld = new ObjectField(newHeapContext, fld.getReference());
+                d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post(), originator));
+            }
+        }
 
         // add the allocation site to delta
         d.addAllocationSite(newHeapContext, ppr);

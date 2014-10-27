@@ -94,6 +94,10 @@ public class ProgramPoint {
         return id;
     }
 
+    public IMethod getContainingProcedure() {
+        return containingProcedure;
+    }
+
     @Override
     public int hashCode() {
         return id;
@@ -359,7 +363,7 @@ public class ProgramPoint {
         }
 
         public IMethod getContainingProcedure() {
-            return ipp.getPP().containingProcedure;
+            return ipp.getPP().getContainingProcedure();
         }
 
         @Override

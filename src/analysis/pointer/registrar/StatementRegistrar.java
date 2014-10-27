@@ -952,6 +952,7 @@ public class StatementRegistrar {
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         if (ss.add(s)) {
+            // System.err.println("NEW STATEMENT:" + s);
             this.size++;
         }
         if (stmtListener != null) {

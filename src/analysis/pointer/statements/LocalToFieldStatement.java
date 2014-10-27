@@ -75,11 +75,12 @@ public class LocalToFieldStatement extends PointsToStatement {
             // no delta, let's do some simple processing
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-
-                ObjectField of = new ObjectField(recHeapContext, this.field);
-                // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
-                changed = changed.combine(d1);
+                if (!g.isNullInstanceKey(recHeapContext)) {
+                    ObjectField of = new ObjectField(recHeapContext, this.field);
+                    // o.f can point to anything that local can.
+                    GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
+                    changed = changed.combine(d1);
+                }
             }
         }
         else {
@@ -87,9 +88,11 @@ public class LocalToFieldStatement extends PointsToStatement {
             // point to everything that the RHS can.
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-                ObjectField of = new ObjectField(recHeapContext, this.field);
-                GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
-                changed = changed.combine(d1);
+                if (!g.isNullInstanceKey(recHeapContext)) {
+                    ObjectField of = new ObjectField(recHeapContext, this.field);
+                    GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
+                    changed = changed.combine(d1);
+                }
             }
         }
 
@@ -105,7 +108,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
         if (!iter.hasNext()) {
             // the receiver currently point to nothing. Too early to tell if we kill a node
-            return new OrderedPair(Boolean.FALSE, null);
+            return new OrderedPair<>(Boolean.FALSE, null);
         }
         // the receiver point to at least one object.
         InstanceKeyRecency pointedTo = iter.next();
@@ -114,11 +117,11 @@ public class LocalToFieldStatement extends PointsToStatement {
             // The receiver points to exactly one object, and it is the most recent.
             // So we will kill the field!
             // We definitely kill the ObjectField(pointedTo, field);
-            return new OrderedPair(Boolean.TRUE, new ObjectField(pointedTo, field));
+            return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ObjectField(pointedTo, field));
         }
         // the receiver either points to more than one object, or points to a non-most recent object.
         // either way, we don't kill the field.
-        return new OrderedPair(Boolean.TRUE, null);
+        return new OrderedPair<>(Boolean.TRUE, null);
     }
 
     @Override

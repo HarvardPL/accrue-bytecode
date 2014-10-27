@@ -15,7 +15,6 @@ public final class ObjectField implements PointsToGraphNode {
      * Heap context for the receiver of the field
      */
     private final InstanceKeyRecency receiver;
-
     /**
      * Name of the field
      */

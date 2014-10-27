@@ -31,7 +31,6 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
-import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -129,7 +128,7 @@ public class AccrueAnalysisMain {
                                             singleString);
             g = results.fst();
 //            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
-            ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
+            g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
 //            System.err.println(g.getNodes().size() + " Nodes");
             int num = 0;
@@ -379,7 +378,7 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings) {
-        //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
+        // PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;

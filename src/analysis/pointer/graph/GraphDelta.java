@@ -81,7 +81,7 @@ public class GraphDelta {
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (g.isMostRecentObject(next)) {
+                if (g.isMostRecentObject(next) && !g.isNullInstanceKey(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, also points to
                     // the non-most recent version.
