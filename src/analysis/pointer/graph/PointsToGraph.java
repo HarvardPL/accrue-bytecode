@@ -204,7 +204,7 @@ public class PointsToGraph {
     /**
      * InstanceKey pointed to at null allocation sites. Represented by one node in the points to graph.
      */
-    private final InstanceKeyRecency nullInstanceKey = new InstanceKeyRecency(null, true, false);
+    private final InstanceKeyRecency nullInstanceKey = new InstanceKeyRecency(null, true, true);
 
     /**
      * Int representation of nullInstanceKey.
@@ -328,9 +328,9 @@ public class PointsToGraph {
         PointsToGraphNode fromGraphNode = this.graphNodeDictionary.get(n);
         if (fromGraphNode instanceof ObjectField) {
             ObjectField of = (ObjectField) fromGraphNode;
-            if (of.isFlowSensitive()) {
-                return this.reverseInstanceKeyDictionary.get(of.receiver());
-            }
+            //if (of.isFlowSensitive()) {
+            return this.reverseInstanceKeyDictionary.get(of.receiver());
+            //}
         }
         return -1;
     }
@@ -344,10 +344,14 @@ public class PointsToGraph {
      */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKeyRecency heapContext, InterProgramPointReplica ippr,
                               StmtAndContext originator) {
+
+        // System.err.println("ADDING EDGE:(" + node + "," + heapContext + "," + ippr + ")");
+
         assert node != null && heapContext != null;
         assert !this.graphFinished;
 
-        assert !node.isFlowSensitive() : "Base nodes (i.e., nodes that point directly to heap contexts) should be flow-insensitive";
+        assert !node.isFlowSensitive() || isNullInstanceKey(heapContext) : "Base nodes (i.e., nodes that point directly to heap contexts) should be flow-insensitive"
+                + "or heap context is null.";
 
         int n = lookupDictionary(node);
 
@@ -356,11 +360,28 @@ public class PointsToGraph {
         int h = this.lookupDictionary(heapContext);
 
         GraphDelta delta = new GraphDelta(this);
-        if (!this.pointsToSetFI(n).contains(h)) {
+        if (!node.isFlowSensitive() && !this.pointsToSetFI(n).contains(h)) {
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
             addToSetAndSupersets(delta,
                                  n,
-                                 node.isFlowSensitive(),
+                                 false,
+                                 null,
+                                 SparseIntSet.singleton(h),
+                                 MutableSparseIntSet.makeEmpty(),
+                                 new IntStack(),
+                                 new Stack<Set<TypeFilter>>(),
+                                 new Stack<ExplicitProgramPointSet>(),
+                                 toCollapse,
+                                 originator);
+            // XXX maybe enable later.
+            //collapseCycles(toCollapse, delta);
+        }
+        else if (node.isFlowSensitive()) {
+            // in this case, heapContext should be nullInstanceKey
+            IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
+            addToSetAndSupersets(delta,
+                                 n,
+                                 true,
                                  ExplicitProgramPointSet.singleton(ippr),
                                  SparseIntSet.singleton(h),
                                  MutableSparseIntSet.makeEmpty(),
@@ -418,7 +439,7 @@ public class PointsToGraph {
             // int h, yet getting null when trying instanceKeyDictionary.get(h).)
             // try a put if absent
             // Note that we can do a put instead of a putIfAbsent, since h is guaranteed unique.
-            if (concreteTypeDictionary != null) {
+            if (concreteTypeDictionary != null && key != nullInstanceKey) {
                 this.concreteTypeDictionary.put(n, key.getConcreteType());
             }
             this.instanceKeyDictionary.put(n, key);
@@ -426,7 +447,7 @@ public class PointsToGraph {
             if (existing != null) {
                 // someone beat us. h will never be used.
                 this.instanceKeyDictionary.remove(n);
-                if (concreteTypeDictionary != null) {
+                if (concreteTypeDictionary != null && key != nullInstanceKey) {
                     this.concreteTypeDictionary.remove(n);
                 }
                 n = existing;
@@ -475,6 +496,9 @@ public class PointsToGraph {
      */
     public GraphDelta copyEdges(PointsToGraphNode source, InterProgramPointReplica sourceIppr,
                                 PointsToGraphNode target, InterProgramPointReplica targetIppr, StmtAndContext originator) {
+
+        // System.err.println("COPING EDGES: " + source + "-->" + target);
+
         assert !(source.isFlowSensitive() && target.isFlowSensitive()) : "At most one of the source and target should be flow sensitive";
         assert !this.graphFinished;
         int s = this.getRepresentative(lookupDictionary(source));
@@ -653,7 +677,6 @@ public class PointsToGraph {
                              originator);
         //XXX maybe enable later.
         //collapseCycles(toCollapse, changed);
-
     }
 
     /**
@@ -786,9 +809,10 @@ public class PointsToGraph {
 
             assert filterPPSet != null && !filterPPSet.isEmpty() ? targetIsFlowSensitive && !mIsFlowSensitive : true;
             assert filterPPSet != null && !filterPPSet.isEmpty()
-                    ? nonMostRecentVersion(baseNodeForPointsToGraphNode(target)) == baseNodeForPointsToGraphNode(m)
+                    ? (nonMostRecentVersion(baseNodeForPointsToGraphNode(target)) == baseNodeForPointsToGraphNode(m))
                     : true : "target is " + target + " = " + lookupPointsToGraphNodeDictionary(target) + " and m is "
-                    + m + " = " + lookupPointsToGraphNodeDictionary(m);
+                    + m + " = " + lookupPointsToGraphNodeDictionary(m) + ", base node for m is"
+                    + baseNodeForPointsToGraphNode(m);
 
             // Let's do the nofilterpp set first.
             // "target isFlowSensSubsetOf m with ppSet"
@@ -834,8 +858,9 @@ public class PointsToGraph {
                 // for all ippr in filterPPSet, we have
                 // { f(n) | n \in PointsToFS(target, ippr) } \subseteq PointsToFI(m)
                 // where f(n) = o_{notmostrecent} if n==o_{mostrecent} where target = o_{mostrecent}.fld and m = o_{notmostrecent}.fld
-                assert baseNodeForPointsToGraphNode(target) == baseNodeForPointsToGraphNode(m);
-                assert baseNodeForPointsToGraphNode(target) >= 0;
+                assert nonMostRecentVersion(baseNodeForPointsToGraphNode(target)) == baseNodeForPointsToGraphNode(m);
+                assert isFlowSensitivePointsToGraphNode(target) : "base node for target is not flow sensitive:"
+                        + lookupPointsToGraphNodeDictionary(baseNodeForPointsToGraphNode(target));
 
                 MutableIntSet filteredSetToAdd = MutableSparseIntSet.createMutableSparseIntSet(setToAdd.size());
                 IntIterator filtered = new ChangeRecentInstanceKeyIterator(new PointsToIntersectIntIterator(setToAdd.intIterator(),
@@ -862,7 +887,6 @@ public class PointsToGraph {
         }
         currentlyAdding.remove(target);
         currentlyAddingStack.pop();
-
     }
 
     /**

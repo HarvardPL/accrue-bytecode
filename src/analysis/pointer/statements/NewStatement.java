@@ -94,9 +94,12 @@ public class NewStatement extends PointsToStatement {
         d = d.combine(g.copyEdgesForAllFields(newHeapContext, ppr, originator));
 
         // all the fields of the newly allocated object should point to null.
-        for (IField fld : alloc.getAllocatedClass().getAllInstanceFields()) {
-            ObjectField objfld = new ObjectField(newHeapContext, fld.getReference());
-            d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post(), originator));
+        IClass allocatedCalss = alloc.getAllocatedClass();
+        if (!allocatedCalss.isArrayClass()) {
+            for (IField fld : allocatedCalss.getAllInstanceFields()) {
+                ObjectField objfld = new ObjectField(newHeapContext, fld.getReference());
+                d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post(), originator));
+            }
         }
 
         // add the allocation site to delta

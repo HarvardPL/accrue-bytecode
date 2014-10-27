@@ -18,7 +18,7 @@ public class InstanceKeyRecency implements InstanceKey {
         this.ik = ik;
         this.recent = recent;
         this.isTrackingMostRecent = isTrackingMostRecent;
-        assert (!recent || isTrackingMostRecent) : "If this is the most recent, then we are definitely tracking the most recent";
+        assert (ik == null || !recent || isTrackingMostRecent) : "If this is the most recent, then we are definitely tracking the most recent";
     }
 
     public boolean isRecent() {
@@ -37,26 +37,37 @@ public class InstanceKeyRecency implements InstanceKey {
     @Override
     public boolean equals(Object o) {
         InstanceKeyRecency that = (InstanceKeyRecency) o;
+        if (that.ik == null && this.ik == null) {
+            return true;
+        }
         return (this.ik.equals(that.ik) && this.recent == that.recent);
     }
 
     @Override
     public int hashCode() {
+        if (ik == null) {
+            return 1234;
+        }
         return ik.hashCode() ^ (recent ? 7867 : -56);
     }
 
     @Override
     public String toString() {
+        if (ik == null) {
+            return "<null,true>";
+        }
         return "<" + ik.toString() + "," + recent + ">";
     }
 
     @Override
     public IClass getConcreteType() {
+        assert ik != null;
         return ik.getConcreteType();
     }
 
     @Override
     public Iterator<Pair<CGNode, NewSiteReference>> getCreationSites(CallGraph CG) {
+        assert ik != null;
         return ik.getCreationSites(CG);
     }
 
