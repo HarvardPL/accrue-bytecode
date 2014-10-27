@@ -56,8 +56,6 @@ import com.ibm.wala.util.intset.SparseIntSet;
  */
 public class PointsToGraph {
 
-
-
     public static final String ARRAY_CONTENTS = "[contents]";
 
     public final StatementRegistrar registrar;
@@ -70,14 +68,17 @@ public class PointsToGraph {
      * That is, for efficiency we map InstanceKeys and PointsToGraphNode to ints, and
      * these fields help us manage those mappings.
      */
+
     /**
      * InstanceKey counter, for unique integers for InstanceKeys
      */
     private final AtomicInteger instanceKeyCounter = new AtomicInteger(0);
+
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
     private ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
@@ -103,8 +104,8 @@ public class PointsToGraph {
      */
     private ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
-    /* ******************
-     * Record allocation sites
+    /* ***************************************************************************
+     * Record allocation sites.
      */
     final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
@@ -143,17 +144,17 @@ public class PointsToGraph {
     private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
-     * if "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
+     * If "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
      */
     private IntRelation isUnfilteredSubsetOf = new IntRelation();
 
     /**
-     * if "a isFilteredSubsetOf b with filter" then the filter(pointsTo(a)) is a subset of pointsTo(b).
+     * If "a isFilteredSubsetOf b with filter" then the filter(pointsTo(a)) is a subset of pointsTo(b).
      */
     private SetAnnotatedIntRelation<TypeFilter> isFilteredSubsetOf = new SetAnnotatedIntRelation<>();
 
     /**
-     * if "a isFlowSensSubsetOf b with (noFilterPPSet, filterPPSet)" then for all ippr \in noFilterPPSet, we have
+     * If "a isFlowSensSubsetOf b with (noFilterPPSet, filterPPSet)" then for all ippr \in noFilterPPSet, we have
      * pointsTo(a, ippr) is a subset of pointsTo(b, ippr). At least one of a and b is a flow-sensitive
      * PointsToGraphNode. That is, if ippr \in noFilterPPSet, then if a is flow sensitive, we have: pointsToFS(a, ippr)
      * \subseteq pointsToFI(b) and if b is flow sensitive we have pointsToFI(a) \subseteq pointsToFS(b, ippr).
@@ -195,11 +196,18 @@ public class PointsToGraph {
      */
     private final ConcurrentIntMap<Integer> representative = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
+    /**
+     * InstanceKey pointed to at null allocation sites. Represented by one node in the points to graph.
+     */
+    private final InstanceKeyRecency nullInstanceKey = new InstanceKeyRecency(null, true, false);
+
+    /**
+     * Int representation of nullInstanceKey.
+     */
+    private final int nullInstanceKeyInt = lookupDictionary(nullInstanceKey);
 
     /* ***************************************************************************
-     *
      * Reachable contexts and entry points, and call graph representations.
-     *
      */
 
     /**
@@ -230,6 +238,9 @@ public class PointsToGraph {
      */
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> callGraphReverseMap = AnalysisUtil.createConcurrentHashMap();
 
+    /**
+     * Call graph.
+     */
     private HafCallGraph callGraph = null;
 
     /**
@@ -237,9 +248,10 @@ public class PointsToGraph {
      */
     private final RecencyHeapAbstractionFactory haf;
 
-
+    /**
+     * Dependency recorder.
+     */
     private final DependencyRecorder depRecorder;
-
 
     /**
      * Is the graph still being constructed, or is it finished? Certain operations should be called only once the graph
@@ -706,7 +718,6 @@ public class PointsToGraph {
         }
         this.addAllToSet(target, targetIsFlowSensitive, targetPoints, setToAdd);
 
-
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
@@ -775,8 +786,6 @@ public class PointsToGraph {
             OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet> annotation = flowSensSupersetsMap.get(m);
             ExplicitProgramPointSet noFilterPPSet = annotation.fst();
             ExplicitProgramPointSet filterPPSet = annotation.snd();
-
-
 
             boolean mIsFlowSensitive = isFlowSensitivePointsToGraphNode(m);
             assert !(targetIsFlowSensitive && mIsFlowSensitive);
@@ -1834,7 +1843,7 @@ public class PointsToGraph {
                     // target is a flow-insensitive pointstographnode, so if it
                     // points to the most recent version, also points to
                     // the non-most recent version.
-                    if (!targetSet.contains(nonMostRecentVersion(i))) {
+                    if (!targetSet.contains(nonMostRecentVersion(i)) && !isNullInstanceKey(i)) {
                         s.add(nonMostRecentVersion(i));
                     }
                 }
@@ -1863,8 +1872,6 @@ public class PointsToGraph {
         assert !isFlowSensitivePointsToGraphNode(n);
         MutableIntSet s = this.pointsToFI.get(n);
         if (s == null && !graphFinished) {
-            // XXX For all the most-recent object, do we need to add the not-most-recent one?
-            // or is this already taken care of at the sites where this is called?
             s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
             MutableIntSet ex = this.pointsToFI.putIfAbsent(n, s);
             if (ex != null) {
@@ -1920,7 +1927,7 @@ public class PointsToGraph {
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if(isMostRecentObject(next)) {
+                if (isMostRecentObject(next) && !isNullInstanceKey(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, also points to
                     // the non-most recent version.
@@ -2157,6 +2164,27 @@ public class PointsToGraph {
         InstanceKeyRecency ikr = lookupInstanceKeyDictionary(n);
         assert ikr != null;
         return this.lookupDictionary(ikr.recent(false));
+    }
+
+    /**
+     * Get the nullInstanceKey.
+     */
+    public InstanceKeyRecency nullInstanceKey() {
+        return nullInstanceKey;
+    }
+
+    /**
+     * Check if an InstanceKeyRecency is the nullInstanceKey.
+     */
+    public boolean isNullInstanceKey(InstanceKeyRecency ikr) {
+        return ikr == nullInstanceKey;
+    }
+
+    /**
+     * Check if ikr is the int representation of nullInstanceKey.
+     */
+    public boolean isNullInstanceKey(/*InstanceKeyRecency*/int ikr) {
+        return ikr == nullInstanceKeyInt;
     }
 
     private static class ReadOnlyConcurrentMap<K, V> implements ConcurrentMap<K, V> {

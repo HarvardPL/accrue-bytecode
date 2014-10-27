@@ -75,11 +75,12 @@ public class LocalToFieldStatement extends PointsToStatement {
             // no delta, let's do some simple processing
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-
-                ObjectField of = new ObjectField(recHeapContext, this.field);
-                // o.f can point to anything that local can.
-                GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
-                changed = changed.combine(d1);
+                if (!g.isNullInstanceKey(recHeapContext)) {
+                    ObjectField of = new ObjectField(recHeapContext, this.field);
+                    // o.f can point to anything that local can.
+                    GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
+                    changed = changed.combine(d1);
+                }
             }
         }
         else {
@@ -87,9 +88,11 @@ public class LocalToFieldStatement extends PointsToStatement {
             // point to everything that the RHS can.
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
-                ObjectField of = new ObjectField(recHeapContext, this.field);
-                GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
-                changed = changed.combine(d1);
+                if (!g.isNullInstanceKey(recHeapContext)) {
+                    ObjectField of = new ObjectField(recHeapContext, this.field);
+                    GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
+                    changed = changed.combine(d1);
+                }
             }
         }
 

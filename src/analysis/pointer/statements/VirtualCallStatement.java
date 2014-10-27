@@ -80,30 +80,33 @@ public class VirtualCallStatement extends CallStatement {
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();
 
-            // find the callee.
-            // The receiver is recHeapContext, and we want to find a method that matches selector
-            // callee.getSelector() in class recHeapContext.getConcreteType() or
-            // a superclass.
-            IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
+            if (!g.isNullInstanceKey(recHeapContext)) {
+                // find the callee.
+                // The receiver is recHeapContext, and we want to find a method that matches selector
+                // callee.getSelector() in class recHeapContext.getConcreteType() or
+                // a superclass.
+                IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(),
+                                                            receiverRep.getExpectedType());
 
-            if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                // Abstract method due to a native method that returns an abstract type or interface
-                // TODO Handle abstract methods in a smarter way
-                System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
-                continue;
+                if (resolvedCallee != null && resolvedCallee.isAbstract()) {
+                    // Abstract method due to a native method that returns an abstract type or interface
+                    // TODO Handle abstract methods in a smarter way
+                    System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
+                    continue;
+                }
+
+                // If we wanted to be very robust, check to make sure that
+                // resolvedCallee overrides
+                // the IMethod returned by ch.resolveMethod(callee).
+                changed = changed.combine(this.processCall(context,
+                                                           recHeapContext,
+                                                           resolvedCallee,
+                                                           g,
+                                                           haf,
+                                                           registrar.findOrCreateMethodSummary(resolvedCallee,
+                                                                                               this.rvFactory),
+                                                           originator));
             }
-
-            // If we wanted to be very robust, check to make sure that
-            // resolvedCallee overrides
-            // the IMethod returned by ch.resolveMethod(callee).
-            changed = changed.combine(this.processCall(context,
-                                                       recHeapContext,
-                                                       resolvedCallee,
-                                                       g,
-                                                       haf,
-                                                       registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                           this.rvFactory),
-                                                       originator));
         }
         return changed;
     }
