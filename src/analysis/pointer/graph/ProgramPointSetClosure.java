@@ -101,7 +101,7 @@ public class ProgramPointSetClosure {
     }
 
     private Set<InterProgramPointReplica> convertToPost(Set<ProgramPointReplica> set) {
-        //XXX make this more effiicient sometime in the future. Use an iterator instead of
+        //XXX make this more efficient sometime in the future. Use an iterator instead of
         // realizing a set
         Set<InterProgramPointReplica> s = new LinkedHashSet<>();
         for (ProgramPointReplica ppr : set) {

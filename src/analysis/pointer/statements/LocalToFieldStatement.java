@@ -108,7 +108,7 @@ public class LocalToFieldStatement extends PointsToStatement {
 
         if (!iter.hasNext()) {
             // the receiver currently point to nothing. Too early to tell if we kill a node
-            return new OrderedPair(Boolean.FALSE, null);
+            return new OrderedPair<>(Boolean.FALSE, null);
         }
         // the receiver point to at least one object.
         InstanceKeyRecency pointedTo = iter.next();
@@ -117,11 +117,11 @@ public class LocalToFieldStatement extends PointsToStatement {
             // The receiver points to exactly one object, and it is the most recent.
             // So we will kill the field!
             // We definitely kill the ObjectField(pointedTo, field);
-            return new OrderedPair(Boolean.TRUE, new ObjectField(pointedTo, field));
+            return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ObjectField(pointedTo, field));
         }
         // the receiver either points to more than one object, or points to a non-most recent object.
         // either way, we don't kill the field.
-        return new OrderedPair(Boolean.TRUE, null);
+        return new OrderedPair<>(Boolean.TRUE, null);
     }
 
     @Override
