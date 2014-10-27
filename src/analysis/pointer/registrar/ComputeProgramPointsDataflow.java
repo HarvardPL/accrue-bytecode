@@ -497,7 +497,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
                 // see if there are string literals
                 for (int j = 0; j < i.getNumberOfUses(); j++) {
                     int use = i.getUse(j);
-                    if (ir.getSymbolTable().isStringConstant(use)) {
+                    if (ir.getSymbolTable().isStringConstant(use) || ir.getSymbolTable().isNullConstant(use)) {
                         mayChangePointsToGraph = true;
                         break;
                     }
