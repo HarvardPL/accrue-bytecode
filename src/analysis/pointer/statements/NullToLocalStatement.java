@@ -20,7 +20,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 /**
  * Points-to graph statement for a "null alloc" statement, e.g. o = null;
  */
-public class NullAllocStatement extends PointsToStatement {
+public class NullToLocalStatement extends PointsToStatement {
 
     /**
      * Points-to graph node for the assignee of null
@@ -33,7 +33,7 @@ public class NullAllocStatement extends PointsToStatement {
      * @param result Points-to graph node for the assignee of the new
      * @param pp program point of this statement
      */
-    protected NullAllocStatement(ReferenceVariable result, ProgramPoint pp) {
+    protected NullToLocalStatement(ReferenceVariable result, ProgramPoint pp) {
         super(pp);
         this.result = result;
     }
