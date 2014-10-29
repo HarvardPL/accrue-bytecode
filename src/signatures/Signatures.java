@@ -649,21 +649,20 @@ public class Signatures {
 
     /**
      * Is this method System.arraycopy
-     * 
+     *
      * @param mr method to check
      * @return true if the method is System.arraycopy
      */
     public static boolean isArraycopy(MethodReference mr) {
+        TypeName name = mr.getDeclaringClass().getName();
+        if (!name.equals(TypeReference.JavaLangSystem.getName())) {
+            return false;
+        }
+
+        if (mr.getName().toString().contains("arraycopy")) {
+            return true;
+        }
         return false;
-        //        TypeName name = mr.getDeclaringClass().getName();
-        //        if (!name.equals(TypeReference.JavaLangSystem.getName())) {
-        //            return false;
-        //        }
-        //
-        //        if (mr.getName().toString().contains("arraycopy")) {
-        //            return true;
-        //        }
-        //        return false;
     }
 
     /**

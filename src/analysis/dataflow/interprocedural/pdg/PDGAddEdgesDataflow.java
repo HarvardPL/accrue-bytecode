@@ -730,12 +730,15 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())
                 || Signatures.isArraycopy(i.getDeclaredTarget())) {
             if (!i.getDeclaredTarget().getName().equals(MethodReference.clinitName)) { // not the class init method
+
+                assert normalExitPC != null : "Callees for " + i + " cannot terminate normally.";
                 // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
                 // The Objects are handled as if they were a primitive.
-                assert normalExitPC != null : "Callees for " + i + " cannot terminate normally.";
+
+                // Similarly there is a special signature for arraycopy
                 addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
 
-                addEdgesForImmutableWrapper(i, normal.getPCNode());
+                addEdgesForInlineSignature(i, normal.getPCNode());
                 return factToMap(Unit.VALUE, current, cfg);
             }
         }
@@ -823,7 +826,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
      * @param i invocation instruction
      * @param pcNode PC node at the call site
      */
-    private void addEdgesForImmutableWrapper(SSAInvokeInstruction i, PDGNode pcNode) {
+    private void addEdgesForInlineSignature(SSAInvokeInstruction i, PDGNode pcNode) {
         MethodReference mr = i.getDeclaredTarget();
         // Target of the edges to be added
         PDGNode targetNode;
