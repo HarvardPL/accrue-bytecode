@@ -44,7 +44,7 @@ public class NewStatement extends PointsToStatement {
     protected NewStatement(ReferenceVariable result, IClass newClass, IMethod m, int pc, int lineNumber) {
         super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createNormal(newClass, m.getDeclaringClass(), result, pc, lineNumber);
+        alloc = AllocSiteNodeFactory.createNormal(newClass, m, result, pc, lineNumber);
     }
 
     /**
@@ -61,11 +61,7 @@ public class NewStatement extends PointsToStatement {
                            boolean isStringLiteral) {
         super(m);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createGenerated(name,
-                                                     allocatedClass,
-                                                     m.getDeclaringClass(),
-                                                     result,
-                                                     isStringLiteral);
+        alloc = AllocSiteNodeFactory.createGenerated(name, allocatedClass, m, result, isStringLiteral);
     }
 
     @Override

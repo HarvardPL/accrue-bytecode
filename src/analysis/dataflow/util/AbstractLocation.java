@@ -129,7 +129,8 @@ public class AbstractLocation {
     @Override
     public String toString() {
         if (isArrayContents) {
-            return receiverContext + "." + PointsToGraph.ARRAY_CONTENTS;
+            return PrettyPrinter.typeString(receiverContext.getConcreteType()) + "." + PointsToGraph.ARRAY_CONTENTS
+                    + " in " + receiverContext;
         }
         if (field == null) {
             System.err.println("WARNING: null field in AbstractLocation in  " + receiverContext);
