@@ -207,6 +207,13 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
             }
 
             IClass actual = hContext.getConcreteType();
+            if (checkedClass.isArrayClass() && actual.equals(AnalysisUtil.getObjectClass())) {
+                // Sometimes arrays are mistakenly set to Object in the type inference algorithm
+                // Lets be conservative here
+                castAlwaysSucceeds = false;
+                castAlwaysFails = false;
+            }
+
             if (!AnalysisUtil.getClassHierarchy().isAssignableFrom(checkedClass, actual)) {
                 // At least one cast will fail
                 castAlwaysSucceeds = false;
