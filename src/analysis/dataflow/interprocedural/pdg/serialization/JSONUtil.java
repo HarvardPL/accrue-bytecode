@@ -80,6 +80,9 @@ public class JSONUtil {
             JSONObject labelJson = new JSONObject();
             addJSON(labelJson, "type", label.getType().toString());
             labelJson.put("id", label.getCallSiteID().intValue());
+            if (label.getReceiverIDs() != null) {
+                labelJson.put("receivers", label.getReceiverIDs());
+            }
             json.put("label", labelJson);
         } catch (JSONException e) {
             System.err.println("Serialization error for EdgeLabel: " + label + ", message: " + e.getMessage());
