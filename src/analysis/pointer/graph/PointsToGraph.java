@@ -1,5 +1,9 @@
 package analysis.pointer.graph;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -467,7 +471,6 @@ public class PointsToGraph {
 
     protected PointsToGraphNode lookupPointsToGraphNodeDictionary(int node) {
         return this.graphNodeDictionary.get(node);
-
     }
 
     protected int lookupDictionary(PointsToGraphNode node) {
@@ -1241,6 +1244,13 @@ public class PointsToGraph {
         }
         return callGraph;
 
+    }
+
+    /**
+     * Get the statement registrar.
+     */
+    public StatementRegistrar getRegistrar() {
+        return registrar;
     }
 
     private void recordRead(/*PointsToGraphNode*/int node, StmtAndContext sac) {
@@ -2450,4 +2460,55 @@ public class PointsToGraph {
 
     }
 
+    public void dumpPointsToGraphToFile(String filename) {
+        String file = filename;
+        String fullFilename = file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpPointsToGraph(out);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    public Writer dumpPointsToGraph(Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        IntIterator fromIter = pointsToFS.keyIterator();
+        while (fromIter.hasNext()) {
+            int f = fromIter.next();
+            PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
+            IntMap<ProgramPointSetClosure> ikrToPP = pointsToFS.get(f);
+            IntIterator toIter = ikrToPP.keyIterator();
+            while (toIter.hasNext()) {
+                int t = toIter.next();
+                InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
+                writer.write("\t\"" + escape(from.toStringWithoutRecency()) + "\" -> \"" + escape(to.toString())
+                        + "\"  [color=red,label=\"" + ikrToPP.get(t) + "\"];\n");
+            }
+        }
+
+        fromIter = pointsToFI.keyIterator();
+        while (fromIter.hasNext()) {
+            int f = fromIter.next();
+            PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
+            IntIterator toIter = pointsToFI.get(f).intIterator();
+            while (toIter.hasNext()) {
+                int t = toIter.next();
+                InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
+                writer.write("\t\"" + escape(from.toStringWithoutRecency()) + "\" -> \"" + escape(to.toString())
+                        + "\"  [color=blue];\n");
+            }
+        }
+
+        writer.write("};\n");
+        return writer;
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
 }

@@ -158,8 +158,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             registrar.setStatementListener(stmtListener);
         }
 
-        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
-
         // start up...
         while (execService.containsPending()) {
             execService.waitUntilAllFinished();
@@ -185,6 +183,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
         }
+
+        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
+        g.dumpPointsToGraphToFile("tests/pointsToGraph");
+
         g.constructionFinished();
         System.gc();
         System.err.println("   Memory post compression: "

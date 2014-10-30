@@ -82,6 +82,13 @@ public class InstanceKeyRecency implements InstanceKey {
         return "<" + ik.toString() + "," + recent + ">";
     }
 
+    public String toStringWithoutRecency() {
+        if (ik == null) {
+            return "null";
+        }
+        return ik.toString();
+    }
+
     @Override
     public IClass getConcreteType() {
         assert ik != null;

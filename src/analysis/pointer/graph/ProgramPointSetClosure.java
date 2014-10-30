@@ -201,4 +201,14 @@ public class ProgramPointSetClosure {
         return from;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        s.append("{");
+        for (InterProgramPointReplica ippr : this.sources) {
+            s.append(ippr + ",");
+        }
+        s.append("}");
+        return s.toString();
+    }
 }

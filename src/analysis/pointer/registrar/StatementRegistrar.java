@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -1510,16 +1511,25 @@ public class StatementRegistrar {
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
 
-        // Need to differentiate between different nodes with the same string
-        writer.write("/******************** NODES ********************/\n");
+        Set<ProgramPoint> visited = new HashSet<>();
         for (MethodSummaryNodes methSum : methods.values()) {
-            ProgramPoint pp = methSum.getEntryPP();
-            String ppStr = escape(pp + ":" + getStmtAtPP(pp));
-            writer.write("\t\"" + ppStr + "\";\n");
+            writeSucc(methSum.getEntryPP(), writer, visited);
         }
 
-        writer.write("\n};\n");
+        writer.write("};\n");
         return writer;
+    }
+
+    private void writeSucc(ProgramPoint pp, Writer writer, Set<ProgramPoint> visited) throws IOException {
+        if (!visited.contains(pp)) {
+            visited.add(pp);
+            for (ProgramPoint succ : pp.succs()) {
+                String fromStr = escape(pp + " : " + getStmtAtPP(pp));
+                String toStr = escape(succ + " : " + getStmtAtPP(succ));
+                writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
+                writeSucc(succ, writer, visited);
+            }
+        }
     }
 
     private static String escape(String s) {

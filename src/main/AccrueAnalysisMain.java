@@ -127,7 +127,6 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString);
             g = results.fst();
-//            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
             g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
 //            System.err.println(g.getNodes().size() + " Nodes");

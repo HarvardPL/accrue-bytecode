@@ -17,4 +17,9 @@ public interface PointsToGraphNode {
      * Should the points to set of this PointsToGraphNode flow sensitive or not?
      */
     boolean isFlowSensitive();
+
+    /**
+     * Output a string without recency information. Used for superimposing the FS and FI points to graph.
+     */
+    String toStringWithoutRecency();
 }

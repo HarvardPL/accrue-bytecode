@@ -2,7 +2,6 @@ package analysis.pointer.graph;
 
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
@@ -139,10 +138,14 @@ public final class ObjectField implements PointsToGraphNode {
 
     @Override
     public String toString() {
-        return "{" + receiver() + "}." + fieldName();
+        return "{" + receiver + "}." + fieldName;
     }
 
-    public InstanceKey receiver() {
+    public String toStringWithoutRecency() {
+        return "{" + receiver.toStringWithoutRecency() + "}." + fieldName;
+    }
+
+    public InstanceKeyRecency receiver() {
         return receiver;
     }
 
