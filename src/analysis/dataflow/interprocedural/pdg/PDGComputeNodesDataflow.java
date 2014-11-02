@@ -655,8 +655,10 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         }
 
         boolean canCalleeThrowNPE = false;
+
         // This is a call to a reciever that is an immutable wrapper (e.g. String, Integer)
-        boolean immutableWrapperCall = Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass());
+        boolean immutableWrapperCall = Signatures.isImmutableWrapperCall(i);
+        // This is a call to System.arrayCopy
         boolean isArraycopy = Signatures.isArraycopy(i.getDeclaredTarget());
 
         for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {

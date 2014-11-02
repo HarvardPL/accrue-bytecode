@@ -733,20 +733,16 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             // TODO if no NPE throw WrongMethodTypeException
         }
 
-        if (Signatures.isImmutableWrapper(i.getDeclaredTarget().getDeclaringClass())
-                || Signatures.isArraycopy(i.getDeclaredTarget())) {
-            if (!i.getDeclaredTarget().getName().equals(MethodReference.clinitName)) { // not the class init method
+        if (Signatures.isImmutableWrapperCall(i) || Signatures.isArraycopy(i.getDeclaredTarget())) {
+            assert normalExitPC != null : "Callees for " + i + " cannot terminate normally.";
+            // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
+            // The Objects are handled as if they were a primitive.
 
-                assert normalExitPC != null : "Callees for " + i + " cannot terminate normally.";
-                // We handle calls to methods on immutable wrappers (String, Integer, etc.) specially.
-                // The Objects are handled as if they were a primitive.
+            // Similarly there is a special signature for arraycopy
+            addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
 
-                // Similarly there is a special signature for arraycopy
-                addEdge(normal.getPCNode(), normalExitPC, PDGEdgeType.CONJUNCTION);
-
-                addEdgesForInlineSignature(i, normal.getPCNode());
-                return factToMap(Unit.VALUE, current, cfg);
-            }
+            addEdgesForInlineSignature(i, normal.getPCNode());
+            return factToMap(Unit.VALUE, current, cfg);
         }
 
         // Labels for the entry and exit to this particular call these are used
@@ -1166,7 +1162,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Map<ISSABasicBlock, Unit> flowNewObject(SSANewInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        if (Signatures.isImmutableWrapper(i.getConcreteType())) {
+        if (Signatures.isImmutableWrapperType(i.getConcreteType())) {
             // Immutable wrappers (e.g. String, Integer, etc.) are handled when the constructor is called in addEdgesForImmutableWrapper
             // They are treated as primitives
             return factToMap(Unit.VALUE, current, cfg);

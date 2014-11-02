@@ -666,12 +666,34 @@ public class Signatures {
     }
 
     /**
+     * Check whether the call is to a method on one of the immutable wrapper classes (String, Integer, etc.). If this is
+     * String.valueOf(Object) or a clinit then this returns false.
+     *
+     * @param i method invocation to check
+     * @return true if the call is on an immutable wrapper (or on the signature type for one)
+     */
+    public static boolean isImmutableWrapperCall(SSAInvokeInstruction i) {
+        if (!isImmutableWrapperType(i.getDeclaredTarget().getDeclaringClass())) {
+            // This is not one of the immutable types
+            return false;
+        }
+        if (i.getDeclaredTarget().getName().equals(MethodReference.clinitName)
+                || i.getDeclaredTarget().getDeclaringClass().equals(TypeReference.JavaLangString)
+                && i.getDeclaredTarget().getName().toString().contains("valueOf")
+                && i.getDeclaredTarget().getParameterType(0).equals(TypeReference.JavaLangObject)) {
+            // This is String.valueOf(Object o) or this is the clinit, do not inline
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Check whether the given type is one of the immutable wrapper classes (String, Integer, etc.)
      *
      * @param t type to check
      * @return true if the type is an immutable wrapper (or is the signature type for one)
      */
-    public static boolean isImmutableWrapper(TypeReference t) {
+    public static boolean isImmutableWrapperType(TypeReference t) {
         if (immutableWrappers.isEmpty()) {
             // Initialize the set of wrapper types
             immutableWrappers.add(TypeReference.JavaLangString.getName());
@@ -719,7 +741,7 @@ public class Signatures {
             if (realType == null) {
                 return false;
             }
-            return isImmutableWrapper(realType);
+            return isImmutableWrapperType(realType);
         }
         return false;
     }

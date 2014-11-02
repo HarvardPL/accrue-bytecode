@@ -686,7 +686,7 @@ public class StatementRegistrar {
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
 
         }
-        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapper(allocType)) {
+        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(allocType)) {
             // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
