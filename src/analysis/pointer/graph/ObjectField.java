@@ -141,10 +141,6 @@ public final class ObjectField implements PointsToGraphNode {
         return "{" + receiver + "}." + fieldName;
     }
 
-    public String toStringWithoutRecency() {
-        return "{" + receiver.toStringWithoutRecency() + "}." + fieldName;
-    }
-
     public InstanceKeyRecency receiver() {
         return receiver;
     }

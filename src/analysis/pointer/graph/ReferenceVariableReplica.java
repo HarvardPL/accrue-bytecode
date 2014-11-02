@@ -87,8 +87,4 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
         return var + " in " + context;
     }
 
-    @Override
-    public String toStringWithoutRecency() {
-        return var + " in " + context;
-    }
 }

@@ -2477,17 +2477,43 @@ public class PointsToGraph {
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
 
+        DotNodesRepMap repMap = new DotNodesRepMap();
+
         IntIterator fromIter = pointsToFS.keyIterator();
         while (fromIter.hasNext()) {
             int f = fromIter.next();
             PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
-            IntMap<ProgramPointSetClosure> ikrToPP = pointsToFS.get(f);
-            IntIterator toIter = ikrToPP.keyIterator();
-            while (toIter.hasNext()) {
-                int t = toIter.next();
-                InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
-                writer.write("\t\"" + escape(from.toStringWithoutRecency()) + "\" -> \"" + escape(to.toString())
-                        + "\"  [color=red,label=\"" + ikrToPP.get(t) + "\"];\n");
+
+            if (from instanceof ReferenceVariableReplica) {
+                ReferenceVariableReplica rvr = (ReferenceVariableReplica) from;
+                String fromNode = repMap.getRepOrPutIfAbsent(rvr);
+
+                IntMap<ProgramPointSetClosure> ikrToPP = pointsToFS.get(f);
+                IntIterator toIter = ikrToPP.keyIterator();
+                while (toIter.hasNext()) {
+                    int t = toIter.next();
+                    InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
+                    String toNode = repMap.getRepOrPutIfAbsent(to);
+                    writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + ikrToPP.get(t)
+                            + "\"];\n");
+                }
+            }
+
+            else {
+                assert from instanceof ObjectField : "Invalid PointsToGraphNode type.";
+                ObjectField of = (ObjectField) from;
+                InstanceKeyRecency fromIkr = of.receiver();
+                String fromNode = repMap.getRepOrPutIfAbsent(fromIkr);
+
+                IntMap<ProgramPointSetClosure> ikrToPP = pointsToFS.get(f);
+                IntIterator toIter = ikrToPP.keyIterator();
+                while (toIter.hasNext()) {
+                    int t = toIter.next();
+                    InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
+                    String toNode = repMap.getRepOrPutIfAbsent(to);
+                    writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName()
+                            + "," + ikrToPP.get(t) + "\"];\n");
+                }
             }
         }
 
@@ -2495,20 +2521,94 @@ public class PointsToGraph {
         while (fromIter.hasNext()) {
             int f = fromIter.next();
             PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
-            IntIterator toIter = pointsToFI.get(f).intIterator();
-            while (toIter.hasNext()) {
-                int t = toIter.next();
-                InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
-                writer.write("\t\"" + escape(from.toStringWithoutRecency()) + "\" -> \"" + escape(to.toString())
-                        + "\"  [color=blue];\n");
+
+            if (from instanceof ReferenceVariableReplica) {
+                ReferenceVariableReplica rvr = (ReferenceVariableReplica) from;
+                String fromNode = repMap.getRepOrPutIfAbsent(rvr);
+
+                MutableIntSet ikrToPP = pointsToFI.get(f);
+                IntIterator toIter = ikrToPP.intIterator();
+                while (toIter.hasNext()) {
+                    int t = toIter.next();
+                    InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
+                    String toNode = repMap.getRepOrPutIfAbsent(to);
+                    writer.write("\t" + fromNode + " -> " + toNode + " [color=blue];\n");
+                }
+            }
+
+            else {
+                assert from instanceof ObjectField : "Invalid PointsToGraphNode type.";
+                ObjectField of = (ObjectField) from;
+                InstanceKeyRecency fromIkr = of.receiver();
+                String fromNode = repMap.getRepOrPutIfAbsent(fromIkr);
+
+                MutableIntSet ikrToPP = pointsToFI.get(f);
+                IntIterator toIter = ikrToPP.intIterator();
+                while (toIter.hasNext()) {
+                    int t = toIter.next();
+                    InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
+                    String toNode = repMap.getRepOrPutIfAbsent(to);
+                    writer.write("\t" + fromNode + " -> " + toNode + " [color=blue,label=\"" + of.fieldName()
+                            + "\"];\n");
+                }
             }
         }
+
+        repMap.writeNodes(writer);
 
         writer.write("};\n");
         return writer;
     }
 
-    private static String escape(String s) {
+    protected static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private class DotNodesRepMap {
+        final Map<InstanceKeyRecency, String> ikrToDotNode;
+        int ikrCount = 0;
+        final Map<ReferenceVariableReplica, String> rvrToDotNode;
+        int rvrCount = 0;
+
+        public DotNodesRepMap() {
+            ikrToDotNode = new HashMap<>();
+            rvrToDotNode = new HashMap<>();
+        }
+
+        public String getRepOrPutIfAbsent(ReferenceVariableReplica rvr) {
+            String s = rvrToDotNode.get(rvr);
+            if (s == null) {
+                s = "rvr" + rvrCount;
+                rvrCount++;
+                rvrToDotNode.put(rvr, s);
+            }
+            return s;
+        }
+
+        public String getRepOrPutIfAbsent(InstanceKeyRecency ikr) {
+            String s = ikrToDotNode.get(ikr);
+            if (s == null) {
+                s = "ikr" + ikrCount;
+                ikrCount++;
+                ikrToDotNode.put(ikr, s);
+            }
+            return s;
+        }
+
+        public void writeNodes(Writer writer) throws IOException {
+            for (ReferenceVariableReplica rvr : rvrToDotNode.keySet()) {
+                String color = rvr.isFlowSensitive() ? "red" : "blue";
+                writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\" RVR: "
+                        + escape(rvr.toString())
+                        + "\"];\n");
+            }
+
+            for (InstanceKeyRecency ikr : ikrToDotNode.keySet()) {
+                String color = ikr.isRecent() ? "red" : "blue";
+                writer.write("\t" + ikrToDotNode.get(ikr) + "[color=" + color + ", label=\" IKR: "
+                        + escape(ikr.toStringWithoutRecency()) + "\"];\n");
+            }
+        }
+
     }
 }

@@ -486,7 +486,7 @@ public class ReferenceVariableFactory {
 
         @Override
         public String toString() {
-            return debugString;
+            return debugString + "\nof type " + expectedType;
         }
 
         @Override
