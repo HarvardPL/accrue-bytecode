@@ -1494,6 +1494,9 @@ public class StatementRegistrar {
         return s;
     }
 
+    /**
+     * Write program-point successor graph to file.
+     */
     public void dumpProgramPointSuccGraphToFile(String filename) {
         String file = filename;
         String fullFilename = file + ".dot";

@@ -2460,6 +2460,16 @@ public class PointsToGraph {
 
     }
 
+    /**
+     * Write points-to-graph representation to file.
+     *
+     * For rvr nodes, Red: tracking flow-sensitive --> outgoing edges are red with program points, Blue: not tracking
+     * flow-sensitive --> outgoing edges are blue without annotations
+     *
+     * For ikr nodes, Red: most-recent object --> outgoing edges are red with field name and program points, Blue:
+     * non-most-recent object --> outgoing edges are blue with field name
+     * 
+     */
     public void dumpPointsToGraphToFile(String filename) {
         String file = filename;
         String fullFilename = file + ".dot";
@@ -2484,6 +2494,7 @@ public class PointsToGraph {
             int f = fromIter.next();
             PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
 
+            // print flow-sentsitive points-to relations for reference variable
             if (from instanceof ReferenceVariableReplica) {
                 ReferenceVariableReplica rvr = (ReferenceVariableReplica) from;
                 String fromNode = repMap.getRepOrPutIfAbsent(rvr);
@@ -2499,6 +2510,7 @@ public class PointsToGraph {
                 }
             }
 
+            // print flow-sentsitive points-to relations for object field
             else {
                 assert from instanceof ObjectField : "Invalid PointsToGraphNode type.";
                 ObjectField of = (ObjectField) from;
@@ -2522,6 +2534,7 @@ public class PointsToGraph {
             int f = fromIter.next();
             PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
 
+            // print flow-insentsitive points-to relations for reference variable
             if (from instanceof ReferenceVariableReplica) {
                 ReferenceVariableReplica rvr = (ReferenceVariableReplica) from;
                 String fromNode = repMap.getRepOrPutIfAbsent(rvr);
@@ -2536,6 +2549,7 @@ public class PointsToGraph {
                 }
             }
 
+            // print flow-insentsitive points-to relations for object field
             else {
                 assert from instanceof ObjectField : "Invalid PointsToGraphNode type.";
                 ObjectField of = (ObjectField) from;
@@ -2565,8 +2579,10 @@ public class PointsToGraph {
     }
 
     private class DotNodesRepMap {
+        // map from ikr to node number in dot file
         final Map<InstanceKeyRecency, String> ikrToDotNode;
         int ikrCount = 0;
+        // map from rvr to node number in dot file
         final Map<ReferenceVariableReplica, String> rvrToDotNode;
         int rvrCount = 0;
 
@@ -2575,6 +2591,7 @@ public class PointsToGraph {
             rvrToDotNode = new HashMap<>();
         }
 
+        // get node number from rvr, put if not presence
         public String getRepOrPutIfAbsent(ReferenceVariableReplica rvr) {
             String s = rvrToDotNode.get(rvr);
             if (s == null) {
@@ -2585,6 +2602,7 @@ public class PointsToGraph {
             return s;
         }
 
+        // get node number from ikr, put if not presence
         public String getRepOrPutIfAbsent(InstanceKeyRecency ikr) {
             String s = ikrToDotNode.get(ikr);
             if (s == null) {
@@ -2595,6 +2613,7 @@ public class PointsToGraph {
             return s;
         }
 
+        // print all nodes with labels and colors
         public void writeNodes(Writer writer) throws IOException {
             for (ReferenceVariableReplica rvr : rvrToDotNode.keySet()) {
                 String color = rvr.isFlowSensitive() ? "red" : "blue";
