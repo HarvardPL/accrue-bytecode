@@ -183,6 +183,7 @@ public class StatementRegistrar {
         this.useSingleAllocForImmutableWrappers = useSingleAllocForImmutableWrappers;
         System.err.println("Singleton allocation site per immutable wrapper type: "
                 + this.useSingleAllocForImmutableWrappers);
+        System.err.println("Singleton allocation site per Swing library type: " + this.useSingleAllocForSwing);
     }
 
     /**
