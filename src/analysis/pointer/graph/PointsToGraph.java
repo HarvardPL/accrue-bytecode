@@ -2468,7 +2468,7 @@ public class PointsToGraph {
      *
      * For ikr nodes, Red: most-recent object --> outgoing edges are red with field name and program points, Blue:
      * non-most-recent object --> outgoing edges are blue with field name
-     * 
+     *
      */
     public void dumpPointsToGraphToFile(String filename) {
         String file = filename;
@@ -2617,14 +2617,15 @@ public class PointsToGraph {
         public void writeNodes(Writer writer) throws IOException {
             for (ReferenceVariableReplica rvr : rvrToDotNode.keySet()) {
                 String color = rvr.isFlowSensitive() ? "red" : "blue";
-                writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\" RVR: "
+                writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\"RVR: "
                         + escape(rvr.toString())
                         + "\"];\n");
             }
 
             for (InstanceKeyRecency ikr : ikrToDotNode.keySet()) {
                 String color = ikr.isRecent() ? "red" : "blue";
-                writer.write("\t" + ikrToDotNode.get(ikr) + "[color=" + color + ", label=\" IKR: "
+                writer.write("\t" + ikrToDotNode.get(ikr) + "[fontcolor=white, style=filled, fillcolor=" + color
+                        + ", label=\"IKR: "
                         + escape(ikr.toStringWithoutRecency()) + "\"];\n");
             }
         }
