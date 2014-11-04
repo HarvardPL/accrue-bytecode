@@ -20,10 +20,10 @@ public class PairSet<T> extends AbstractSet<T> {
     }
     @Override
     public Iterator<T> iterator() {
-        return new PairSetIterater();
+        return new PairSetIterator();
     }
 
-    private final class PairSetIterater implements Iterator<T> {
+    private final class PairSetIterator implements Iterator<T> {
         int nextIndex = 0;
 
         @Override
@@ -57,5 +57,10 @@ public class PairSet<T> extends AbstractSet<T> {
     @Override
     public int size() {
         return 2;
+    }
+
+    @Override
+    public int hashCode() {
+        return this.a.hashCode() + this.b.hashCode();
     }
 }
