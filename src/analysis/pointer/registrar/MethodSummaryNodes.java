@@ -2,11 +2,14 @@ package analysis.pointer.registrar;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
+import util.PairSet;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.ProgramPoint;
+import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.TypeReference;
@@ -57,21 +60,25 @@ public class MethodSummaryNodes {
             returnNode = null;
         }
 
+        this.entryPP = new ProgramPoint(method, "entryPP", true, false, false);
+        this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
+        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
+
+        Set<InterProgramPoint> methodExits = new PairSet<ProgramPoint.InterProgramPoint>(normalExitPP.pre(),
+                                                                                         exceptionExitPP.pre());
+
         formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); i++) {
             TypeReference type = method.getParameterType(i);
             if (type.isPrimitiveType()) {
                 formals.add(null);
-            } else {
-                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method));
+            }
+            else {
+                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method, entryPP, methodExits));
             }
         }
 
         exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
-
-        this.entryPP = new ProgramPoint(method, "entryPP", true, false, false);
-        this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
-        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
     }
 
     public ReferenceVariable getReturn() {

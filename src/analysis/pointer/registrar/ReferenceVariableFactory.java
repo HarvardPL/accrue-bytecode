@@ -2,6 +2,7 @@ package analysis.pointer.registrar;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -10,6 +11,8 @@ import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.statements.ProgramPoint;
+import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
 import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IField;
@@ -84,7 +87,7 @@ public class ReferenceVariableFactory {
                         PrettyPrinter.getCanonical("v" + local + "-"
                                 + method.getName());
             }
-            rv = new ReferenceVariable(name, type, false, false);
+            rv = new ReferenceVariable(name, type, false, false, null, null);
             locals.put(key, rv);
         }
         return rv;
@@ -106,7 +109,12 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createInnerArray(int dim, int pc,
             TypeReference type, IMethod method) {
-        ReferenceVariable local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim, type, false, false);
+        ReferenceVariable local = new ReferenceVariable(PointsToGraph.ARRAY_CONTENTS + dim,
+                                                        type,
+                                                        false,
+                                                        false,
+                                                        null,
+                                                        null);
         // These should only be created once assert that this is true
         assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method),
                                       local) == null;
@@ -128,7 +136,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createImplicitExceptionNode(TypeReference type,
             int basicBlockID, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false, null, null);
         // These should only be created once assert that this is true
         assert implicitThrows.put(new ImplicitThrowKey(type,
                                                        basicBlockID,
@@ -145,7 +153,12 @@ public class ReferenceVariableFactory {
      */
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createSingletonReferenceVariable(TypeReference type) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)", type, true, false);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)",
+                                                     type,
+                                                     true,
+                                                     false,
+                                                     null,
+                                                     null);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
         return rv;
@@ -164,12 +177,14 @@ public class ReferenceVariableFactory {
      * @return reference variable for a return value or an exception thrown by a method
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable createMethodExit(TypeReference type,
-            IMethod method, ExitType exitType) {
+    protected static ReferenceVariable createMethodExit(TypeReference type, IMethod method, ExitType exitType) {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-" + exitType,
                                                      type,
                                                      false,
-                                                     false);
+                                                     false,
+                                                     null,
+                                                     null);
+        rv.setInstantaneousScope();
         return rv;
     }
 
@@ -185,9 +200,13 @@ public class ReferenceVariableFactory {
     protected static ReferenceVariable createNativeException(TypeReference exType,
             IMethod m) {
         assert m.isNative();
-        ReferenceVariable rv =
-                new ReferenceVariable("NATIVE-"
- + PrettyPrinter.typeString(exType), exType, false, false);
+        ReferenceVariable rv = new ReferenceVariable("NATIVE-" + PrettyPrinter.typeString(exType),
+                                                     exType,
+                                                     false,
+                                                     false,
+                                                     null,
+                                                     null);
+        rv.setInstantaneousScope();
         return rv;
     }
 
@@ -205,14 +224,15 @@ public class ReferenceVariableFactory {
      * @return reference variable for a formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable createFormal(int paramNum, TypeReference type,
-            IMethod method) {
-        ReferenceVariable rv =
-                new ReferenceVariable(PrettyPrinter.methodString(method)
- + "-formal(" + paramNum + ")",
+    protected static ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method,
+                                                    ProgramPoint methodEntryPP,
+                                                    Set<InterProgramPoint> methodExits) {
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-formal(" + paramNum + ")",
                                                      type,
                                                      false,
-                                                     false);
+                                                     false,
+                                                     methodEntryPP.post(),
+                                                     methodExits);
         return rv;
     }
 
@@ -238,7 +258,9 @@ public class ReferenceVariableFactory {
                                                   + f.getName().toString(),
                                           f.getFieldTypeReference(),
                                          true,
-                                         true);
+                                         true,
+                                         null,
+                                         null);
             staticFields.put(f, node);
         }
         return node;
@@ -255,7 +277,9 @@ public class ReferenceVariableFactory {
                 new ReferenceVariable(StatementFactory.STRING_LIT_FIELD_DESC,
                                       AnalysisUtil.STRING_VALUE_TYPE,
                                                      false,
-                                                     false);
+                                                     false,
+                                                     null,
+                                                     null);
         return rv;
     }
 
@@ -464,6 +488,21 @@ public class ReferenceVariableFactory {
         private final TypeReference expectedType;
 
         /**
+         * Start of scope of this variable, if any.
+         */
+        private InterProgramPoint scopeStart;
+        /**
+         * End of scope of this variable, if any.
+         */
+        private Set<InterProgramPoint> scopeEnd;
+
+        /**
+         * A variable has instantaneous scope if it doesn't really have any duration, but is simply there for
+         * administrative purposes. This is, for example, a method exit summary node.
+         */
+        private boolean hasInstantaneousScope;
+
+        /**
          * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis.
          *
          * @param debugString String used for debugging and printing
@@ -472,16 +511,21 @@ public class ReferenceVariableFactory {
          *            which only one reference variable replica will be created usually in the initial context)
          */
         private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton,
-                                  boolean isFlowSensitive) {
+                                  boolean isFlowSensitive, InterProgramPoint scopeStart, Set<InterProgramPoint> scopeEnd) {
+
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
             assert !expectedType.isPrimitiveType();
+            assert (scopeStart == null && scopeEnd == null)
+                    || (scopeStart != null && scopeEnd != null && !scopeEnd.isEmpty());
 
             this.debugString = debugString;
             this.expectedType = expectedType;
             this.isSingleton = isSingleton;
             this.isFlowSensitive = isFlowSensitive;
+            this.scopeStart = scopeStart;
+            this.scopeEnd = scopeEnd;
         }
 
         @Override
@@ -526,5 +570,33 @@ public class ReferenceVariableFactory {
         public boolean isFlowSensitive() {
             return this.isFlowSensitive;
         }
+
+        public boolean hasScope() {
+            return scopeStart != null;
+        }
+
+        public void setScope(InterProgramPoint scopeStart, Set<InterProgramPoint> scopeEnd) {
+            assert (scopeStart != null && scopeEnd != null && !scopeEnd.isEmpty());
+            this.scopeStart = scopeStart;
+            this.scopeEnd = scopeEnd;
+
+        }
+
+        public InterProgramPoint scopeStart() {
+            return this.scopeStart;
+        }
+
+        public Set<InterProgramPoint> scopeEnd() {
+            return this.scopeEnd;
+        }
+
+        public void setInstantaneousScope() {
+            this.hasInstantaneousScope = true;
+        }
+
+        public boolean hasInstantaneousScope() {
+            return this.hasInstantaneousScope;
+        }
+
     }
 }
