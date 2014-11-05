@@ -223,13 +223,15 @@ public class ReferenceVariableFactory {
      * @return reference variable for a formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method) {
+    protected static ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method,
+                                                    ProgramPoint methodSummaryEntry) {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-formal(" + paramNum + ")",
                                                      type,
                                                      false,
                                                      false,
                                                      true,
                                                      false);
+        rv.setLocalDef(methodSummaryEntry);
         return rv;
     }
 

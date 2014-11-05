@@ -68,7 +68,7 @@ public class MethodSummaryNodes {
                 formals.add(null);
             }
             else {
-                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method));
+                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method, entryPP));
             }
         }
 
