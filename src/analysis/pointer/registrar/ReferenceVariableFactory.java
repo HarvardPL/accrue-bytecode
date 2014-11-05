@@ -1,6 +1,8 @@
 package analysis.pointer.registrar;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,7 +14,6 @@ import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.statements.ProgramPoint;
-import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
 import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IField;
@@ -87,7 +88,7 @@ public class ReferenceVariableFactory {
                         PrettyPrinter.getCanonical("v" + local + "-"
                                 + method.getName());
             }
-            rv = new ReferenceVariable(name, type, false, false, null, null);
+            rv = new ReferenceVariable(name, type, false, false, true, false);
             locals.put(key, rv);
         }
         return rv;
@@ -113,8 +114,8 @@ public class ReferenceVariableFactory {
                                                         type,
                                                         false,
                                                         false,
-                                                        null,
-                                                        null);
+                                                        false,
+                                                        false);
         // These should only be created once assert that this is true
         assert arrayContentsTemps.put(new ArrayContentsKey(dim, pc, method),
                                       local) == null;
@@ -136,7 +137,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createImplicitExceptionNode(TypeReference type,
             int basicBlockID, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false, null, null);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false, false, false);
         // These should only be created once assert that this is true
         assert implicitThrows.put(new ImplicitThrowKey(type,
                                                        basicBlockID,
@@ -157,8 +158,8 @@ public class ReferenceVariableFactory {
                                                      type,
                                                      true,
                                                      false,
-                                                     null,
-                                                     null);
+                                                     false,
+                                                     false);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
         return rv;
@@ -182,9 +183,8 @@ public class ReferenceVariableFactory {
                                                      type,
                                                      false,
                                                      false,
-                                                     null,
-                                                     null);
-        rv.setInstantaneousScope();
+                                                     false,
+                                                     true);
         return rv;
     }
 
@@ -204,9 +204,8 @@ public class ReferenceVariableFactory {
                                                      exType,
                                                      false,
                                                      false,
-                                                     null,
-                                                     null);
-        rv.setInstantaneousScope();
+                                                     false,
+                                                     false);
         return rv;
     }
 
@@ -224,15 +223,13 @@ public class ReferenceVariableFactory {
      * @return reference variable for a formal parameter
      */
     @SuppressWarnings("synthetic-access")
-    protected static ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method,
-                                                    ProgramPoint methodEntryPP,
-                                                    Set<InterProgramPoint> methodExits) {
+    protected static ReferenceVariable createFormal(int paramNum, TypeReference type, IMethod method) {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.methodString(method) + "-formal(" + paramNum + ")",
                                                      type,
                                                      false,
                                                      false,
-                                                     methodEntryPP.post(),
-                                                     methodExits);
+                                                     true,
+                                                     false);
         return rv;
     }
 
@@ -259,8 +256,8 @@ public class ReferenceVariableFactory {
                                           f.getFieldTypeReference(),
                                          true,
                                          true,
-                                         null,
-                                         null);
+                                         false,
+                                         false);
             staticFields.put(f, node);
         }
         return node;
@@ -278,8 +275,8 @@ public class ReferenceVariableFactory {
                                       AnalysisUtil.STRING_VALUE_TYPE,
                                                      false,
                                                      false,
-                                                     null,
-                                                     null);
+                                                     false,
+                                                     false);
         return rv;
     }
 
@@ -488,19 +485,26 @@ public class ReferenceVariableFactory {
         private final TypeReference expectedType;
 
         /**
-         * Start of scope of this variable, if any.
+         * Does this reference variable represent a local variable (i.e., which has limited scope)
          */
-        private InterProgramPoint scopeStart;
+        private final boolean hasLocalScope;
+
         /**
-         * End of scope of this variable, if any.
+         * If the reference variable has local scope, then this is the (only) program point at which the reference
+         * variable is assigned to.
          */
-        private Set<InterProgramPoint> scopeEnd;
+        private ProgramPoint localDef;
+        /**
+         * If the reference variable has local scope, then this is the set of program points at which the variable is
+         * used.
+         */
+        private Set<ProgramPoint> localUses;
 
         /**
          * A variable has instantaneous scope if it doesn't really have any duration, but is simply there for
          * administrative purposes. This is, for example, a method exit summary node.
          */
-        private boolean hasInstantaneousScope;
+        private final boolean hasInstantaneousScope;
 
         /**
          * Create a new (unique) reference variable for a local variable, do not call this outside the pointer analysis.
@@ -511,21 +515,21 @@ public class ReferenceVariableFactory {
          *            which only one reference variable replica will be created usually in the initial context)
          */
         private ReferenceVariable(String debugString, TypeReference expectedType, boolean isSingleton,
-                                  boolean isFlowSensitive, InterProgramPoint scopeStart, Set<InterProgramPoint> scopeEnd) {
+                                  boolean isFlowSensitive, boolean hasLocalScope, boolean hasInstantaneousScope) {
 
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
             assert !expectedType.isPrimitiveType();
-            assert (scopeStart == null && scopeEnd == null)
-                    || (scopeStart != null && scopeEnd != null && !scopeEnd.isEmpty());
+            assert isFlowSensitive ? true : !(hasLocalScope || hasInstantaneousScope);
+            assert !(hasLocalScope && hasInstantaneousScope);
 
             this.debugString = debugString;
             this.expectedType = expectedType;
             this.isSingleton = isSingleton;
             this.isFlowSensitive = isFlowSensitive;
-            this.scopeStart = scopeStart;
-            this.scopeEnd = scopeEnd;
+            this.hasLocalScope = hasLocalScope;
+            this.hasInstantaneousScope = hasInstantaneousScope;
         }
 
         @Override
@@ -571,31 +575,41 @@ public class ReferenceVariableFactory {
             return this.isFlowSensitive;
         }
 
-        public boolean hasScope() {
-            return scopeStart != null;
+        public boolean hasLocalScope() {
+            return this.hasLocalScope;
         }
 
-        public void setScope(InterProgramPoint scopeStart, Set<InterProgramPoint> scopeEnd) {
-            assert (scopeStart != null && scopeEnd != null && !scopeEnd.isEmpty());
-            this.scopeStart = scopeStart;
-            this.scopeEnd = scopeEnd;
 
+        public ProgramPoint localDef() {
+            assert this.hasLocalScope;
+            return this.localDef;
         }
 
-        public InterProgramPoint scopeStart() {
-            return this.scopeStart;
-        }
-
-        public Set<InterProgramPoint> scopeEnd() {
-            return this.scopeEnd;
-        }
-
-        public void setInstantaneousScope() {
-            this.hasInstantaneousScope = true;
+        public Set<ProgramPoint> localUses() {
+            assert this.hasLocalScope;
+            if (this.localUses == null) {
+                return Collections.emptySet();
+            }
+            return this.localUses;
         }
 
         public boolean hasInstantaneousScope() {
             return this.hasInstantaneousScope;
+        }
+
+        public void setLocalDef(ProgramPoint pp) {
+            assert this.hasLocalScope;
+            assert this.localDef == null : "There can be at most one def of a local.";
+            this.localDef = pp;
+        }
+
+        public void addLocalUse(ProgramPoint pp) {
+            assert this.hasLocalScope;
+            if (this.localUses == null) {
+                this.localUses = new LinkedHashSet<>();
+            }
+            this.localUses.add(pp);
+
         }
 
     }

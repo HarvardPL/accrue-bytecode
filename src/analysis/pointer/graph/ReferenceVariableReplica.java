@@ -6,8 +6,9 @@ import java.util.Set;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
-import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
+import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
+import analysis.pointer.statements.ProgramPoint.PreProgramPoint;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.TypeReference;
@@ -61,16 +62,16 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
         return var.isFlowSensitive();
     }
 
-    public boolean hasScope() {
-        return var.hasScope();
+    public boolean hasLocalScope() {
+        return var.hasLocalScope();
     }
 
-    public InterProgramPointReplica scopeStart() {
-        return var.scopeStart().getReplica(this.context);
+    public InterProgramPointReplica localDef() {
+        return var.localDef().post().getReplica(this.context);
     }
 
-    public Set<InterProgramPointReplica> scopeEnd() {
-        return new IPPRSet(var.scopeEnd(), this.context);
+    public Set<InterProgramPointReplica> localUses() {
+        return new IPPRSet(var.localUses(), this.context);
     }
 
     public boolean hasInstantaneousScope() {
@@ -109,10 +110,10 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
     }
 
     public static final class IPPRSet extends AbstractSet<InterProgramPointReplica> {
-        private final Set<InterProgramPoint> ippSet;
+        private final Set<ProgramPoint> ippSet;
         private final Context context;
 
-        public IPPRSet(Set<InterProgramPoint> ippSet, Context context) {
+        public IPPRSet(Set<ProgramPoint> ippSet, Context context) {
             this.ippSet = ippSet;
             this.context = context;
         }
@@ -121,15 +122,15 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
         public boolean contains(Object o) {
             if (o instanceof InterProgramPointReplica) {
                 InterProgramPointReplica ippr = (InterProgramPointReplica) o;
-                if (context.equals(ippr.getContext())) {
-                    return ippSet.contains(ippr.getInterPP());
+                if (context.equals(ippr.getContext()) && ippr.getInterPP() instanceof PreProgramPoint) {
+                    return ippSet.contains(ippr.getInterPP().getPP());
                 }
             }
             return false;
         }
         @Override
         public Iterator<InterProgramPointReplica> iterator() {
-            return new IPPESetIterator(ippSet.iterator(), context);
+            return new IPPRSetIterator(ippSet.iterator(), context);
         }
 
         @Override
@@ -139,11 +140,11 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
 
     }
 
-    public static class IPPESetIterator implements Iterator<InterProgramPointReplica> {
-        private final Iterator<InterProgramPoint> ippIter;
+    public static class IPPRSetIterator implements Iterator<InterProgramPointReplica> {
+        private final Iterator<ProgramPoint> ippIter;
         private final Context context;
 
-        public IPPESetIterator(Iterator<InterProgramPoint> iterator, Context context) {
+        public IPPRSetIterator(Iterator<ProgramPoint> iterator, Context context) {
             this.ippIter = iterator;
             this.context = context;
         }
@@ -155,13 +156,12 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
 
         @Override
         public InterProgramPointReplica next() {
-            return ippIter.next().getReplica(this.context);
+            return ippIter.next().pre().getReplica(this.context);
         }
 
         @Override
         public void remove() {
-            // TODO Auto-generated method stub
-
+            throw new UnsupportedOperationException();
         }
 
     }

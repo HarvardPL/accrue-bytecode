@@ -2,14 +2,11 @@ package analysis.pointer.registrar;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
-import util.PairSet;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.ProgramPoint;
-import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.types.TypeReference;
@@ -64,9 +61,6 @@ public class MethodSummaryNodes {
         this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
         this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
 
-        Set<InterProgramPoint> methodExits = new PairSet<ProgramPoint.InterProgramPoint>(normalExitPP.pre(),
-                                                                                         exceptionExitPP.pre());
-
         formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); i++) {
             TypeReference type = method.getParameterType(i);
@@ -74,7 +68,7 @@ public class MethodSummaryNodes {
                 formals.add(null);
             }
             else {
-                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method, entryPP, methodExits));
+                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method));
             }
         }
 
