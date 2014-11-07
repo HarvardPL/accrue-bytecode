@@ -237,7 +237,6 @@ public class StatementRegistrar {
             this.statementsForMethod.put(m, newStatements);
             this.size += (newSize - oldSize);
 
-
             if (PointsToAnalysis.outputLevel >= 1) {
                 System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
                 CFGWriter.writeToFile(ir);
@@ -258,6 +257,7 @@ public class StatementRegistrar {
         return false;
 
     }
+
     /**
      * A listener that will get notified of newly created statements.
      */
@@ -680,8 +680,7 @@ public class StatementRegistrar {
         TypeReference allocType = i.getNewSite().getDeclaredType();
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(allocType);
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        if (useSingleAllocPerThrowableType
-                && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
+        if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
@@ -891,8 +890,7 @@ public class StatementRegistrar {
 
         if ((this.size + StatementRegistrar.removed) % 100000 == 0) {
             System.err.println("REGISTERED: " + (this.size + StatementRegistrar.removed) + ", removed: "
-                    + StatementRegistrar.removed
-                    + " effective: " + this.size);
+                    + StatementRegistrar.removed + " effective: " + this.size);
             // if (StatementRegistrationPass.PROFILE) {
             // System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             // try {

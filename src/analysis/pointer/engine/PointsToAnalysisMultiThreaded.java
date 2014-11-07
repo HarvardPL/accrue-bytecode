@@ -9,6 +9,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
 import util.intset.ConcurrentIntHashSet;
@@ -154,8 +155,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
+        if (AccrueAnalysisMain.testMode) {
+            System.out.println(totalTime / 1000.0);
+        }
         System.err.println("\n\n  ***************************** \n\n");
-        System.err.println("   Total time             : " + totalTime / 1000 + "s.");
+        System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");

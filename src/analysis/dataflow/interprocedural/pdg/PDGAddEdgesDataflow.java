@@ -976,14 +976,14 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // Handle exceptions thrown by this callee
         PDGContext exExitContext = calleeExceptionContexts.get(i);
         if (exExitContext != null) {
-            PDGNode exAssign = PDGNodeFactory.findOrCreateOther("EXCEPTION = SIGNATURE",
-                                                                    PDGNodeType.OTHER_EXPRESSION,
-                                                                    currentNode,
-                                                                    new OrderedPair<>("SIGNATURE_EXCEPTION", i));
-            PDGNode exceptionNode = exExitContext.getExceptionNode();
-            addEdge(expr, exAssign, PDGEdgeType.COPY);
-            addEdge(pcNode, exAssign, PDGEdgeType.IMPLICIT);
-            addEdge(exAssign, exceptionNode, PDGEdgeType.COPY);
+            //            PDGNode exAssign = PDGNodeFactory.findOrCreateOther("EXCEPTION = SIGNATURE",
+            //                                                                    PDGNodeType.OTHER_EXPRESSION,
+            //                                                                    currentNode,
+            //                                                                    new OrderedPair<>("SIGNATURE_EXCEPTION", i));
+            //            PDGNode exceptionNode = exExitContext.getExceptionNode();
+            // The exception doesn't depend explicitly on any of the arguments, only implicitly
+            //            addEdge(expr, exAssign, PDGEdgeType.COPY);
+            //            addEdge(pcNode, exAssign, PDGEdgeType.IMPLICIT);
             addEdge(pcNode, exExitContext.getPCNode(), PDGEdgeType.CONJUNCTION);
         }
     }

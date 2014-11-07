@@ -31,6 +31,7 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
@@ -58,6 +59,8 @@ import com.ibm.wala.util.WalaException;
  * Run one of the selected analyses or tests, see usage
  */
 public class AccrueAnalysisMain {
+
+    public static boolean testMode;
 
     /**
      * Run one of the selected tests
@@ -91,6 +94,8 @@ public class AccrueAnalysisMain {
         String classPath = options.getAnalysisClassPath();
         HeapAbstractionFactory haf = options.getHaf();
         boolean isOnline = options.registerOnline();
+        boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
+        testMode = options.isTestMode();
 
         // Trade-offs for points-to analysis precision vs. size/time
         boolean singleGenEx = options.shouldUseSingleAllocForGenEx();
@@ -123,6 +128,7 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
+                                            useSingleThreadedPointerAnalysis,
                                             isOnline,
                                             singleGenEx,
                                             singleThrowable,
@@ -160,6 +166,7 @@ public class AccrueAnalysisMain {
                                outputLevel,
                                haf,
                                outputDir,
+                               useSingleThreadedPointerAnalysis,
                                isOnline,
                                singleGenEx,
                                singleThrowable,
@@ -171,6 +178,7 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
+                                            useSingleThreadedPointerAnalysis,
                                             isOnline,
                                             singleGenEx,
                                             singleThrowable,
@@ -187,6 +195,7 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
+                                            useSingleThreadedPointerAnalysis,
                                             isOnline,
                                             singleGenEx,
                                             singleThrowable,
@@ -204,6 +213,7 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
+                                            useSingleThreadedPointerAnalysis,
                                             isOnline,
                                             singleGenEx,
                                             singleThrowable,
@@ -219,6 +229,7 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
+                                            useSingleThreadedPointerAnalysis,
                                             isOnline,
                                             singleGenEx,
                                             singleThrowable,
@@ -251,6 +262,7 @@ public class AccrueAnalysisMain {
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
+                                            useSingleThreadedPointerAnalysis,
                                             isOnline,
                                             singleGenEx,
                                             singleThrowable,
@@ -265,6 +277,12 @@ public class AccrueAnalysisMain {
             ReachabilityResults r2 = runReachability(otherOutputLevel, g, rvCache, preciseEx);
             ProgramDependenceGraph pdg = runPDG(outputLevel, g, r2, preciseEx, nonNull, rvCache);
             pdg.printSimpleCounts();
+
+            if (testMode) {
+                // Don't print files in test mode
+                return;
+            }
+
             String fullName = outputDir + "/pdg_" + fileName + ".json";
             GZIPOutputStream gzip = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(fullName + ".gz")));
             try (Writer writer = new BufferedWriter(new OutputStreamWriter(gzip))) {
@@ -366,6 +384,7 @@ public class AccrueAnalysisMain {
      *
      * @param outputLevel print level
      * @param haf Definition of the abstraction for heap locations
+     * @param singleThreaded whether to use a single-threaded pointer analysis
      * @param online if true then points-to statements are registered during pointer analysis, rather than before
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
@@ -386,14 +405,20 @@ public class AccrueAnalysisMain {
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
                                                                                             HeapAbstractionFactory haf,
+                                                                                            boolean singleThreaded,
                                                                                             boolean isOnline,
                                                                                             boolean useSingleAllocForGenEx,
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings,
                                                                                             boolean useSingleAllocForImmutableWrappers) {
-        //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
-        PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
+        PointsToAnalysis analysis;
+        if (singleThreaded) {
+            analysis = new PointsToAnalysisSingleThreaded(haf);
+        }
+        else {
+            analysis = new PointsToAnalysisMultiThreaded(haf);
+        }
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;
         StatementRegistrar registrar;
@@ -431,6 +456,10 @@ public class AccrueAnalysisMain {
         //        System.err.println(g.getNodes().size() + " PTG nodes.");
         System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
         System.err.println(g.clinitCount + " Class initializers.");
+        if (singleThreaded) {
+            System.err.println(((PointsToAnalysisSingleThreaded) analysis).lines2 + " lines of code analyzed.");
+            System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");
+        }
 
         ReferenceVariableCache rvCache = registrar.getAllLocals();
         return new OrderedPair<>(g, rvCache);
@@ -533,6 +562,8 @@ public class AccrueAnalysisMain {
      * @param outputLevel amount of debugging
      * @param haf heap abstraction factory defining analysis contexts
      * @param outputDir directory to print output to
+     * @param singleThreaded should this use a single-threaded pointer analysis
+     * @param isOnline should use an online points-to statement registration
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -550,13 +581,15 @@ public class AccrueAnalysisMain {
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
-                                           String outputDir, boolean isOnline, boolean useSingleAllocForGenEx,
+                                           String outputDir, boolean singleThreaded, boolean isOnline,
+                                           boolean useSingleAllocForGenEx,
                                            boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
                                            boolean useSingleAllocForImmutableWrappers) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            isOnline,
+                                                                                           singleThreaded,
                                                                                            useSingleAllocForGenEx,
                                                                                            useSingleAllocForThrowable,
                                                                                            useSingleAllocForPrimitiveArrays,

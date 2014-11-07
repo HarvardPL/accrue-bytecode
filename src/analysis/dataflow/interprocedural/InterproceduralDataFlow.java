@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import main.AccrueAnalysisMain;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -141,7 +142,13 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             processCallGraphNode(current);
         }
 
-        System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
+        long time = System.currentTimeMillis() - start;
+
+        if (AccrueAnalysisMain.testMode && getAnalysisName().contains("PDG")) {
+            System.out.println(time / 1000.0);
+        }
+
+        System.err.println("FINISHED: " + getAnalysisName() + " it took " + (time / 1000.0) + "s");
         System.gc();
         System.err.println("Memory used so far: "
                 + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");

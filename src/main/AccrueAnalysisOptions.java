@@ -23,6 +23,14 @@ public final class AccrueAnalysisOptions {
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
     /**
+     * Run single-threaded pointer analysis.
+     */
+    @Parameter(
+        names = { "-singleThreaded" },
+        description = "Use single-threaded pointer analysis. Can be used to get the number of lines of code analyzed, but can be much slower.")
+    private boolean singleThreadedPointerAnalysis = false;
+
+    /**
      * Output folder default is "tests"
      */
     @Parameter(names = { "-out" }, description = "Output directory, default is the tests directory.")
@@ -33,6 +41,14 @@ public final class AccrueAnalysisOptions {
      */
     @Parameter(names = { "-h", "-help", "-useage", "--help" }, description = "Print useage information")
     private boolean help = false;
+
+    /**
+     * Set if running performance tests to set up printing and suppress output file creation
+     */
+    @Parameter(
+        names = { "-testMode" },
+        description = "Run timing tests setting up printing and suppressing output file creation")
+    private boolean testMode = false;
 
     /**
      * Flag for running the pointer analysis single-threaded after reaching a fixed point in the multi-threaded analysis
@@ -788,5 +804,24 @@ public final class AccrueAnalysisOptions {
      */
     public boolean shouldUseSingleAllocForImmutableWrappers() {
         return useSingleAllocForImmutableWrappers;
+    }
+
+    /**
+     * Use a single-threaded pointer analysis,
+     *
+     * @return true if a single-threaded pointer analysis should be used, false if a multi-threaded pointer analysis
+     *         should be used
+     */
+    public boolean useSingleThreadedPointerAnalysis() {
+        return singleThreadedPointerAnalysis;
+    }
+
+    /**
+     * Whether this is a test for timing
+     *
+     * @return true if this is a test
+     */
+    public boolean isTestMode() {
+        return testMode;
     }
 }

@@ -39,7 +39,7 @@ public class System {
 
     /**
      * Java implementation of {@link System#arraycopy(Object, int, Object, int, int)} used as an analysis signature
-     * 
+     *
      * @param src
      *            source array
      * @param srcPos
@@ -56,65 +56,65 @@ public class System {
             throw SingletonExceptions.NULL_POINTER;
         }
 
-        if (src == dest) {
-            // same array copy into a temp array first
-            if (src instanceof Object[]) {
-                Object[] s = (Object[]) src;
-                Object[] temp = new Object[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof byte[]) {
-                byte[] s = (byte[]) src;
-                byte[] temp = new byte[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof short[]) {
-                short[] s = (short[]) src;
-                short[] temp = new short[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof int[]) {
-                int[] s = (int[]) src;
-                int[] temp = new int[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof long[]) {
-                long[] s = (long[]) src;
-                long[] temp = new long[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof float[]) {
-                float[] s = (float[]) src;
-                float[] temp = new float[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof double[]) {
-                double[] s = (double[]) src;
-                double[] temp = new double[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof boolean[]) {
-                boolean[] s = (boolean[]) src;
-                boolean[] temp = new boolean[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            } else if (src instanceof char[]) {
-                char[] s = (char[]) src;
-                char[] temp = new char[length];
-                for (int i = 0; i < length; i++)
-                    temp[i] = s[i];
-                src = temp;
-            }
-            srcPos = 0;
-        }
+        //        if (src == dest) {
+        //            // same array copy into a temp array first
+        //            if (src instanceof Object[]) {
+        //                Object[] s = (Object[]) src;
+        //                Object[] temp = new Object[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof byte[]) {
+        //                byte[] s = (byte[]) src;
+        //                byte[] temp = new byte[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof short[]) {
+        //                short[] s = (short[]) src;
+        //                short[] temp = new short[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof int[]) {
+        //                int[] s = (int[]) src;
+        //                int[] temp = new int[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof long[]) {
+        //                long[] s = (long[]) src;
+        //                long[] temp = new long[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof float[]) {
+        //                float[] s = (float[]) src;
+        //                float[] temp = new float[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof double[]) {
+        //                double[] s = (double[]) src;
+        //                double[] temp = new double[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof boolean[]) {
+        //                boolean[] s = (boolean[]) src;
+        //                boolean[] temp = new boolean[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            } else if (src instanceof char[]) {
+        //                char[] s = (char[]) src;
+        //                char[] temp = new char[length];
+        //                for (int i = 0; i < length; i++)
+        //                    temp[i] = s[i];
+        //                src = temp;
+        //            }
+        //            srcPos = 0;
+        //        }
 
         if (src instanceof Object[] && dest instanceof Object[]) {
             if (length < 0) {
@@ -122,72 +122,81 @@ public class System {
             }
             Object[] s = (Object[]) src;
             Object[] d = (Object[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof byte[] && dest instanceof byte[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             byte[] s = (byte[]) src;
             byte[] d = (byte[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof short[] && dest instanceof short[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             short[] s = (short[]) src;
             short[] d = (short[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof int[] && dest instanceof int[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             int[] s = (int[]) src;
             int[] d = (int[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof long[] && dest instanceof long[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             long[] s = (long[]) src;
             long[] d = (long[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof float[] && dest instanceof float[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             float[] s = (float[]) src;
             float[] d = (float[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof double[] && dest instanceof double[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             double[] s = (double[]) src;
             double[] d = (double[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof boolean[] && dest instanceof boolean[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             boolean[] s = (boolean[]) src;
             boolean[] d = (boolean[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else if (src instanceof char[] && dest instanceof char[]) {
             if (length < 0) {
                 throw SingletonExceptions.INDEX_OUT_OF_BOUNDS;
             }
             char[] s = (char[]) src;
             char[] d = (char[]) dest;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < length; i++) {
                 d[i + destPos] = s[i + srcPos];
+            }
         } else {
             // src is not an array,
             // dest is not an array, or

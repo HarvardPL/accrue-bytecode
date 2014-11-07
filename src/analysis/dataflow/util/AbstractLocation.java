@@ -130,12 +130,12 @@ public class AbstractLocation {
     public String toString() {
         if (isArrayContents) {
             return PrettyPrinter.typeString(receiverContext.getConcreteType()) + "." + PointsToGraph.ARRAY_CONTENTS
-                    + " in " + receiverContext;
+                   /* + " in " + receiverContext*/;
         }
         if (field == null) {
             System.err.println("WARNING: null field in AbstractLocation in  " + receiverContext);
         }
         return (field != null ? PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
-                : "NULL FIELD") + (receiverContext == null ? " (static)" : " in " + receiverContext);
+                : "NULL FIELD") + (receiverContext == null ? " (static)" : "" /*in " + receiverContext*/);
     }
 }
