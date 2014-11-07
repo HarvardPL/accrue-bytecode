@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.IntMap;
 import util.intset.ConcurrentIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -162,6 +163,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
+        if (AccrueAnalysisMain.testMode) {
+            IntMap<MutableIntSet> graph = g.getPointsToGraph();
+            IntIterator nodes = graph.keyIterator();
+            long totalEdges = 0;
+            while (nodes.hasNext()) {
+                MutableIntSet s = graph.get(nodes.next());
+                totalEdges += s.size();
+            }
+            System.out.println("   Num graph edges        : " + totalEdges);
+        }
         //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
         System.gc();
         System.err.println("   Memory utilization     : "

@@ -1161,6 +1161,11 @@ public class PointsToGraph {
     public int numPointsToGraphNodes() {
         return this.pointsTo.size();
     }
+
+    public IntMap<MutableIntSet> getPointsToGraph() {
+        return this.pointsTo;
+    }
+
     private MutableIntSet pointsToSet(/*PointsToGraphNode*/int n) {
         MutableIntSet s = this.pointsTo.get(n);
         if (s == null && !graphFinished) {
