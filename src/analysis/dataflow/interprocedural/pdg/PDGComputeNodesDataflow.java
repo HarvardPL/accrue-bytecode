@@ -809,8 +809,17 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected Map<ISSABasicBlock, PDGContext> flowReturn(SSAReturnInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGContext in = confluence(previousItems, current);
-        PDGNode returnValue = i.getResult() > 0 ? PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp) : null;
-        return factToMap(new PDGContext(returnValue, null, in.getPCNode()), current, cfg);
+        PDGNode ret = null;
+        if (i.getNumberOfUses() > 0) {
+            // This function returns something
+            PDGNode val = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
+            ret = PDGNodeFactory.findOrCreateOther("return " + val,
+                                                           PDGNodeType.OTHER_EXPRESSION,
+                                                           currentNode,
+                                                           new OrderedPair<>(i, "RETURN"));
+
+        }
+        return factToMap(new PDGContext(ret, null, in.getPCNode()), current, cfg);
     }
 
     @Override

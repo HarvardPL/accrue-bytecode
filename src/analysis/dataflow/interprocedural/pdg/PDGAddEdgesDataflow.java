@@ -1216,6 +1216,14 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
     @Override
     protected Map<ISSABasicBlock, Unit> flowReturn(SSAReturnInstruction i, Set<Unit> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        if (i.getNumberOfUses() > 0) {
+            PDGContext out = outputFacts.get(current).get(getNormalSuccs(current, cfg).iterator().next());
+            PDGContext in = instructionInput.get(i);
+            PDGNode ret = out.getReturnNode();
+            PDGNode val = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
+            addEdge(val, ret, PDGEdgeType.COPY);
+            addEdge(in.getPCNode(), ret, PDGEdgeType.IMPLICIT);
+        }
         return factToMap(Unit.VALUE, current, cfg);
     }
 
