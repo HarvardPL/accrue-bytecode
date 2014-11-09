@@ -87,7 +87,8 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
             if (!n.getMethod().getReturnType().equals(TypeReference.Void)) {
                 pdg.addEdge(formal, normExit.getReturnNode(), PDGEdgeType.MISSING);
             }
-            pdg.addEdge(formal, exExit.getExceptionNode(), PDGEdgeType.MISSING);
+            // Don't add an explicit edge to the exception
+            //pdg.addEdge(formal, exExit.getExceptionNode(), PDGEdgeType.MISSING);
         }
 
         return UNIT_MAP;
