@@ -95,8 +95,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return local;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(local);
     }
 
     @Override

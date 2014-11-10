@@ -67,7 +67,10 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
     }
 
     public InterProgramPointReplica localDef() {
-        return var.localDef().post().getReplica(this.context);
+        assert this.hasLocalScope();
+        ProgramPoint pp = var.localDef();
+        assert pp != null : "No local def for " + this;
+        return pp.post().getReplica(this.context);
     }
 
     public Set<InterProgramPointReplica> localUses() {

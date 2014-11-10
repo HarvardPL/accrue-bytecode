@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import util.OrderedPair;
@@ -243,6 +244,18 @@ public abstract class CallStatement extends PointsToStatement {
         // a call to another function may affect the flow-sensitive part of the
         // points to graph, since it may modify the call graph
         return true;
+    }
+
+    @Override
+    public final List<ReferenceVariable> getDefs() {
+        List<ReferenceVariable> l = new ArrayList<>(2);
+        if (this.getResult() != null) {
+            l.add(this.getResult());
+        }
+        if (this.getException() != null) {
+            l.add(this.getException());
+        }
+        return l;
     }
 
 }

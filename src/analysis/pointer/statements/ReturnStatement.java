@@ -80,8 +80,8 @@ public class ReturnStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return null;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.emptyList();
     }
 
     @Override

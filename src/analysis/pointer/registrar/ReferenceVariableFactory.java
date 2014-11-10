@@ -84,9 +84,7 @@ public class ReferenceVariableFactory {
                 name = pp.valString(local) + "-" + method.getName();
             }
             else {
-                name =
-                        PrettyPrinter.getCanonical("v" + local + "-"
-                                + method.getName());
+                name = PrettyPrinter.getCanonical("v" + local + "-" + method.getName());
             }
             rv = new ReferenceVariable(name, type, false, false, true, false);
             locals.put(key, rv);

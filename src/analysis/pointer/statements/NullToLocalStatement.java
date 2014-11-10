@@ -71,8 +71,8 @@ public class NullToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return result;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(result);
     }
 
     @Override

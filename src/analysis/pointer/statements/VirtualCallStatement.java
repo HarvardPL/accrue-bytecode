@@ -177,10 +177,4 @@ public class VirtualCallStatement extends CallStatement {
         uses.addAll(this.getActuals());
         return uses;
     }
-
-    @Override
-    public ReferenceVariable getDef() {
-        return this.getResult();
-    }
-
 }

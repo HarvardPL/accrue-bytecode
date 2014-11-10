@@ -111,8 +111,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return value;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(value);
     }
 
     @Override

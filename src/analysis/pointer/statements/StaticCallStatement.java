@@ -99,12 +99,6 @@ public class StaticCallStatement extends CallStatement {
         return this.getActuals();
     }
 
-    @Override
-    public ReferenceVariable getDef() {
-        return this.getResult();
-    }
-
-
     /**
      * Get the resolved callee
      *

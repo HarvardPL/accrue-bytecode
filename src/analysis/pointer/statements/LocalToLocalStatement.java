@@ -103,8 +103,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return left;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(left);
     }
 
     @Override

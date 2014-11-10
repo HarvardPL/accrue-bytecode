@@ -33,6 +33,7 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.AnnotatedIntRelation.SetAnnotatedIntRelation;
+import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
@@ -1874,7 +1875,7 @@ public class PointsToGraph {
      * @return
      */
     private IntSet getDifferenceFlowInsensitive(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
-    /*PointsToGraphNode*/int target) {
+                                                /*PointsToGraphNode*/int target) {
         assert !isFlowSensitivePointsToGraphNode(target);
         target = this.getRepresentative(target);
 
@@ -1894,16 +1895,73 @@ public class PointsToGraph {
                 s.add(i);
             }
             if (isMostRecentObject(i)) {
-                // target is a flow-insensitive pointstographnode, so if it
-                // points to the most recent version, also points to
-                // the non-most recent version.
                 if (!targetSet.contains(nonMostRecentVersion(i))) {
-                    s.add(nonMostRecentVersion(i));
+                    // target is a flow-insensitive pointstographnode, so if it
+                    // points to the most recent version, it may also need to point to
+                    // the non-most recent version.
+                    boolean needsNonMostRecent = true;
+                    PointsToGraphNode tn = lookupPointsToGraphNodeDictionary(target);
+                    if (tn instanceof ReferenceVariableReplica) {
+                        ReferenceVariableReplica rvr = (ReferenceVariableReplica) tn;
+                        if (rvr.hasInstantaneousScope()) {
+                            needsNonMostRecent = false;
+                        }
+                        else if (rvr.hasLocalScope()) {
+                            // rvr has a local scope, and we can possible be more precise.
+                            needsNonMostRecent = isAllocInScope(rvr, i, new AddNonMostRecentOrigin(target, rvr, i));
+                        }
+                    }
+                    if (needsNonMostRecent) {
+                        s.add(nonMostRecentVersion(i));
+                    }
                 }
             }
         }
         return s;
 
+    }
+
+    /**
+     * For a ReferenceVariableReplica rvr with local scope (i.e., it represents a local variable) is there an allocation
+     * site of i in the local scope?
+     *
+     * @param rvr
+     * @param i
+     * @return
+     */
+    boolean isAllocInScope(ReferenceVariableReplica rvr, /*InstanceKeyRecency*/int i, ReachabilityQueryOrigin origin) {
+        assert !rvr.isFlowSensitive() && !rvr.hasInstantaneousScope() && rvr.hasLocalScope();
+        assert isMostRecentObject(i);
+        // Specifically:
+        //      If
+        //            rvr points to  the most recent version of InstanceKey ik AND
+        //            there is an allocation site allocSite of ik such that
+        //                         there exists a ippr_use in rvr.getLocalUses() such that
+        //                               rvr.getLocalDef() can reach allocSite without going through ippr_use or rvr's method exit nodes AND
+        //                               allocSite can reach ippr_use without going through rvr.getLocalDef() or rvr's method exit nodes
+        //     Then
+        //          rvr must also point to the non-most-recent version of ik.
+        Set<ProgramPointReplica> allocSites = getAllocationSitesOf(i);
+        for (ProgramPointReplica allocSite : allocSites) {
+            for (InterProgramPointReplica use : rvr.localUses()) {
+                Set<InterProgramPointReplica> forbidden = new LinkedHashSet<>();
+                forbidden.add(use);
+                MethodSummaryNodes ms = this.registrar.getMethodSummary(use.getContainingProcedure());
+                forbidden.add(ms.getNormalExitPP().pre().getReplica(use.getContext()));
+                forbidden.add(ms.getExceptionExitPP().pre().getReplica(use.getContext()));
+                if (this.ppReach.reachable(rvr.localDef(), allocSite.pre(), forbidden, origin, null)) {
+                    forbidden.remove(use);
+                    forbidden.add(rvr.localDef());
+                    if (this.ppReach.reachable(allocSite.post(), use, forbidden, origin, null)) {
+                        // we need it!
+                        return true;
+                    }
+                }
+
+            }
+
+        }
+        return false;
     }
 
     /**
@@ -2029,9 +2087,23 @@ public class PointsToGraph {
                 changed |= s.add(next);
                 if (isMostRecentObject(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
-                    // points to the most resent version, also points to
+                    // points to the most resent version, may also need to point to
                     // the non-most recent version.
-                    changed |= s.add(nonMostRecentVersion(next));
+                    boolean needsNonMostRecent = true;
+                    PointsToGraphNode tn = lookupPointsToGraphNodeDictionary(n);
+                    if (tn instanceof ReferenceVariableReplica) {
+                        ReferenceVariableReplica rvr = (ReferenceVariableReplica) tn;
+                        if (rvr.hasInstantaneousScope()) {
+                            needsNonMostRecent = false;
+                        }
+                        else if (rvr.hasLocalScope()) {
+                            // rvr has a local scope, and we can possible be more precise.
+                            needsNonMostRecent = isAllocInScope(rvr, next, new AddNonMostRecentOrigin(n, rvr, next));
+                        }
+                    }
+                    if (needsNonMostRecent) {
+                        changed |= s.add(nonMostRecentVersion(next));
+                    }
                 }
             }
             return changed;
@@ -2560,7 +2632,7 @@ public class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + ikrToPP.get(t)
-                            + "\"];\n");
+ + "\"];\n");
                 }
             }
 
@@ -2577,8 +2649,8 @@ public class PointsToGraph {
                     int t = toIter.next();
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
-                    writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName()
-                            + "," + ikrToPP.get(t) + "\"];\n");
+                    writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName() + ","
+                            + ikrToPP.get(t) + "\"];\n");
                 }
             }
         }

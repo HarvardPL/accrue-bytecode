@@ -283,9 +283,10 @@ public class StatementRegistrar {
                         }
                         scpps.add(pp);
                     }
-                    ReferenceVariable def = stmt.getDef();
-                    if (def != null && def.hasLocalScope()) {
-                        def.setLocalDef(stmt.programPoint());
+                    for (ReferenceVariable def : stmt.getDefs()) {
+                        if (def.hasLocalScope()) {
+                            def.setLocalDef(stmt.programPoint());
+                        }
                     }
                     for (ReferenceVariable use : stmt.getUses()) {
                         if (use.hasLocalScope()) {

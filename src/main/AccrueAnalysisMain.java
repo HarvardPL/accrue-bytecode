@@ -377,7 +377,7 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings) {
-        // PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
+        //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;

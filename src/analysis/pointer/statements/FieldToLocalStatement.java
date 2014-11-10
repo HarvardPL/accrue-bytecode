@@ -120,8 +120,8 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return this.assignee;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(assignee);
     }
 
     @Override

@@ -141,11 +141,6 @@ public class SpecialCallStatement extends CallStatement {
         return uses;
     }
 
-    @Override
-    public ReferenceVariable getDef() {
-        return this.getResult();
-    }
-
 
     /**
      * Get the resolved method being called

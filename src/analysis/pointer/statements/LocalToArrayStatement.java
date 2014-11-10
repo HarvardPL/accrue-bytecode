@@ -1,6 +1,7 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -121,8 +122,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return null;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.emptyList();
     }
 
     @Override

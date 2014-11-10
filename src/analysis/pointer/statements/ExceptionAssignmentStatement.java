@@ -111,10 +111,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
+    public List<ReferenceVariable> getDefs() {
         // Not really a local variable definition as it violates SSA invariant if there is more than one exception that
         // reaches this catch block
-        return null;
+        return Collections.emptyList();
     }
 
     @Override

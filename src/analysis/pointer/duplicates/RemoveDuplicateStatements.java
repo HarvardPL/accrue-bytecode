@@ -268,7 +268,7 @@ public class RemoveDuplicateStatements {
                     changed = true;
                     this.staticFieldToLocals.set(j, null);
                     this.allStatements.remove(s2);
-                    replaceVariable(s2.getDef(), s1.getDef());
+                    replaceVariable(s2.getDefs(), s1.getDefs());
                 }
             }
 
@@ -302,7 +302,7 @@ public class RemoveDuplicateStatements {
                     changed = true;
                     this.arrayToLocals.set(j, null);
                     this.allStatements.remove(s2);
-                    replaceVariable(s2.getDef(), s1.getDef());
+                    replaceVariable(s2.getDefs(), s1.getDefs());
                 }
             }
 
@@ -338,7 +338,7 @@ public class RemoveDuplicateStatements {
                     changed = true;
                     this.phiStatements.set(j, null);
                     this.allStatements.remove(s2);
-                    replaceVariable(s2.getDef(), s1.getDef());
+                    replaceVariable(s2.getDefs(), s1.getDefs());
                 }
             }
 
@@ -372,7 +372,7 @@ public class RemoveDuplicateStatements {
                     changed = true;
                     this.fieldToLocals.set(j, null);
                     this.allStatements.remove(s2);
-                    replaceVariable(s2.getDef(), s1.getDef());
+                    replaceVariable(s2.getDefs(), s1.getDefs());
                 }
             }
 
@@ -389,7 +389,11 @@ public class RemoveDuplicateStatements {
      *            replacement variable
      */
     @SuppressWarnings("synthetic-access")
-    private void replaceVariable(ReferenceVariable replaced, ReferenceVariable replacement) {
+    private void replaceVariable(List<ReferenceVariable> replacedList, List<ReferenceVariable> replacementList) {
+        assert replacedList.size() == 1;
+        assert replacementList.size() == 1;
+        ReferenceVariable replaced = replacedList.get(0);
+        ReferenceVariable replacement = replacementList.get(0);
         variableIndex.recordReplacement(replaced, replacement);
         Set<OrderedPair<PointsToStatement, Integer>> pairs = this.useIndex.get(replaced);
         if (pairs == null) {

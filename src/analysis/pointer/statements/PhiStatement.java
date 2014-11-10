@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
 import java.util.List;
 
 import util.OrderedPair;
@@ -107,8 +108,8 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return assignee;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(assignee);
     }
 
     @Override
