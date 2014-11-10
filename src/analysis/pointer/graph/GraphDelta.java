@@ -83,9 +83,23 @@ public class GraphDelta {
                 changed |= s.add(next);
                 if (g.isMostRecentObject(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
-                    // points to the most resent version, also points to
+                    // points to the most resent version, may also need to point to
                     // the non-most recent version.
-                    changed |= s.add(g.nonMostRecentVersion(next));
+                    boolean needsNonMostRecent = true;
+                    PointsToGraphNode tn = g.lookupPointsToGraphNodeDictionary(n);
+                    if (tn instanceof ReferenceVariableReplica) {
+                        ReferenceVariableReplica rvr = (ReferenceVariableReplica) tn;
+                        if (rvr.hasInstantaneousScope()) {
+                            needsNonMostRecent = false;
+                        }
+                        else if (rvr.hasLocalScope()) {
+                            // rvr has a local scope, and we can possible be more precise.
+                            needsNonMostRecent = g.isAllocInScope(rvr, next, new AddNonMostRecentOrigin(n, rvr, next));
+                        }
+                    }
+                    if (needsNonMostRecent) {
+                        changed |= s.add(g.nonMostRecentVersion(next));
+                    }
                 }
             }
             return changed;
