@@ -229,7 +229,7 @@ public abstract class PointsToStatement {
      *
      * @return local variable assigned into, null if there no such variable
      */
-    public abstract ReferenceVariable getDef();
+    public abstract List<ReferenceVariable> getDefs();
 
     /**
      * Get the objects that invoking killed(Context context, PointsToGraph g) will "read". One PointsToStatement depends

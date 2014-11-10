@@ -90,9 +90,9 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
         // don't need to use delta, as this just adds a subset edge
         if (this.filter == null) {
-            return g.copyEdges(r, pre, l, post, originator);
+            return g.copyEdges(r, pre, l, post);
         }
-        return g.copyFilteredEdges(r, this.filter, l, originator);
+        return g.copyFilteredEdges(r, this.filter, l);
 
     }
 
@@ -111,10 +111,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
+    public List<ReferenceVariable> getDefs() {
         // Not really a local variable definition as it violates SSA invariant if there is more than one exception that
         // reaches this catch block
-        return null;
+        return Collections.emptyList();
     }
 
     @Override

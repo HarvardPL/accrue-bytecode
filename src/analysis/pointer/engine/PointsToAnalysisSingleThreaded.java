@@ -17,8 +17,10 @@ import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReachabilityQueryOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -55,10 +57,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
 
     /**
-     * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
+     * An allocation dependency from InstanceKeyRecency ikr to AllocationDepender sac exists when a modification to the
      * program points set that allocate ikr requires reevaluation of sac.
      */
-    private IntMap<Set<StmtAndContext>> allocationDepedencies = new SparseIntMap<>();
+    private IntMap<Set<AllocationDepender>> allocationDepedencies = new SparseIntMap<>();
+
+    private PointsToAnalysisHandle analysisHandle;
 
     /**
      * New pointer analysis engine
@@ -81,6 +85,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
 
+    private Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue;
+
     /**
      * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
      * entry point
@@ -99,7 +105,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         this.nextMilestone = this.startTime - 1;
 
         Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
+        this.nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         final Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
@@ -110,8 +116,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void recordAllocationDependency(int ikr, StmtAndContext sac) {
-                PointsToAnalysisSingleThreaded.this.addAllocationDependency(ikr, sac);
+            public void recordAllocationDependency(int ikr, AllocationDepender origin) {
+                PointsToAnalysisSingleThreaded.this.addAllocationDependency(ikr, origin);
             }
 
             @Override
@@ -152,15 +158,26 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         };
 
-        PointsToAnalysisHandle analysisHandle = new PointsToAnalysisHandle() {
+        final PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
+
+        this.analysisHandle = new PointsToAnalysisHandle() {
 
             @Override
             public void submitStmtAndContext(StmtAndContext sac) {
                 noDeltaQueue.add(sac);
             }
 
+            @Override
+            public PointsToGraph pointsToGraph() {
+                return g;
+            }
+
+            @Override
+            public void handleChanges(GraphDelta changes) {
+                PointsToAnalysisSingleThreaded.this.handleChanges(nextQueue, noDeltaQueue, changes, g);
+            }
+
         };
-        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
@@ -345,11 +362,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (changes.isEmpty()) {
             return;
         }
-        Set<StmtAndContext> reprocess = g.ppReach.checkPointsToGraphDelta(changes);
-        for (StmtAndContext sac : reprocess) {
+        Set<ReachabilityQueryOrigin> reprocess = g.ppReach.checkPointsToGraphDelta(changes);
+        for (ReachabilityQueryOrigin sac : reprocess) {
             // run the task, but with an empty delta to force the appropriate reading of
             // kill nodes.
-            noDeltaQueue.add(sac);
+            sac.trigger(this.analysisHandle);
+            //noDeltaQueue.add(sac);
         }
 
         IntIterator iter = changes.domainIterator();
@@ -362,8 +380,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         iter = changes.newAllocationSitesIterator();
         while (iter.hasNext()) {
             int n = iter.next();
-            for (StmtAndContext sac : this.getAllocationDependencies(n)) {
-                queue.add(new OrderedPair<>(sac, changes));
+            for (AllocationDepender sac : this.getAllocationDependencies(n)) {
+                sac.trigger(this.analysisHandle, changes);
+                //queue.add(new OrderedPair<>(sac, changes));
             }
         }
     }
@@ -440,13 +459,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Get any (statement,context) pairs that depend on the given instance key recency
+     * Get any entities that depend on the given instance key recency
      *
      * @param n node to get the dependencies for
      * @return set of dependencies
      */
-    private Set<StmtAndContext> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
-        Set<StmtAndContext> sacs = this.allocationDepedencies.get(ikr);
+    private Set<AllocationDepender> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
+        Set<AllocationDepender> sacs = this.allocationDepedencies.get(ikr);
         if (sacs == null) {
             return Collections.emptySet();
         }
@@ -458,16 +477,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * This means that if the allocation sites of ikr changes , then sac will need to be processed again.
      *
      * @param n node the statement depends on
-     * @param sac statement and context that depends on <code>n</code>
+     * @param origin statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    boolean addAllocationDependency(/*InstanceKeyRecency*/int ikr, StmtAndContext sac) {
-        Set<StmtAndContext> s = this.allocationDepedencies.get(ikr);
+    boolean addAllocationDependency(/*InstanceKeyRecency*/int ikr, AllocationDepender origin) {
+        Set<AllocationDepender> s = this.allocationDepedencies.get(ikr);
         if (s == null) {
             s = new HashSet<>();
-            this.interestingDepedencies.put(ikr, s);
+            this.allocationDepedencies.put(ikr, s);
         }
-        return s.add(sac);
+        return s.add(origin);
     }
 
     static class PartitionedQueue extends AbstractQueue<StmtAndContext> {

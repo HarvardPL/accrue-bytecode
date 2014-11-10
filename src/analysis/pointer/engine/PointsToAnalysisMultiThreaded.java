@@ -3,6 +3,7 @@ package analysis.pointer.engine;
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -14,8 +15,10 @@ import util.intmap.ConcurrentIntMap;
 import util.intset.ConcurrentIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ReachabilityQueryOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -39,7 +42,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
      * program points set that allocate ikr requires reevaluation of sac.
      */
-    private ConcurrentIntMap<Set<StmtAndContext>> allocationDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<Set<AllocationDepender>> allocationDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
+    /**
+     * Useful handle to pass around.
+     */
+    private PointsToAnalysisHandle analysisHandle;
 
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
@@ -82,8 +90,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void recordAllocationDependency(int ikr, StmtAndContext sac) {
-                addAllocationDependency(ikr, sac);
+            public void recordAllocationDependency(int ikr, AllocationDepender origin) {
+                addAllocationDependency(ikr, origin);
             }
 
             @Override
@@ -122,15 +130,25 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         };
 
 
-        PointsToAnalysisHandle analysisHandle = new PointsToAnalysisHandle() {
+        final PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
+        execService.setGraphAndRegistrar(g, registrar);
+
+        this.analysisHandle = new PointsToAnalysisHandle() {
             @Override
             public void submitStmtAndContext(StmtAndContext sac) {
                 execService.submitTask(sac);
             }
-        };
 
-        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
-        execService.setGraphAndRegistrar(g, registrar);
+            @Override
+            public PointsToGraph pointsToGraph() {
+                return g;
+            }
+
+            @Override
+            public void handleChanges(GraphDelta changes) {
+                PointsToAnalysisMultiThreaded.this.handleChanges(changes, execService);
+            }
+        };
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
@@ -211,29 +229,37 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // nothing to do.
             return;
         }
-        Set<StmtAndContext> reprocess = execService.g.ppReach.checkPointsToGraphDelta(changes);
-        for (StmtAndContext sac : reprocess) {
+        Set<ReachabilityQueryOrigin> reprocess = execService.g.ppReach.checkPointsToGraphDelta(changes);
+        Set<StmtAndContext> seenSacs = new HashSet<>();
+        for (ReachabilityQueryOrigin tasks : reprocess) {
             // run the task, but with an empty delta to force the appropriate reading of
             // kill nodes.
-            execService.submitTask(sac, null);
+            tasks.trigger(this.analysisHandle);
+            StmtAndContext sacOrigin = tasks.getStmtAndContext();
+            if (sacOrigin != null) {
+                seenSacs.add(sacOrigin);
+            }
         }
+
 
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
             for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
-                if (!reprocess.contains(depSaC)) {
+                if (!seenSacs.contains(depSaC)) {
                     execService.submitTask(depSaC, changes);
-                    reprocess.add(depSaC);
+                    seenSacs.add(depSaC);
                 }
             }
         }
         iter = changes.newAllocationSitesIterator();
         while (iter.hasNext()) {
             int ikr = iter.next();
-            for (StmtAndContext depSaC : this.getAllocationDependencies(ikr)) {
-                if (!reprocess.contains(depSaC)) {
-                    execService.submitTask(depSaC, changes);
+            for (AllocationDepender depSaC : this.getAllocationDependencies(ikr)) {
+                StmtAndContext s = depSaC.getStmtAndContext();
+
+                if ((s == null || !seenSacs.contains(s)) && !reprocess.contains(depSaC)) {
+                    depSaC.trigger(this.analysisHandle, changes);
                 }
             }
         }
@@ -431,8 +457,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     /**
      * XXX
      */
-    private Set<StmtAndContext> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
-        Set<StmtAndContext> sacs = this.allocationDepedencies.get(ikr);
+    private Set<AllocationDepender> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
+        Set<AllocationDepender> sacs = this.allocationDepedencies.get(ikr);
         if (sacs == null) {
             return Collections.emptySet();
         }
@@ -440,20 +466,20 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     /**
-     * XXX
+     * Record that depender needs to be notified if there is a new allocation site for ikr
      */
-    boolean addAllocationDependency(/*InstanceKeyRecency*/int ikr, StmtAndContext sac) {
+    boolean addAllocationDependency(/*InstanceKeyRecency*/int ikr, AllocationDepender depender) {
         // use double checked approach...
 
-        Set<StmtAndContext> s = this.allocationDepedencies.get(ikr);
+        Set<AllocationDepender> s = this.allocationDepedencies.get(ikr);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<StmtAndContext> existing = this.allocationDepedencies.putIfAbsent(ikr, s);
+            Set<AllocationDepender> existing = this.allocationDepedencies.putIfAbsent(ikr, s);
             if (existing != null) {
                 s = existing;
             }
         }
-        return s.add(sac);
+        return s.add(depender);
     }
 
     public static MutableIntSet makeConcurrentIntSet() {

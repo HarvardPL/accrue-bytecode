@@ -60,7 +60,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
 
         // don't need to use delta, as this just adds a subset edge
-        return g.copyEdges(r, pre, l, post, originator);
+        return g.copyEdges(r, pre, l, post);
     }
 
     @Override
@@ -87,9 +87,8 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        // The static field is not a local
-        return null;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.emptyList();
     }
 
     @Override

@@ -57,21 +57,22 @@ public class MethodSummaryNodes {
             returnNode = null;
         }
 
+        this.entryPP = new ProgramPoint(method, "entryPP", true, false, false);
+        this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
+        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
+
         formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); i++) {
             TypeReference type = method.getParameterType(i);
             if (type.isPrimitiveType()) {
                 formals.add(null);
-            } else {
-                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method));
+            }
+            else {
+                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method, entryPP));
             }
         }
 
         exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
-
-        this.entryPP = new ProgramPoint(method, "entryPP", true, false, false);
-        this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
-        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
     }
 
     public ReferenceVariable getReturn() {

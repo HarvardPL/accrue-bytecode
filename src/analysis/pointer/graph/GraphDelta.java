@@ -43,7 +43,7 @@ public class GraphDelta {
     private final IntMap<IntMap<ProgramPointSetClosure>> deltaFS;
 
     /**
-     *
+     * New allocation sites.
      */
     private final IntMap<Set<ProgramPointReplica>> deltaAllocationSites;
 
@@ -84,9 +84,23 @@ public class GraphDelta {
                 changed |= s.add(next);
                 if (g.isMostRecentObject(next) && nIsObjectField) {
                     // n is a flow-insensitive pointstographnode, so if it
-                    // points to the most resent version, also points to
+                    // points to the most resent version, may also need to point to
                     // the non-most recent version.
-                    changed |= s.add(g.nonMostRecentVersion(next));
+                    boolean needsNonMostRecent = true;
+                    PointsToGraphNode tn = g.lookupPointsToGraphNodeDictionary(n);
+                    if (tn instanceof ReferenceVariableReplica) {
+                        ReferenceVariableReplica rvr = (ReferenceVariableReplica) tn;
+                        if (rvr.hasInstantaneousScope()) {
+                            needsNonMostRecent = false;
+                        }
+                        else if (rvr.hasLocalScope()) {
+                            // rvr has a local scope, and we can possible be more precise.
+                            needsNonMostRecent = g.isAllocInScope(rvr, next, new AddNonMostRecentOrigin(n, rvr, next));
+                        }
+                    }
+                    if (needsNonMostRecent) {
+                        changed |= s.add(g.nonMostRecentVersion(next));
+                    }
                 }
             }
             return changed;
@@ -280,7 +294,7 @@ public class GraphDelta {
                 IntIterator deltaAllocationSitesAware = new ProgramPointIntIterator(g.pointsToSetFS(n),
                                                                                     ippr,
                                                                                     g,
-                                                                                    originator,
+                                                                                    new StmtAndContextReachabilityOriginator(originator),
                                                                                     this.deltaAllocationSites);
 
                 if (deltaFS.isEmpty()) {
@@ -314,7 +328,10 @@ public class GraphDelta {
         do {
             IntMap<ProgramPointSetClosure> s = deltaFS.get(node);
             if (s != null) {
-                iterators.add(new ProgramPointIntIterator(s, ippr, g, originator));
+                iterators.add(new ProgramPointIntIterator(s,
+                                                          ippr,
+                                                          g,
+                                                          new StmtAndContextReachabilityOriginator(originator)));
             }
             node = g.getImmediateRepresentative(node);
         } while (node != null);

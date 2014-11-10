@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
 import java.util.List;
 
 import util.OrderedPair;
@@ -69,7 +70,7 @@ public class PhiStatement extends PointsToStatement {
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use, haf);
             // no need to use delta, as this just adds subset relations.
-            GraphDelta d1 = g.copyEdges(n, pre, a, post, originator);
+            GraphDelta d1 = g.copyEdges(n, pre, a, post);
 
             changed = changed.combine(d1);
         }
@@ -107,8 +108,8 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return assignee;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(assignee);
     }
 
     @Override

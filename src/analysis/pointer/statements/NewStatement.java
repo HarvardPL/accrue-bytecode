@@ -87,23 +87,23 @@ public class NewStatement extends PointsToStatement {
         g.recordAllocation(newHeapContext, ppr);
 
         // add the edge
-        GraphDelta d = g.addEdge(r, newHeapContext, ppr.post(), originator);
+        GraphDelta d = g.addEdge(r, newHeapContext, ppr.post());
 
         // ensures that the PointsToFS of newHeapContext.f before this program point will
         // be copied to PointsToFI of newHeapContext.f.
-        d = d.combine(g.copyEdgesForAllFields(newHeapContext, ppr, originator));
+        d = d.combine(g.copyEdgesForAllFields(newHeapContext, ppr));
 
         // all the fields of the newly allocated object should point to null.
         IClass allocatedClass = alloc.getAllocatedClass();
         if (!allocatedClass.isArrayClass()) {
             for (IField fld : allocatedClass.getAllInstanceFields()) {
                 ObjectField objfld = new ObjectField(newHeapContext, fld.getReference());
-                d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post(), originator));
+                d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post()));
             }
         }
 
-        // add the allocation site to delta
-        d.addAllocationSite(newHeapContext, ppr);
+        //        // add the allocation site to delta
+        //        d.addAllocationSite(newHeapContext, ppr);
 
         return d;
     }
@@ -140,8 +140,8 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public ReferenceVariable getDef() {
-        return result;
+    public List<ReferenceVariable> getDefs() {
+        return Collections.singletonList(result);
     }
 
     @Override
