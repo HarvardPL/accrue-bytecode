@@ -76,12 +76,13 @@ public class GraphDelta {
             assert !g.isFlowSensitivePointsToGraphNode(n);
 
             MutableIntSet s = getOrCreateFISet(n, setSizeBestGuess(set));
+            boolean nIsObjectField = g.baseNodeForPointsToGraphNode(n) >= 0;
             boolean changed = false;
             IntIterator iter = set.intIterator();
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (g.isMostRecentObject(next)) {
+                if (g.isMostRecentObject(next) && nIsObjectField) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, also points to
                     // the non-most recent version.

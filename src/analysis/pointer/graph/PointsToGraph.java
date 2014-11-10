@@ -1866,13 +1866,14 @@ public class PointsToGraph {
 
         if (!targetIsFlowSensitive) {
             IntSet targetSet = this.pointsToSetFI(target);
+            boolean targetIsObjectField = baseNodeForPointsToGraphNode(target) >= 0;
 
             while (srcIter.hasNext()) {
                 int i = srcIter.next();
                 if (!targetSet.contains(i)) {
                     s.add(i);
                 }
-                if (isMostRecentObject(i)) {
+                if (isMostRecentObject(i) && targetIsObjectField) {
                     // target is a flow-insensitive pointstographnode, so if it
                     // points to the most recent version, also points to
                     // the non-most recent version.
@@ -1968,12 +1969,13 @@ public class PointsToGraph {
             assert !isFlowSensitivePointsToGraphNode(n);
             assert ppsToAdd == null;
             MutableIntSet s = pointsToSetFI(n);
+            boolean nIsObjectField = baseNodeForPointsToGraphNode(n) >= 0;
             boolean changed = false;
             IntIterator iter = set.intIterator();
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (isMostRecentObject(next)) {
+                if (isMostRecentObject(next) && nIsObjectField) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, also points to
                     // the non-most recent version.
