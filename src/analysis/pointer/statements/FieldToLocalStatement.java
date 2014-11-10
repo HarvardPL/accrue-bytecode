@@ -82,7 +82,7 @@ public class FieldToLocalStatement extends PointsToStatement {
                 if (!g.isNullInstanceKey(recHeapContext)) {
                     ObjectField f = new ObjectField(recHeapContext, this.declaredField);
                     //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
-                    GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
+                    GraphDelta d1 = g.copyEdges(f, pre, left, post);
                     changed = changed.combine(d1);
                 }
                 else {
@@ -98,7 +98,7 @@ public class FieldToLocalStatement extends PointsToStatement {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
                     ObjectField f = new ObjectField(recHeapContext, this.declaredField);
-                    GraphDelta d1 = g.copyEdges(f, pre, left, post, originator);
+                    GraphDelta d1 = g.copyEdges(f, pre, left, post);
                     changed = changed.combine(d1);
                 }
                 else {

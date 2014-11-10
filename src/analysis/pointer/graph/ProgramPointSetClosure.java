@@ -8,7 +8,6 @@ import java.util.Set;
 
 import util.intmap.IntMap;
 import analysis.AnalysisUtil;
-import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -68,8 +67,8 @@ public class ProgramPointSetClosure {
     /**
      * Does this set contain of the program points ippr?
      */
-    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, StmtAndContext originator) {
-        return g.programPointReachability().reachable(this.getSources(g, originator),
+    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, ReachabilityQueryOrigin originator) {
+        return g.programPointReachability().reachable(this,
                                                       ippr,
                                                       this.noKill(),
                                                       this.noAlloc(g),
@@ -81,7 +80,7 @@ public class ProgramPointSetClosure {
      * Does this set contain of the program points ippr? Pays attention to the newAllocationSites, much like a
      * GraphDelta.
      */
-    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, StmtAndContext originator,
+    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, ReachabilityQueryOrigin origin,
                             IntMap<Set<ProgramPointReplica>> newAllocationSites) {
         if (newAllocationSites != null && g.isTrackingMostRecentObject(to) && !g.isMostRecentObject(to)) {
             // we only want the points to information that is a result of the new allocation sites.
@@ -90,14 +89,14 @@ public class ProgramPointSetClosure {
                                ippr,
                                this.noKill(),
                                this.noAlloc(g),
-                               originator,
+                               origin,
                                null);
         }
-        return g.programPointReachability().reachable(this.getSources(g, originator),
+        return g.programPointReachability().reachable(this,
                                                       ippr,
                                                       this.noKill(),
                                                       this.noAlloc(g),
-                                                      originator,
+                                                      origin,
                                                       null);
     }
 
@@ -150,7 +149,7 @@ public class ProgramPointSetClosure {
      *
      * @return
      */
-    private Collection<InterProgramPointReplica> getSources(PointsToGraph g, StmtAndContext originator) {
+    Collection<InterProgramPointReplica> getSources(PointsToGraph g, ReachabilityQueryOrigin originator) {
         // XXX TODO turn this into an iterator, so that we lazily look at these allocation sites.
         if (!g.isMostRecentObject(this.to) && g.isTrackingMostRecentObject(this.to)) {
             List<InterProgramPointReplica> s = new ArrayList<>();
@@ -178,19 +177,9 @@ public class ProgramPointSetClosure {
         return sources.isEmpty();
     }
 
-    public boolean containsAll(ExplicitProgramPointSet pps, PointsToGraph g, StmtAndContext originator) {
+    public boolean containsAll(ExplicitProgramPointSet pps, PointsToGraph g, ReachabilityQueryOrigin originator) {
         for (InterProgramPointReplica ippr : pps) {
             if (!this.contains(ippr, g, originator)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public boolean containsAll(ProgramPointSetClosure pps, PointsToGraph g, StmtAndContext originator) {
-        assert this.to == pps.to;
-        for (InterProgramPointReplica ippr : pps.sources) {
-            if (!this.sources.contains(ippr) && !this.contains(ippr, g, originator)) {
                 return false;
             }
         }

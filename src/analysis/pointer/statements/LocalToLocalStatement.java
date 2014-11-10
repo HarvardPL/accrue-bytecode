@@ -73,9 +73,9 @@ public class LocalToLocalStatement extends PointsToStatement {
         // don't need to use delta, as this just adds a subset edge
         if (filter) {
             TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());
-            return g.copyFilteredEdges(r, typeFilter, l, originator);
+            return g.copyFilteredEdges(r, typeFilter, l);
         }
-        return g.copyEdges(r, pre, l, post, originator);
+        return g.copyEdges(r, pre, l, post);
     }
 
     @Override

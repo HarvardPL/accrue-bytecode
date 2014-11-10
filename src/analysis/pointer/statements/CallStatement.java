@@ -117,7 +117,7 @@ public abstract class CallStatement extends PointsToStatement {
             assert checkTypes(resultRep, calleeReturn);
 
             // The assignee can point to anything the return summary node in the callee can point to
-            GraphDelta retChange = g.copyEdges(calleeReturn, normalExit, resultRep, post, originator);
+            GraphDelta retChange = g.copyEdges(calleeReturn, normalExit, resultRep, post);
             changed = changed.combine(retChange);
         }
 
@@ -129,7 +129,7 @@ public abstract class CallStatement extends PointsToStatement {
             ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext,
                                                                             calleeSummary.getFormal(0),
                                                                             haf);
-            GraphDelta receiverChange = g.addEdge(thisRep, receiver, entry, originator);
+            GraphDelta receiverChange = g.addEdge(thisRep, receiver, entry);
             changed = changed.combine(receiverChange);
         }
 
@@ -155,7 +155,7 @@ public abstract class CallStatement extends PointsToStatement {
             assert checkTypes(formalRep, actualRep);
 
             // Add edges from the points-to set for the actual argument to the formal argument
-            GraphDelta d1 = g.copyEdges(actualRep, pre, formalRep, entry, originator);
+            GraphDelta d1 = g.copyEdges(actualRep, pre, formalRep, entry);
             changed = changed.combine(d1);
         }
 
@@ -167,7 +167,7 @@ public abstract class CallStatement extends PointsToStatement {
                                                                          haf);
 
         // The exception in the caller can point to anything the summary node in the callee can point to
-        GraphDelta exChange = g.copyEdges(calleeEx, exceptionExit, callerEx, post, originator);
+        GraphDelta exChange = g.copyEdges(calleeEx, exceptionExit, callerEx, post);
         changed = changed.combine(exChange);
 
         return changed;

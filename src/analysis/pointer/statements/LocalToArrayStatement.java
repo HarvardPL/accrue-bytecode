@@ -83,7 +83,7 @@ public class LocalToArrayStatement extends PointsToStatement {
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive();
 
-                GraphDelta d1 = g.copyEdges(v, pre, contents, post, originator);
+                GraphDelta d1 = g.copyEdges(v, pre, contents, post);
                 changed = changed.combine(d1);
             }
         }
@@ -101,7 +101,7 @@ public class LocalToArrayStatement extends PointsToStatement {
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive() : "Contents should never be flow sensitive";
 
-                GraphDelta d1 = g.copyEdges(v, pre, contents, post, originator);
+                GraphDelta d1 = g.copyEdges(v, pre, contents, post);
                 changed = changed.combine(d1);
             }
         }

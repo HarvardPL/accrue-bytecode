@@ -46,7 +46,7 @@ public class NullToLocalStatement extends PointsToStatement {
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result, haf);
         ProgramPointReplica ppr = ProgramPointReplica.create(context, this.programPoint());
 
-        return g.addEdge(r, nullIkr, ppr.post(), originator);
+        return g.addEdge(r, nullIkr, ppr.post());
     }
 
     @Override

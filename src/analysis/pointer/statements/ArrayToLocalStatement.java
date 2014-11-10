@@ -69,7 +69,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
-                GraphDelta d1 = g.copyEdges(contents, pre, v, post, originator);
+                GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }
@@ -81,7 +81,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
-                GraphDelta d1 = g.copyEdges(contents, pre, v, post, originator);
+                GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
             }

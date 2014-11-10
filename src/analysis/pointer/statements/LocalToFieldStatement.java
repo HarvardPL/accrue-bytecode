@@ -78,7 +78,7 @@ public class LocalToFieldStatement extends PointsToStatement {
                 if (!g.isNullInstanceKey(recHeapContext)) {
                     ObjectField of = new ObjectField(recHeapContext, this.field);
                     // o.f can point to anything that local can.
-                    GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
+                    GraphDelta d1 = g.copyEdges(local, pre, of, post);
                     changed = changed.combine(d1);
                 }
                 else {
@@ -93,7 +93,7 @@ public class LocalToFieldStatement extends PointsToStatement {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
                     ObjectField of = new ObjectField(recHeapContext, this.field);
-                    GraphDelta d1 = g.copyEdges(local, pre, of, post, originator);
+                    GraphDelta d1 = g.copyEdges(local, pre, of, post);
                     changed = changed.combine(d1);
                 }
                 else {

@@ -1,6 +1,7 @@
 package analysis.pointer.engine;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
+import analysis.pointer.graph.AllocationDepender;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -19,7 +20,7 @@ public interface DependencyRecorder {
      *
      * @param node
      */
-    void recordAllocationDependency(int ikr, StmtAndContext sac);
+    void recordAllocationDependency(int ikr, AllocationDepender sac);
 
     /**
      * Record that node n has started to be collapsed, and will be represented by node rep.

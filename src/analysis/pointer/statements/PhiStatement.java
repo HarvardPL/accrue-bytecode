@@ -69,7 +69,7 @@ public class PhiStatement extends PointsToStatement {
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use, haf);
             // no need to use delta, as this just adds subset relations.
-            GraphDelta d1 = g.copyEdges(n, pre, a, post, originator);
+            GraphDelta d1 = g.copyEdges(n, pre, a, post);
 
             changed = changed.combine(d1);
         }
