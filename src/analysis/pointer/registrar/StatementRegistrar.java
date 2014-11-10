@@ -1537,8 +1537,8 @@ public class StatementRegistrar {
         if (!visited.contains(pp)) {
             visited.add(pp);
             for (ProgramPoint succ : pp.succs()) {
-                String fromStr = escape(pp + " : " + getStmtAtPP(pp));
-                String toStr = escape(succ + " : " + getStmtAtPP(succ));
+                String fromStr = escape(pp + " : ((((" + getStmtAtPP(pp) + "))))");
+                String toStr = escape(succ + " : ((((" + getStmtAtPP(succ) + "))))");
                 writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
                 writeSucc(succ, writer, visited);
             }
