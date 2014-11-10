@@ -100,10 +100,10 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
             SSAInstruction last = getLastInstruction(bb);
             ProgramPoint lastPPofBB = this.mostRecentProgramPointFacts.get(new OrderedPair<>(bb, last)).pp;
             for (ISSABasicBlock succBB : cfg.getNormalSuccessors(bb)) {
-                addSucc(lastPPofBB, bbEntryProgramPoint(succBB, true));
+                addSucc(lastPPofBB, bbEntryProgramPoint(succBB, false));
             }
             for (ISSABasicBlock succBB : cfg.getExceptionalSuccessors(bb)) {
-                addSucc(lastPPofBB, bbEntryProgramPoint(succBB, false));
+                addSucc(lastPPofBB, bbEntryProgramPoint(succBB, true));
             }
         }
 
