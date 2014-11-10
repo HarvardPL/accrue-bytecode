@@ -33,6 +33,7 @@ import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.LocalToLocalStatement;
 import analysis.pointer.statements.LocalToStaticFieldStatement;
 import analysis.pointer.statements.NewStatement;
+import analysis.pointer.statements.NullToLocalStatement;
 import analysis.pointer.statements.PhiStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ReturnStatement;
@@ -533,7 +534,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
             if (stmt instanceof LocalToLocalStatement || stmt instanceof LocalToStaticFieldStatement
                     || stmt instanceof PhiStatement || stmt instanceof ReturnStatement
-                    || stmt instanceof StaticFieldToLocalStatement || stmt instanceof ExceptionAssignmentStatement) {
+                    || stmt instanceof StaticFieldToLocalStatement || stmt instanceof ExceptionAssignmentStatement
+                    || stmt instanceof NullToLocalStatement) {
                 return localAssigns.offer(sac);
             }
             throw new IllegalArgumentException("Don't know how to handle a " + stmt.getClass());

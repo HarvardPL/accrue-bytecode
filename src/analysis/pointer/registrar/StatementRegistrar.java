@@ -289,7 +289,7 @@ public class StatementRegistrar {
                         }
                     }
                     for (ReferenceVariable use : stmt.getUses()) {
-                        if (use.hasLocalScope()) {
+                        if (use != null && use.hasLocalScope()) {
                             use.addLocalUse(stmt.programPoint());
                         }
                     }
