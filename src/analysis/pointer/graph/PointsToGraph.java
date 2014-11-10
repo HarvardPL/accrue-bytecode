@@ -388,7 +388,7 @@ public class PointsToGraph {
             // XXX maybe enable later.
             //collapseCycles(toCollapse, delta);
         }
-        else if (node.isFlowSensitive()) {
+        else if (node.isFlowSensitive() && !this.pointsTo(n, h, ippr, null)) {
             // in this case, heapContext should be nullInstanceKey
             assert h == this.nullInstanceKeyInt;
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
