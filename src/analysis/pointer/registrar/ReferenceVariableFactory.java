@@ -523,7 +523,7 @@ public class ReferenceVariableFactory {
             assert !debugString.equals("null");
             assert expectedType != null;
             assert !expectedType.isPrimitiveType();
-            assert isFlowSensitive ? true : !(hasLocalScope || hasInstantaneousScope);
+            assert isFlowSensitive ? !(hasLocalScope || hasInstantaneousScope) : true;
             assert !(hasLocalScope && hasInstantaneousScope);
 
             this.debugString = debugString;
