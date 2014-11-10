@@ -197,13 +197,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
         System.err.println("\n\n");
 
+        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
+        g.dumpPointsToGraphToFile("tests/pointsToGraph");
+
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
         }
-
-        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
-        g.dumpPointsToGraphToFile("tests/pointsToGraph");
 
         g.constructionFinished();
         System.gc();
@@ -404,7 +404,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     }
                     changed |= !d.isEmpty();
                     if (!d.isEmpty()) {
-                        System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
+                        System.err.println("uhoh Failed on (" + s.getClass() + ")" + s + "\n    Delta is " + d);
                         failcount++;
                         if (failcount > 10) {
                             System.err.println("\nThere may be more failures, but exiting now...");

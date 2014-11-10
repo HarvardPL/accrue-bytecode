@@ -209,6 +209,7 @@ public class PointsToGraph {
     /**
      * InstanceKey pointed to at null allocation sites. Represented by one node in the points to graph.
      */
+
     private final InstanceKeyRecency nullInstanceKey = new InstanceKeyRecency(null, false, false);
 
     /**
@@ -2744,7 +2745,8 @@ public class PointsToGraph {
         public void writeNodes(Writer writer) throws IOException {
             for (ReferenceVariableReplica rvr : rvrToDotNode.keySet()) {
                 String color = rvr.isFlowSensitive() ? "red" : "blue";
-                writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\"RVR: "
+                writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\"RVR("
+                        + lookupDictionary(rvr) + "): "
                         + escape(rvr.toString())
                         + "\"];\n");
             }
@@ -2752,7 +2754,7 @@ public class PointsToGraph {
             for (InstanceKeyRecency ikr : ikrToDotNode.keySet()) {
                 String color = ikr.isRecent() ? "red" : "blue";
                 writer.write("\t" + ikrToDotNode.get(ikr) + "[fontcolor=white, style=filled, fillcolor=" + color
-                        + ", label=\"IKR: "
+                        + ", label=\"IKR(" + lookupDictionary(ikr) + "): "
                         + escape(ikr.toStringWithoutRecency()) + "\"];\n");
             }
         }

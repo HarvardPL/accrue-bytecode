@@ -263,7 +263,15 @@ public class GraphDelta {
         while (iter.hasNext()) {
             int i = iter.next();
             IntMap<ProgramPointSetClosure> s = deltaFS.get(i);
-            sb.append(i);
+            PointsToGraphNode n = g.lookupPointsToGraphNodeDictionary(i);
+            if (n instanceof ReferenceVariableReplica) {
+                sb.append("(" + i + ")");
+            }
+            else {
+                ObjectField of = (ObjectField) n;
+                sb.append("(" + g.lookupDictionary(of.receiver()) + ")");
+            }
+            sb.append(n);
             sb.append(":");
             sb.append(s);
             if (iter.hasNext()) {
