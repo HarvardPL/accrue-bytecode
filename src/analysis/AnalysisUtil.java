@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import main.AccrueAnalysisMain;
 import signatures.Signatures;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -172,9 +173,11 @@ public class AnalysisUtil {
         AnalysisUtil.cha = ClassHierarchy.make(scope);
         System.err.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
-        System.gc();
-        System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
-                + "MB");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
+                    + "MB");
+        }
 
         Iterable<Entrypoint> entrypoints;
         if (entryPoint == null) {

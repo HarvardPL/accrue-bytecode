@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import main.AccrueAnalysisMain;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -219,9 +220,11 @@ public class StatementRegistrationPass {
 
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
         System.err.println("Saw " + registrar.swingClasses + " allocations from the Swing libraries.");
-        System.gc();
-        System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
-                + "MB");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
+                    + "MB");
+        }
         if (PROFILE) {
             System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             try {
