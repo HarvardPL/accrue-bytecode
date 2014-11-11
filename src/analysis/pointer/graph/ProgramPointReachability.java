@@ -58,6 +58,7 @@ public class ProgramPointReachability {
     private final PointsToAnalysisHandle analysisHandle;
 
     ProgramPointReachability(PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
+        assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
     }
@@ -356,7 +357,7 @@ public class ProgramPointReachability {
         // check the caches
         List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
         for (InterProgramPointReplica src : sources) {
-            MemoResult mr = new MemoResult(src, destination, noKill, noAlloc, forbidden);
+            SubQuery mr = new SubQuery(src, destination, noKill, noAlloc, forbidden);
             if (this.positiveCache.contains(mr)) {
                 return true;
             }
@@ -417,7 +418,7 @@ public class ProgramPointReachability {
                 destination.getContext());
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
-            MemoResult query = new MemoResult(src, destination, noKill, noAlloc, forbidden);
+            SubQuery query = new SubQuery(src, destination, noKill, noAlloc, forbidden);
             assert !positiveCache.contains(query);
 
             // First check the call graph to find the set of relevant call graph nodes.
@@ -461,7 +462,7 @@ public class ProgramPointReachability {
      * @param b
      * @param sacsToReprocess
      */
-    private void recordQueryResult(MemoResult mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private void recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         //System.err.println("Recording query result : " + b + " " + mr);
         if (b) {
             positiveCache.add(mr);
@@ -497,7 +498,8 @@ public class ProgramPointReachability {
      * @return
      */
     private Set<OrderedPair<IMethod, Context>> findRelevantNodes(OrderedPair<IMethod, Context> sourceCGNode,
-                                                                 OrderedPair<IMethod, Context> destinationCGNode, MemoResult query) {
+                                                                 OrderedPair<IMethod, Context> destinationCGNode,
+                                                                 SubQuery query) {
         Set<OrderedPair<IMethod, Context>> s = new HashSet<>();
         // first find the CG nodes reachable from sourceCGNode
         Deque<OrderedPair<IMethod, Context>> q = new ArrayDeque<>();
@@ -565,7 +567,7 @@ public class ProgramPointReachability {
     private boolean searchThroughRelevantNodes(InterProgramPointReplica src, InterProgramPointReplica destination,
                                                IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden,
                                                Set<OrderedPair<IMethod, Context>> relevantNodes,
-                                               Set<InterProgramPointReplica> visited, MemoResult query,
+                                               Set<InterProgramPointReplica> visited, SubQuery query,
                                                Set<ReachabilityQueryOrigin> tasksToReprocess) {
         if (!visited.add(src)) {
             // we've already tried it...
@@ -1107,17 +1109,17 @@ public class ProgramPointReachability {
      * path from source to destination that does not kill any object in noKill, nor does it allocate any object in
      * noAlloc.
      */
-    private final Set<MemoResult> positiveCache = AnalysisUtil.createConcurrentSet();
-    private final Set<MemoResult> negativeCache = AnalysisUtil.createConcurrentSet();
+    private final Set<SubQuery> positiveCache = AnalysisUtil.createConcurrentSet();
+    private final Set<SubQuery> negativeCache = AnalysisUtil.createConcurrentSet();
 
-    private static class MemoResult {
+    public static class SubQuery {
         final InterProgramPointReplica source;
         final InterProgramPointReplica destination;
         final/*Set<PointsToGraphNode>*/IntSet noKill;
         final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
         final Set<InterProgramPointReplica> forbidden;
 
-        MemoResult(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+        SubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
                    IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
                    Set<InterProgramPointReplica> forbidden) {
             this.source = source;
@@ -1147,10 +1149,10 @@ public class ProgramPointReachability {
             if (!super.equals(obj)) {
                 return false;
             }
-            if (!(obj instanceof MemoResult)) {
+            if (!(obj instanceof SubQuery)) {
                 return false;
             }
-            MemoResult other = (MemoResult) obj;
+            SubQuery other = (SubQuery) obj;
             if (!source.equals(other.source)) {
                 return false;
             }
@@ -1171,7 +1173,7 @@ public class ProgramPointReachability {
 
         @Override
         public String toString() {
-            return "MemoResult [" + source + " => " + destination + ", noKill=" + noKill
+            return "SubQuery [" + source + " => " + destination + ", noKill=" + noKill
  + ", noAlloc=" + noAlloc
                     + ", forbidden=" + forbidden + "]";
         }
@@ -1184,13 +1186,13 @@ public class ProgramPointReachability {
      *
      * The following code is responsible for recording dependencies
      */
-    private final ConcurrentMap<MemoResult, Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentHashMap();
-    private final ConcurrentMap<ProgramPointReplica, Set<MemoResult>> calleeQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<SubQuery, Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<ProgramPointReplica, Set<SubQuery>> calleeQueryDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<ProgramPointReplica, Set<OrderedPair<IMethod, Context>>> calleeMethodDependencies = AnalysisUtil.createConcurrentHashMap();
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<MemoResult>> callerQueryDependencies = AnalysisUtil.createConcurrentHashMap();
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<MemoResult>> methodQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<SubQuery>> callerQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<SubQuery>> methodQueryDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> methodMethodDependencies = AnalysisUtil.createConcurrentHashMap();
-    private final ConcurrentIntMap<Set<MemoResult>> killQueryDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<Set<SubQuery>> killQueryDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     private final ConcurrentIntMap<Set<OrderedPair<IMethod, Context>>> killMethodDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
@@ -1200,13 +1202,13 @@ public class ProgramPointReachability {
      * @param query
      * @param callSite
      */
-    private void addCalleeDependency(MemoResult query, ProgramPointReplica callSite) {
+    private void addCalleeDependency(SubQuery query, ProgramPointReplica callSite) {
         assert callSite.getPP() instanceof CallSiteProgramPoint;
 
-        Set<MemoResult> s = calleeQueryDependencies.get(callSite);
+        Set<SubQuery> s = calleeQueryDependencies.get(callSite);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<MemoResult> existing = calleeQueryDependencies.putIfAbsent(callSite, s);
+            Set<SubQuery> existing = calleeQueryDependencies.putIfAbsent(callSite, s);
             if (existing != null) {
                 s = existing;
             }
@@ -1220,11 +1222,11 @@ public class ProgramPointReachability {
      * @param query
      * @param callGraphNode
      */
-    private void addCallerDependency(MemoResult query, OrderedPair<IMethod, Context> callGraphNode) {
-        Set<MemoResult> s = callerQueryDependencies.get(callGraphNode);
+    private void addCallerDependency(SubQuery query, OrderedPair<IMethod, Context> callGraphNode) {
+        Set<SubQuery> s = callerQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<MemoResult> existing = callerQueryDependencies.putIfAbsent(callGraphNode, s);
+            Set<SubQuery> existing = callerQueryDependencies.putIfAbsent(callGraphNode, s);
             if (existing != null) {
                 s = existing;
             }
@@ -1239,11 +1241,11 @@ public class ProgramPointReachability {
      * @param context
      * @param callGraphNode
      */
-    private void addMethodDependency(MemoResult query, OrderedPair<IMethod, Context> callGraphNode) {
-        Set<MemoResult> s = methodQueryDependencies.get(callGraphNode);
+    private void addMethodDependency(SubQuery query, OrderedPair<IMethod, Context> callGraphNode) {
+        Set<SubQuery> s = methodQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<MemoResult> existing = methodQueryDependencies.putIfAbsent(callGraphNode, s);
+            Set<SubQuery> existing = methodQueryDependencies.putIfAbsent(callGraphNode, s);
             if (existing != null) {
                 s = existing;
             }
@@ -1251,15 +1253,15 @@ public class ProgramPointReachability {
         s.add(query);
     }
 
-    private void addKillDependency(MemoResult query, ReferenceVariableReplica readDependencyForKillField) {
+    private void addKillDependency(SubQuery query, ReferenceVariableReplica readDependencyForKillField) {
         if (readDependencyForKillField == null) {
             return;
         }
         int n = g.lookupDictionary(readDependencyForKillField);
-        Set<MemoResult> s = killQueryDependencies.get(n);
+        Set<SubQuery> s = killQueryDependencies.get(n);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<MemoResult> existing = killQueryDependencies.putIfAbsent(n, s);
+            Set<SubQuery> existing = killQueryDependencies.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;
             }
@@ -1267,13 +1269,13 @@ public class ProgramPointReachability {
         s.add(query);
     }
 
-    private void removeKillDependency(MemoResult query, ReferenceVariableReplica readDependencyForKillField) {
+    private void removeKillDependency(SubQuery query, ReferenceVariableReplica readDependencyForKillField) {
         if (readDependencyForKillField == null) {
             return;
         }
         int n = g.lookupDictionary(readDependencyForKillField);
 
-        Set<MemoResult> s = killQueryDependencies.get(n);
+        Set<SubQuery> s = killQueryDependencies.get(n);
         if (s != null) {
             s.remove(query);
         }
@@ -1360,14 +1362,14 @@ public class ProgramPointReachability {
                 computeReachabilityForMethod(p.fst(), p.snd(), null);
             }
         }
-        Set<MemoResult> queries = calleeQueryDependencies.get(callSite);
+        Set<SubQuery> queries = calleeQueryDependencies.get(callSite);
         if (queries != null) {
 
-            Iterator<MemoResult> iter = queries.iterator();
+            Iterator<SubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
-                MemoResult mr = iter.next();
+                SubQuery mr = iter.next();
                 // need to re-run the query of mr
-                if (!rerunQuery(mr, null)) {
+                if (!requestRerunQuery(mr, null)) {
                     // whoops, no need to rerun this anymore.
                     iter.remove();
                 }
@@ -1385,13 +1387,13 @@ public class ProgramPointReachability {
      * @param callSite
      */
     public void callerAddedTo(OrderedPair<IMethod, Context> callGraphNode) {
-        Set<MemoResult> queries = callerQueryDependencies.get(callGraphNode);
+        Set<SubQuery> queries = callerQueryDependencies.get(callGraphNode);
         if (queries != null) {
-            Iterator<MemoResult> iter = queries.iterator();
+            Iterator<SubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
-                MemoResult mr = iter.next();
+                SubQuery mr = iter.next();
                 // need to re-run the query of mr
-                if (!rerunQuery(mr, null)) {
+                if (!requestRerunQuery(mr, null)) {
                     // whoops, no need to rerun this anymore.
                     iter.remove();
                 }
@@ -1409,13 +1411,13 @@ public class ProgramPointReachability {
                 computeReachabilityForMethod(p.fst(), p.snd(), tasksToReprocess);
             }
         }
-        Set<MemoResult> queries = methodQueryDependencies.get(cgnode);
+        Set<SubQuery> queries = methodQueryDependencies.get(cgnode);
         if (queries != null) {
-            Iterator<MemoResult> iter = queries.iterator();
+            Iterator<SubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
-                MemoResult mr = iter.next();
+                SubQuery mr = iter.next();
                 // need to re-run the query of mr
-                if (!rerunQuery(mr, tasksToReprocess)) {
+                if (!requestRerunQuery(mr, tasksToReprocess)) {
                     // whoops, no need to rerun this anymore.
                     iter.remove();
                 }
@@ -1428,18 +1430,12 @@ public class ProgramPointReachability {
      * false if it did not need to be rerurn.
      * @param mr
      */
-    private boolean rerunQuery(MemoResult mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private boolean requestRerunQuery(SubQuery mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         if (this.positiveCache.contains(mr)) {
             // the query is already guaranteed to be true.
             return false;
         }
-        computeQuery(Collections.singleton(mr.source),
-                     mr.destination,
-                     mr.noKill,
-                     mr.noAlloc,
-                     mr.forbidden,
-                     null,
-                     sacsToReprocess);
+        this.analysisHandle.submitReachabilityQuery(mr);
         return true;
     }
 
@@ -1448,7 +1444,7 @@ public class ProgramPointReachability {
      * depended on it, either by adding it to toReprocess, or giving it to the engine immediately.
      *
      */
-    private void queryResultChanged(MemoResult mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private void queryResultChanged(SubQuery mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         assert this.positiveCache.contains(mr);
 
         // since the query is positive, it will never change in the future.
@@ -1490,7 +1486,7 @@ public class ProgramPointReachability {
      * @param query
      * @param originatingSaC
      */
-    private void addDependency(MemoResult query, ReachabilityQueryOrigin origin) {
+    private void addDependency(SubQuery query, ReachabilityQueryOrigin origin) {
         if (origin == null) {
             // nothing to do
             return;
@@ -1519,13 +1515,13 @@ public class ProgramPointReachability {
                     computeReachabilityForMethod(p.fst(), p.snd(), stmtsToReprocess);
                 }
             }
-            Set<MemoResult> queries = killQueryDependencies.get(n);
+            Set<SubQuery> queries = killQueryDependencies.get(n);
             if (queries != null) {
-                Iterator<MemoResult> iter = queries.iterator();
+                Iterator<SubQuery> iter = queries.iterator();
                 while (iter.hasNext()) {
-                    MemoResult mr = iter.next();
+                    SubQuery mr = iter.next();
                     // need to re-run the query of mr
-                    if (!rerunQuery(mr, stmtsToReprocess)) {
+                    if (!requestRerunQuery(mr, stmtsToReprocess)) {
                         // whoops, no need to rerun this anymore.
                         iter.remove();
                     }
@@ -1533,5 +1529,15 @@ public class ProgramPointReachability {
             }
         }
         return stmtsToReprocess;
+    }
+
+    public void processSubQuery(SubQuery sq) {
+        this.computeQuery(Collections.singleton(sq.source),
+                          sq.destination,
+                          sq.noKill,
+                          sq.noAlloc,
+                          sq.forbidden,
+                          null,
+                          null);
     }
 }

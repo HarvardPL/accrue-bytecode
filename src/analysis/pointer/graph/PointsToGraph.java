@@ -272,6 +272,7 @@ public class PointsToGraph {
 
     public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf,
                          DependencyRecorder depRecorder, PointsToAnalysisHandle analysisHandle) {
+        assert analysisHandle != null;
         this.depRecorder = depRecorder;
 
         this.registrar = registrar;

@@ -25,6 +25,10 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin {
 
     @Override
     public void trigger(PointsToAnalysisHandle analysisHandle) {
+        analysisHandle.submitAddNonMostRecentTask(this);
+    }
+
+    public void process(PointsToAnalysisHandle analysisHandle) {
         PointsToGraph g = analysisHandle.pointsToGraph();
 
         assert g.isMostRecentObject(i);

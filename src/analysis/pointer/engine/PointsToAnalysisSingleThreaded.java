@@ -17,9 +17,12 @@ import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.AddNonMostRecentOrigin;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ProgramPointReachability.SubQuery;
 import analysis.pointer.graph.ReachabilityQueryOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
@@ -63,7 +66,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private IntMap<Set<AllocationDepender>> allocationDepedencies = new SparseIntMap<>();
 
-    private PointsToAnalysisHandle analysisHandle;
+    private PointsToAnalysisHandleImpl analysisHandle;
 
     /**
      * New pointer analysis engine
@@ -108,6 +111,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         this.nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         final Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
+        final Queue<AddToSetOrigin> addToSetQueue = Collections.asLifoQueue(new ArrayDeque<AddToSetOrigin>());
+        final Queue<AddNonMostRecentOrigin> addNonMostRecentQueue = Collections.asLifoQueue(new ArrayDeque<AddNonMostRecentOrigin>());
+        final Queue<SubQuery> reachabiltySubQueryQueue = Collections.asLifoQueue(new ArrayDeque<SubQuery>());
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -159,26 +165,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         };
 
-        final PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
 
-        this.analysisHandle = new PointsToAnalysisHandle() {
+        this.analysisHandle = new PointsToAnalysisHandleImpl(noDeltaQueue,
+                                                             addToSetQueue,
+                                                             addNonMostRecentQueue,
+                                                             reachabiltySubQueryQueue);
 
-            @Override
-            public void submitStmtAndContext(StmtAndContext sac) {
-                noDeltaQueue.add(sac);
-            }
+        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, this.analysisHandle);
 
-            @Override
-            public PointsToGraph pointsToGraph() {
-                return g;
-            }
+        this.analysisHandle.setPointsToGraph(g);
 
-            @Override
-            public void handleChanges(GraphDelta changes) {
-                PointsToAnalysisSingleThreaded.this.handleChanges(nextQueue, noDeltaQueue, changes, g);
-            }
-
-        };
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
@@ -207,7 +203,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         this.lastTime = this.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
-        while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()) {
+        while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()
+                || !addNonMostRecentQueue.isEmpty() || !addToSetQueue.isEmpty() || !reachabiltySubQueryQueue.isEmpty()) {
             if (currentQueue.isEmpty()) {
                 Queue<OrderedPair<StmtAndContext, GraphDelta>> t = nextQueue;
                 nextQueue = currentQueue;
@@ -216,6 +213,22 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             StmtAndContext sac;
             GraphDelta delta;
             if (currentQueue.isEmpty()) {
+                if (noDeltaQueue.isEmpty()) {
+                    if (addNonMostRecentQueue.isEmpty()) {
+                        if (addToSetQueue.isEmpty()) {
+                            g.ppReach.processSubQuery(reachabiltySubQueryQueue.poll());
+                        }
+                        else {
+                            // addToSetQueue
+                            addToSetQueue.poll().process(analysisHandle);
+                        }
+                    }
+                    else {
+                        // addNonMostRecentQueue
+                        addNonMostRecentQueue.poll().process(analysisHandle);
+                    }
+                    continue;
+                }
                 sac = noDeltaQueue.poll();
                 delta = null;
             }
@@ -224,7 +237,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 sac = sacd.fst();
                 delta = sacd.snd();
             }
-            this.processSaC(sac, delta, g, registrar, currentQueue, nextQueue, noDeltaQueue);
+            this.processSaC(sac,
+                            delta,
+                            g,
+                            registrar,
+                            currentQueue,
+                            nextQueue,
+                            noDeltaQueue,
+                            addNonMostRecentQueue,
+                            addToSetQueue,
+                            reachabiltySubQueryQueue);
         }
 
         long endTime = System.currentTimeMillis();
@@ -302,7 +324,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
                             Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue,
-                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue, Queue<StmtAndContext> noDeltaQueue) {
+                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue,
+                            Queue<StmtAndContext> noDeltaQueue, Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
+                            Queue<AddToSetOrigin> addToSetQueue, Queue<SubQuery> reachabiltySubQueryQueue) {
         // Do some accounting for debugging/informational purposes.
         this.numProcessed++;
         if (delta == null) {
@@ -342,15 +366,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 this.nextMilestone = this.nextMilestone + 1000 * 30; // 30 seconds
             } while (currTime > this.nextMilestone);
 
-            System.err.println("PROCESSED: " + this.numProcessed + " in "
- + (currTime - this.startTime) / 1000
+            System.err.println("PROCESSED: " + this.numProcessed + " in " + (currTime - this.startTime) / 1000
                     + "s; number of source node " + g.numPointsToGraphNodes() + "; cycles removed "
- + g.cycleRemovalCount()
-                    + " nodes ; queue=" + currentQueue.size() + "nextQueue=" + nextQueue.size() + "noDeltaQueue="
-                    + noDeltaQueue.size()
-                    + " ("
-                    + (this.numProcessed - this.lastNumProcessed) + " in "
-                    + (currTime - this.lastTime) / 1000 + "s)");
+                    + g.cycleRemovalCount() + " nodes ; queue=" + currentQueue.size() + " nextQueue="
+                    + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size() + " addNonMostRecentQueue="
+                    + addNonMostRecentQueue.size() + " addToSetQueue=" + addToSetQueue.size()
+                    + " reachabiltySubQueryQueue=" + reachabiltySubQueryQueue.size() + " ("
+                    + (this.numProcessed - this.lastNumProcessed) + " in " + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
             this.lastNumProcessed = this.numProcessed;
             this.lastNumNoDeltaProcessed = this.numNoDeltaProcessed;
@@ -364,10 +386,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             return;
         }
         Set<ReachabilityQueryOrigin> reprocess = g.ppReach.checkPointsToGraphDelta(changes);
-        for (ReachabilityQueryOrigin sac : reprocess) {
+        for (ReachabilityQueryOrigin task : reprocess) {
             // run the task, but with an empty delta to force the appropriate reading of
             // kill nodes.
-            sac.trigger(this.analysisHandle);
+            task.trigger(this.analysisHandle);
             //noDeltaQueue.add(sac);
         }
 
@@ -579,6 +601,60 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
             }
             return true;
+        }
+
+    }
+
+    public class PointsToAnalysisHandleImpl implements PointsToAnalysisHandle {
+        Queue<StmtAndContext> noDeltaQueue;
+        Queue<AddToSetOrigin> addToSetQueue;
+        Queue<AddNonMostRecentOrigin> addNonMostRecentQueue;
+        Queue<SubQuery> reachabiltySubQueryQueue;
+        PointsToGraph g;
+
+        public PointsToAnalysisHandleImpl(Queue<StmtAndContext> noDeltaQueue, Queue<AddToSetOrigin> addToSetQueue,
+                                          Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
+                                          Queue<SubQuery> reachabiltySubQueryQueue) {
+            this.noDeltaQueue = noDeltaQueue;
+            this.addToSetQueue = addToSetQueue;
+            this.addNonMostRecentQueue = addNonMostRecentQueue;
+            this.reachabiltySubQueryQueue = reachabiltySubQueryQueue;
+        }
+
+        void setPointsToGraph(PointsToGraph g) {
+            this.g = g;
+        }
+
+        @Override
+        public void submitStmtAndContext(StmtAndContext sac) {
+            noDeltaQueue.add(sac);
+        }
+
+        @Override
+        public PointsToGraph pointsToGraph() {
+            return g;
+        }
+
+        @Override
+        public void handleChanges(GraphDelta changes) {
+            PointsToAnalysisSingleThreaded.this.handleChanges(nextQueue, noDeltaQueue, changes, g);
+        }
+
+        @Override
+        public void submitAddNonMostRecentTask(AddNonMostRecentOrigin task) {
+            addNonMostRecentQueue.add(task);
+
+        }
+
+        @Override
+        public void submitAddToSetTask(AddToSetOrigin task) {
+            addToSetQueue.add(task);
+        }
+
+        @Override
+        public void submitReachabilityQuery(SubQuery sq) {
+            reachabiltySubQueryQueue.add(sq);
+
         }
 
     }
