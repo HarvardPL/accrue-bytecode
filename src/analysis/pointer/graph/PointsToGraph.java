@@ -1933,6 +1933,14 @@ public class PointsToGraph {
     boolean isAllocInScope(ReferenceVariableReplica rvr, /*InstanceKeyRecency*/int i, ReachabilityQueryOrigin origin) {
         assert !rvr.isFlowSensitive() && !rvr.hasInstantaneousScope() && rvr.hasLocalScope();
         assert isMostRecentObject(i);
+
+        InterProgramPointReplica localDef = rvr.localDef();
+
+        if (localDef == null) {
+            // this is a dead varible! It cannot be assigned to.
+            System.err.println("local uses of " + rvr + " are " + rvr.localUses());
+        }
+
         // Specifically:
         //      If
         //            rvr points to  the most recent version of InstanceKey ik AND
@@ -1950,7 +1958,7 @@ public class PointsToGraph {
                 MethodSummaryNodes ms = this.registrar.getMethodSummary(use.getContainingProcedure());
                 forbidden.add(ms.getNormalExitPP().pre().getReplica(use.getContext()));
                 forbidden.add(ms.getExceptionExitPP().pre().getReplica(use.getContext()));
-                if (this.ppReach.reachable(rvr.localDef(), allocSite.pre(), forbidden, origin, null)) {
+                if (this.ppReach.reachable(localDef, allocSite.pre(), forbidden, origin, null)) {
                     forbidden.remove(use);
                     forbidden.add(rvr.localDef());
                     if (this.ppReach.reachable(allocSite.post(), use, forbidden, origin, null)) {

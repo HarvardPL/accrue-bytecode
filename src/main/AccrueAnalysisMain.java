@@ -31,6 +31,7 @@ import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -377,8 +378,8 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings) {
-        //PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
-        PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
+        PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
+        //PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;
         StatementRegistrar registrar;

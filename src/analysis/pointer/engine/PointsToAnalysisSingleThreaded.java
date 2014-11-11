@@ -104,6 +104,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @return Points-to graph
      */
     public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
+        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
         System.err.println("Starting points to engine using " + this.haf);
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;

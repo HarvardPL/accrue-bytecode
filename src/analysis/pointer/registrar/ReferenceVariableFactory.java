@@ -599,7 +599,7 @@ public class ReferenceVariableFactory {
 
         public void setLocalDef(ProgramPoint pp) {
             assert this.hasLocalScope;
-            assert this.localDef == null : "There can be at most one def of a local.";
+            assert this.localDef == null || this.localDef == pp : "There can be at most one def of a local.";
             this.localDef = pp;
         }
 
