@@ -1934,13 +1934,6 @@ public class PointsToGraph {
         assert !rvr.isFlowSensitive() && !rvr.hasInstantaneousScope() && rvr.hasLocalScope();
         assert isMostRecentObject(i);
 
-        InterProgramPointReplica localDef = rvr.localDef();
-
-        if (localDef == null) {
-            // this is a dead varible! It cannot be assigned to.
-            System.err.println("local uses of " + rvr + " are " + rvr.localUses());
-        }
-
         // Specifically:
         //      If
         //            rvr points to  the most recent version of InstanceKey ik AND
@@ -1950,6 +1943,7 @@ public class PointsToGraph {
         //                               allocSite can reach ippr_use without going through rvr.getLocalDef() or rvr's method exit nodes
         //     Then
         //          rvr must also point to the non-most-recent version of ik.
+        InterProgramPointReplica localDef = rvr.localDef();
         Set<ProgramPointReplica> allocSites = getAllocationSitesOf(i);
         for (ProgramPointReplica allocSite : allocSites) {
             for (InterProgramPointReplica use : rvr.localUses()) {
