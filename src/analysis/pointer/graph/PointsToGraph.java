@@ -508,8 +508,6 @@ public class PointsToGraph {
     public GraphDelta copyEdges(PointsToGraphNode source, InterProgramPointReplica sourceIppr,
                                 PointsToGraphNode target, InterProgramPointReplica targetIppr) {
 
-        // System.err.println("COPING EDGES: " + source + "-->" + target);
-
         assert !(source.isFlowSensitive() && target.isFlowSensitive()) : "At most one of the source and target should be flow sensitive";
         assert !this.graphFinished;
         int s = this.getRepresentative(lookupDictionary(source));
