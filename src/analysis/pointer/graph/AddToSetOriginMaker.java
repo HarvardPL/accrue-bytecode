@@ -31,7 +31,7 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
         return new AddToSetOrigin(n, this.src == null ? src : this.src, trg, ippr);
     }
 
-    private static class AddToSetOrigin implements ReachabilityQueryOrigin {
+    public static class AddToSetOrigin implements ReachabilityQueryOrigin {
         private final/*PointsToGraphNode*/int n;
 
         private final/*PointsToGraphNode*/int src;
@@ -52,6 +52,10 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
 
         @Override
         public void trigger(PointsToAnalysisHandle analysisHandle) {
+            analysisHandle.submitAddToSetTask(this);
+        }
+
+        public void process(PointsToAnalysisHandle analysisHandle) {
             PointsToGraph g = analysisHandle.pointsToGraph();
             if (g.pointsTo(src, trg, ippr, this)) {
                 if (!g.pointsTo(n, trg, null, this)) {

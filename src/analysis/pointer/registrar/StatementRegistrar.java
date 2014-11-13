@@ -289,7 +289,7 @@ public class StatementRegistrar {
                         }
                     }
                     for (ReferenceVariable use : stmt.getUses()) {
-                        if (use.hasLocalScope()) {
+                        if (use != null && use.hasLocalScope()) {
                             use.addLocalUse(stmt.programPoint());
                         }
                     }
@@ -344,7 +344,7 @@ public class StatementRegistrar {
         pp = this.findAndRegisterStringAndNullLiterals(i, ir, pp, this.rvFactory, printer);
 
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
-        pp = this.findAndRegisterGeneratedExceptions(i, bb, ir, pp, this.rvFactory, types, printer);
+        pp = this.findAndRegisterGeneratedExceptions(i, bb, ir, pp, this.rvFactory, types, printer, df);
 
         IClass reqInit = ClassInitFinder.getRequiredInitializedClasses(i);
         if (reqInit != null && !df.getInitializedClassesBeforeIns(i, bb).contains(reqInit)) {
@@ -395,7 +395,7 @@ public class StatementRegistrar {
             CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite());
             pp.divide(null, cspp);
             pp.addSucc(cspp);
-            this.registerInvoke(invocation, bb, ir, cspp, this.rvFactory, types, printer);
+            this.registerInvoke(invocation, bb, ir, cspp, this.rvFactory, types, printer, df);
             return;
         case LOAD_METADATA:
             // Reflection
@@ -426,7 +426,7 @@ public class StatementRegistrar {
             return;
         case THROW:
             // throw e
-            this.registerThrow((SSAThrowInstruction) i, bb, ir, pp, this.rvFactory, types, printer);
+            this.registerThrow((SSAThrowInstruction) i, bb, ir, pp, this.rvFactory, types, printer, df);
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op
@@ -608,8 +608,8 @@ public class StatementRegistrar {
      * @param bb
      */
     private void registerInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir, CallSiteProgramPoint pp,
-                                ReferenceVariableFactory rvFactory,
-                                TypeRepository types, PrettyPrinter pprint) {
+                                ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
+                                ComputeProgramPointsDataflow df) {
         assert i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1;
 
         // //////////// Result ////////////
@@ -661,7 +661,15 @@ public class StatementRegistrar {
 
         TypeReference exType = types.getType(i.getException());
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
-        this.registerThrownException(bb, ir, pp, exception, rvFactory, types, pprint, useSingleAllocPerThrowableType);
+        this.registerThrownException(bb,
+                                     ir,
+                                     pp,
+                                     exception,
+                                     rvFactory,
+                                     types,
+                                     pprint,
+                                     df,
+                                     useSingleAllocPerThrowableType);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -859,11 +867,11 @@ public class StatementRegistrar {
      * @param bb
      */
     private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ProgramPoint pp,
-                               ReferenceVariableFactory rvFactory,
-                               TypeRepository types, PrettyPrinter pprint) {
+                               ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
+                               ComputeProgramPointsDataflow df) {
         TypeReference throwType = types.getType(i.getException());
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
-        this.registerThrownException(bb, ir, pp, v, rvFactory, types, pprint, useSingleAllocPerThrowableType);
+        this.registerThrownException(bb, ir, pp, v, rvFactory, types, pprint, df, useSingleAllocPerThrowableType);
     }
 
     /**
@@ -1151,7 +1159,8 @@ public class StatementRegistrar {
     private final ProgramPoint findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir,
                                                                   ProgramPoint pp,
                                                           ReferenceVariableFactory rvFactory, TypeRepository types,
-                                                          PrettyPrinter pprint) {
+ PrettyPrinter pprint,
+                                                                  ComputeProgramPointsDataflow df) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
             boolean useSingleAlloc = useSingleAllocForGenEx;
@@ -1171,7 +1180,7 @@ public class StatementRegistrar {
             }
             ProgramPoint newPP = pp.divide("throw-ex");
             pp.addSucc(newPP);
-            this.registerThrownException(bb, ir, newPP, ex, rvFactory, types, pprint, useSingleAlloc);
+            this.registerThrownException(bb, ir, newPP, ex, rvFactory, types, pprint, df, useSingleAlloc);
             pp = newPP;
         }
         return pp;
@@ -1242,7 +1251,7 @@ public class StatementRegistrar {
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
-                                               PrettyPrinter pprint, boolean useSingletonAllocForThisException) {
+                                               PrettyPrinter pprint, ComputeProgramPointsDataflow df, boolean useSingletonAllocForThisException) {
 
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
 
@@ -1274,6 +1283,7 @@ public class StatementRegistrar {
 
                 if (maybeCaught || definitelyCaught) {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pprint);
+                    caught.setLocalDef(df.getProgramPoint(catchIns, succ));
                     this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, false, useSingletonAllocForThisException));
                 }
 
@@ -1537,8 +1547,8 @@ public class StatementRegistrar {
         if (!visited.contains(pp)) {
             visited.add(pp);
             for (ProgramPoint succ : pp.succs()) {
-                String fromStr = escape(pp + " : " + getStmtAtPP(pp));
-                String toStr = escape(succ + " : " + getStmtAtPP(succ));
+                String fromStr = escape(pp + " : ((((" + getStmtAtPP(pp) + "))))");
+                String toStr = escape(succ + " : ((((" + getStmtAtPP(succ) + "))))");
                 writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
                 writeSucc(succ, writer, visited);
             }

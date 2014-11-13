@@ -273,6 +273,7 @@ public class PointsToGraph {
 
     public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf,
                          DependencyRecorder depRecorder, PointsToAnalysisHandle analysisHandle) {
+        assert analysisHandle != null;
         this.depRecorder = depRecorder;
 
         this.registrar = registrar;
@@ -1931,6 +1932,7 @@ public class PointsToGraph {
     boolean isAllocInScope(ReferenceVariableReplica rvr, /*InstanceKeyRecency*/int i, ReachabilityQueryOrigin origin) {
         assert !rvr.isFlowSensitive() && !rvr.hasInstantaneousScope() && rvr.hasLocalScope();
         assert isMostRecentObject(i);
+
         // Specifically:
         //      If
         //            rvr points to  the most recent version of InstanceKey ik AND
@@ -1940,6 +1942,7 @@ public class PointsToGraph {
         //                               allocSite can reach ippr_use without going through rvr.getLocalDef() or rvr's method exit nodes
         //     Then
         //          rvr must also point to the non-most-recent version of ik.
+        InterProgramPointReplica localDef = rvr.localDef();
         Set<ProgramPointReplica> allocSites = getAllocationSitesOf(i);
         for (ProgramPointReplica allocSite : allocSites) {
             for (InterProgramPointReplica use : rvr.localUses()) {
@@ -1948,7 +1951,7 @@ public class PointsToGraph {
                 MethodSummaryNodes ms = this.registrar.getMethodSummary(use.getContainingProcedure());
                 forbidden.add(ms.getNormalExitPP().pre().getReplica(use.getContext()));
                 forbidden.add(ms.getExceptionExitPP().pre().getReplica(use.getContext()));
-                if (this.ppReach.reachable(rvr.localDef(), allocSite.pre(), forbidden, origin, null)) {
+                if (this.ppReach.reachable(localDef, allocSite.pre(), forbidden, origin, null)) {
                     forbidden.remove(use);
                     forbidden.add(rvr.localDef());
                     if (this.ppReach.reachable(allocSite.post(), use, forbidden, origin, null)) {

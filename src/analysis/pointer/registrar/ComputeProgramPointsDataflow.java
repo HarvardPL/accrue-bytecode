@@ -509,6 +509,14 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
                     mayChangePointsToGraph = true;
                 }
             }
+            if (!mayChangePointsToGraph) {
+                // see if this is the first instruction of a catch block
+                if (current.isCatchBlock() && current.iterator().next().equals(i)) {
+                    // yep, it's the first instruction of a catch block.
+                    // we need it for the localDef of the catch variable.
+                    mayChangePointsToGraph = true;
+                }
+            }
         }
 
         // Compute the program point.

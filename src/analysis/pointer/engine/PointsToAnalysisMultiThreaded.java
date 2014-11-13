@@ -15,9 +15,12 @@ import util.intmap.ConcurrentIntMap;
 import util.intset.ConcurrentIntHashSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.graph.AddNonMostRecentOrigin;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ProgramPointReachability.SubQuery;
 import analysis.pointer.graph.ReachabilityQueryOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
@@ -29,8 +32,6 @@ import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
-
-
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
@@ -47,7 +48,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     /**
      * Useful handle to pass around.
      */
-    private PointsToAnalysisHandle analysisHandle;
+    private PointsToAnalysisHandleImpl analysisHandle;
 
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
@@ -130,25 +131,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         };
 
 
+
+        this.analysisHandle = new PointsToAnalysisHandleImpl(execService);
+
         final PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, analysisHandle);
         execService.setGraphAndRegistrar(g, registrar);
-
-        this.analysisHandle = new PointsToAnalysisHandle() {
-            @Override
-            public void submitStmtAndContext(StmtAndContext sac) {
-                execService.submitTask(sac);
-            }
-
-            @Override
-            public PointsToGraph pointsToGraph() {
-                return g;
-            }
-
-            @Override
-            public void handleChanges(GraphDelta changes) {
-                PointsToAnalysisMultiThreaded.this.handleChanges(changes, execService);
-            }
-        };
+        this.analysisHandle.setPointsToGraph(g);
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
@@ -497,6 +485,47 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     public static void setParanoidMode(boolean reprocessAllStatements) {
         paranoidMode = reprocessAllStatements;
+    }
+
+    public class PointsToAnalysisHandleImpl implements PointsToAnalysisHandle {
+        PointsToGraph g;
+        ExecutorServiceCounter execService;
+
+        public PointsToAnalysisHandleImpl(ExecutorServiceCounter execService) {
+            this.execService = execService;
+        }
+        void setPointsToGraph(PointsToGraph g) {
+            this.g = g;
+        }
+        @Override
+        public void submitStmtAndContext(StmtAndContext sac) {
+            execService.submitTask(sac);
+        }
+
+        @Override
+        public void submitAddNonMostRecentTask(AddNonMostRecentOrigin task) {
+            task.process(this);
+        }
+
+        @Override
+        public void submitAddToSetTask(AddToSetOrigin task) {
+            task.process(this);
+        }
+
+        @Override
+        public void submitReachabilityQuery(SubQuery sq) {
+            g.ppReach.processSubQuery(sq);
+        }
+
+        @Override
+        public PointsToGraph pointsToGraph() {
+            return g;
+        }
+
+        @Override
+        public void handleChanges(GraphDelta changes) {
+            PointsToAnalysisMultiThreaded.this.handleChanges(changes, execService);
+        }
     }
 
 }
