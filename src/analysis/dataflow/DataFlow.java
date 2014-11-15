@@ -134,6 +134,7 @@ public abstract class DataFlow<F> {
                         inItems.add(item);
                     }
 
+                    Map<ISSABasicBlock, F> outItems = null;
                     if (isBasicBlockunreachable) {
                         // Do not analyze this block if it cannot be reached
                         // from any predecessor
@@ -141,7 +142,10 @@ public abstract class DataFlow<F> {
                             System.err.println("UNREACHABLE basic block: BB" + current.getNumber() + " in "
                                                             + PrettyPrinter.methodString(ir.getMethod()));
                         }
-                        continue;
+                        outItems = flowUnreachableBlock(inItems, current, g);
+                        if (outItems == null) {
+                            continue;
+                        }
                     }
 
                     if (previousResults != null && existingResultsSuitable(inItems, previousResults)) {
@@ -171,11 +175,12 @@ public abstract class DataFlow<F> {
                         // we are not starting at a BB in this SCC that is
                         // connected to the previous SCC. Continue looking until
                         // we do.
-                        // TODO Can a degenerate CFG ever be disconnected?
                         continue;
                     }
 
-                    Map<ISSABasicBlock, F> outItems = flow(inItems, g, current);
+                    if (!isBasicBlockunreachable) {
+                        outItems = flow(inItems, g, current);
+                    }
 
                     assert outItems != null : "Null out items for " + current.getNumber() + " with inputs: " + inItems;
 
@@ -197,6 +202,23 @@ public abstract class DataFlow<F> {
             }
         }
         post(ir);
+    }
+
+    /**
+     * Handle a block that the analysis has determined is unreachable. This could be because it has no predecesors in
+     * the CFG or because a more complex analysis has determined that it is unreachable for another reason (e.g. if it
+     * is a catch block for an exception that a precise exception analysis determines can never be thrown).
+     *
+     * @param inItems input facts (if any, could be null or empty)
+     * @param current basic block that is unreachable and needs handling
+     * @param g control flow graph
+     * @return facts for each successor basic block, or null if this block should be ignored entirely
+     */
+    @SuppressWarnings("unused")
+    protected Map<ISSABasicBlock, F> flowUnreachableBlock(Set<F> inItems, ISSABasicBlock current,
+                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> g) {
+        // By default ignore unreachable blocks
+        return null;
     }
 
     /**
