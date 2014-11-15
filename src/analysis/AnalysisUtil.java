@@ -90,6 +90,7 @@ public class AnalysisUtil {
     public static IClass privilegedExceptionActionClass;
 
     private static String outputDirectory;
+    private static AnalysisScope scope;
 
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
@@ -162,7 +163,7 @@ public class AnalysisUtil {
         AnalysisUtil.cache = new AnalysisCache();
 
 
-        AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
+        AnalysisUtil.scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
                                                                 EXCLUSIONS_FILE,
                                                                 AnalysisUtil.class.getClassLoader());
         System.err.println("CLASSPATH=" + classPath);
@@ -404,6 +405,10 @@ public class AnalysisUtil {
      */
     public static String getOutputDirectory() {
         return outputDirectory;
+    }
+
+    public static AnalysisScope getScope() {
+        return scope;
     }
 
 }

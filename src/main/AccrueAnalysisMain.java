@@ -46,13 +46,19 @@ import analysis.string.StringVariableFactory.StringVariable;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.AnalysisOptions.ReflectionOptions;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
+import com.ibm.wala.ipa.callgraph.impl.Util;
+import com.ibm.wala.ipa.callgraph.propagation.ReceiverTypeContextSelector;
+import com.ibm.wala.ipa.callgraph.propagation.SSAPropagationCallGraphBuilder;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
 import com.ibm.wala.properties.WalaProperties;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.TypeReference;
+import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.WalaException;
 
 /**
@@ -125,6 +131,11 @@ public class AccrueAnalysisMain {
         ReferenceVariableCache rvCache;
         switch (analysisName) {
         case "pointsto":
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            System.err.println("STARTING WALA POINTER ANALYSIS");
+            runWalaPointerAnalysis();
+            break;
+        case "pointsto2":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
@@ -463,6 +474,31 @@ public class AccrueAnalysisMain {
 
         ReferenceVariableCache rvCache = registrar.getAllLocals();
         return new OrderedPair<>(g, rvCache);
+    }
+
+    private static void runWalaPointerAnalysis() {
+        AnalysisUtil.getOptions().setReflectionOptions(ReflectionOptions.NONE);
+        //        SSAPropagationCallGraphBuilder builder = Util.makeZeroCFABuilder(AnalysisUtil.getOptions(),
+        //                                                                         AnalysisUtil.getCache(),
+        //                                                                         AnalysisUtil.getClassHierarchy(),
+        //                                                                         AnalysisUtil.getScope());
+        SSAPropagationCallGraphBuilder builder = Util.makeZeroOneCFABuilder(AnalysisUtil.getOptions(),
+                                                                            AnalysisUtil.getCache(),
+                                                                            AnalysisUtil.getClassHierarchy(),
+                                                                            AnalysisUtil.getScope(),
+                                                                            new ReceiverTypeContextSelector(),
+                                                                            null);
+        try {
+            long start = System.currentTimeMillis();
+            CallGraph cg = builder.makeCallGraph(builder.getOptions());
+            System.err.println("FINISHED: " + (System.currentTimeMillis() - start));
+            System.err.println("\t" + cg.getNumberOfNodes() + " call graph nodes");
+        }
+        catch (IllegalArgumentException | CancelException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 
     /**

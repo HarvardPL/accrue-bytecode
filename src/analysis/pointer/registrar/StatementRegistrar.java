@@ -852,12 +852,14 @@ public class StatementRegistrar {
         if (targets == null || targets.isEmpty()) {
             // XXX HACK These methods seem to be using non-existant TreeMap methods and fields
             // Let's hope they are never really called
-            System.err.println("WARNING Unable to resolve " + PrettyPrinter.methodString(inv.getDeclaredTarget()));
             if (PointsToAnalysis.outputLevel > 0) {
-                PrettyPrinter pp = new PrettyPrinter(AnalysisUtil.getIR(caller));
-                System.err.println("\tIN : " + PrettyPrinter.methodString(pp.getIR().getMethod()) + " line: "
-                        + pp.getLineNumber(inv));
-                System.err.println("\tFOR: " + inv);
+                System.err.println("WARNING Unable to resolve " + PrettyPrinter.methodString(inv.getDeclaredTarget()));
+                if (PointsToAnalysis.outputLevel > 0) {
+                    PrettyPrinter pp = new PrettyPrinter(AnalysisUtil.getIR(caller));
+                    System.err.println("\tIN : " + PrettyPrinter.methodString(pp.getIR().getMethod()) + " line: "
+                            + pp.getLineNumber(inv));
+                    System.err.println("\tFOR: " + inv);
+                }
             }
             return Collections.emptySet();
         }
