@@ -66,17 +66,15 @@ public class ArgumentTypeSensitive extends HeapAbstractionFactory {
     public ContextStack<ArgumentWrapper> merge(CallSiteLabel callSite, InstanceKey receiver,
                                                List<InstanceKey> arguments, Context callerContext) {
         if (callSite.isStatic()) {
-            // If this is a static call then just use the caller context
+            // XXX If this is a static call then just use the caller context
             return (ContextStack<ArgumentWrapper>) callerContext;
         }
 
-        List<IClass> argTypes = new ArrayList<>(arguments.size() + (receiver != null ? 1 : 0));
-
+        assert receiver != null;
+        List<IClass> argTypes = new ArrayList<>(arguments.size() + 1);
         AllocationName<ContextStack<ArgumentWrapper>> rec = (AllocationName<ContextStack<ArgumentWrapper>>) receiver;
-        if (!callSite.isStatic()) {
-            assert rec != null;
-            argTypes.add(rec.getAllocationSite().getAllocatingClass());
-        }
+        argTypes.add(rec.getAllocationSite().getAllocatingClass());
+
         for (InstanceKey arg : arguments) {
             if (arg != null) {
                 AllocationName<ContextStack<ArgumentWrapper>> a = (AllocationName<ContextStack<ArgumentWrapper>>) arg;

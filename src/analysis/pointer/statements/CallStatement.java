@@ -63,7 +63,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Process a call for a particular receiver and resolved method
-     * 
+     *
      * @param callerContext Calling context for the caller
      * @param receiver Heap context for the receiver
      * @param args heap contexts for the arguments
@@ -206,6 +206,8 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Iterator over the points-to sets of a list of method arguments
+     *
+     * XXX For deltas that have already been visited only "points-to set \ delta" should be iterated
      */
     protected class ArgumentIterator implements Iterator<List<InstanceKey>> {
 
@@ -301,7 +303,7 @@ public abstract class CallStatement extends PointsToStatement {
                 }
                 else {
                     System.err.println("Empty points-to iterator for argument in " + originator);
-                    // The iterator has no elements set the element to null
+                    // XXX The iterator has no elements set the element to null
                     init.add(null);
                 }
             }
