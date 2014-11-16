@@ -1,5 +1,7 @@
 package analysis.pointer.analyses;
 
+import java.util.List;
+
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
@@ -59,7 +61,7 @@ public class MagicFullObjSensitive extends HeapAbstractionFactory {
     @SuppressWarnings("unchecked")
     @Override
     public AllocationNameContext merge(CallSiteLabel callSite,
-            InstanceKey receiver, Context callerContext) {
+            InstanceKey receiver, List<InstanceKey> arguments, Context callerContext) {
         if (!callSite.isStatic() && isInteresting(receiver.getConcreteType())) {
             AllocationName<ContextStack<AllocSiteNode>> rec = (AllocationName<ContextStack<AllocSiteNode>>) receiver;
             return AllocationNameContext.create(rec);

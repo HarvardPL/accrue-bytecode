@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -84,16 +83,5 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return local;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local, haf);
-        return Collections.singleton(l);
     }
 }

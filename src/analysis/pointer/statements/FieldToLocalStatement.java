@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -126,23 +124,5 @@ public class FieldToLocalStatement extends PointsToStatement {
      */
     public FieldReference getField() {
         return this.declaredField;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
-
-        List<Object> uses = new ArrayList<>(2);
-        uses.add(rec);
-        uses.add(this.declaredField);
-
-        return uses;
-
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, this.assignee, haf));
     }
 }

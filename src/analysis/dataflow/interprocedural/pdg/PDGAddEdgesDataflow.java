@@ -1,7 +1,5 @@
 package analysis.dataflow.interprocedural.pdg;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -25,15 +23,11 @@ import analysis.dataflow.interprocedural.pdg.graph.node.PDGNodeType;
 import analysis.dataflow.interprocedural.pdg.graph.node.ProcedureSummaryPDGNodes;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.Unit;
-import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.statements.CallSiteLabel;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.shrikeBT.IConditionalBranchInstruction.Operator;
 import com.ibm.wala.ssa.IR;
@@ -748,38 +742,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // Labels for the entry and exit to this particular call these are used
         // to associate call sites with the associated exit (normal or
         // exceptional) sites
-
-        // If the method is declared on a subtype of java.util.Map then record the receiver objects
-        Map<CGNode, Set<InstanceKey>> receivers = null;
-        IClass recType = AnalysisUtil.getClassHierarchy().lookupClass(i.getDeclaredTarget().getDeclaringClass());
-        IClass mapType = AnalysisUtil.getClassHierarchy().lookupClass(TypeReference.JavaUtilMap);
-        if (!i.isStatic() && AnalysisUtil.getClassHierarchy().isAssignableFrom(mapType, recType)) {
-            receivers = new HashMap<>();
-            Iterator<InstanceKey> iter = interProc.getPointsToGraph()
-                                                  .pointsToIterator(interProc.getReplica(i.getReceiver(), currentNode));
-            HeapAbstractionFactory haf = interProc.getPointsToGraph().getHaf();
-            while (iter.hasNext()) {
-                CallSiteLabel l = new CallSiteLabel(currentNode.getMethod(), i.getCallSite());
-                InstanceKey ik = iter.next();
-                Context calleeContext = haf.merge(l, ik, currentNode.getContext());
-                IMethod callee;
-                if (i.isSpecial()) {
-                    callee = AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget());
-                }
-                else {
-                    // Virtual call
-                    callee = AnalysisUtil.getClassHierarchy().resolveMethod(ik.getConcreteType(),
-                                                                            i.getDeclaredTarget().getSelector());
-                }
-                CGNode calleeNode = interProc.getCallGraph().getNode(callee, calleeContext);
-                Set<InstanceKey> rec = receivers.get(calleeNode);
-                if (rec == null) {
-                    rec = new HashSet<>();
-                    receivers.put(calleeNode, rec);
-                }
-                rec.add(ik);
-            }
-        }
         CallSiteEdgeLabel entry = new CallSiteEdgeLabel(i, currentNode, SiteType.ENTRY);
         CallSiteEdgeLabel exit = new CallSiteEdgeLabel(i, currentNode, SiteType.EXIT);
 
@@ -803,13 +765,6 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         Set<OrderedPair<CGNode, PDGContext>> normalExits = new LinkedHashSet<>();
         Set<OrderedPair<CGNode, PDGContext>> exceptionExits = new LinkedHashSet<>();
         for (CGNode callee : interProc.getCallGraph().getPossibleTargets(currentNode, i.getCallSite())) {
-            if (receivers != null) {
-                // This is one of the types for which we are tracking receivers add them to the edge label.
-                assert receivers.get(callee) != null : "null receivers for " + callee;
-                assert !receivers.get(callee).isEmpty() : "no receivers for " + callee;
-                exit = exit.getLabelForReceivers(receivers.get(callee));
-                entry = entry.getLabelForReceivers(receivers.get(callee));
-            }
             ProcedureSummaryPDGNodes calleeSummary = PDGNodeFactory.findOrCreateProcedureSummary(callee);
             PDGContext calleeEntry = calleeSummary.getEntryContext();
             addEdge(callSitePC, calleeEntry.getPCNode(), PDGEdgeType.MERGE, entry);

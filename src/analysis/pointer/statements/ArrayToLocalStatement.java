@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -111,18 +110,5 @@ public class ArrayToLocalStatement extends PointsToStatement {
     @Override
     public List<ReferenceVariable> getUses() {
         return Collections.singletonList(array);
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
-        return Collections.singleton(a);
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, value, haf));
     }
 }

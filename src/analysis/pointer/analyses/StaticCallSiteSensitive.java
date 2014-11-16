@@ -1,5 +1,7 @@
 package analysis.pointer.analyses;
 
+import java.util.List;
+
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
@@ -28,14 +30,14 @@ public class StaticCallSiteSensitive extends HeapAbstractionFactory {
     /**
      * Create a static call site sensitive heap abstraction factory with the given depth, i.e. up to depth static call
      * sites are tracked
-     * 
+     *
      * @param sensitivity
      *            depth of the call site stack
      */
     public StaticCallSiteSensitive(int sensitivity) {
         this.sensitivity = sensitivity;
     }
-    
+
 
     public int getSensitivity() {
         return sensitivity;
@@ -49,7 +51,7 @@ public class StaticCallSiteSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, List<InstanceKey> arguments, Context callerContext) {
         if (!callSite.isStatic()) {
             // only track call sites to static methods.
             callSite = null;

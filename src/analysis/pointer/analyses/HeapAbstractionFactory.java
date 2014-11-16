@@ -1,6 +1,7 @@
 package analysis.pointer.analyses;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import analysis.AnalysisUtil;
@@ -40,15 +41,13 @@ public abstract class HeapAbstractionFactory {
      * Create a new code context for a new callee. The results of this call must be memoized and two equivalent contexts
      * must be pointer-equivalent.
      *
-     * @param callSite
-     *            call site we are creating a node for
-     * @param receiver
-     *            Abstract object (heap context) representing the receiver
-     * @param callerContext
-     *            Code context in the method caller
+     * @param callSite call site we are creating a node for
+     * @param receiver Abstract object (heap context) representing the receiver
+     * @param arguments Abstract objects representing the arguments to the callee
+     * @param callerContext Code context in the method caller
      * @return code context for the callee
      */
-    public abstract Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext);
+    public abstract Context merge(CallSiteLabel callSite, InstanceKey receiver, List<InstanceKey> arguments, Context callerContext);
 
     /**
      * Return the initial Context, i.e., to analyze the root method.

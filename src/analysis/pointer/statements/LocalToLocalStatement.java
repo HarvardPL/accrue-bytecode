@@ -1,7 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -94,34 +92,5 @@ public class LocalToLocalStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return left;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right, haf);
-
-        if (!isFromMethodSummaryVariable) {
-            return Collections.singleton(r);
-        }
-        List<Object> uses = new ArrayList<>(3);
-        uses.add(r);
-        // the assignment is from a method summary node, e.g., for an argument.
-        // Add the IMethod so that we can get an appropriate dependency
-        // for the callers.
-        IMethod m = getMethod();
-        uses.add(m);
-
-        if (!m.isStatic() && !m.isPrivate()) {
-            // add the possible Selector that VirtualCalls may use
-            // to dispatch to us.
-            uses.add(getMethod().getSelector());
-        }
-
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, left, haf));
     }
 }

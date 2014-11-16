@@ -1,8 +1,6 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
 import util.print.PrettyPrinter;
@@ -41,27 +39,19 @@ public class SpecialCallStatement extends CallStatement {
     /**
      * Points-to statement for a special method invocation.
      *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param callee
-     *            Method being called
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param receiver
-     *            Receiver of the call
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node representing the exception thrown by the callee and implicit exceptions
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * @param callSite Method call site
+     * @param caller caller method
+     * @param callee Method being called
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param receiver Receiver of the call
+     * @param actuals Actual arguments to the call
+     * @param exception Node representing the exception thrown by the callee and implicit exceptions
+     * @param calleeSummary summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller,
-                                   IMethod callee, ReferenceVariable result,
-                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                   ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
+    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee,
+                                   ReferenceVariable result, ReferenceVariable receiver,
+                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                   MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
@@ -69,27 +59,31 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica receiverRep =
- new ReferenceVariableReplica(context, this.receiver, haf);
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter =
-                delta == null
- ? g.pointsToIterator(receiverRep, originator)
-                        : delta.pointsToIterator(receiverRep);
-                while (iter.hasNext()) {
-                    InstanceKey recHeapCtxt = iter.next();
-                    changed =
-                            changed.combine(this.processCall(context,
-                                                             recHeapCtxt,
-                                                             this.callee,
-                                                             g,
-                                                             haf,
-                                                             this.calleeSummary));
-                }
-                return changed;
+        List<ReferenceVariableReplica> arguments = new ArrayList<>(getActuals().size() + 1);
+        arguments.add(receiverRep);
+        for (ReferenceVariable actual : getActuals()) {
+            arguments.add(new ReferenceVariableReplica(context, actual, haf));
+        }
+
+        ArgumentIterator iter = new ArgumentIterator(arguments, originator, g, delta);
+        while (iter.hasNext()) {
+            List<InstanceKey> argHeapCtxts = iter.next();
+            InstanceKey recHC = argHeapCtxts.get(0);
+            if (recHC == null) {
+                // No receiver for the callee
+                System.err.println("No receiver for callee " + PrettyPrinter.methodString(callee) + " from "
+                        + PrettyPrinter.methodString(getMethod()));
+                continue;
+            }
+            List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size() - 1);
+            changed = changed.combine(this.processCall(context, recHC, restHC, this.callee, g, haf, this.calleeSummary));
+        }
+        return changed;
 
     }
 
@@ -145,40 +139,6 @@ public class SpecialCallStatement extends CallStatement {
     @Override
     public ReferenceVariable getDef() {
         return this.getResult();
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> uses = new ArrayList<>(this.getActuals()
-                .size() + 3);
-        uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
-        for (ReferenceVariable use : this.getActuals()) {
-            if (use != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
-                uses.add(n);
-            }
-        }
-
-        // Add the exception variable. Can't be more precise here unfortunately...
-        uses.add(this.calleeSummary.getException());
-
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> defs = new ArrayList<>(3);
-
-        if (this.getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
-        }
-        if (this.getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
-        }
-        // add the IMethod of the callee so that we get run before
-        // the local-to-local's of the callee's method summaries
-        defs.add(this.callee);
-        return defs;
     }
 
     /**

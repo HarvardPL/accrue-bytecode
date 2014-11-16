@@ -1,5 +1,7 @@
 package analysis.pointer.analyses;
 
+import java.util.List;
+
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
@@ -49,7 +51,7 @@ public class MagicCallSiteSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, List<InstanceKey> arguments, Context callerContext) {
         if (!callSite.getCallee().toString().contains("bouncycastle")
                 && !callSite.getCallee().toString().contains("intToBigEndian")) {
             // only track call sites to generateDerivedKey.

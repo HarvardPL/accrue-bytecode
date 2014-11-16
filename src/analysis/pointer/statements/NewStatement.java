@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -92,17 +91,5 @@ public class NewStatement extends PointsToStatement {
     @Override
     public ReferenceVariable getDef() {
         return result;
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
     }
 }

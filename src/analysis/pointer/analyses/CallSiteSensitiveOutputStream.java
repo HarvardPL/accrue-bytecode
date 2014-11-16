@@ -1,5 +1,7 @@
 package analysis.pointer.analyses;
 
+import java.util.List;
+
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
@@ -70,7 +72,7 @@ public class CallSiteSensitiveOutputStream extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, List<InstanceKey> arguments, Context callerContext) {
         if (printStreamClass == null) {
             cha = AnalysisUtil.getClassHierarchy();
             printStreamClass = cha.lookupClass(PS_TYPE);

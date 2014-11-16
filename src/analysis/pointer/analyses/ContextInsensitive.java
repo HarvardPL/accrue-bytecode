@@ -1,5 +1,7 @@
 package analysis.pointer.analyses;
 
+import java.util.List;
+
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
@@ -29,7 +31,7 @@ public class ContextInsensitive extends HeapAbstractionFactory {
     }
 
     @Override
-    public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public Context merge(CallSiteLabel callSite, InstanceKey receiver, List<InstanceKey> arguments, Context callerContext) {
         return initialContext();
     }
 

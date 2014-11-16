@@ -1,11 +1,8 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
-import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -75,17 +72,31 @@ public class VirtualCallStatement extends CallStatement {
 
         GraphDelta changed = new GraphDelta(g);
 
-        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
-                : delta.pointsToIterator(receiverRep);
+        List<ReferenceVariableReplica> arguments = new ArrayList<>(getActuals().size() + 1);
+        arguments.add(receiverRep);
+        for (ReferenceVariable actual : getActuals()) {
+            arguments.add(new ReferenceVariableReplica(context, actual, haf));
+        }
+
+        ArgumentIterator iter = new ArgumentIterator(arguments, originator, g, delta);
 
         while (iter.hasNext()) {
-            InstanceKey recHeapContext = iter.next();
+
+            List<InstanceKey> argHeapCtxts = iter.next();
+            InstanceKey recHC = argHeapCtxts.get(0);
+            if (recHC == null) {
+                // No receiver for the callee
+                System.err.println("No receiver for callee " + PrettyPrinter.methodString(callee) + " from "
+                        + PrettyPrinter.methodString(getMethod()));
+                continue;
+            }
+            List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size() - 1);
 
             // find the callee.
             // The receiver is recHeapContext, and we want to find a method that matches selector
             // callee.getSelector() in class recHeapContext.getConcreteType() or
             // a superclass.
-            IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
+            IMethod resolvedCallee = this.resolveMethod(recHC.getConcreteType(), receiverRep.getExpectedType());
 
             if (resolvedCallee != null && resolvedCallee.isAbstract()) {
                 // Abstract method due to a native method that returns an abstract type or interface
@@ -98,7 +109,8 @@ public class VirtualCallStatement extends CallStatement {
             // resolvedCallee overrides
             // the IMethod returned by ch.resolveMethod(callee).
             changed = changed.combine(this.processCall(context,
-                                                       recHeapContext,
+                                                       recHC,
+                                                       restHC,
                                                        resolvedCallee,
                                                        g,
                                                        haf,
@@ -179,38 +191,4 @@ public class VirtualCallStatement extends CallStatement {
     public ReferenceVariable getDef() {
         return this.getResult();
     }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> uses = new ArrayList<>(this.getActuals().size() + 2);
-        uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
-        for (ReferenceVariable use : this.getActuals()) {
-            if (use != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
-                uses.add(n);
-            }
-        }
-
-        // we use the exception value...
-        uses.add(new OrderedPair<>(this.callee.getSelector(), "ex-return"));
-
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> defs = new ArrayList<>(3);
-
-        if (this.getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
-        }
-        if (this.getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
-        }
-        // Add the callee Selector, so we can get dependences from this
-        // to the summary nodes of the callees.
-        defs.add(this.callee.getSelector());
-        return defs;
-    }
-
 }

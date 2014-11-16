@@ -8,7 +8,7 @@ import java.util.Set;
 
 /**
  * Immutable pair of the given types.
- * 
+ *
  * @param <F>
  *            Type of the first element of the pair
  * @param <S>
@@ -30,12 +30,10 @@ public class OrderedPair<F, S> {
     private final int memoizedHashCode;
 
     /**
-     * Create a pair from the two given states
-     * 
-     * @param fst
-     *            first state of the pair
-     * @param snd
-     *            second state of the pair
+     * Create a pair from the two given objects
+     *
+     * @param fst first object of the pair
+     * @param snd second object of the pair
      */
     public OrderedPair(F fst, S snd) {
         this.fst = fst;
@@ -45,7 +43,7 @@ public class OrderedPair<F, S> {
 
     /**
      * Get the first element of the pair
-     * 
+     *
      * @return first element
      */
     public F fst() {
@@ -54,7 +52,7 @@ public class OrderedPair<F, S> {
 
     /**
      * Get the second element of the pair
-     * 
+     *
      * @return S second element
      */
     public S snd() {
@@ -64,13 +62,13 @@ public class OrderedPair<F, S> {
     /**
      * Get a set of all pairs with the first element in the first set and the
      * second element in the second set
-     * 
+     *
      * @param firstSet
      *            set of F's
      * @param secondSet
      *            set of S's
      * @return set of pairs of type (F,S)
-     * 
+     *
      * @param <F>
      *            type of first element
      * @param <S>
@@ -89,11 +87,11 @@ public class OrderedPair<F, S> {
     /**
      * Get a Hash map where the key is the first item and the value is the
      * second
-     * 
+     *
      * @param list
      *            list of pairs to create the map from
      * @return new map from first items to second items
-     * 
+     *
      * @param <F>
      *            type of first item
      * @param <S>
@@ -109,12 +107,12 @@ public class OrderedPair<F, S> {
 
     /**
      * Make a set of pairs {(c,c) | c is in the given set}
-     * 
+     *
      * @param set
      *            set of C's
      * @param <C>
      *            type of elements in the set
-     * 
+     *
      * @return set of pairs of type (C,C)
      */
     public static <C> Set<OrderedPair<C, C>> makeIndenticalPairs(Set<C> set) {
@@ -129,7 +127,7 @@ public class OrderedPair<F, S> {
 
     /**
      * Swap the elements of this pair
-     * 
+     *
      * @return a pair with the elements swapped
      */
     public OrderedPair<S, F> swap() {
@@ -140,7 +138,7 @@ public class OrderedPair<F, S> {
      * Two {@link OrderedPair}s are equal if their
      * constituent parts are equal.
      * <p>
-     * 
+     *
      * {@inheritDoc}
      */
     @Override
@@ -156,7 +154,7 @@ public class OrderedPair<F, S> {
 
     /**
      * Compute the hash code once
-     * 
+     *
      * @return hash code
      */
     private int computeHashCode() {

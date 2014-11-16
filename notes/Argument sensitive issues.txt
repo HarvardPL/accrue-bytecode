@@ -1,0 +1,13 @@
+Argument sensitive issues
+
+- For type sensitive what is the context for static calls 
+    - Could use the caller context and pushing on a list of the allocating class of the arguments
+    - This feels more call-site sensitive
+    - Maybe just do nothing? (make it the same as caller context) 
+- What happens when the points-to set for one of the arguments is empty? 
+    - Right now I'm setting that slot to "null"
+    - This could result in extra/wasted analysis if it is empty then becomes not empty 
+- How should deltas be handled in the argument iterator
+    - Right now I take a delta and match it up against everything in the points-to sets of the other arguments then move onto the next delta
+    - This repeats some because the deltas will also be in the full sets
+    - For deltas that have already been visited only "points-to set \ delta" should be iterated when going through the other deltas
