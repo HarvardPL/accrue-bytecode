@@ -273,10 +273,6 @@ public abstract class CallStatement extends PointsToStatement {
             this.originator = originator;
 
             this.pointsToIters = new ArrayList<>(args.size());
-            if (args.size() == 0) {
-                System.err.println("No iterators for " + originator);
-            }
-
             for (ReferenceVariableReplica arg : args) {
                 // Initialize the argument iterators and the arguments from the points to graph
                 pointsToIters.add(g.pointsToIterator(arg, originator));
@@ -286,7 +282,6 @@ public abstract class CallStatement extends PointsToStatement {
                 boolean isNonEmptyDelta = replaceFirstNonEmptyDelta(args.size() - 1);
                 if (!isNonEmptyDelta) {
                     // There were no non-empty deltas so this iterator should be empty
-                    System.err.println("All deltas are empty for arguments added by " + this.originator);
                     next = null;
                     for (int i = 0; i < pointsToIters.size(); i++) {
                         pointsToIters.set(i, Collections.<InstanceKey> emptyIterator());

@@ -74,7 +74,10 @@ public class VirtualCallStatement extends CallStatement {
 
         List<ReferenceVariableReplica> arguments = new ArrayList<>(getActuals().size() + 1);
         for (ReferenceVariable actual : getActuals()) {
-            arguments.add(new ReferenceVariableReplica(context, actual, haf));
+            if (actual != null) {
+                // This is a reference argument (e.g. non-primitive)
+                arguments.add(new ReferenceVariableReplica(context, actual, haf));
+            }
         }
 
         ArgumentIterator iter = new ArgumentIterator(arguments, originator, g, delta);
@@ -85,8 +88,8 @@ public class VirtualCallStatement extends CallStatement {
             InstanceKey recHC = argHeapCtxts.get(0);
             if (recHC == null) {
                 // No receiver for the callee
-                System.err.println("No receiver for callee " + PrettyPrinter.methodString(callee) + " from "
-                        + PrettyPrinter.methodString(getMethod()));
+                //                System.err.println("No receiver for callee " + PrettyPrinter.methodString(callee) + " from "
+                //                        + PrettyPrinter.methodString(getMethod()));
                 continue;
             }
             List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size());

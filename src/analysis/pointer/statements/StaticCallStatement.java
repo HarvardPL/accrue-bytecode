@@ -59,7 +59,10 @@ public class StaticCallStatement extends CallStatement {
 
         List<ReferenceVariableReplica> arguments = new ArrayList<>(getActuals().size() + 1);
         for (ReferenceVariable actual : getActuals()) {
-            arguments.add(new ReferenceVariableReplica(context, actual, haf));
+            if (actual != null) {
+                // This is a reference argument (e.g. non-primitive)
+                arguments.add(new ReferenceVariableReplica(context, actual, haf));
+            }
         }
 
         ArgumentIterator iter = new ArgumentIterator(arguments, originator, g, delta);
