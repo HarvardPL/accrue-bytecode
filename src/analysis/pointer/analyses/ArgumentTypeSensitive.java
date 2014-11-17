@@ -124,6 +124,10 @@ public class ArgumentTypeSensitive extends HeapAbstractionFactory {
             StringBuilder sb = new StringBuilder();
             sb.append("[");
             for (IClass cl : c) {
+                if (cl == null) {
+                    sb.append("null, ");
+                    continue;
+                }
                 sb.append(PrettyPrinter.typeString(cl));
                 sb.append(", ");
             }

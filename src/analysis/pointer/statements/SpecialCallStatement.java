@@ -61,11 +61,9 @@ public class SpecialCallStatement extends CallStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
         GraphDelta changed = new GraphDelta(g);
 
         List<ReferenceVariableReplica> arguments = new ArrayList<>(getActuals().size() + 1);
-        arguments.add(receiverRep);
         for (ReferenceVariable actual : getActuals()) {
             arguments.add(new ReferenceVariableReplica(context, actual, haf));
         }
@@ -80,7 +78,7 @@ public class SpecialCallStatement extends CallStatement {
                         + PrettyPrinter.methodString(getMethod()));
                 continue;
             }
-            List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size() - 1);
+            List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size());
             changed = changed.combine(this.processCall(context, recHC, restHC, this.callee, g, haf, this.calleeSummary));
         }
         return changed;

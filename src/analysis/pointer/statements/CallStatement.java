@@ -80,6 +80,14 @@ public abstract class CallStatement extends PointsToStatement {
         assert callee != null;
         assert calleeSummary != null;
         Context calleeContext = haf.merge(callSite, receiver, args, callerContext);
+        //        System.err.println("MERGE");
+        //        System.err.println("\tcallee: " + PrettyPrinter.methodString(callee));
+        //        System.err.println("\tcalleeContext: " + calleeContext);
+        //        System.err.println("\tcallsite: " + callSite);
+        //        System.err.println("\treceiver: " + receiver);
+        //        System.err.println("\targs " + args);
+        //        System.err.println("\tcaller: " + PrettyPrinter.methodString(getMethod()));
+        //        System.err.println("\tcallerContext: " + callerContext);
         GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
@@ -265,6 +273,9 @@ public abstract class CallStatement extends PointsToStatement {
             this.originator = originator;
 
             this.pointsToIters = new ArrayList<>(args.size());
+            if (args.size() == 0) {
+                System.err.println("No iterators for " + originator);
+            }
 
             for (ReferenceVariableReplica arg : args) {
                 // Initialize the argument iterators and the arguments from the points to graph
@@ -302,7 +313,6 @@ public abstract class CallStatement extends PointsToStatement {
                     init.add(iter.next());
                 }
                 else {
-                    System.err.println("Empty points-to iterator for argument in " + originator);
                     // XXX The iterator has no elements set the element to null
                     init.add(null);
                 }
@@ -317,19 +327,27 @@ public abstract class CallStatement extends PointsToStatement {
          * @return true if any delta from i down to zero was non-empty
          */
         private boolean replaceFirstNonEmptyDelta(int i) {
-                currentDelta = i - 1;
-                Iterator<InstanceKey> deltaIter = null;
-                do {
-                    // If any delta is non-empty, set it in the iterator array, otherwise there is nothing to do
-                    deltaIter = delta.pointsToIterator(args.get(currentDelta));
-                    pointsToIters.set(currentDelta, deltaIter);
-                } while (currentDelta-- >= 0 && !deltaIter.hasNext());
+            if (i == 0) {
+                // Already at the first index
+                return false;
+            }
+            currentDelta = i - 1;
+            Iterator<InstanceKey> deltaIter = null;
+            do {
+                // If any delta is non-empty, set it in the iterator array, otherwise there is nothing to do
+                deltaIter = delta.pointsToIterator(args.get(currentDelta));
+                pointsToIters.set(currentDelta, deltaIter);
+            } while (--currentDelta >= 0 && !deltaIter.hasNext());
 
-            return currentDelta < 0;
+            return currentDelta >= 0;
         }
 
         @Override
         public boolean hasNext() {
+            if (pointsToIters.isEmpty()) {
+                return false;
+            }
+
             if (next != null) {
                 // the next element has already been computed
                 return true;
@@ -337,7 +355,7 @@ public abstract class CallStatement extends PointsToStatement {
 
             // Start at the end
             int currentIter = args.size() - 1;
-            while (!pointsToIters.get(currentIter).hasNext() && currentIter >= 0) {
+            while (currentIter >= 0 && !pointsToIters.get(currentIter).hasNext()) {
                 // The iterator at currentIter has been completed, reset it and move to the previous
                 pointsToIters.set(currentIter, g.pointsToIterator(args.get(currentIter), originator));
                 currentIter--;
@@ -351,7 +369,7 @@ public abstract class CallStatement extends PointsToStatement {
                     return false;
                 }
 
-                if (currentDelta == 0) {
+                if (currentDelta <= 0) {
                     // Already gone through all deltas
                     return false;
                 }

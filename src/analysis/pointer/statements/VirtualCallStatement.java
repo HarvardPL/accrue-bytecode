@@ -73,7 +73,6 @@ public class VirtualCallStatement extends CallStatement {
         GraphDelta changed = new GraphDelta(g);
 
         List<ReferenceVariableReplica> arguments = new ArrayList<>(getActuals().size() + 1);
-        arguments.add(receiverRep);
         for (ReferenceVariable actual : getActuals()) {
             arguments.add(new ReferenceVariableReplica(context, actual, haf));
         }
@@ -90,7 +89,7 @@ public class VirtualCallStatement extends CallStatement {
                         + PrettyPrinter.methodString(getMethod()));
                 continue;
             }
-            List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size() - 1);
+            List<InstanceKey> restHC = argHeapCtxts.subList(1, argHeapCtxts.size());
 
             // find the callee.
             // The receiver is recHeapContext, and we want to find a method that matches selector
