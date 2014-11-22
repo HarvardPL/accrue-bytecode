@@ -386,6 +386,16 @@ public class StatementFactory {
     }
 
     /**
+     * New empty statement, for debug purpose
+     * 
+     * @param pp
+     * @return
+     */
+    public EmptyStatement emptyStatement(ProgramPoint pp) {
+        return new EmptyStatement(pp);
+    }
+
+    /**
      * Statement for a local assignment of null left = null.
      *
      * @param left assignee

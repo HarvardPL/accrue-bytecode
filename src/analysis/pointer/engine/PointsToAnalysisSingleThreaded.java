@@ -29,6 +29,7 @@ import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
+import analysis.pointer.statements.EmptyStatement;
 import analysis.pointer.statements.ExceptionAssignmentStatement;
 import analysis.pointer.statements.FieldToLocalStatement;
 import analysis.pointer.statements.LocalToArrayStatement;
@@ -561,6 +562,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     || stmt instanceof NullToLocalStatement) {
                 return localAssigns.offer(sac);
             }
+
+            if (stmt instanceof EmptyStatement) {
+                return true; // XXX debug purpose
+            }
+
             throw new IllegalArgumentException("Don't know how to handle a " + stmt.getClass());
         }
 

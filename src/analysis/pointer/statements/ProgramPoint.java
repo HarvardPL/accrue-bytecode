@@ -79,8 +79,10 @@ public class ProgramPoint {
 
     public boolean addSuccs(Collection<ProgramPoint> succs) {
         boolean changed = false;
-        for (ProgramPoint pp : succs) {
-            changed |= this.addSucc(pp);
+        if (succs != null) {
+            for (ProgramPoint pp : succs) {
+                changed |= this.addSucc(pp);
+            }
         }
         return changed;
     }
@@ -88,6 +90,10 @@ public class ProgramPoint {
     @Override
     public String toString() {
         return "pp" + id + "(" + debugInfo + ")";
+    }
+
+    public String toStringSimple() {
+        return "pp" + id;
     }
 
     public int getID() {

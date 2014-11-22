@@ -102,9 +102,10 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
             for (ISSABasicBlock succBB : cfg.getNormalSuccessors(bb)) {
                 addSucc(lastPPofBB, bbEntryProgramPoint(succBB, false));
             }
+            /* XXX only add exceptional exit successors for exception nodes
             for (ISSABasicBlock succBB : cfg.getExceptionalSuccessors(bb)) {
                 addSucc(lastPPofBB, bbEntryProgramPoint(succBB, true));
-            }
+            }*/
         }
 
     }
