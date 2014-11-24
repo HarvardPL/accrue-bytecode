@@ -243,6 +243,16 @@ public class ReferenceVariableFactory {
     }
 
     /**
+     * Get the reference variable for the given static field
+     * 
+     * @param field field to get the node for
+     * @return reference variable for the static field
+     */
+    public ReferenceVariable getStaticField(IField field) {
+        return staticFields.get(field);
+    }
+
+    /**
      * Get a reference variable for the value field of a new String literal
      *
      * @return Reference variable for the value field of a String literal
