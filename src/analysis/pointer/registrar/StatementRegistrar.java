@@ -1216,8 +1216,8 @@ public class StatementRegistrar {
      *
      * @return map from local variable to unique reference variable
      */
-    public ReferenceVariableCache getAllLocals() {
-        return this.rvFactory.getAllLocals(replacedVariableMap);
+    public ReferenceVariableCache getRvCache() {
+        return this.rvFactory.getRvCache(replacedVariableMap, methods);
     }
 
     /**

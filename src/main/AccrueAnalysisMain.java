@@ -472,7 +472,7 @@ public class AccrueAnalysisMain {
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");
         }
 
-        ReferenceVariableCache rvCache = registrar.getAllLocals();
+        ReferenceVariableCache rvCache = registrar.getRvCache();
         return new OrderedPair<>(g, rvCache);
     }
 

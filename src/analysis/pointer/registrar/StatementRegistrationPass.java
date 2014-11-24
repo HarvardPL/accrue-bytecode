@@ -264,6 +264,6 @@ public class StatementRegistrationPass {
     }
 
     public ReferenceVariableCache getAllLocals() {
-        return registrar.getAllLocals();
+        return registrar.getRvCache();
     }
 }
