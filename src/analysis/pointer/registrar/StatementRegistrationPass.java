@@ -54,12 +54,13 @@ public class StatementRegistrationPass {
      */
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
-                                     boolean useSingleAllocForStrings) {
+                                     boolean useSingleAllocForStrings, boolean onlyPrintMainMethodInSuccGraph) {
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
                                            useSingleAllocForThrowable,
                                            useSingleAllocForPrimitiveArrays,
-                                           useSingleAllocForStrings);
+                                           useSingleAllocForStrings,
+                                           onlyPrintMainMethodInSuccGraph);
     }
 
     /**
@@ -71,7 +72,7 @@ public class StatementRegistrationPass {
 
     /**
      * Add statements given class initializers
-     * 
+     *
      * @param trigger instruction that triggered the clinit
      * @param containingCode code containing the instruction that triggered the clinit
      * @param clinits class initialization methods that might need to be called in the order they need to be called

@@ -138,6 +138,11 @@ public class StatementRegistrar {
     private final boolean useSingleAllocForStrings;
 
     /**
+     * If true then only print the successor graph for the main method.
+     */
+    private final boolean onlyPrintMainMethodInSuccGraph;
+
+    /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
      * node
      */
@@ -180,7 +185,7 @@ public class StatementRegistrar {
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
-                              boolean useSingleAllocForStrings) {
+                              boolean useSingleAllocForStrings, boolean onlyPrintMainMethodInSuccGraph) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
@@ -200,6 +205,7 @@ public class StatementRegistrar {
         this.useSingleAllocPerThrowableType = useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per java.lang.Throwable subtype: "
                 + useSingleAllocPerThrowableType);
+        this.onlyPrintMainMethodInSuccGraph = onlyPrintMainMethodInSuccGraph;
     }
 
     /**
@@ -1839,7 +1845,15 @@ public class StatementRegistrar {
                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
 
         Set<ProgramPoint> visited = new HashSet<>();
+
         for (MethodSummaryNodes methSum : methods.values()) {
+            if (onlyPrintMainMethodInSuccGraph) {
+                if (methSum.toString() == "main") {
+                    writeSucc(methSum.getEntryPP(), writer, visited);
+                    break;
+                }
+                continue;
+            }
             System.out.println("print meth");
             writeSucc(methSum.getEntryPP(), writer, visited);
         }

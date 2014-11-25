@@ -97,6 +97,7 @@ public class AccrueAnalysisMain {
         boolean singleThrowable = options.shouldUseSingleAllocPerThrowableType();
         boolean singlePrimArray = options.shouldUseSingleAllocForPrimitiveArrays();
         boolean singleString = options.shouldUseSingleAllocForStrings();
+        boolean onlyPrintMainMethodInSuccGraph = options.onlyPrintMainMethodInSuccGraph();
 
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
@@ -126,7 +127,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            onlyPrintMainMethodInSuccGraph);
             g = results.fst();
             g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
@@ -161,7 +163,8 @@ public class AccrueAnalysisMain {
                                singleGenEx,
                                singleThrowable,
                                singlePrimArray,
-                               singleString);
+                               singleString,
+                               onlyPrintMainMethodInSuccGraph);
             break;
         case "nonnull":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
@@ -171,7 +174,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            onlyPrintMainMethodInSuccGraph);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -186,7 +190,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            onlyPrintMainMethodInSuccGraph);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -202,7 +207,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            onlyPrintMainMethodInSuccGraph);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -216,7 +222,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            onlyPrintMainMethodInSuccGraph);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -247,7 +254,8 @@ public class AccrueAnalysisMain {
                                             singleGenEx,
                                             singleThrowable,
                                             singlePrimArray,
-                                            singleString);
+                                            singleString,
+                                            onlyPrintMainMethodInSuccGraph);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -377,7 +385,8 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForGenEx,
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
-                                                                                            boolean useSingleAllocForStrings) {
+                                                                                            boolean useSingleAllocForStrings,
+                                                                                            boolean onlyPrintMainMethodInSuccGraph) {
         PointsToAnalysisSingleThreaded analysis = new PointsToAnalysisSingleThreaded(haf);
         //PointsToAnalysisMultiThreaded analysis = new PointsToAnalysisMultiThreaded(haf);
         PointsToAnalysis.outputLevel = outputLevel;
@@ -389,7 +398,8 @@ public class AccrueAnalysisMain {
                                                useSingleAllocForGenEx,
                                                useSingleAllocForThrowable,
                                                useSingleAllocForPrimitiveArrays,
-                                               useSingleAllocForStrings);
+                                               useSingleAllocForStrings,
+                                               onlyPrintMainMethodInSuccGraph);
             g = analysis.solveAndRegister(registrar);
         }
         else {
@@ -397,7 +407,8 @@ public class AccrueAnalysisMain {
                                                                            useSingleAllocForGenEx,
                                                                            useSingleAllocForThrowable,
                                                                            useSingleAllocForPrimitiveArrays,
-                                                                           useSingleAllocForStrings);
+                                                                           useSingleAllocForStrings,
+                                                                           onlyPrintMainMethodInSuccGraph);
             pass.run();
             registrar = pass.getRegistrar();
             PointsToAnalysis.outputLevel = outputLevel;
@@ -532,14 +543,16 @@ public class AccrueAnalysisMain {
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
                                            String outputDir, boolean isOnline, boolean useSingleAllocForGenEx,
                                            boolean useSingleAllocForThrowable,
-                                           boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings) {
+                                           boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
+                                           boolean onlyPrintMainMethodInSuccGraph) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            isOnline,
                                                                                            useSingleAllocForGenEx,
                                                                                            useSingleAllocForThrowable,
                                                                                            useSingleAllocForPrimitiveArrays,
-                                                                                           useSingleAllocForStrings);
+                                                                                           useSingleAllocForStrings,
+                                                                                           onlyPrintMainMethodInSuccGraph);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {
