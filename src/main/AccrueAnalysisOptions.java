@@ -131,6 +131,11 @@ public final class AccrueAnalysisOptions {
         description = "If set then only one allocation site will be used for all Strings. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for strings.")
     private boolean useSingleAllocForStrings = false;
 
+    @Parameter(
+        names = { "-onlyPrintMainMethodInSuccGraph" },
+        description = "If set then only print the successor graph for the main method.")
+    private boolean onlyPrintMainMethodInSuccGraph = false;
+
     /**
      * Name of the analysis to be run
      */
@@ -767,5 +772,14 @@ public final class AccrueAnalysisOptions {
      */
     public boolean shouldUseSingleAllocForStrings() {
         return useSingleAllocForStrings;
+    }
+
+    /**
+     * TODO
+     *
+     * @return
+     */
+    public boolean onlyPrintMainMethodInSuccGraph() {
+        return onlyPrintMainMethodInSuccGraph;
     }
 }
