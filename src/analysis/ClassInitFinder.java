@@ -38,7 +38,7 @@ public class ClassInitFinder {
      *         super class of element j+1)
      */
     public static List<IMethod> getClassInitializers(SSAInstruction i) {
-        IClass klass = getRequiredInitializedClasses(i);
+        IClass klass = getRequiredInitializedClass(i);
         if (klass == null) {
             return Collections.emptyList();
         }
@@ -47,12 +47,11 @@ public class ClassInitFinder {
 
     /**
      * As defined in JLS 12.4.1, get the class (if any) that must be initialized before executing the given instruction.
-     *
+     * 
      * @param i current instruction
-     * @return clinit methods that might need to be called in the order they need to be called (i.e. element j is a
-     *         super class of element j+1)
+     * @return Class that must be initialized before executing <code>i</code>
      */
-    public static IClass getRequiredInitializedClasses(SSAInstruction i) {
+    public static IClass getRequiredInitializedClass(SSAInstruction i) {
         // T is a class and an instance of T is created.
         if (i instanceof SSANewInstruction) {
             SSANewInstruction ins = (SSANewInstruction) i;

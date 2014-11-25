@@ -67,125 +67,6 @@ import com.ibm.wala.types.TypeReference;
  */
 public class StatementRegistrar {
 
-    public class PPSubGraph {
-
-        ProgramPoint entry;
-        ProgramPoint normExit;
-        ProgramPoint preNormExit;
-        Map<TypeReference, ProgramPoint> exceptionExits;
-        private boolean canExitNormally;
-
-        PPSubGraph(IMethod containingProcedure) {
-            this.entry = new ProgramPoint(containingProcedure, "XXX");
-            this.normExit = this.entry;
-            this.preNormExit = null;
-            this.exceptionExits = new HashMap<>();
-            this.canExitNormally = true;
-        }
-
-        ProgramPoint entry() {
-            return this.entry;
-        }
-
-        ProgramPoint normalExit() {
-            return this.normExit;
-        }
-
-        void setCanExitNormally(boolean canExitNormally) {
-            this.canExitNormally = canExitNormally;
-        }
-
-        Map<TypeReference, ProgramPoint> exceptionExits() {
-            return this.exceptionExits;
-        }
-
-        ProgramPoint addThrowException(TypeReference exType) {
-            if (this.entry == this.normExit) {
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
-                this.entry.addSucc(this.normExit);
-                this.preNormExit = this.entry;
-            }
-            if (exceptionExits.containsKey(exType)) {
-                assert false : "Exception exits already contains key";
-                return null;
-            }
-            ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
-            exceptionExits.put(exType, pp);
-            this.entry.addSucc(pp);
-            return pp;
-        }
-
-        OrderedPair<ProgramPoint, ProgramPoint> addGenAndThrowException(TypeReference exType) {
-            if (this.entry == this.normExit) {
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
-                this.entry.addSucc(this.normExit);
-                this.preNormExit = this.entry;
-            }
-            if (exceptionExits.containsKey(exType)) {
-                assert false : "Exception exits already contains key";
-                return null;
-            }
-            ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
-            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex)");
-            this.entry.addSucc(genPP);
-            genPP.addSucc(throwPP);
-            exceptionExits.put(exType, throwPP);
-            return new OrderedPair<>(genPP, throwPP);
-        }
-
-        ProgramPoint addIntermediateNormal(String debugString) {
-            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "aaaaa");
-            if (this.entry == this.normExit) {
-                assert this.preNormExit == null;
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
-                this.entry.addSucc(interNode);
-            }
-            else {
-                this.preNormExit.removeSucc(this.normExit);
-                this.preNormExit.addSucc(interNode);
-            }
-            interNode.addSucc(this.normExit);
-            this.preNormExit = interNode;
-            return interNode;
-        }
-
-        public ProgramPoint addPossibleNormal(String debugString) {
-            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "bbbbb");
-            ProgramPoint newPreNormExit = new ProgramPoint(this.entry.containingProcedure(), debugString + "cccc");
-            if (this.entry == this.normExit) {
-                assert this.preNormExit == null;
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
-                this.entry.addSucc(interNode);
-                this.preNormExit.addSucc(newPreNormExit);
-            }
-            else {
-                this.preNormExit.removeSucc(this.normExit);
-                this.preNormExit.addSucc(interNode);
-                this.preNormExit.addSucc(newPreNormExit);
-            }
-            interNode.addSucc(newPreNormExit);
-            newPreNormExit.addSucc(this.normExit);
-            this.preNormExit = newPreNormExit;
-            return interNode;
-        }
-
-        void replaceWithCallSitePP(CallSiteProgramPoint cspp) {
-            if (this.entry == this.normExit) {
-                assert this.preNormExit == null;
-                this.entry = cspp;
-                this.normExit = cspp;
-                return;
-            }
-            this.preNormExit.removeSucc(this.normExit);
-            this.preNormExit.addSucc(cspp);
-            this.normExit = cspp;
-        }
-
-        public boolean canExitNormally() {
-            return this.canExitNormally;
-        }
-    }
-
     /**
      * Map from method signature to nodes representing formals and returns
      */
@@ -210,7 +91,7 @@ public class StatementRegistrar {
      */
     private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesForMethod;
 
-    /*
+    /**
      * Program point to statement map
      */
     private final ConcurrentMap<ProgramPoint, PointsToStatement> ppToStmtMap;
@@ -219,6 +100,10 @@ public class StatementRegistrar {
      * Map from IClass to the program point for the call to the class static initializer
      */
     private final ConcurrentMap<IClass, ProgramPoint> classInitPPs;
+    /**
+     * Program point in the entry method for the last class initializer added
+     */
+    private ProgramPoint lastClassInitPP = null;
 
     /**
      * The total number of statements
@@ -584,17 +469,22 @@ public class StatementRegistrar {
                                                 methSumm);
 
 
-        IClass reqInit = ClassInitFinder.getRequiredInitializedClasses(i);
+        IClass reqInit = ClassInitFinder.getRequiredInitializedClass(i);
         if (reqInit != null) {
+            // There is a class that must be initialized before executing this instruction
             List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
-            if (!inits.isEmpty()) {
-                // we are adding a class initializer statement.
-                ProgramPoint classInitPP = new ProgramPoint(null, "class-init"); // XXX ANDREW make sure the containing method is the fake root method
-                classInitPP = this.classInitPPs.putIfAbsent(reqInit, classInitPP);
-                this.registerClassInitializers(i, classInitPP, inits);
+
+            // XXX Steve I think this is what we want since this is the location of the
+            // class initialization _statement_ not the class initializer itself
+            ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit");
+            this.registerClassInitializers(i, clinitPP, inits);
+
+            if (!this.classInitPPs.containsKey(reqInit)) {
+                // We have not seen this class before
+                // record program points for the class initializers
+                this.addProgramPointsForClassInitializers(reqInit);
             }
         }
-
 
         InstructionType type = InstructionType.forInstruction(i);
         ProgramPoint pp = subgraph.normalExit();
@@ -1561,7 +1451,68 @@ public class StatementRegistrar {
      *            (i.e. element j is a super class of element j+1)
      */
     void registerClassInitializers(SSAInstruction trigger, ProgramPoint pp, List<IMethod> clinits) {
+        // Note the class initializers in the order in which they occurs
         this.addStatement(stmtFactory.classInit(clinits, pp, trigger));
+    }
+
+    /**
+     * Given a class that must be initialized, create program points for that class initializer as well as any
+     * superclass initializers that must be called first.
+     *
+     * @param reqInit class that must be initialized
+     */
+    private synchronized void addProgramPointsForClassInitializers(IClass reqInit) {
+        if (this.classInitPPs.containsKey(reqInit)) {
+            // This class initializer was already added
+            return;
+        }
+
+        List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
+        assert !inits.isEmpty();
+
+        // list of program points for all required clinits
+        LinkedList<ProgramPoint> pps = new LinkedList<>();
+
+        // Loop from last clinit to be called (that for reqInit) to first (the highest superclass in the hierarchy)
+        for (int i = inits.size(); i > 0; i--) {
+            IMethod init = inits.get(i - 1);
+            if (this.classInitPPs.containsKey(init.getDeclaringClass())) {
+                // Already seen this initializer and all super classes/interfaces
+                break;
+            }
+
+            // We assume all class initializers are called in the root method
+            ProgramPoint classInitPP = new ProgramPoint(AnalysisUtil.getFakeRoot(), "class-init");
+            pps.addFirst(classInitPP);
+            classInitPP = this.classInitPPs.putIfAbsent(init.getDeclaringClass(), classInitPP);
+            assert classInitPP == null : "Registering duplicate clinit for " + PrettyPrinter.typeString(init.getDeclaringClass());
+        }
+        assert !pps.isEmpty() : "At least one class init should have been added.";
+
+        // Add the program points to the root method in the correct order
+
+        if (lastClassInitPP == null) {
+            // XXX Where should the first class init go? after the singletons? right before main?
+            // XXX Some of the singletons are allocations which require a clinit,
+            // it is actually probably OK to interleave the singletons and class inits as long as the class inits come first
+            lastClassInitPP = getMethodSummary(getEntryPoint()).getEntryPP();
+        }
+        Set<ProgramPoint> succs = lastClassInitPP.succs();
+
+        // Add edge from the last class init PP seen to the first new one
+        lastClassInitPP.clearSuccs();
+        lastClassInitPP.addSucc(pps.getFirst());
+
+        // Add edges from the last new program point to the successors
+        lastClassInitPP = pps.getLast();
+        lastClassInitPP.addSuccs(succs);
+
+        if (pps.size() >= 2) {
+            for (int i = 0; i < pps.size() - 1; i++) {
+                // Add edges between the new program points
+                pps.get(i).addSucc(pps.get(i + 1));
+            }
+        }
     }
 
     /**
@@ -1810,5 +1761,124 @@ public class StatementRegistrar {
 
     private static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    public class PPSubGraph {
+
+        ProgramPoint entry;
+        ProgramPoint normExit;
+        ProgramPoint preNormExit;
+        Map<TypeReference, ProgramPoint> exceptionExits;
+        private boolean canExitNormally;
+
+        PPSubGraph(IMethod containingProcedure) {
+            this.entry = new ProgramPoint(containingProcedure, "XXX");
+            this.normExit = this.entry;
+            this.preNormExit = null;
+            this.exceptionExits = new HashMap<>();
+            this.canExitNormally = true;
+        }
+
+        ProgramPoint entry() {
+            return this.entry;
+        }
+
+        ProgramPoint normalExit() {
+            return this.normExit;
+        }
+
+        void setCanExitNormally(boolean canExitNormally) {
+            this.canExitNormally = canExitNormally;
+        }
+
+        Map<TypeReference, ProgramPoint> exceptionExits() {
+            return this.exceptionExits;
+        }
+
+        ProgramPoint addThrowException(TypeReference exType) {
+            if (this.entry == this.normExit) {
+                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
+                this.entry.addSucc(this.normExit);
+                this.preNormExit = this.entry;
+            }
+            if (exceptionExits.containsKey(exType)) {
+                assert false : "Exception exits already contains key";
+                return null;
+            }
+            ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
+            exceptionExits.put(exType, pp);
+            this.entry.addSucc(pp);
+            return pp;
+        }
+
+        OrderedPair<ProgramPoint, ProgramPoint> addGenAndThrowException(TypeReference exType) {
+            if (this.entry == this.normExit) {
+                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
+                this.entry.addSucc(this.normExit);
+                this.preNormExit = this.entry;
+            }
+            if (exceptionExits.containsKey(exType)) {
+                assert false : "Exception exits already contains key";
+                return null;
+            }
+            ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
+            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex)");
+            this.entry.addSucc(genPP);
+            genPP.addSucc(throwPP);
+            exceptionExits.put(exType, throwPP);
+            return new OrderedPair<>(genPP, throwPP);
+        }
+
+        ProgramPoint addIntermediateNormal(String debugString) {
+            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "aaaaa");
+            if (this.entry == this.normExit) {
+                assert this.preNormExit == null;
+                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
+                this.entry.addSucc(interNode);
+            }
+            else {
+                this.preNormExit.removeSucc(this.normExit);
+                this.preNormExit.addSucc(interNode);
+            }
+            interNode.addSucc(this.normExit);
+            this.preNormExit = interNode;
+            return interNode;
+        }
+
+        public ProgramPoint addPossibleNormal(String debugString) {
+            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "bbbbb");
+            ProgramPoint newPreNormExit = new ProgramPoint(this.entry.containingProcedure(), debugString + "cccc");
+            if (this.entry == this.normExit) {
+                assert this.preNormExit == null;
+                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
+                this.entry.addSucc(interNode);
+                this.preNormExit.addSucc(newPreNormExit);
+            }
+            else {
+                this.preNormExit.removeSucc(this.normExit);
+                this.preNormExit.addSucc(interNode);
+                this.preNormExit.addSucc(newPreNormExit);
+            }
+            interNode.addSucc(newPreNormExit);
+            newPreNormExit.addSucc(this.normExit);
+            this.preNormExit = newPreNormExit;
+            return interNode;
+        }
+
+        void replaceWithCallSitePP(CallSiteProgramPoint cspp) {
+            if (this.entry == this.normExit) {
+                assert this.preNormExit == null;
+                this.entry = cspp;
+                this.normExit = cspp;
+                return;
+            }
+            this.preNormExit.removeSucc(this.normExit);
+            this.preNormExit.addSucc(cspp);
+            this.normExit = cspp;
+        }
+
+        public boolean canExitNormally() {
+            return this.canExitNormally;
+        }
     }
 }

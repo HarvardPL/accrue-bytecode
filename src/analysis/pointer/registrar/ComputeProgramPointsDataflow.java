@@ -478,7 +478,7 @@ public class ComputeProgramPointsDataflow extends InstructionDispatchDataFlow<Pr
         Set<IClass> definitelyInitializedClassesAfterIns;
 
         boolean callsClassInitializer = false;
-        IClass reqInit = ClassInitFinder.getRequiredInitializedClasses(i);
+        IClass reqInit = ClassInitFinder.getRequiredInitializedClass(i);
         if (reqInit != null && !definitelyInitializedClassesBeforeIns.contains(reqInit)) {
             definitelyInitializedClassesAfterIns = new HashSet<>(definitelyInitializedClassesBeforeIns);
             definitelyInitializedClassesAfterIns.add(reqInit);

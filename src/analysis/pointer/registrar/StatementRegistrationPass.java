@@ -71,7 +71,7 @@ public class StatementRegistrationPass {
 
     /**
      * Add statements given class initializers
-     *
+     * 
      * @param trigger instruction that triggered the clinit
      * @param containingCode code containing the instruction that triggered the clinit
      * @param clinits class initialization methods that might need to be called in the order they need to be called
@@ -209,8 +209,6 @@ public class StatementRegistrationPass {
             }
 
         }
-
-        // XXX ANDREW: make sure that right here we modify the PP graph for the fake root for the class inits.
 
         this.registrar.reportStats();
         if (PointsToAnalysis.outputLevel >= 1) {
