@@ -1849,6 +1849,8 @@ public class StatementRegistrar {
         Set<ProgramPoint> visited = new HashSet<>();
 
         for (MethodSummaryNodes methSum : methods.values()) {
+
+            /*
             if (onlyPrintMainMethodInSuccGraph) {
                 if (methSum.toString() == "main") {
                     writeSucc(methSum.getEntryPP(), writer, visited);
@@ -1856,6 +1858,7 @@ public class StatementRegistrar {
                 }
                 continue;
             }
+            */
             System.out.println("print meth");
             writeSucc(methSum.getEntryPP(), writer, visited);
         }
@@ -1870,7 +1873,7 @@ public class StatementRegistrar {
             for (ProgramPoint succ : pp.succs()) {
                 PointsToStatement fromStmt = getStmtAtPP(pp);
                 PointsToStatement toStmt = getStmtAtPP(succ);
-                String fromStr = escape(pp.toStringSimple() + " : ((((" + getStmtAtPP(pp) + "))))");
+                String fromStr = escape(pp.toString() + " : ((((" + getStmtAtPP(pp) + "))))");
                 String toStr = escape(succ.toString() + " : ((((" + getStmtAtPP(succ) + "))))");
                 writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
                 writeSucc(succ, writer, visited);
