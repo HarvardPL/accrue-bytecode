@@ -585,17 +585,19 @@ public class StatementRegistrar {
         if (reqInit != null) {
             // There is a class that must be initialized before executing this instruction
             List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
+            assert inits != null;
+            if (!inits.isEmpty()) {
+                // XXX Steve I think this is what we want since this is the location of the
+                // class initialization _statement_ not the class initializer itself
+                ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit");
+                this.registerClassInitializers(i, clinitPP, inits);
 
-            // XXX Steve I think this is what we want since this is the location of the
-            // class initialization _statement_ not the class initializer itself
-            ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit");
-            this.registerClassInitializers(i, clinitPP, inits);
-
-            if (!this.classInitPPs.containsKey(reqInit)) {
-                // We have not seen this class before
-                // record program points for the class initializers
-                this.addProgramPointsForClassInitializers(reqInit);
+                if (!this.classInitPPs.containsKey(reqInit)) {
+                    // We have not seen this class before
+                    // record program points for the class initializers
+                    this.addProgramPointsForClassInitializers(reqInit);
                 }
+            }
         }
 
         InstructionType type = InstructionType.forInstruction(i);
