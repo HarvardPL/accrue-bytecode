@@ -33,7 +33,6 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.CallSiteProgramPoint;
-import analysis.pointer.statements.EmptyStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
@@ -1855,11 +1854,8 @@ public class StatementRegistrar {
             for (ProgramPoint succ : pp.succs()) {
                 PointsToStatement fromStmt = getStmtAtPP(pp);
                 PointsToStatement toStmt = getStmtAtPP(succ);
-                String fromStr = fromStmt instanceof EmptyStatement ? pp.toStringSimple() : escape(pp + " : (((("
-                        + getStmtAtPP(pp)
-                        + "))))");
-                String toStr = toStmt instanceof EmptyStatement ? succ.toStringSimple() : escape(succ + " : (((("
-                        + getStmtAtPP(succ) + "))))");
+                String fromStr = escape(pp.toStringSimple() + " : ((((" + getStmtAtPP(pp) + "))))");
+                String toStr = escape(succ.toString() + " : ((((" + getStmtAtPP(succ) + "))))");
                 writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
                 writeSucc(succ, writer, visited);
             }
@@ -1955,7 +1951,7 @@ public class StatementRegistrar {
          * @return intermediate program point
          */
         ProgramPoint addIntermediateNormal(String debugString) {
-            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "aaaaa");
+            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString);
             if (this.entry == this.normExit) {
                 assert this.preNormExit == null;
                 this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(inst-norm-exit)");
@@ -1977,8 +1973,8 @@ public class StatementRegistrar {
          * @return
          */
         public ProgramPoint addPossibleNormal(String debugString) {
-            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "bbbbb");
-            ProgramPoint newPreNormExit = new ProgramPoint(this.entry.containingProcedure(), debugString + "cccc");
+            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString);
+            ProgramPoint newPreNormExit = new ProgramPoint(this.entry.containingProcedure(), debugString);
             if (this.entry == this.normExit) {
                 assert this.preNormExit == null;
                 this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(inst-norm-exit)");
