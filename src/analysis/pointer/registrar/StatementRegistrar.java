@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,6 +24,7 @@ import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.ClassInitFinder;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
@@ -71,12 +73,14 @@ public class StatementRegistrar {
         ProgramPoint normExit;
         ProgramPoint preNormExit;
         Map<TypeReference, ProgramPoint> exceptionExits;
+        private boolean canExitNormally;
 
         PPSubGraph(IMethod containingProcedure) {
             this.entry = new ProgramPoint(containingProcedure, "XXX");
             this.normExit = this.entry;
             this.preNormExit = null;
             this.exceptionExits = new HashMap<>();
+            this.canExitNormally = true;
         }
 
         ProgramPoint entry() {
@@ -85,6 +89,10 @@ public class StatementRegistrar {
 
         ProgramPoint normalExit() {
             return this.normExit;
+        }
+
+        void setCanExitNormally(boolean canExitNormally) {
+            this.canExitNormally = canExitNormally;
         }
 
         Map<TypeReference, ProgramPoint> exceptionExits() {
@@ -98,6 +106,7 @@ public class StatementRegistrar {
                 this.preNormExit = this.entry;
             }
             if (exceptionExits.containsKey(exType)) {
+                assert false : "Exception exits already contains key";
                 return null;
             }
             ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
@@ -113,6 +122,7 @@ public class StatementRegistrar {
                 this.preNormExit = this.entry;
             }
             if (exceptionExits.containsKey(exType)) {
+                assert false : "Exception exits already contains key";
                 return null;
             }
             ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
@@ -139,6 +149,26 @@ public class StatementRegistrar {
             return interNode;
         }
 
+        public ProgramPoint addPossibleNormal(String debugString) {
+            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString + "bbbbb");
+            ProgramPoint newPreNormExit = new ProgramPoint(this.entry.containingProcedure(), debugString + "cccc");
+            if (this.entry == this.normExit) {
+                assert this.preNormExit == null;
+                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(norm-exit)");
+                this.entry.addSucc(interNode);
+                this.preNormExit.addSucc(newPreNormExit);
+            }
+            else {
+                this.preNormExit.removeSucc(this.normExit);
+                this.preNormExit.addSucc(interNode);
+                this.preNormExit.addSucc(newPreNormExit);
+            }
+            interNode.addSucc(newPreNormExit);
+            newPreNormExit.addSucc(this.normExit);
+            this.preNormExit = newPreNormExit;
+            return interNode;
+        }
+
         void replaceWithCallSitePP(CallSiteProgramPoint cspp) {
             if (this.entry == this.normExit) {
                 assert this.preNormExit == null;
@@ -149,6 +179,10 @@ public class StatementRegistrar {
             this.preNormExit.removeSucc(this.normExit);
             this.preNormExit.addSucc(cspp);
             this.normExit = cspp;
+        }
+
+        public boolean canExitNormally() {
+            return this.canExitNormally;
         }
     }
 
@@ -180,6 +214,11 @@ public class StatementRegistrar {
      * Program point to statement map
      */
     private final ConcurrentMap<ProgramPoint, PointsToStatement> ppToStmtMap;
+
+    /**
+     * Map from IClass to the program point for the call to the class static initializer
+     */
+    private final ConcurrentMap<IClass, ProgramPoint> classInitPPs;
 
     /**
      * The total number of statements
@@ -265,6 +304,7 @@ public class StatementRegistrar {
         this.handledLiterals = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
         this.entryMethodProgramPoints = AnalysisUtil.createConcurrentSet();
+        this.classInitPPs = AnalysisUtil.createConcurrentHashMap();
         this.stmtFactory = factory;
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
@@ -324,7 +364,7 @@ public class StatementRegistrar {
                     }
                     ProgramPoint pp = new ProgramPoint(m, "XXX");
                     bbToEntryPP.put(bb, pp);
-                    addStatement(stmtFactory.emptyStatement(pp));
+                    // addStatement(stmtFactory.emptyStatement(pp));
 
                     if (ir.getControlFlowGraph().entry() == bb) {
                         methSumm.getEntryPP().addSucc(pp);
@@ -333,50 +373,88 @@ public class StatementRegistrar {
 
                 // Chain together the subgraphs
                 for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                    PPSubGraph prev = null; // previous instruction within the basic block
                     Iterator<SSAInstruction> insIter = bb.iterator();
-                    if (bb.getLastInstructionIndex() < 0) {
+                    if (!insIter.hasNext()) {
                         System.out.println("block has no instructions");
-                        for (ISSABasicBlock succBB : ir.getControlFlowGraph().getNormalSuccessors(bb)) {
-                            bbToEntryPP.get(bb).addSucc(bbToEntryPP.get(succBB));
+                        Collection<ISSABasicBlock> normalSuccs = ir.getControlFlowGraph().getNormalSuccessors(bb);
+                        if (normalSuccs.isEmpty()) {
+                            bbToEntryPP.get(bb).addSucc(methSumm.getNormalExitPP());
+                        }
+                        else {
+                            for (ISSABasicBlock succBB : normalSuccs) {
+                                bbToEntryPP.get(bb).addSucc(bbToEntryPP.get(succBB));
+                            }
+                        }
+                        continue;
+                    }
+
+                    // we have a nonempty block
+                    PPSubGraph prev = null; // previous instruction within the basic block
+                    while (insIter.hasNext()) {
+                        SSAInstruction ins = insIter.next();
+                        PPSubGraph subgraph = insToPPSubGraph.get(ins);
+
+                        if (prev == null) {
+                            // ins is the very first instruction of the block
+                            // so add an edge from the bb entry PP to the entry to subgraph.
+                            bbToEntryPP.get(bb).addSucc(subgraph.entry());
+                        }
+                        else {
+                            prev.normalExit().addSucc(subgraph.entry());
+                        }
+
+                        if (insIter.hasNext()) {
+                            // only the last instruction in a basic block is allowed to throw exceptions.
+                            assert subgraph.exceptionExits.isEmpty();
+                        }
+                        prev = subgraph;
+                    }
+                    assert prev != null;
+
+                    // prev is the last instruction in the basic block. Connect it to its successors.
+                    // get the successors of bb, and connect the nodes appropriately.
+                    if (prev.canExitNormally()) {
+                        Collection<ISSABasicBlock> normalSuccs = ir.getControlFlowGraph().getNormalSuccessors(bb);
+                        if (normalSuccs.isEmpty()) {
+                            prev.normExit.addSucc(methSumm.getNormalExitPP());
+                        }
+                        else {
+                            for (ISSABasicBlock succBB : normalSuccs) {
+                                prev.normalExit().addSucc(bbToEntryPP.get(succBB));
+                            }
                         }
                     }
-                    else {
-                        while (insIter.hasNext()) {
-                            SSAInstruction ins = insIter.next();
-                            PPSubGraph subgraph = insToPPSubGraph.get(ins);
-                            // connect subgraph.
 
-                            if (prev == null) {
-                                // ins is the very first instruction of the entry block
-                                bbToEntryPP.get(bb).addSucc(subgraph.entry());
-                            }
-                            else {
-                                prev.normalExit().addSucc(subgraph.entry());
-                            }
+                    for (TypeReference exType : prev.exceptionExits().keySet()) {
+                        IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
 
-                            if (!insIter.hasNext()) {
-                                // this is the last instruction in the basic block. Connect it to its successors.
-                                // get the successors of bb, and connect the nodes appropriately.
-                                // XXX
-                                for (ISSABasicBlock succBB : ir.getControlFlowGraph().getNormalSuccessors(bb)) {
-                                    subgraph.normalExit().addSucc(bbToEntryPP.get(succBB));
-                                }
-                                for (TypeReference exType : subgraph.exceptionExits().keySet()) {
-                                    boolean definitelyCaught = false;
-                                    for (ISSABasicBlock succBB : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
-                                        // can exType go to succBB?
-                                        // XXX TODO
+                        boolean definitelyCaught = false;
+
+                        for (ISSABasicBlock succBB : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
+                            Iterator<TypeReference> caughtTypes = succBB.getCaughtExceptionTypes();
+                            while (caughtTypes.hasNext()) {
+                                IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next());
+
+                                definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
+                                boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
+
+                                if (maybeCaught || definitelyCaught) {
+                                    // the catch block might catch the thrown exception.
+                                    prev.exceptionExits.get(exType).addSucc(bbToEntryPP.get(succBB));
+                                    if (definitelyCaught) {
+                                        break;
                                     }
                                 }
 
                             }
-                            else {
-                                assert subgraph.exceptionExits.isEmpty();
-                            }
-                            prev = subgraph;
+                        }
+
+                        if (!definitelyCaught) {
+                            // there wasn't a catch block that caught the exception.
+                            prev.exceptionExits.get(exType).addSucc(methSumm.getExceptionExitPP());
                         }
                     }
+
                 }
 
                 // clean up graph
@@ -449,8 +527,9 @@ public class StatementRegistrar {
                     ProgramPoint entryPP = getMethodSummary(m).getEntryPP();
                     for (ProgramPoint pp : this.entryMethodProgramPoints) {
                         pp.addSuccs(entryPP.succs());
+                        entryPP.clearSuccs();
+                        entryPP.addSucc(pp);
                     }
-                    entryPP.addSuccs(this.entryMethodProgramPoints);
 
                     this.entryMethodProgramPoints.clear();
                 }
@@ -504,25 +583,18 @@ public class StatementRegistrar {
                                                 insToPPSubGraph,
                                                 methSumm);
 
-        /*
+
         IClass reqInit = ClassInitFinder.getRequiredInitializedClasses(i);
-        if (reqInit != null && !insToPPSubGraph.getInitializedClassesBeforeIns(i, bb).contains(reqInit)) {
+        if (reqInit != null) {
             List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
             if (!inits.isEmpty()) {
                 // we are adding a class initializer statement.
-                // Divide the pp.
-                newPP = pp.divide("class-init-branch");
-                pp.addSucc(newPP);
-
-                ProgramPoint ppInit = new ProgramPoint(pp.containingProcedure(), pp.getDebugInfo() + "-class-init");
-                pp.addSucc(ppInit);
-                ppInit.addSucc(newPP);
-
-                this.registerClassInitializers(i, ppInit, inits);
-                pp = newPP;
+                ProgramPoint classInitPP = new ProgramPoint(null, "class-init"); // XXX ANDREW make sure the containing method is the fake root method
+                classInitPP = this.classInitPPs.putIfAbsent(reqInit, classInitPP);
+                this.registerClassInitializers(i, classInitPP, inits);
             }
         }
-        */
+
 
         InstructionType type = InstructionType.forInstruction(i);
         ProgramPoint pp = subgraph.normalExit();
@@ -1031,6 +1103,8 @@ public class StatementRegistrar {
                                ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
         TypeReference throwType = types.getType(i.getException());
+
+        insToPPSubGraph.get(i).setCanExitNormally(false);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
         this.registerThrownException(bb,
                                      ir,
@@ -1404,6 +1478,7 @@ public class StatementRegistrar {
             // This is not great (quadratic-sized structure!) and
             // we should make it more efficient sometime.
             pp.addSuccs(entryPP.succs());
+            entryPP.clearSuccs();
             entryPP.addSucc(pp);
         }
     }

@@ -438,6 +438,11 @@ public class ProgramPoint {
 
     }
 
+    public void clearSuccs() {
+        this.succs = null;
+
+    }
+
     public void setIsDiscardedProgramPoint() {
         this.succs.clear();
         this.isDiscarded = true;

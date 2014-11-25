@@ -210,6 +210,8 @@ public class StatementRegistrationPass {
 
         }
 
+        // XXX ANDREW: make sure that right here we modify the PP graph for the fake root for the class inits.
+
         this.registrar.reportStats();
         if (PointsToAnalysis.outputLevel >= 1) {
             System.err.println("Registered " + registrar.size() + " statements.");
