@@ -444,7 +444,9 @@ public class ProgramPoint {
     }
 
     public void setIsDiscardedProgramPoint() {
-        this.succs.clear();
+        if (this.succs != null) {
+            this.succs.clear();
+        }
         this.isDiscarded = true;
     }
 

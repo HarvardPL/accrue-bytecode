@@ -34,6 +34,7 @@ import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.EmptyStatement;
+import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
@@ -558,8 +559,8 @@ public class StatementRegistrar {
                                      TypeRepository types, PrettyPrinter printer, MethodSummaryNodes methSumm) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
+        assert !insToPPSubGraph.containsKey(i) || i instanceof SSAGetCaughtExceptionInstruction;
         PPSubGraph subgraph = new PPSubGraph(ir.getMethod());
-        assert !insToPPSubGraph.containsKey(i);
         insToPPSubGraph.put(i, subgraph);
 
         // Add statements for any string literals in the instruction
@@ -1369,7 +1370,7 @@ public class StatementRegistrar {
                     this.addStatement(stmtFactory.newForStringField(stringValue, newPP));
 
                     newPP = subgraph.addIntermediateNormal("string-lit");
-                    this.addStatement(stmtFactory.newForStringField(stringValue, newPP));
+                    this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, newPP));
                 }
             }
         }
@@ -1528,8 +1529,14 @@ public class StatementRegistrar {
 
                 if (maybeCaught || definitelyCaught) {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pprint);
-                    // XXX Is this right?
-                    caught.setLocalDef(insToPPSubGraph.get(catchIns).normalExit());
+                    PPSubGraph catchSG = insToPPSubGraph.get(catchIns);
+                    if (catchSG == null) {
+                        catchSG = new PPSubGraph(ir.getMethod());
+                        insToPPSubGraph.put(catchIns, catchSG);
+                    }
+                    if (caught.localDef() == null) {
+                        caught.setLocalDef(pp);
+                    }
                     this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, false, useSingletonAllocForThisException));
                 }
 
@@ -1596,7 +1603,11 @@ public class StatementRegistrar {
             classInitPP = this.classInitPPs.putIfAbsent(init.getDeclaringClass(), classInitPP);
             assert classInitPP == null : "Registering duplicate clinit for " + PrettyPrinter.typeString(init.getDeclaringClass());
         }
-        assert !pps.isEmpty() : "At least one class init should have been added.";
+
+        if (pps.isEmpty()) {
+            // All inits had already been added
+            return;
+        }
 
         // Add the program points to the root method in the correct order
 
