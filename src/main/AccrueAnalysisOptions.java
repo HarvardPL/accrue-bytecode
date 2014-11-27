@@ -23,6 +23,14 @@ public final class AccrueAnalysisOptions {
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
     /**
+     * Run single-threaded pointer analysis.
+     */
+    @Parameter(
+        names = { "-singleThreaded" },
+        description = "Use single-threaded pointer analysis. Can be used to get the number of lines of code analyzed, but can be much slower.")
+    private boolean singleThreadedPointerAnalysis = false;
+
+    /**
      * Output folder default is "tests"
      */
     @Parameter(names = { "-out" }, description = "Output directory, default is the tests directory.")
@@ -33,6 +41,14 @@ public final class AccrueAnalysisOptions {
      */
     @Parameter(names = { "-h", "-help", "-useage", "--help" }, description = "Print useage information")
     private boolean help = false;
+
+    /**
+     * Set if running performance tests to set up printing and suppress output file creation
+     */
+    @Parameter(
+        names = { "-testMode" },
+        description = "Run timing tests setting up printing and suppressing output file creation")
+    private boolean testMode = false;
 
     /**
      * Flag for running the pointer analysis single-threaded after reaching a fixed point in the multi-threaded analysis
@@ -137,6 +153,15 @@ public final class AccrueAnalysisOptions {
     private boolean onlyPrintMainMethodInSuccGraph = false;
 
     /**
+     * If true then only one allocation will be made for each type of immutable wrapper. This will reduce the size of
+     * the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.
+     */
+    @Parameter(
+        names = { "-useSingleAllocForImmutableWrappers" },
+        description = "If set then only one allocation site will be used for each type of immutable wrapper classes. These are: java.lang.String, all primitive wrapper classes, and BigDecimal and BigInteger (if not overridden). This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.")
+    private boolean useSingleAllocForImmutableWrappers = false;
+
+    /**
      * Name of the analysis to be run
      */
     @Parameter(names = { "-n", "-analyisName" }, validateWith = AccrueAnalysisOptions.AnalysisNameValidator.class, description = "Name of the analysis to run.")
@@ -150,6 +175,9 @@ public final class AccrueAnalysisOptions {
         @Override
         public void validate(String name, String value) throws ParameterException {
             if (value.equals("pointsto")) {
+                return;
+            }
+            if (value.equals("pointsto2")) {
                 return;
             }
             if (value.equals("maincfg")) {
@@ -775,11 +803,42 @@ public final class AccrueAnalysisOptions {
     }
 
     /**
-     * TODO
+     * Instead of printing the whole program point successor graph only print the successor graph for the main method
      *
-     * @return
+     * @return true if only the main method should be printed
      */
     public boolean onlyPrintMainMethodInSuccGraph() {
         return onlyPrintMainMethodInSuccGraph;
+    }
+
+    /**
+     * If true then only one allocation will be made for each type of immutable wrapper class. These are:
+     * java.lang.String, all primitive wrapper classes, and BigDecimal and BigInteger (if not overridden). This will
+     * reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision
+     * for these classes.
+     *
+     * @return whether to use a single allocation site for all immutable wrapper objects
+     */
+    public boolean shouldUseSingleAllocForImmutableWrappers() {
+        return useSingleAllocForImmutableWrappers;
+    }
+
+    /**
+     * Use a single-threaded pointer analysis,
+     *
+     * @return true if a single-threaded pointer analysis should be used, false if a multi-threaded pointer analysis
+     *         should be used
+     */
+    public boolean useSingleThreadedPointerAnalysis() {
+        return singleThreadedPointerAnalysis;
+    }
+
+    /**
+     * Whether this is a test for timing
+     *
+     * @return true if this is a test
+     */
+    public boolean isTestMode() {
+        return testMode;
     }
 }

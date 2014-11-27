@@ -40,17 +40,14 @@ public class NewStatement extends PointsToStatement {
      *
      * @param result Points-to graph node for the assignee of the new
      * @param newClass Class being created
-     * @param m method the points-to statement came from
+     * @param pp program point the points-to statement came from
      * @param pc program counter of the allocation
+     * @param lineNumber line number of the statement if available
      */
-    protected NewStatement(ReferenceVariable result, IClass newClass, ProgramPoint pp, int pc) {
+    protected NewStatement(ReferenceVariable result, IClass newClass, ProgramPoint pp, int pc, int lineNumber) {
         super(pp);
         this.result = result;
-        alloc = AllocSiteNodeFactory.createNormal(newClass,
-                                                  pp.containingProcedure().getDeclaringClass(),
-                                                  result,
-                                                  pc,
-                                                  -1);
+        alloc = AllocSiteNodeFactory.createNormal(newClass, pp.containingProcedure(), result, pc, lineNumber);
     }
 
     /**
@@ -69,7 +66,7 @@ public class NewStatement extends PointsToStatement {
         this.result = result;
         alloc = AllocSiteNodeFactory.createGenerated(name,
                                                      allocatedClass,
-                                                     pp.containingProcedure().getDeclaringClass(),
+                                                     pp.containingProcedure(),
                                                      result,
                                                      isStringLiteral);
     }

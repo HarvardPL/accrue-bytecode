@@ -165,7 +165,7 @@ public class TypeRepository {
     public static void printToFile(IMethod m) {
         TypeInference ti = TypeInference.make(AnalysisUtil.getIR(m), true);
 
-        String dir = "tests";
+        String dir = AnalysisUtil.getOutputDirectory();
         String fullFilename = dir + "/types_" + PrettyPrinter.methodString(m) + ".txt";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
             out.write(ti.toString());

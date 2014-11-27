@@ -7,6 +7,7 @@ import util.print.PrettyPrinter;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IMethod;
 
 /**
  * Factory for creating representations of memory allocations
@@ -31,17 +32,17 @@ public class AllocSiteNodeFactory {
      * only be called once for each allocation.
      *
      * @param allocatedClass class being allocated
-     * @param allocatingClass class where allocation occurs
+     * @param allocatingMethod method where allocation occurs
      * @param result variable the results will be assigned into
      * @param pc program counter where the allocation occurs
      * @param lineNumber line number from source code if one can be found, -1 otherwise
      * @return unique allocation node
      */
-    protected static AllocSiteNode createNormal(IClass allocatedClass, IClass allocatingClass,
+    protected static AllocSiteNode createNormal(IClass allocatedClass, IMethod allocatingMethod,
                                                 ReferenceVariable result, int pc, int lineNumber) {
         String name = PrettyPrinter.typeString(allocatedClass);
         @SuppressWarnings("synthetic-access")
-        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingClass, pc, false, lineNumber);
+        AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingMethod, pc, false, lineNumber);
         assert nodeMap.put(result, n) == null;
         return n;
     }
@@ -52,16 +53,16 @@ public class AllocSiteNodeFactory {
      *
      * @param debugString String for printing and debugging
      * @param allocatedClass class being allocated
-     * @param allocatingClass class where allocation occurs
+     * @param allocatingMethod method where allocation occurs
      * @param isStringLiteral true if this allocation is for a string literal, if this is true then debugString should
      *            be the literal string being allocated
      *
      * @return unique allocation node
      */
-    public static AllocSiteNode createGenerated(String debugString, IClass allocatedClass, IClass allocatingClass,
+    public static AllocSiteNode createGenerated(String debugString, IClass allocatedClass, IMethod allocatingMethod,
                                                    ReferenceVariable result, boolean isStringLiteral) {
         @SuppressWarnings("synthetic-access")
-        AllocSiteNode n = new AllocSiteNode(debugString, allocatedClass, allocatingClass, isStringLiteral);
+        AllocSiteNode n = new AllocSiteNode(debugString, allocatedClass, allocatingMethod, isStringLiteral);
         assert result == null || nodeMap.put(result, n) == null;
         return n;
     }
@@ -69,12 +70,12 @@ public class AllocSiteNodeFactory {
     /**
      * Represents an allocation site in the code
      */
-    public static final class AllocSiteNode {
+    public static class AllocSiteNode {
 
         /**
-         * Class allocation occurs in
+         * Method where allocation occurs in
          */
-        private final IClass allocatingClass;
+        protected final IMethod allocatingMethod;
         /**
          * Allocated class
          */
@@ -86,7 +87,7 @@ public class AllocSiteNodeFactory {
         /**
          * program counter at the allocation site (-1 for generated allocations e.g. generated exceptions)
          */
-        private final int programCounter;
+        protected final int programCounter;
 
         /**
          * Is this allocation a string literal then this is the literal value?
@@ -104,11 +105,12 @@ public class AllocSiteNodeFactory {
          *
          * @param debugString String for printing and debugging
          * @param allocatedClass class being allocated
-         * @param allocatingClass class where allocation occurs
+         * @param allocatingMethod method where allocation occurs
          * @param isStringLiteral true if this allocation is for a string literal
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass, boolean isStringLiteral) {
-            this(debugString, allocatedClass, allocatingClass, -1, isStringLiteral, -1);
+        private AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod,
+                              boolean isStringLiteral) {
+            this(debugString, allocatedClass, allocatingMethod, -1, isStringLiteral, -1);
         }
 
         /**
@@ -116,19 +118,19 @@ public class AllocSiteNodeFactory {
          *
          * @param debugString String for printing and debugging
          * @param allocatedClass class being allocated
-         * @param allocatingClass class where allocation occurs
+         * @param allocatingMethod class where allocation occurs
          * @param programCounter program counter at the allocation site (-1 for generated allocations e.g. generated
          *            exceptions)
          * @param isStringLiteral true if this allocation is for a string literal
          * @param lineNumber line number from source code if one can be found, -1 otherwise
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IClass allocatingClass, int programCounter,
+        public AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod, int programCounter,
                               boolean isStringLiteral, int lineNumber) {
             assert debugString != null;
-            assert allocatingClass != null;
+            assert allocatingMethod != null;
             assert allocatedClass != null;
             this.debugString = debugString;
-            this.allocatingClass = allocatingClass;
+            this.allocatingMethod = allocatingMethod;
             this.allocatedClass = allocatedClass;
             this.programCounter = programCounter;
             this.isStringLiteral = isStringLiteral;
@@ -139,8 +141,8 @@ public class AllocSiteNodeFactory {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append(debugString.replace("\n", "(newline)"));
-            sb.append(" allocated in ");
-            sb.append(PrettyPrinter.typeString(allocatingClass));
+            sb.append(" allocated at ");
+            sb.append(PrettyPrinter.methodString(allocatingMethod));
             if (lineNumber >= 0) {
                 sb.append("(line:" + lineNumber + ")");
             }
@@ -155,7 +157,7 @@ public class AllocSiteNodeFactory {
         }
 
         public IClass getAllocatingClass() {
-            return allocatingClass;
+            return allocatingMethod.getDeclaringClass();
         }
 
         public IClass getAllocatedClass() {
@@ -174,6 +176,14 @@ public class AllocSiteNodeFactory {
 
         public int getLineNumber() {
             return lineNumber;
+        }
+
+        public IMethod getAllocatingMethod() {
+            return allocatingMethod;
+        }
+
+        public int getProgramCounter() {
+            return programCounter;
         }
     }
 }

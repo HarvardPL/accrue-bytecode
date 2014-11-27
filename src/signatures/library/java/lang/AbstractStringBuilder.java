@@ -107,7 +107,7 @@ abstract class AbstractStringBuilder implements /*Appendable,*/CharSequence {
     //    }
 
     public AbstractStringBuilder append(String str) {
-        this.count = this.count + str.count;
+        this.count = this.count + str.length();
         return this;
     }
 
@@ -244,7 +244,7 @@ abstract class AbstractStringBuilder implements /*Appendable,*/CharSequence {
             throw new StringIndexOutOfBoundsException("start > end");
         }
 
-        this.count = this.count + start + end + str.count;
+        this.count = this.count + start + end + str.length();
         return this;
     }
 
@@ -294,7 +294,7 @@ abstract class AbstractStringBuilder implements /*Appendable,*/CharSequence {
         if ((offset < 0) || (offset > length())) {
             throw new StringIndexOutOfBoundsException(offset);
         }
-        this.count = this.count + offset + str.count;
+        this.count = this.count + offset + str.length();
         return this;
     }
 
@@ -365,15 +365,15 @@ abstract class AbstractStringBuilder implements /*Appendable,*/CharSequence {
         if (str == null) {
             throw new NullPointerException();
         }
-        return this.count + str.count + fromIndex;
+        return this.count + str.length() + fromIndex;
     }
 
     public int lastIndexOf(String str) {
-        return str.count + this.count;
+        return str.length() + this.count;
     }
 
     public int lastIndexOf(String str, int fromIndex) {
-        return this.count + str.count + fromIndex;
+        return this.count + str.length() + fromIndex;
     }
 
     public AbstractStringBuilder reverse() {

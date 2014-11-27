@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import main.AccrueAnalysisMain;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -26,6 +27,7 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Manages the running of an inter-procedural data-flow analysis
@@ -140,10 +142,18 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             processCallGraphNode(current);
         }
 
-        System.err.println("FINISHED: " + getAnalysisName() + " it took " + (System.currentTimeMillis() - start) + "ms");
-        System.gc();
-        System.err.println("Memory used so far: "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+        long time = System.currentTimeMillis() - start;
+
+        if (AccrueAnalysisMain.testMode && getAnalysisName().contains("PDG")) {
+            System.out.println(time / 1000.0);
+        }
+
+        System.err.println("FINISHED: " + getAnalysisName() + " it took " + (time / 1000.0) + "s");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("Memory used so far: "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+        }
     }
 
     protected abstract String getAnalysisName();
@@ -596,6 +606,28 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             ret.add(loc);
         }
         return ret;
+    }
+
+    /**
+     * Check whether the variable with the given value number is an array
+     */
+    public boolean isArray(int array, CGNode n, TypeReference type) {
+        if (type.isArrayType()) {
+            return true;
+        }
+        if (!type.getName().equals(TypeReference.JavaLangObject.getName())) {
+            // This is not an array type or an Object (which could also be an array)
+            return false;
+        }
+        // This is a java.lang.Object, but might point to an array
+        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
+        while (pointsToIter.hasNext()) {
+            InstanceKey o = pointsToIter.next();
+            if (o.getConcreteType().isArrayClass()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

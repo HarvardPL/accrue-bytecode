@@ -16,7 +16,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
      * to fake and it is a valid field name in java.lang.String. Really this is more like the "value" field, but using a
      * char[] introduces another level of indirection through the contents of the array.
      */
-    int count;
+    private int count;
     private static final long serialVersionUID = -6849794470754667710L;
 
     public String() {
@@ -321,7 +321,7 @@ public class String implements java.io.Serializable, Comparable<String>, CharSeq
 
         @Override
         public int compare(String s1, String s2) {
-            return s1.count + s2.count;
+            return s1.length() + s2.length();
         }
     }
 

@@ -41,7 +41,6 @@ public class SparseIntMap<T> implements IntMap<T> {
         this.size = 0;
     }
 
-
     /**
      * Does this key set contain value x?
      *

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import main.AccrueAnalysisMain;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -51,16 +52,24 @@ public class StatementRegistrationPass {
      * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
      *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
      *            precision for strings.
+     * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for each type of
+     *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
+     *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
+     *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      */
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
-                                     boolean useSingleAllocForStrings, boolean onlyPrintMainMethodInSuccGraph) {
+                                     boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
+                                     boolean onlyPrintMainMethodInSuccGraph) {
+
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
                                            useSingleAllocForThrowable,
                                            useSingleAllocForPrimitiveArrays,
                                            useSingleAllocForStrings,
+                                           useSingleAllocForImmutableWrappers,
                                            onlyPrintMainMethodInSuccGraph);
+
     }
 
     /**
@@ -103,6 +112,9 @@ public class StatementRegistrationPass {
         // the classes for which we have registered an instance methods.
         // These are the classes that might have instances when we execute
         Set<IClass> seenInstancesOf = new HashSet<>();
+        // Add String to the list of seen instance methods.
+        // There will be a String somewhere and this covers the rare case that the only String objects seen are literals.
+        seenInstancesOf.add(AnalysisUtil.getStringClass());
         Map<IClass, Collection<IMethod>> waitingForInstances = new HashMap<>();
 
         Set<MethodReference> alreadyProcessedVirtual = new HashSet<>();
@@ -182,7 +194,7 @@ public class StatementRegistrationPass {
                         continue;
                     }
 
-                    Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv);
+                    Set<IMethod> targets = StatementRegistrar.resolveMethodsForInvocation(inv, bb.getMethod());
                     if (inv.isSpecial() || inv.isStatic()) {
                         // it is a special or a static method, so add the target(s) to the queue
                         q.addAll(targets);
@@ -219,9 +231,12 @@ public class StatementRegistrationPass {
             System.err.println("It took " + (System.currentTimeMillis() - start) + "ms");
         }
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
-        System.gc();
-        System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
-                + "MB");
+        System.err.println("Saw " + registrar.swingClasses + " allocations from the Swing libraries.");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
+                    + "MB");
+        }
         if (PROFILE) {
             System.err.println("PAUSED HIT ENTER TO CONTINUE: ");
             try {
@@ -261,6 +276,6 @@ public class StatementRegistrationPass {
     }
 
     public ReferenceVariableCache getAllLocals() {
-        return registrar.getAllLocals();
+        return registrar.getRvCache();
     }
 }

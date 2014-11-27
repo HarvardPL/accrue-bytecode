@@ -2,6 +2,7 @@ package analysis.dataflow.util;
 
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraph;
 
 import com.ibm.wala.classLoader.IField;
@@ -129,9 +130,13 @@ public class AbstractLocation {
     @Override
     public String toString() {
         if (isArrayContents) {
-            return receiverContext + "." + PointsToGraph.ARRAY_CONTENTS;
+            return PrettyPrinter.typeString(receiverContext.getConcreteType()) + "." + PointsToGraph.ARRAY_CONTENTS
+                   /* + " in " + receiverContext*/;
         }
-        return PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
-                                        + (receiverContext == null ? " (static)" : " in " + receiverContext);
+        if (field == null && PointsToAnalysis.outputLevel >= 1) {
+            System.err.println("WARNING: null field in AbstractLocation in  " + receiverContext);
+        }
+        return (field != null ? PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
+                : "NULL FIELD") + (receiverContext == null ? " (static)" : "" /*in " + receiverContext*/);
     }
 }

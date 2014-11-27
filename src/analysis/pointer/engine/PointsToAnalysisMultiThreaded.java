@@ -10,6 +10,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
 import util.intset.ConcurrentIntHashSet;
@@ -175,18 +176,25 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
+        if (AccrueAnalysisMain.testMode) {
+            System.out.println(totalTime / 1000.0);
+        }
         System.err.println("\n\n  ***************************** \n\n");
-        System.err.println("   Total time             : " + totalTime / 1000 + "s.");
+        System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
-        //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
-        System.gc();
-        System.err.println("   Memory utilization     : "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
-        System.err.println("\n\n");
+        if (!AccrueAnalysisMain.testMode) {
+            //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+            System.gc();
+            System.err.println("   Memory utilization     : "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.err.println("\n\n");
 
-        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
-        g.dumpPointsToGraphToFile("tests/pointsToGraph");
+            registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
+            g.dumpPointsToGraphToFile("tests/pointsToGraph");
+        }
+
+
 
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
@@ -194,10 +202,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         g.constructionFinished();
-        System.gc();
-        System.err.println("   Memory post compression: "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
-        System.err.println("\n\n");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("   Memory post compression: "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.err.println("\n\n");
+        }
 
         return g;
     }

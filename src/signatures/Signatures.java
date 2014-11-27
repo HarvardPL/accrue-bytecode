@@ -2,7 +2,9 @@ package signatures;
 
 import java.lang.ref.SoftReference;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import util.InstructionType;
 import util.print.CFGWriter;
@@ -16,8 +18,10 @@ import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.classLoader.NewSiteReference;
+import com.ibm.wala.ipa.callgraph.impl.Everywhere;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.ssa.IR;
+import com.ibm.wala.ssa.SSACache;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstanceofInstruction;
@@ -25,6 +29,7 @@ import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInstructionFactory;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
+import com.ibm.wala.ssa.SSAOptions;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.Descriptor;
@@ -118,10 +123,26 @@ public class Signatures {
         }
 
         MethodReference actual = actualMethod.getReference();
-        if (isSigType(actual.getDeclaringClass())) {
-            // requesting signature for a signature type just record and return null
+        TypeReference declaringType = actual.getDeclaringClass();
+        if (isSigType(declaringType) && findRealTypeForSigType(declaringType) != null) {
+            // requesting signature for a signature type with an associated "real" type just record and return null
             signatures.put(actualMethod, null);
             return null;
+        }
+
+        if (isSigType(actual.getDeclaringClass())) {
+            // requesting signature for a signature type with no associated "real" type.
+            // rewrite the IR to replace all mentions of signature types
+            IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(actual);
+            SSACache cache = AnalysisUtil.getCache().getSSACache();
+            SSAOptions options = AnalysisUtil.getOptions().getSSAOptions();
+            // Get the actual IR
+            IR sigIR = cache.findOrCreateIR(resolvedMethod, Everywhere.EVERYWHERE, options);
+            // Replace all signature classes with real counterparts
+            IR newIR = rewriteIR(sigIR, actualMethod);
+            // Put the IR in the signature cache
+            signatures.put(actualMethod, new SoftReference<>(newIR));
+            return newIR;
         }
 
         TypeReference actualTarget = actual.getDeclaringClass();
@@ -622,5 +643,106 @@ public class Signatures {
      */
     public static boolean isSigType(TypeReference type) {
         return type.toString().contains("Lsignatures/library/");
+    }
+
+    private static Set<TypeName> immutableWrappers = new HashSet<>();
+
+    /**
+     * Is this method System.arraycopy
+     *
+     * @param mr method to check
+     * @return true if the method is System.arraycopy
+     */
+    public static boolean isArraycopy(MethodReference mr) {
+        TypeName name = mr.getDeclaringClass().getName();
+        if (!name.equals(TypeReference.JavaLangSystem.getName())) {
+            return false;
+        }
+
+        if (mr.getName().toString().contains("arraycopy")) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check whether the call is to a method on one of the immutable wrapper classes (String, Integer, etc.). If this is
+     * String.valueOf(Object) or a clinit then this returns false.
+     *
+     * @param i method invocation to check
+     * @return true if the call is on an immutable wrapper (or on the signature type for one)
+     */
+    public static boolean isImmutableWrapperCall(SSAInvokeInstruction i) {
+        if (!isImmutableWrapperType(i.getDeclaredTarget().getDeclaringClass())) {
+            // This is not one of the immutable types
+            return false;
+        }
+        if (i.getDeclaredTarget().getName().equals(MethodReference.clinitName)
+                || i.getDeclaredTarget().getDeclaringClass().equals(TypeReference.JavaLangString)
+                && i.getDeclaredTarget().getName().toString().contains("valueOf")
+                && i.getDeclaredTarget().getParameterType(0).equals(TypeReference.JavaLangObject)) {
+            // This is String.valueOf(Object o) or this is the clinit, do not inline
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Check whether the given type is one of the immutable wrapper classes (String, Integer, etc.)
+     *
+     * @param t type to check
+     * @return true if the type is an immutable wrapper (or is the signature type for one)
+     */
+    public static boolean isImmutableWrapperType(TypeReference t) {
+        if (immutableWrappers.isEmpty()) {
+            // Initialize the set of wrapper types
+            immutableWrappers.add(TypeReference.JavaLangString.getName());
+            immutableWrappers.add(TypeReference.JavaLangByte.getName());
+            immutableWrappers.add(TypeReference.JavaLangShort.getName());
+            immutableWrappers.add(TypeReference.JavaLangInteger.getName());
+            immutableWrappers.add(TypeReference.JavaLangLong.getName());
+            immutableWrappers.add(TypeReference.JavaLangFloat.getName());
+            immutableWrappers.add(TypeReference.JavaLangDouble.getName());
+            immutableWrappers.add(TypeReference.JavaLangCharacter.getName());
+            immutableWrappers.add(TypeReference.JavaLangBoolean.getName());
+            // BigInteger and BigDecimal are immutable, but not final so they can be subclassed
+            // Add them if they don't get subclassed
+            TypeName bigDecimal = TypeName.findOrCreate("Ljava/math/BigDecimal");
+            TypeReference bigDecimalTR = TypeReference.findOrCreate(CLASS_LOADER, bigDecimal);
+            if (AnalysisUtil.getClassHierarchy().computeSubClasses(bigDecimalTR).size() == 1) {
+                // No subclasses
+                immutableWrappers.add(bigDecimal);
+            }
+            else {
+                System.err.println("WARNING: BigDecimal has subclasses "
+                        + AnalysisUtil.getClassHierarchy().computeSubClasses(bigDecimalTR)
+                        + ". It may not be immutable.");
+            }
+
+            TypeName bigInteger = TypeName.findOrCreate("Ljava/math/BigInteger");
+            TypeReference bigIntegerTR = TypeReference.findOrCreate(CLASS_LOADER, bigInteger);
+            if (AnalysisUtil.getClassHierarchy().computeSubClasses(bigIntegerTR).size() == 1) {
+                // No subclasses
+                immutableWrappers.add(bigInteger);
+            }
+            else {
+                System.err.println("WARNING: BigInteger has subclasses "
+                        + AnalysisUtil.getClassHierarchy().computeSubClasses(bigIntegerTR)
+                        + ". It may not be immutable.");
+            }
+        }
+
+        if (immutableWrappers.contains(t.getName())) {
+            return true;
+        }
+        if (isSigType(t)) {
+            // This is a signature type try the real type
+            TypeReference realType = findRealTypeForSigType(t);
+            if (realType == null) {
+                return false;
+            }
+            return isImmutableWrapperType(realType);
+        }
+        return false;
     }
 }

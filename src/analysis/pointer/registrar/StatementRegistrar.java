@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import signatures.Signatures;
 import types.TypeRepository;
 import util.InstructionType;
 import util.OrderedPair;
@@ -142,6 +143,16 @@ public class StatementRegistrar {
      * If true then only print the successor graph for the main method.
      */
     private final boolean onlyPrintMainMethodInSuccGraph;
+    /**
+    * If true then only one allocation will be made for any immutable wrapper class. This will reduce the size of the
+     * points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.
+     * <p>
+     * These classes are java.lang.String, all the primitive wrappers, and BigInteger and BigDecimal if they are not
+     * subclassed.
+     */
+    private final boolean useSingleAllocForImmutableWrappers;
+
+    private final boolean useSingleAllocForSwing = true;
 
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
@@ -183,10 +194,13 @@ public class StatementRegistrar {
      * @param useSingleAllocForStrings If true then only one allocation will be made for any string. This will reduce
      *            the size of the points-to graph (and speed up the points-to analysis), but result in a loss of
      *            precision for strings.
+     * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for any immutable wrapper
+     *            class. This will reduce the size of the points-to graph (and speed up the points-to analysis), but
+     *            result in a loss of precision for these classes.
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
-                              boolean useSingleAllocForStrings, boolean onlyPrintMainMethodInSuccGraph) {
+                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers, boolean onlyPrintMainMethodInSuccGraph) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
@@ -200,13 +214,17 @@ public class StatementRegistrar {
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
         this.useSingleAllocForPrimitiveArrays = useSingleAllocForPrimitiveArrays;
-        System.err.println("Singleton allocation site per primitive array type: " + useSingleAllocForPrimitiveArrays);
-        this.useSingleAllocForStrings = useSingleAllocForStrings;
-        System.err.println("Singleton allocation site for java.lang.String: " + useSingleAllocForStrings);
+        System.err.println("Singleton allocation site per primitive array type: "
+                + this.useSingleAllocForPrimitiveArrays);
+        this.useSingleAllocForStrings = useSingleAllocForStrings || useSingleAllocForImmutableWrappers;
+        System.err.println("Singleton allocation site for java.lang.String: " + this.useSingleAllocForStrings);
         this.useSingleAllocPerThrowableType = useSingleAllocPerThrowableType;
-        System.err.println("Singleton allocation site per java.lang.Throwable subtype: "
-                + useSingleAllocPerThrowableType);
+        System.err.println("Singleton allocation site per java.lang.Throwable subtype: " + useSingleAllocPerThrowableType);
         this.onlyPrintMainMethodInSuccGraph = onlyPrintMainMethodInSuccGraph;
+        this.useSingleAllocForImmutableWrappers = useSingleAllocForImmutableWrappers;
+        System.err.println("Singleton allocation site per immutable wrapper type: "
+                + this.useSingleAllocForImmutableWrappers);
+        System.err.println("Singleton allocation site per Swing library type: " + this.useSingleAllocForSwing);
     }
 
     /**
@@ -542,6 +560,7 @@ public class StatementRegistrar {
      * A listener that will get notified of newly created statements.
      */
     private StatementListener stmtListener = null;
+    int swingClasses = 0;
 
     private static int removedStmts = 0;
     private static int removedProgramPoints = 0;
@@ -887,7 +906,7 @@ public class StatementRegistrar {
         }
 
         if (PointsToAnalysis.outputLevel >= 2) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
             if (resolvedMethods.isEmpty()) {
                 System.err.println("No resolved methods for " + pprint.instructionString(i) + " method: "
                         + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
@@ -912,9 +931,8 @@ public class StatementRegistrar {
         // //////////// Resolve methods add statements ////////////
 
         if (i.isStatic()) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
             if (resolvedMethods.isEmpty()) {
-                System.err.println("No method found for " + PrettyPrinter.methodString(i.getDeclaredTarget()));
                 return;
             }
             assert resolvedMethods.size() == 1;
@@ -928,7 +946,11 @@ public class StatementRegistrar {
                                                      calleeSummary));
         }
         else if (i.isSpecial()) {
-            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i);
+            Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
+            if (resolvedMethods.isEmpty()) {
+                // XXX No methods found!
+                return;
+            }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
@@ -943,7 +965,7 @@ public class StatementRegistrar {
         else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {
             if (ir.getSymbolTable().isNullConstant(i.getReceiver())) {
-                // Similar to the check above sometimes the receiver is a null constant
+                // Sometimes the receiver is a null constant
                 return;
             }
             this.addStatement(stmtFactory.virtualCall(pp,
@@ -980,7 +1002,11 @@ public class StatementRegistrar {
             this.addStatement(stmtFactory.localToLocal(a, rv, pp, false));
         }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(a, klass, pp, i.getNewSite().getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(a,
+                                                            klass,
+                                                            pp,
+                                                            i.getNewSite().getProgramCounter(),
+                                                            pprint.getLineNumber(i)));
         }
         // Handle arrays with multiple dimensions
         ReferenceVariable outerArray = a;
@@ -1012,18 +1038,23 @@ public class StatementRegistrar {
                                    TypeRepository types, PrettyPrinter pprint) {
         // all "new" instructions are assigned to a local
         TypeReference resultType = i.getConcreteType();
+
         assert resultType.getName().equals(types.getType(i.getDef()).getName());
         ReferenceVariable result = rvFactory.getOrCreateLocal(i.getDef(), resultType, ir.getMethod(), pprint);
 
         TypeReference allocType = i.getNewSite().getDeclaredType();
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(allocType);
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        if (useSingleAllocPerThrowableType
-                && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
+        if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
 
+        }
+        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(allocType)) {
+            // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
+            ReferenceVariable rv = getOrCreateSingleton(allocType);
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
         }
         else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
@@ -1031,9 +1062,22 @@ public class StatementRegistrar {
             this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
 
         }
+        else if (useSingleAllocForSwing
+                && (klass.toString().contains("Ljavax/swing/") || klass.toString().contains("Lsun/swing/") || klass.toString()
+                                                                                                                   .contains("Lcom/sun/java/swing"))) {
+            swingClasses++;
+            ReferenceVariable rv = getOrCreateSingleton(allocType);
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
+        }
+        else if (klass.toString().contains("swing")) {
+            System.err.println("SWING CLASS: " + klass);
+        }
         else {
-            this.addStatement(stmtFactory.newForNormalAlloc(result, klass, pp, i.getNewSite()
-                                                                                            .getProgramCounter()));
+            this.addStatement(stmtFactory.newForNormalAlloc(result,
+                                                            klass,
+                                                            pp,
+                                                            i.getNewSite().getProgramCounter(),
+                                                            pprint.getLineNumber(i)));
         }
     }
 
@@ -1174,7 +1218,7 @@ public class StatementRegistrar {
      * @param inv method invocation to resolve methods for
      * @return Set of methods the invocation could call
      */
-    static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv) {
+    static Set<IMethod> resolveMethodsForInvocation(SSAInvokeInstruction inv, IMethod caller) {
         Set<IMethod> targets = null;
         if (inv.isStatic()) {
             IMethod resolvedMethod = AnalysisUtil.getClassHierarchy().resolveMethod(inv.getDeclaredTarget());
@@ -1199,6 +1243,15 @@ public class StatementRegistrar {
         if (targets == null || targets.isEmpty()) {
             // XXX HACK These methods seem to be using non-existant TreeMap methods and fields
             // Let's hope they are never really called
+            if (PointsToAnalysis.outputLevel > 0) {
+                System.err.println("WARNING Unable to resolve " + PrettyPrinter.methodString(inv.getDeclaredTarget()));
+                if (PointsToAnalysis.outputLevel > 0) {
+                    PrettyPrinter pp = new PrettyPrinter(AnalysisUtil.getIR(caller));
+                    System.err.println("\tIN : " + PrettyPrinter.methodString(pp.getIR().getMethod()) + " line: "
+                            + pp.getLineNumber(inv));
+                    System.err.println("\tFOR: " + inv);
+                }
+            }
             return Collections.emptySet();
         }
         return targets;
@@ -1742,8 +1795,8 @@ public class StatementRegistrar {
      *
      * @return map from local variable to unique reference variable
      */
-    public ReferenceVariableCache getAllLocals() {
-        return this.rvFactory.getAllLocals(replacedVariableMap);
+    public ReferenceVariableCache getRvCache() {
+        return this.rvFactory.getRvCache(replacedVariableMap, methods);
     }
 
     /**

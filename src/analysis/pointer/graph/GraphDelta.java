@@ -7,6 +7,7 @@ import java.util.Set;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
+import util.intset.IntSetUnion;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
@@ -357,7 +358,7 @@ public class GraphDelta {
             for (int i = 0; i < iterators.size(); i += 2) {
                 IntIterator iter;
                 if (i + 1 < iterators.size()) {
-                    iter = g.new SortedIntSetUnionIterator(iterators.get(i), iterators.get(i + 1));
+                    iter = new IntSetUnion.SortedIntSetUnionIterator(iterators.get(i), iterators.get(i + 1));
                 }
                 else {
                     iter = iterators.get(i);

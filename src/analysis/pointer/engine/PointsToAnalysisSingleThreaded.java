@@ -42,8 +42,11 @@ import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ReturnStatement;
 import analysis.pointer.statements.StaticFieldToLocalStatement;
 
+import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.shrikeBT.IInstruction;
+import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
@@ -90,6 +93,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
 
     private Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue;
+
+    private Set<IMethod> printed = new HashSet<>();
+    public long lines2 = 0;
+    public long instructions = 0;
 
     /**
      * Generate a points-to graph by tracking dependencies and only analyzing statements that are reachable from the
@@ -158,12 +165,53 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     PointsToAnalysisSingleThreaded.this.registrationTime += end - start;
                 }
 
+                updateLineCounter(callee);
+
                 for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     noDeltaQueue.add(newSaC);
                 }
             }
 
+            private void updateLineCounter(IMethod m) {
+                if (printed.add(m)) {
+                    if (!m.isNative() && m instanceof IBytecodeMethod && !AnalysisUtil.hasSignature(m)) {
+                        IBytecodeMethod bm = (IBytecodeMethod) m;
+                        try {
+                            IInstruction[] ins = bm.getInstructions();
+                            instructions += ins.length;
+                            if (ins.length > 0) {
+                                int first = bm.getLineNumber(bm.getBytecodeIndex(0));
+                                int last = bm.getLineNumber(bm.getBytecodeIndex(ins.length - 1));
+                                // Line numbers (add one for the method declaration)
+                                lines2++;
+                                for (int j = 0; j < ins.length; j++) {
+                                    int index = bm.getLineNumber(bm.getBytecodeIndex(j));
+                                    if (index < first) {
+                                        first = index;
+                                    }
+                                    if (index > last) {
+                                        last = index;
+                                    }
+                                }
+                                if (last > 0) {
+                                    lines2 += last - first + 2;
+                                }
+                            }
+                            else {
+                                System.out.print("(0, 1)");
+                                lines2++;
+                            }
+                        }
+                        catch (InvalidClassFileException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    else {
+                        lines2++;
+                    }
+                }
+            }
         };
 
 
@@ -306,7 +354,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("   Cycles now removed " + g.cycleRemovalCount()
                            + " nodes");
 
-        this.processAllStatements(g, registrar);
+        //        this.processAllStatements(g, registrar);
         g.constructionFinished();
         return g;
     }

@@ -347,12 +347,13 @@ public class StatementFactory {
      * @param lineNumber line number from source code if one can be found, -1 otherwise
      * @return statement to be processed during pointer analysis
      */
-    public NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, ProgramPoint pp, int pc) {
+    public NewStatement newForNormalAlloc(ReferenceVariable result, IClass newClass, ProgramPoint pp, int pc,
+                                          int lineNumber) {
         assert result != null;
         assert newClass != null;
         assert pp != null;
 
-        NewStatement s = new NewStatement(result, newClass, pp, pc);
+        NewStatement s = new NewStatement(result, newClass, pp, pc, lineNumber);
         assert map.put(new StatementKey(result), s) == null;
         return s;
     }

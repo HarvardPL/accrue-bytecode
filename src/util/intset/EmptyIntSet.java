@@ -30,7 +30,7 @@ public class EmptyIntSet implements MutableIntSet {
 
     @Override
     public boolean containsAny(IntSet set) {
-        return set.isEmpty();
+        return false;
     }
 
     @Override

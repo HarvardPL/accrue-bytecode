@@ -110,6 +110,15 @@ public class PrettyPrinter {
     }
 
     /**
+     * Get the IR code this is a pretty printer for
+     *
+     * @return WALA intermediate representation
+     */
+    public IR getIR() {
+        return ir;
+    }
+
+    /**
      * Get a string for the basic block
      *
      * @param bb
@@ -530,15 +539,6 @@ public class PrettyPrinter {
             CFGWriter.writeToFile(m);
             System.err.println("WARNING: more than one name: " + Arrays.toString(names) + " for " + valNum + " in "
                     + methodString(m));
-        }
-        if (names.length > 1) {
-            for (int i = 1; i < names.length; i++) {
-                if (names[i] != null) {
-                    CFGWriter.writeToFile(m);
-                    System.err.println("WARNING: more than one name: " + Arrays.toString(names) + " for " + valNum
-                            + " in " + methodString(m));
-                }
-            }
         }
         return getCanonical(names[0]);
     }

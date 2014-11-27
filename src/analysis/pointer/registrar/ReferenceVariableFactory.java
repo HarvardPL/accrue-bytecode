@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -137,9 +138,8 @@ public class ReferenceVariableFactory {
             int basicBlockID, IMethod method) {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false, false, false);
         // These should only be created once assert that this is true
-        assert implicitThrows.put(new ImplicitThrowKey(type,
-                                                       basicBlockID,
-                                                       method), rv) == null;
+        ReferenceVariable prev = implicitThrows.put(new ImplicitThrowKey(type, basicBlockID, method), rv);
+        assert prev == null;
         return rv;
     }
 
@@ -285,14 +285,14 @@ public class ReferenceVariableFactory {
      *
      * @return Cache of reference variables for each local variable
      */
-    public ReferenceVariableCache getAllLocals(Map<IMethod, VariableIndex> replacementMap) {
-        return new ReferenceVariableCache(locals, replacementMap);
+    public ReferenceVariableCache getRvCache(Map<IMethod, VariableIndex> replacementMap, ConcurrentMap<IMethod, MethodSummaryNodes> methods) {
+        return new ReferenceVariableCache(locals, replacementMap, arrayContentsTemps, implicitThrows, staticFields, methods);
     }
 
     /**
      * Key uniquely identifying an implicitly thrown exception or error
      */
-    private static class ImplicitThrowKey {
+    public static class ImplicitThrowKey {
         /**
          * Method in which the exception is thrown
          */
@@ -374,7 +374,7 @@ public class ReferenceVariableFactory {
      * Key into the array containing temporary local variables created to represent the contents of the inner dimensions
      * of multi-dimensional arrays
      */
-    private static class ArrayContentsKey {
+    public static class ArrayContentsKey {
         /**
          * Dimension (counted from the outside in) e.g. 1 is the contents of the actual declared multi-dimensional array
          */
