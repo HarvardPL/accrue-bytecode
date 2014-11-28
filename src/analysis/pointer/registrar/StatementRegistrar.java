@@ -661,7 +661,7 @@ public class StatementRegistrar {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         assert !insToPPSubGraph.containsKey(i) || i instanceof SSAGetCaughtExceptionInstruction;
-        PPSubGraph subgraph = new PPSubGraph(ir.getMethod());
+        PPSubGraph subgraph = new PPSubGraph(ir.getMethod(), i, printer);
         insToPPSubGraph.put(i, subgraph);
 
         // Add statements for any string literals in the instruction
@@ -1663,7 +1663,7 @@ public class StatementRegistrar {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pprint);
                     PPSubGraph catchSG = insToPPSubGraph.get(catchIns);
                     if (catchSG == null) {
-                        catchSG = new PPSubGraph(ir.getMethod());
+                        catchSG = new PPSubGraph(ir.getMethod(), catchIns, pprint);
                         insToPPSubGraph.put(catchIns, catchSG);
                     }
                     if (caught.localDef() == null) {
@@ -2031,8 +2031,8 @@ public class StatementRegistrar {
         Map<TypeReference, ProgramPoint> exceptionExits;
         private boolean canExitNormally;
 
-        PPSubGraph(IMethod containingProcedure) {
-            this.entry = new ProgramPoint(containingProcedure, "(inst-entry)");
+        PPSubGraph(IMethod containingProcedure, SSAInstruction i, PrettyPrinter pprint) {
+            this.entry = new ProgramPoint(containingProcedure, "i-entry-" + pprint.instructionString(i));
             this.normExit = this.entry;
             this.preNormExit = null;
             this.exceptionExits = new HashMap<>();
