@@ -275,10 +275,9 @@ public class StatementRegistrar {
                             System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
                                     + " in " + m);
                         }
-                        System.out.println("handling " + ins);
                         handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm);
                     }
-                    ProgramPoint pp = new ProgramPoint(m, "BB entry");
+                    ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
                     bbToEntryPP.put(bb, pp);
 
                     if (ir.getControlFlowGraph().entry() == bb) {
@@ -292,7 +291,7 @@ public class StatementRegistrar {
                 }
 
                 // clean up graph
-                cleanUpProgramPoints(methSumm);
+                // XXX cleanUpProgramPoints(methSumm);
 
                 // now try to remove duplicates
                 Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -687,7 +686,7 @@ public class StatementRegistrar {
             if (!inits.isEmpty()) {
                 // XXX Steve I think this is what we want since this is the location of the
                 // class initialization _statement_ not the class initializer itself
-                ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit");
+                ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit " + PrettyPrinter.typeString(reqInit));
                 this.registerClassInitializers(i, clinitPP, inits);
 
                 if (!this.classInitPPs.containsKey(reqInit)) {
@@ -726,7 +725,6 @@ public class StatementRegistrar {
         case INVOKE_STATIC:
         case INVOKE_VIRTUAL:
             // procedure calls, instance initializers
-            System.out.println("virtual calls at" + pp);
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
             CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite());
             subgraph.replaceWithCallSitePP(cspp);
@@ -860,7 +858,7 @@ public class StatementRegistrar {
                                   TypeRepository types,
                                   PrettyPrinter pprint) {
         TypeReference resultType = i.getDeclaredFieldType();
-        // TODO If the class can't be found then WALA sets the type to object (why can't it be found?)
+        // If the class can't be found then WALA sets the type to object (why can't it be found?)
         assert resultType.getName().equals(types.getType(i.getDef()).getName())
                 || types.getType(i.getDef()).equals(TypeReference.JavaLangObject);
         if (resultType.isPrimitiveType()) {
@@ -1026,7 +1024,7 @@ public class StatementRegistrar {
         else if (i.isSpecial()) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
             if (resolvedMethods.isEmpty()) {
-                // XXX No methods found!
+                // No methods found!
                 return;
             }
             assert resolvedMethods.size() == 1;
@@ -1197,7 +1195,7 @@ public class StatementRegistrar {
     private void registerReflection(SSALoadMetadataInstruction i, IR ir, ProgramPoint pp,
                                     ReferenceVariableFactory rvFactory,
                                     TypeRepository types, PrettyPrinter pprint) {
-        // TODO statement registrar not handling reflection yet
+        // statement registrar not handling reflection yet
     }
 
     /**
@@ -1319,8 +1317,6 @@ public class StatementRegistrar {
                     + PrettyPrinter.methodString(inv.getDeclaredTarget()));
         }
         if (targets == null || targets.isEmpty()) {
-            // XXX HACK These methods seem to be using non-existant TreeMap methods and fields
-            // Let's hope they are never really called
             if (PointsToAnalysis.outputLevel > 0) {
                 System.err.println("WARNING Unable to resolve " + PrettyPrinter.methodString(inv.getDeclaredTarget()));
                 if (PointsToAnalysis.outputLevel > 0) {
@@ -1369,7 +1365,7 @@ public class StatementRegistrar {
         }
         else {
             // it shouldn't matter what program point we use for the statement
-            s.setProgramPoint(getMethodSummary(m).getEntryPP());
+            // XXX s.setProgramPoint(getMethodSummary(m).getEntryPP());
         }
 
         if ((this.size + StatementRegistrar.removedStmts) % 100000 == 0) {
@@ -1686,8 +1682,8 @@ public class StatementRegistrar {
             }
             else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
-                // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
-                // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
+                // do not propagate java.lang.Errors out of this class, this is possibly unsound
+                // uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
                 this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, true, useSingletonAllocForThisException));
             }
@@ -1749,7 +1745,7 @@ public class StatementRegistrar {
 
         if (lastClassInitPP == null) {
             // XXX Where should the first class init go? after the singletons? right before main?
-            // XXX Some of the singletons are allocations which require a clinit,
+            // Some of the singletons are allocations which require a clinit,
             // it is actually probably OK to interleave the singletons and class inits as long as the class inits come first
             lastClassInitPP = getMethodSummary(getEntryPoint()).getEntryPP();
         }
@@ -2024,7 +2020,7 @@ public class StatementRegistrar {
     }
 
     private static String escape(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
     }
 
     public class PPSubGraph {

@@ -57,9 +57,17 @@ public class MethodSummaryNodes {
             returnNode = null;
         }
 
-        this.entryPP = new ProgramPoint(method, "entryPP", true, false, false);
-        this.normalExitPP = new ProgramPoint(method, "normalExitPP", false, true, false);
-        this.exceptionExitPP = new ProgramPoint(method, "exceptionExitPP", false, false, true);
+        this.entryPP = new ProgramPoint(method, "entryPP-" + PrettyPrinter.methodString(method), true, false, false);
+        this.normalExitPP = new ProgramPoint(method,
+                                             "normalExitPP-" + PrettyPrinter.methodString(method),
+                                             false,
+                                             true,
+                                             false);
+        this.exceptionExitPP = new ProgramPoint(method,
+                                                "exceptionExitPP-" + PrettyPrinter.methodString(method),
+                                                false,
+                                                false,
+                                                true);
 
         formals = new ArrayList<>(method.getNumberOfParameters());
         for (int i = 0; i < method.getNumberOfParameters(); i++) {
