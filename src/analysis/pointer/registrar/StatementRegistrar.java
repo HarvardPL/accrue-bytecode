@@ -49,6 +49,7 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
+import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
@@ -178,6 +179,11 @@ public class StatementRegistrar {
     private final Map<IMethod, VariableIndex> replacedVariableMap = new LinkedHashMap<>();
 
     /**
+     * Map from method and instruction in that method to the program point for that instruction
+     */
+    private final Map<OrderedPair<IMethod, SSAInstruction>, ProgramPoint> insToPP = new LinkedHashMap<>();
+
+    /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
      * points-to graph.
      *
@@ -272,9 +278,8 @@ public class StatementRegistrar {
                         System.out.println("handling " + ins);
                         handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm);
                     }
-                    ProgramPoint pp = new ProgramPoint(m, "XXX");
+                    ProgramPoint pp = new ProgramPoint(m, "BB entry");
                     bbToEntryPP.put(bb, pp);
-                    // addStatement(stmtFactory.emptyStatement(pp));
 
                     if (ir.getControlFlowGraph().entry() == bb) {
                         methSumm.getEntryPP().addSucc(pp);
@@ -283,88 +288,7 @@ public class StatementRegistrar {
 
                 // Chain together the subgraphs
                 for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                    Iterator<SSAInstruction> insIter = bb.iterator();
-                    if (!insIter.hasNext()) {
-                        System.out.println("block has no instructions");
-                        Collection<ISSABasicBlock> normalSuccs = ir.getControlFlowGraph().getNormalSuccessors(bb);
-                        if (normalSuccs.isEmpty()) {
-                            bbToEntryPP.get(bb).addSucc(methSumm.getNormalExitPP());
-                        }
-                        else {
-                            for (ISSABasicBlock succBB : normalSuccs) {
-                                bbToEntryPP.get(bb).addSucc(bbToEntryPP.get(succBB));
-                            }
-                        }
-                        continue;
-                    }
-
-                    // we have a nonempty block
-                    PPSubGraph prev = null; // previous instruction within the basic block
-                    while (insIter.hasNext()) {
-                        SSAInstruction ins = insIter.next();
-                        PPSubGraph subgraph = insToPPSubGraph.get(ins);
-
-                        if (prev == null) {
-                            // ins is the very first instruction of the block
-                            // so add an edge from the bb entry PP to the entry to subgraph.
-                            bbToEntryPP.get(bb).addSucc(subgraph.entry());
-                        }
-                        else {
-                            prev.normalExit().addSucc(subgraph.entry());
-                        }
-
-                        if (insIter.hasNext()) {
-                            // only the last instruction in a basic block is allowed to throw exceptions.
-                            assert subgraph.exceptionExits.isEmpty();
-                        }
-                        prev = subgraph;
-                    }
-                    assert prev != null;
-
-                    // prev is the last instruction in the basic block. Connect it to its successors.
-                    // get the successors of bb, and connect the nodes appropriately.
-                    if (prev.canExitNormally()) {
-                        Collection<ISSABasicBlock> normalSuccs = ir.getControlFlowGraph().getNormalSuccessors(bb);
-                        if (normalSuccs.isEmpty()) {
-                            prev.normExit.addSucc(methSumm.getNormalExitPP());
-                        }
-                        else {
-                            for (ISSABasicBlock succBB : normalSuccs) {
-                                prev.normalExit().addSucc(bbToEntryPP.get(succBB));
-                            }
-                        }
-                    }
-
-                    for (TypeReference exType : prev.exceptionExits().keySet()) {
-                        IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
-
-                        boolean definitelyCaught = false;
-
-                        for (ISSABasicBlock succBB : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
-                            Iterator<TypeReference> caughtTypes = succBB.getCaughtExceptionTypes();
-                            while (caughtTypes.hasNext()) {
-                                IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next());
-
-                                definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
-                                boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
-
-                                if (maybeCaught || definitelyCaught) {
-                                    // the catch block might catch the thrown exception.
-                                    prev.exceptionExits.get(exType).addSucc(bbToEntryPP.get(succBB));
-                                    if (definitelyCaught) {
-                                        break;
-                                    }
-                                }
-
-                            }
-                        }
-
-                        if (!definitelyCaught) {
-                            // there wasn't a catch block that caught the exception.
-                            prev.exceptionExits.get(exType).addSucc(methSumm.getExceptionExitPP());
-                        }
-                    }
-
+                    addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
                 }
 
                 // clean up graph
@@ -447,6 +371,160 @@ public class StatementRegistrar {
         }
         return false;
 
+    }
+
+    /**
+     * Add program point edges for the given basic block
+     *
+     * @param bb basic block to add edges for
+     * @param methSumm method summary nodes for the basic block
+     * @param controlFlowGraph control flow graph for the method containing the basic block
+     * @param insToPPSubGraph map from instruction to program point subgraph for that instruction
+     * @param bbToEntryPP map from basic block to entry program point
+     */
+    private static void addPPEdgesForBasicBlock(ISSABasicBlock bb, MethodSummaryNodes methSumm,
+                                                SSACFG controlFlowGraph,
+                                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
+                                                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP) {
+        Iterator<SSAInstruction> insIter = bb.iterator();
+        if (!insIter.hasNext()) {
+            addPPEdgesForEmptyBlock(controlFlowGraph, methSumm, bbToEntryPP, bb);
+            return;
+        }
+
+        // we have a nonempty block
+        PPSubGraph prev = null; // previous instruction within the basic block
+        while (insIter.hasNext()) {
+            PPSubGraph subgraph = insToPPSubGraph.get(insIter.next());
+            addPPEdgesForInstruction(subgraph, prev, bbToEntryPP.get(bb));
+            prev = subgraph;
+
+            if (insIter.hasNext()) {
+                // only the last instruction in a basic block is allowed to throw exceptions.
+                assert subgraph.exceptionExits.isEmpty();
+            }
+        }
+        assert prev != null;
+
+        // prev is the last instruction in the basic block. Connect it to its successors.
+        // get the successors of bb, and connect the nodes appropriately.
+        if (prev.canExitNormally()) {
+            addPPEdgesForNormalTermination(controlFlowGraph.getNormalSuccessors(bb),
+                                           prev.normalExit(),
+                                           bbToEntryPP,
+                                           methSumm);
+        }
+
+        addPPEdgesForExceptions(controlFlowGraph.getExceptionalSuccessors(bb),
+                                prev.exceptionExits,
+                                bbToEntryPP,
+                                methSumm);
+    }
+
+    /**
+     * Add edges to the program point graph for the normal termination of an basic block
+     *
+     * @param normalSuccessors normal successor basic block
+     * @param normalExit normal exit of the last instruction of the basic block
+     * @param bbToEntryPP map from basic block to entry program point
+     * @param methSumm method summary nodes for the basic block
+     */
+    private static void addPPEdgesForNormalTermination(Collection<ISSABasicBlock> normalSuccessors,
+                                                       ProgramPoint normalExit,
+                                                       Map<ISSABasicBlock, ProgramPoint> bbToEntryPP,
+                                                       MethodSummaryNodes methSumm) {
+        if (normalSuccessors.isEmpty()) {
+            normalExit.addSucc(methSumm.getNormalExitPP());
+        }
+        else {
+            for (ISSABasicBlock succBB : normalSuccessors) {
+                normalExit.addSucc(bbToEntryPP.get(succBB));
+            }
+        }
+    }
+
+    /**
+     * Add edges to the program point graph for a thrown exception
+     *
+     * @param exceptionalSuccessors successor basic blocks on exception edges
+     * @param exceptionExits program points for each type of exception that can be thrown
+     * @param bbToEntryPP map from basic block to entry program point
+     * @param methSumm method summary nodes for the basic block throwning the exceptions
+     */
+    private static void addPPEdgesForExceptions(List<ISSABasicBlock> exceptionalSuccessors,
+                                                Map<TypeReference, ProgramPoint> exceptionExits,
+                                                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP,
+                                                MethodSummaryNodes methSumm) {
+        for (TypeReference exType : exceptionExits.keySet()) {
+            IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
+
+            boolean definitelyCaught = false;
+
+            for (ISSABasicBlock succBB : exceptionalSuccessors) {
+                Iterator<TypeReference> caughtTypes = succBB.getCaughtExceptionTypes();
+                while (caughtTypes.hasNext()) {
+                    IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next());
+
+                    definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
+                    boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
+
+                    if (maybeCaught || definitelyCaught) {
+                        // the catch block might catch the thrown exception.
+                        exceptionExits.get(exType).addSucc(bbToEntryPP.get(succBB));
+                        if (definitelyCaught) {
+                            break;
+                        }
+                    }
+
+                }
+            }
+
+            if (!definitelyCaught) {
+                // there wasn't a catch block that caught the exception.
+                exceptionExits.get(exType).addSucc(methSumm.getExceptionExitPP());
+            }
+        }
+    }
+
+    /**
+     * Add edges to the program point graph for a particular instruction
+     *
+     * @param currentSubgraph subgraph for the current instruction
+     * @param prevSubgraph subgraph for the previous instruction (null if this is the first instruction)
+     * @param bbEntryPP entry program point for the basic block
+     */
+    private static void addPPEdgesForInstruction(PPSubGraph currentSubgraph, PPSubGraph prevSubgraph,
+                                                 ProgramPoint bbEntryPP) {
+        if (prevSubgraph == null) {
+            // ins is the very first instruction of the block
+            // so add an edge from the bb entry PP to the entry to subgraph.
+            bbEntryPP.addSucc(currentSubgraph.entry());
+        }
+        else {
+            prevSubgraph.normalExit().addSucc(currentSubgraph.entry());
+        }
+    }
+
+    /**
+     * Create edges from the program point for an empty basic block to the entry program points for the successors
+     *
+     * @param cfg control flow graph for the containing method
+     * @param methSumm method summary nodes
+     * @param bbToEntryPP map from basic bloc to entry program point
+     * @param bb empty basic block
+     */
+    private static void addPPEdgesForEmptyBlock(SSACFG cfg, MethodSummaryNodes methSumm,
+                                                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP, ISSABasicBlock bb) {
+        assert !bb.iterator().hasNext();
+        Collection<ISSABasicBlock> normalSuccs = cfg.getNormalSuccessors(bb);
+        if (normalSuccs.isEmpty()) {
+            bbToEntryPP.get(bb).addSucc(methSumm.getNormalExitPP());
+        }
+        else {
+            for (ISSABasicBlock succBB : normalSuccs) {
+                bbToEntryPP.get(bb).addSucc(bbToEntryPP.get(succBB));
+            }
+        }
     }
 
     private void cleanUpProgramPoints(MethodSummaryNodes methSumm) {
