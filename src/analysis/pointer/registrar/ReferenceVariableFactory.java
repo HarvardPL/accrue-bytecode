@@ -82,10 +82,10 @@ public class ReferenceVariableFactory {
         if (rv == null) {
             String name;
             if (pp != null) {
-                name = pp.valString(local) + "-" + method.getName();
+                name = pp.valString(local) + "-" + PrettyPrinter.methodString(method);
             }
             else {
-                name = PrettyPrinter.getCanonical("v" + local + "-" + method.getName());
+                name = PrettyPrinter.getCanonical("v" + local + "-" + PrettyPrinter.methodString(method));
             }
             rv = new ReferenceVariable(name, type, false, false, true, false);
             locals.put(key, rv);
@@ -534,7 +534,7 @@ public class ReferenceVariableFactory {
 
         @Override
         public String toString() {
-            return debugString + "\nof type " + expectedType;
+            return debugString; // + " of type " + expectedType;
         }
 
         @Override

@@ -31,15 +31,11 @@ public class ReturnStatement extends PointsToStatement {
     /**
      * Create a points-to statement for a return instruction
      *
-     * @param result
-     *            Node for return result
-     * @param returnSummary
-     *            Node summarizing all return values for the method
-     * @param m
-     *            method the points-to statement came from
+     * @param result Node for return result
+     * @param returnSummary Node summarizing all return values for the method
+     * @param m method the points-to statement came from
      */
-    protected ReturnStatement(ReferenceVariable result,
- ReferenceVariable returnSummary, ProgramPoint pp) {
+    protected ReturnStatement(ReferenceVariable result, ReferenceVariable returnSummary, ProgramPoint pp) {
         super(pp);
         this.result = result;
         this.returnSummary = returnSummary;
@@ -48,12 +44,10 @@ public class ReturnStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica returnRes =
- new ReferenceVariableReplica(context, result, haf);
-        ReferenceVariableReplica summaryRes =
- new ReferenceVariableReplica(context, returnSummary, haf);
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
+        ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result, haf);
+        ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary, haf);
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());

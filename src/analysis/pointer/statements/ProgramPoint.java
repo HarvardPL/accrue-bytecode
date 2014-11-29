@@ -144,7 +144,7 @@ public class ProgramPoint {
         @Override
         public String toString() {
             // return "**" + pp.getID() + "_pre(" + pp.getDebugInfo() + ")**";
-            return "**" + pp.getID() + "_pre**";
+            return "**" + pp.getID() + "_pre** " + pp;
         }
 
         @Override
@@ -200,7 +200,7 @@ public class ProgramPoint {
         @Override
         public String toString() {
             //return "**" + pp.getID() + "_post(" + pp.getDebugInfo() + ")**";
-            return "**" + pp.getID() + "_post**";
+            return "**" + pp.getID() + "_post** " + pp;
         }
 
         @Override

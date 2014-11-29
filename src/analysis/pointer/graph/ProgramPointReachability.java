@@ -639,6 +639,7 @@ public class ProgramPointReachability {
                                 }
                             }
                         }
+
                         // now use the summary results.
                         addMethodDependency(query, callee);
                         ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(),
@@ -671,7 +672,7 @@ public class ProgramPointReachability {
 
                     }
 
-                }
+                } // end of handling call
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // We are exiting the current method!
                     // register dependency from this result to the callee. i.e., we should be notified if a new caller is added
@@ -720,7 +721,7 @@ public class ProgramPointReachability {
 
                     }
 
-                }
+                } // end of method exit
                 else {
                     PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
                     // not a call or a return, it's just a normal statement.
@@ -763,7 +764,14 @@ public class ProgramPointReachability {
                                 continue;
                             }
                         }
-                        // otherwise, we're OK. visited the successor
+                        // otherwise, we're OK. visit the successor
+                        InterProgramPointReplica post = pp.post().getReplica(currentContext);
+                        if (visited.add(post)) {
+                            q.add(post);
+                        }
+                    } // end of stmt != null
+                    else {
+                        // Pre-program point with no associated statement, add the post-pp
                         InterProgramPointReplica post = pp.post().getReplica(currentContext);
                         if (visited.add(post)) {
                             q.add(post);
@@ -945,7 +953,7 @@ public class ProgramPointReachability {
 
     private void recordMethodReachability(IMethod m, Context context, ReachabilityResult res,
                                           Set<ReachabilityQueryOrigin> tasksToReprocess) {
-        System.err.println("Recording method reachavility result : " + m + " " + context);
+        System.err.println("Recording method reachability result : " + m + " " + context);
         OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
         ReachabilityResult existing = memoization.put(cgnode, res);
         if (existing != null && !existing.equals(res)) {
