@@ -21,7 +21,7 @@ public class StmtAndContextReachabilityOriginator implements ReachabilityQueryOr
 
     @Override
     public void trigger(PointsToAnalysisHandle analysisHandle, GraphDelta changes) {
-        trigger(analysisHandle);
+        analysisHandle.submitStmtAndContext(this.sac, changes);
     }
 
     @Override

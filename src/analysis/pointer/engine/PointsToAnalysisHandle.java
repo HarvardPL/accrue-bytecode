@@ -19,8 +19,14 @@ public interface PointsToAnalysisHandle {
     void submitStmtAndContext(StmtAndContext sac);
 
     /**
+     * request that the PointsToAnalysis process the StmtAndContext with the given GraphDelta
+     * 
+     */
+    void submitStmtAndContext(StmtAndContext sac, GraphDelta delta);
+
+    /**
      * Request the the PointsToAnalysis process the AddNonMostRecentOrigin.
-     *
+     * 
      * @param task
      */
     void submitAddNonMostRecentTask(AddNonMostRecentOrigin task);

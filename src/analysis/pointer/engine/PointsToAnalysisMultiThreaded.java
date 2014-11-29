@@ -513,6 +513,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         @Override
+        public void submitStmtAndContext(StmtAndContext sac, GraphDelta delta) {
+            execService.submitTask(sac, delta);
+        }
+
+        @Override
         public void submitAddNonMostRecentTask(AddNonMostRecentOrigin task) {
             task.process(this);
         }
