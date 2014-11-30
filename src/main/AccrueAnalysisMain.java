@@ -107,7 +107,7 @@ public class AccrueAnalysisMain {
         boolean singleThrowable = options.shouldUseSingleAllocPerThrowableType();
         boolean singlePrimArray = options.shouldUseSingleAllocForPrimitiveArrays();
         boolean singleString = options.shouldUseSingleAllocForStrings();
-        boolean onlyPrintMainMethodInSuccGraph = options.onlyPrintMainMethodInSuccGraph();
+        boolean simplePrint = options.simplePrint();
         boolean singleWrappers = options.shouldUseSingleAllocForImmutableWrappers();
 
         try {
@@ -146,7 +146,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            onlyPrintMainMethodInSuccGraph);
+                                            simplePrint);
             g = results.fst();
             g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
@@ -184,7 +184,7 @@ public class AccrueAnalysisMain {
                                singlePrimArray,
                                singleString,
                                singleWrappers,
-                               onlyPrintMainMethodInSuccGraph);
+                               simplePrint);
             break;
         case "nonnull":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
@@ -197,7 +197,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            onlyPrintMainMethodInSuccGraph);
+                                            simplePrint);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -215,7 +215,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            onlyPrintMainMethodInSuccGraph);
+                                            simplePrint);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -234,7 +234,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            onlyPrintMainMethodInSuccGraph);
+                                            simplePrint);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -251,7 +251,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            onlyPrintMainMethodInSuccGraph);
+                                            simplePrint);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -285,7 +285,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            onlyPrintMainMethodInSuccGraph);
+                                            simplePrint);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -429,7 +429,7 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings,
                                                                                             boolean useSingleAllocForImmutableWrappers,
-                                                                                            boolean onlyPrintMainMethodInSuccGraph) {
+                                                                                            boolean simplePrint) {
         PointsToAnalysis analysis;
         if (singleThreaded) {
             analysis = new PointsToAnalysisSingleThreaded(haf);
@@ -447,7 +447,7 @@ public class AccrueAnalysisMain {
                                                useSingleAllocForPrimitiveArrays,
                                                useSingleAllocForStrings,
                                                useSingleAllocForImmutableWrappers,
-                                               onlyPrintMainMethodInSuccGraph);
+                                               simplePrint);
             g = analysis.solveAndRegister(registrar);
         }
         else {
@@ -457,7 +457,7 @@ public class AccrueAnalysisMain {
                                                                            useSingleAllocForPrimitiveArrays,
                                                                            useSingleAllocForStrings,
                                                                            useSingleAllocForImmutableWrappers,
-                                                                           onlyPrintMainMethodInSuccGraph);
+                                                                           simplePrint);
             pass.run();
             registrar = pass.getRegistrar();
             PointsToAnalysis.outputLevel = outputLevel;
@@ -698,7 +698,7 @@ public class AccrueAnalysisMain {
                                            boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
                                            boolean useSingleAllocForImmutableWrappers,
-                                           boolean onlyPrintMainMethodInSuccGraph) {
+                                           boolean simplePrint) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            isOnline,
@@ -708,7 +708,7 @@ public class AccrueAnalysisMain {
                                                                                            useSingleAllocForPrimitiveArrays,
                                                                                            useSingleAllocForStrings,
                                                                                            useSingleAllocForImmutableWrappers,
-                                                                                           onlyPrintMainMethodInSuccGraph);
+                                                                                           simplePrint);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {

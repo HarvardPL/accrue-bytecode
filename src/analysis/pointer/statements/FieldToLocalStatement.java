@@ -148,7 +148,8 @@ public class FieldToLocalStatement extends PointsToStatement {
     public boolean mayChangeFlowSensPointsToGraph() {
         assert !assignee.isFlowSensitive();
         // assignee is not flow sensitive.
-        return false;
+        // XXX return false;
+        return true;
     }
 
 }

@@ -143,7 +143,8 @@ public class StatementRegistrar {
     /**
      * If true then only print the successor graph for the main method.
      */
-    private final boolean onlyPrintMainMethodInSuccGraph;
+    private final boolean simplePrint;
+
     /**
     * If true then only one allocation will be made for any immutable wrapper class. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.
@@ -206,7 +207,7 @@ public class StatementRegistrar {
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
-                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers, boolean onlyPrintMainMethodInSuccGraph) {
+                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers, boolean simplePrint) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
@@ -226,7 +227,7 @@ public class StatementRegistrar {
         System.err.println("Singleton allocation site for java.lang.String: " + this.useSingleAllocForStrings);
         this.useSingleAllocPerThrowableType = useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per java.lang.Throwable subtype: " + useSingleAllocPerThrowableType);
-        this.onlyPrintMainMethodInSuccGraph = onlyPrintMainMethodInSuccGraph;
+        this.simplePrint = simplePrint;
         this.useSingleAllocForImmutableWrappers = useSingleAllocForImmutableWrappers;
         System.err.println("Singleton allocation site per immutable wrapper type: "
                 + this.useSingleAllocForImmutableWrappers);
@@ -291,7 +292,7 @@ public class StatementRegistrar {
                 }
 
                 // clean up graph
-                // XXX cleanUpProgramPoints(methSumm);
+                cleanUpProgramPoints(methSumm);
 
                 // now try to remove duplicates
                 Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -1956,6 +1957,10 @@ public class StatementRegistrar {
         return useSingleAllocForGenEx;
     }
 
+    public boolean shouldUseSimplePrint() {
+        return simplePrint;
+    }
+
     public Set<CallSiteProgramPoint> getCallSitesForMethod(IMethod m) {
         Set<CallSiteProgramPoint> s = this.callSitesForMethod.get(m);
         if (s == null) {
@@ -1988,15 +1993,14 @@ public class StatementRegistrar {
 
         for (MethodSummaryNodes methSum : methods.values()) {
 
-            /*
-            if (onlyPrintMainMethodInSuccGraph) {
-                if (methSum.toString() == "main") {
+            if (simplePrint) {
+                if (methSum.toString().contains("main")) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
                     break;
                 }
                 continue;
             }
-            */
+
             System.out.println("print meth");
             writeSucc(methSum.getEntryPP(), writer, visited);
         }

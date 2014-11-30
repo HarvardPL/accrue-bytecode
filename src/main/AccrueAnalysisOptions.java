@@ -148,9 +148,9 @@ public final class AccrueAnalysisOptions {
     private boolean useSingleAllocForStrings = false;
 
     @Parameter(
-        names = { "-onlyPrintMainMethodInSuccGraph" },
+        names = { "-simplePrint" },
         description = "If set then only print the successor graph for the main method.")
-    private boolean onlyPrintMainMethodInSuccGraph = false;
+    private boolean simplePrint = false;
 
     /**
      * If true then only one allocation will be made for each type of immutable wrapper. This will reduce the size of
@@ -807,8 +807,8 @@ public final class AccrueAnalysisOptions {
      *
      * @return true if only the main method should be printed
      */
-    public boolean onlyPrintMainMethodInSuccGraph() {
-        return onlyPrintMainMethodInSuccGraph;
+    public boolean simplePrint() {
+        return simplePrint;
     }
 
     /**

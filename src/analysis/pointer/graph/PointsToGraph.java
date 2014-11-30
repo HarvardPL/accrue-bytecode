@@ -7,6 +7,7 @@ import java.io.Writer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -2634,8 +2635,12 @@ public class PointsToGraph {
                     int t = toIter.next();
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
-                    writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + ikrToPP.get(t)
- + "\"];\n");
+                    if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(rvr))) {
+                        repMap.addPrint(rvr);
+                        repMap.addPrint(to);
+                        writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + ikrToPP.get(t)
+                                + "\"];\n");
+                    }
                 }
             }
 
@@ -2652,8 +2657,12 @@ public class PointsToGraph {
                     int t = toIter.next();
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
-                    writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName() + ","
+                    if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(fromIkr))) {
+                        repMap.addPrint(fromIkr);
+                        repMap.addPrint(to);
+                        writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName() + ","
                             + ikrToPP.get(t) + "\"];\n");
+                    }
                 }
             }
         }
@@ -2674,7 +2683,11 @@ public class PointsToGraph {
                     int t = toIter.next();
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
-                    writer.write("\t" + fromNode + " -> " + toNode + " [color=blue];\n");
+                    if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(rvr))) {
+                        repMap.addPrint(rvr);
+                        repMap.addPrint(to);
+                        writer.write("\t" + fromNode + " -> " + toNode + " [color=blue];\n");
+                    }
                 }
             }
 
@@ -2691,8 +2704,12 @@ public class PointsToGraph {
                     int t = toIter.next();
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
-                    writer.write("\t" + fromNode + " -> " + toNode + " [color=blue,label=\"" + of.fieldName()
+                    if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(fromIkr))) {
+                        repMap.addPrint(fromIkr);
+                        repMap.addPrint(to);
+                        writer.write("\t" + fromNode + " -> " + toNode + " [color=blue,label=\"" + of.fieldName()
                             + "\"];\n");
+                    }
                 }
             }
         }
@@ -2701,6 +2718,18 @@ public class PointsToGraph {
 
         writer.write("};\n");
         return writer;
+    }
+
+    @SuppressWarnings("static-method")
+    private boolean shouldPrint(InstanceKeyRecency ikr) {
+        String s = ikr.toString();
+        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive");
+    }
+
+    @SuppressWarnings("static-method")
+    private boolean shouldPrint(ReferenceVariableReplica rvr) {
+        String s = rvr.toString();
+        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive");
     }
 
     protected static String escape(String s) {
@@ -2713,11 +2742,18 @@ public class PointsToGraph {
         int ikrCount = 0;
         // map from rvr to node number in dot file
         final Map<ReferenceVariableReplica, String> rvrToDotNode;
+        // set of ikr that should be printed
+        final Set<InstanceKeyRecency> printIkr;
+        // set of rvr that should be printed
+        final Set<ReferenceVariableReplica> printRvr;
+
         int rvrCount = 0;
 
         public DotNodesRepMap() {
             ikrToDotNode = new HashMap<>();
             rvrToDotNode = new HashMap<>();
+            printIkr = new HashSet<>();
+            printRvr = new HashSet<>();
         }
 
         // get node number from rvr, put if not presence
@@ -2744,7 +2780,7 @@ public class PointsToGraph {
 
         // print all nodes with labels and colors
         public void writeNodes(Writer writer) throws IOException {
-            for (ReferenceVariableReplica rvr : rvrToDotNode.keySet()) {
+            for (ReferenceVariableReplica rvr : printRvr) {
                 String color = rvr.isFlowSensitive() ? "red" : "blue";
                 writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\"RVR("
                         + lookupDictionary(rvr) + "): "
@@ -2752,12 +2788,20 @@ public class PointsToGraph {
                         + "\"];\n");
             }
 
-            for (InstanceKeyRecency ikr : ikrToDotNode.keySet()) {
+            for (InstanceKeyRecency ikr : printIkr) {
                 String color = ikr.isRecent() ? "red" : "blue";
                 writer.write("\t" + ikrToDotNode.get(ikr) + "[fontcolor=white, style=filled, fillcolor=" + color
                         + ", label=\"IKR(" + lookupDictionary(ikr) + "): "
                         + escape(ikr.toStringWithoutRecency()) + "\"];\n");
             }
+        }
+
+        public void addPrint(InstanceKeyRecency ikr) {
+            printIkr.add(ikr);
+        }
+
+        public void addPrint(ReferenceVariableReplica rvr) {
+            printRvr.add(rvr);
         }
 
     }

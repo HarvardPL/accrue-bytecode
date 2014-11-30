@@ -60,7 +60,7 @@ public class StatementRegistrationPass {
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
                                      boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
-                                     boolean onlyPrintMainMethodInSuccGraph) {
+                                     boolean simplePrint) {
 
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
@@ -68,7 +68,7 @@ public class StatementRegistrationPass {
                                            useSingleAllocForPrimitiveArrays,
                                            useSingleAllocForStrings,
                                            useSingleAllocForImmutableWrappers,
-                                           onlyPrintMainMethodInSuccGraph);
+                                           simplePrint);
 
     }
 
