@@ -359,6 +359,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                            + " nodes");
 
         //        this.processAllStatements(g, registrar);
+        registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
+        g.dumpPointsToGraphToFile("tests/pointsToGraph");
         g.constructionFinished();
         return g;
     }
