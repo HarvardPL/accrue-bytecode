@@ -104,7 +104,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
         assert !local.isFlowSensitive();
         // even if the static field is flow sensitive, this will only update the
         // points to set of local, which is flow insensitive.
-        return false;
+        // XXX need to make sure this doesn't get cleaned up so we can use the PP to figure out what the field points to
+        return true;
     }
 
 }

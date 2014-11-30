@@ -127,6 +127,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
 
         // the local is not flow sensitive, so we can't update the flow-sensitive
         // portion of the points to graph.
-        return false;
+        // XXX need to make sure this doesn't get cleaned up so we can use the PP to figure out what the array contents point to
+        return true;
     }
 }
