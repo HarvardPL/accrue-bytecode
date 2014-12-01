@@ -33,14 +33,11 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     /**
      * Statement for an assignment from a static field to a local, local = ClassName.staticField
      *
-     * @param local
-     *            points-to graph node for the assigned value
-     * @param staticField
-     *            points-to graph node for assignee
-     * @param m
+     * @param local points-to graph node for the assigned value
+     * @param staticField points-to graph node for assignee
+     * @param pp program point the statement was created at
      */
-    protected StaticFieldToLocalStatement(ReferenceVariable local,
- ReferenceVariable staticField, ProgramPoint pp) {
+    protected StaticFieldToLocalStatement(ReferenceVariable local, ReferenceVariable staticField, ProgramPoint pp) {
         super(pp);
         assert staticField.isSingleton() : staticField + " is not static";
         assert !local.isSingleton() : local + " is static";
@@ -51,8 +48,8 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
 
         PointsToGraphNode l = new ReferenceVariableReplica(context, local, haf);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
@@ -100,11 +97,11 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         assert !local.isFlowSensitive();
-        // even if the static field is flow sensitive, this will only update the
+        // This will only update the
         // points to set of local, which is flow insensitive.
-        // XXX need to make sure this doesn't get cleaned up so we can use the PP to figure out what the field points to
+        // However, the static field may be flow sensitive.
         return true;
     }
 

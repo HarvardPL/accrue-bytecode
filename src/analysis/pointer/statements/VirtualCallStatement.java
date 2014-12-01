@@ -54,10 +54,9 @@ public class VirtualCallStatement extends CallStatement {
      * @param exception Node representing the exception thrown by this call (if any)
      * @param rvFactory factory for managing the creation of reference variables for local variables and static fields
      */
-    protected VirtualCallStatement(CallSiteProgramPoint callerPP, MethodReference callee,
-                                   ReferenceVariable result, ReferenceVariable receiver,
-                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                   ReferenceVariableFactory rvFactory) {
+    protected VirtualCallStatement(CallSiteProgramPoint callerPP, MethodReference callee, ReferenceVariable result,
+                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
+                                   ReferenceVariable exception, ReferenceVariableFactory rvFactory) {
         super(callerPP, result, actuals, exception);
 
         this.callee = callee;
@@ -104,8 +103,7 @@ public class VirtualCallStatement extends CallStatement {
                                                            g,
                                                            haf,
                                                            registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                               this.rvFactory),
-                                                           originator));
+                                                                                               this.rvFactory)));
             }
         }
         return changed;

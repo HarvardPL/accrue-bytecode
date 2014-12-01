@@ -33,15 +33,11 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     /**
      * Statement for an assignment from a local into a static field, ClassName.staticField = local
      *
-     * @param staticField
-     *            points-to graph node for the assigned value
-     * @param local
-     *            points-to graph node for assignee
-     * @param m
-     *            method containing the statement
+     * @param staticField points-to graph node for the assigned value
+     * @param local points-to graph node for assignee
+     * @param pp program point for the statement
      */
-    protected LocalToStaticFieldStatement(ReferenceVariable staticField,
- ReferenceVariable local, ProgramPoint pp) {
+    protected LocalToStaticFieldStatement(ReferenceVariable staticField, ReferenceVariable local, ProgramPoint pp) {
         super(pp);
         assert !local.isSingleton() : local + " is static";
         assert staticField.isSingleton() : staticField + " is not static";
@@ -92,7 +88,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         return staticField.isFlowSensitive();
     }
 

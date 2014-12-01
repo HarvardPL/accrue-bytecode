@@ -40,18 +40,13 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
-     *
-     * @param l
-     *            points-to graph node for local assigned into
-     * @param o
-     *            points-to graph node for receiver of field access
-     * @param f
-     *            field accessed
-     * @param m
-     *            method the statement was created for
+     * 
+     * @param l points-to graph node for local assigned into
+     * @param o points-to graph node for receiver of field access
+     * @param f field accessed
+     * @param pp program point the statement was created at
      */
-    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o,
- FieldReference f, ProgramPoint pp) {
+    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o, FieldReference f, ProgramPoint pp) {
         super(pp);
         this.declaredField = f;
         this.receiver = o;
@@ -65,8 +60,8 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode left = new ReferenceVariableReplica(context, this.assignee, haf);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
 
@@ -145,10 +140,9 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         assert !assignee.isFlowSensitive();
-        // assignee is not flow sensitive.
-        // XXX return false;
+        // assignee is not flow sensitive, but the field may be
         return true;
     }
 

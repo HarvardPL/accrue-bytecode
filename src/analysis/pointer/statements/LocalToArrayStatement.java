@@ -42,17 +42,12 @@ public class LocalToArrayStatement extends PointsToStatement {
      * Statement for an assignment into an array, a[i] = v. Note that we do not reason about the individual array
      * elements.
      *
-     * @param a
-     *            points-to graph node for array assigned into
-     * @param value
-     *            points-to graph node for assigned value
-     * @param baseType
-     *            type of the array elements
-     * @param m
-     *            method the points-to statement came from
+     * @param a points-to graph node for array assigned into
+     * @param value points-to graph node for assigned value
+     * @param baseType type of the array elements
+     * @param pp program point the points-to statement came from
      */
-    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v,
- TypeReference baseType, ProgramPoint pp) {
+    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, ProgramPoint pp) {
         super(pp);
         assert !v.isFlowSensitive();
         assert !a.isFlowSensitive();
@@ -62,8 +57,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array, haf);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value, haf);
 
@@ -76,10 +71,7 @@ public class LocalToArrayStatement extends PointsToStatement {
             // no changes, let's do the processing in a straightforward way.
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
- baseType, true);
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
 
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive();
@@ -94,10 +86,7 @@ public class LocalToArrayStatement extends PointsToStatement {
             // point to everything that the RHS can.
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
- baseType, true);
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
 
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive() : "Contents should never be flow sensitive";
@@ -145,7 +134,7 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // array contents are never singleton fields, and so
         // it is always a flow insensitive source node.
         return false;

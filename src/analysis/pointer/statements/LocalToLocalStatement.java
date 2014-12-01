@@ -35,24 +35,14 @@ public class LocalToLocalStatement extends PointsToStatement {
     private final boolean filter;
 
     /**
-     * Is right from a method summary?
-     */
-    private final boolean isFromMethodSummaryVariable;
-
-    /**
      * Statement for a local assignment, left = right
-     *
-     * @param left
-     *            points-to graph node for assignee
-     * @param right
-     *            points-to graph node for the assigned value
-     * @param m
-     *            method the assignment is from
+     * 
+     * @param left points-to graph node for assignee
+     * @param right points-to graph node for the assigned value
+     * @param pp program point the assignment is from
      */
-    protected LocalToLocalStatement(ReferenceVariable left,
- ReferenceVariable right, ProgramPoint pp,
-                                    boolean filterBasedOnType,
-            boolean isFromMethodSummaryVariable) {
+    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, ProgramPoint pp,
+                                    boolean filterBasedOnType) {
         super(pp);
         assert !left.isSingleton() : left + " is static";
         assert !right.isFlowSensitive();
@@ -60,12 +50,11 @@ public class LocalToLocalStatement extends PointsToStatement {
         this.left = left;
         this.right = right;
         filter = filterBasedOnType;
-        this.isFromMethodSummaryVariable = isFromMethodSummaryVariable;
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left, haf);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right, haf);
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
@@ -84,11 +73,9 @@ public class LocalToLocalStatement extends PointsToStatement {
                 ? new ReferenceVariableReplica(context, left, g.getHaf()) : null);
     }
 
-
     @Override
     public String toString() {
-        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType())
-                + ") " + right;
+        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType()) + ") " + right;
     }
 
     @Override
@@ -108,8 +95,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
-        return left.isFlowSensitive();
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
+        return left.isFlowSensitive() || right.isFlowSensitive();
     }
 
 }

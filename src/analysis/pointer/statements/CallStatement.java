@@ -6,7 +6,6 @@ import java.util.List;
 import util.OrderedPair;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
-import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -39,22 +38,15 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
-     *            thrown by this statement
+     * 
+     * @param callerPP Method call site
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param actuals Actual arguments to the call
+     * @param exception Node in the caller representing the exception thrown by this call (if any) also exceptions
+     *            implicitly thrown by this statement
      */
-    protected CallStatement(CallSiteProgramPoint callerPP,
-            ReferenceVariable result, List<ReferenceVariable> actuals,
-            ReferenceVariable exception) {
+    protected CallStatement(CallSiteProgramPoint callerPP, ReferenceVariable result, List<ReferenceVariable> actuals,
+                            ReferenceVariable exception) {
         super(callerPP);
         this.actuals = actuals;
         this.result = result;
@@ -64,23 +56,16 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Process a call for a particular receiver and resolved method
      *
-     * @param callerContext
-     *            Calling context for the caller
-     * @param receiver
-     *            Heap context for the receiver
-     * @param callee
-     *            Actual method being called
-     * @param g
-     *            points-to graph (may be modified)
-     * @param haf
-     *            abstraction factory used for creating new context from existing
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * @param callerContext Calling context for the caller
+     * @param receiver Heap context for the receiver
+     * @param callee Actual method being called
+     * @param g points-to graph (may be modified)
+     * @param haf abstraction factory used for creating new context from existing
+     * @param calleeSummary summary nodes for formals and exits of the callee
      * @return true if the points-to graph has changed
      */
     protected final GraphDelta processCall(Context callerContext, InstanceKeyRecency receiver, IMethod callee,
-                                           PointsToGraph g, HeapAbstractionFactory haf,
-                                           MethodSummaryNodes calleeSummary, StmtAndContext originator) {
+                                           PointsToGraph g, HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
@@ -88,10 +73,7 @@ public abstract class CallStatement extends PointsToStatement {
         GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
-        g.addCall(programPoint(),
-                  callerContext,
-                  callee,
-                  calleeContext);
+        g.addCall(programPoint(), callerContext, callee, calleeContext);
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(callerContext, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(callerContext, this.programPoint().post());
@@ -101,7 +83,7 @@ public abstract class CallStatement extends PointsToStatement {
                                                                               calleeSummary.getNormalExitPP().pre());
         InterProgramPointReplica exceptionExit = InterProgramPointReplica.create(calleeContext,
                                                                                  calleeSummary.getExceptionExitPP()
-                                                                                                      .pre());
+                                                                                              .pre());
 
         // ////////////////// Return //////////////////
 
@@ -225,10 +207,8 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Replace the variable for an actual argument with the given variable
      *
-     * @param argNum
-     *            index of the argument to replace
-     * @param newVariable
-     *            new reference variable
+     * @param argNum index of the argument to replace
+     * @param newVariable new reference variable
      */
     protected void replaceActual(int argNum, ReferenceVariable newVariable) {
         actuals.set(argNum, newVariable);
@@ -240,7 +220,7 @@ public abstract class CallStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // a call to another function may affect the flow-sensitive part of the
         // points to graph, since it may modify the call graph
         return true;

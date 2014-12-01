@@ -146,7 +146,7 @@ public class StatementRegistrar {
     private final boolean simplePrint;
 
     /**
-    * If true then only one allocation will be made for any immutable wrapper class. This will reduce the size of the
+     * If true then only one allocation will be made for any immutable wrapper class. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.
      * <p>
      * These classes are java.lang.String, all the primitive wrappers, and BigInteger and BigDecimal if they are not
@@ -207,7 +207,8 @@ public class StatementRegistrar {
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
-                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers, boolean simplePrint) {
+                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
+                              boolean simplePrint) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
@@ -226,7 +227,8 @@ public class StatementRegistrar {
         this.useSingleAllocForStrings = useSingleAllocForStrings || useSingleAllocForImmutableWrappers;
         System.err.println("Singleton allocation site for java.lang.String: " + this.useSingleAllocForStrings);
         this.useSingleAllocPerThrowableType = useSingleAllocPerThrowableType;
-        System.err.println("Singleton allocation site per java.lang.Throwable subtype: " + useSingleAllocPerThrowableType);
+        System.err.println("Singleton allocation site per java.lang.Throwable subtype: "
+                + useSingleAllocPerThrowableType);
         this.simplePrint = simplePrint;
         this.useSingleAllocForImmutableWrappers = useSingleAllocForImmutableWrappers;
         System.err.println("Singleton allocation site per immutable wrapper type: "
@@ -256,7 +258,6 @@ public class StatementRegistrar {
                     this.registerNative(m, this.rvFactory);
                     return true;
                 }
-
 
                 TypeRepository types = new TypeRepository(ir);
                 PrettyPrinter pprint = new PrettyPrinter(ir);
@@ -531,7 +532,7 @@ public class StatementRegistrar {
         // try to clean up the program points. Let's first get a reverse mapping, and then check to see if there are any we can merge
         Map<ProgramPoint, Set<ProgramPoint>> preds = new HashMap<>();
 
-        int totalProgramPoints = 0;
+        int totalPPs = 0;
         {
             Set<ProgramPoint> visited = new HashSet<>();
             ArrayList<ProgramPoint> q = new ArrayList<>();
@@ -554,7 +555,7 @@ public class StatementRegistrar {
                     }
                 }
             }
-            totalProgramPoints = visited.size();
+            totalPPs = visited.size();
         }
 
         int removedPPs = 0;
@@ -632,6 +633,11 @@ public class StatementRegistrar {
             }
 
         }
+        StatementRegistrar.totalProgramPoints += totalPPs;
+        StatementRegistrar.removedProgramPoints += removedPPs;
+        if (PointsToAnalysis.outputLevel > 0) {
+            System.err.println("Total pp: " + totalPPs + ", removed pp: " + removedPPs);
+        }
     }
 
     /**
@@ -657,8 +663,8 @@ public class StatementRegistrar {
      * @param info information about the instruction to handle
      */
     protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb,
-                                     Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
-                                     TypeRepository types, PrettyPrinter printer, MethodSummaryNodes methSumm) {
+                                     Map<SSAInstruction, PPSubGraph> insToPPSubGraph, TypeRepository types,
+                                     PrettyPrinter printer, MethodSummaryNodes methSumm) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         assert !insToPPSubGraph.containsKey(i) || i instanceof SSAGetCaughtExceptionInstruction;
@@ -814,8 +820,7 @@ public class StatementRegistrar {
      * @param pprint
      */
     private void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ProgramPoint pp,
-                                    ReferenceVariableFactory rvFactory,
-                                    TypeRepository types, PrettyPrinter pprint) {
+                                    ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getValue());
         if (valueType.isPrimitiveType()) {
             // Assigning from a primitive or assigning null (also no effect on points-to graph)
@@ -834,8 +839,7 @@ public class StatementRegistrar {
      * v2 = (TypeName) v1
      */
     private void registerCheckCast(SSACheckCastInstruction i, IR ir, ProgramPoint pp,
-                                   ReferenceVariableFactory rvFactory,
-                                   TypeRepository types, PrettyPrinter pprint) {
+                                   ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
         TypeReference valType = types.getType(i.getVal());
         if (valType == TypeReference.Null) {
             // the cast value is null so no effect on pointer analysis
@@ -856,8 +860,7 @@ public class StatementRegistrar {
      * v = o.f
      */
     private void registerGetField(SSAGetInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
-                                  TypeRepository types,
-                                  PrettyPrinter pprint) {
+                                  TypeRepository types, PrettyPrinter pprint) {
         TypeReference resultType = i.getDeclaredFieldType();
         // If the class can't be found then WALA sets the type to object (why can't it be found?)
         assert resultType.getName().equals(types.getType(i.getDef()).getName())
@@ -896,8 +899,7 @@ public class StatementRegistrar {
      * o.f = v
      */
     private void registerPutField(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
-                                  TypeRepository types,
-                                  PrettyPrinter pprint) {
+                                  TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
         if (valueType.isPrimitiveType()) {
             // Assigning into a primitive field, or assigning null
@@ -995,15 +997,7 @@ public class StatementRegistrar {
 
         TypeReference exType = types.getType(i.getException());
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
-        this.registerThrownException(bb,
-                                     ir,
-                                     pp,
-                                     exception,
-                                     rvFactory,
-                                     types,
-                                     pprint,
-                                     insToPPSubGraph,
-                                     useSingleAllocPerThrowableType);
+        this.registerThrownException(bb, ir, pp, exception, rvFactory, types, pprint, insToPPSubGraph);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -1015,12 +1009,7 @@ public class StatementRegistrar {
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
-            this.addStatement(stmtFactory.staticCall(pp,
-                                                     resolvedCallee,
-                                                     result,
-                                                     actuals,
-                                                     exception,
-                                                     calleeSummary));
+            this.addStatement(stmtFactory.staticCall(pp, resolvedCallee, result, actuals, exception, calleeSummary));
         }
         else if (i.isSpecial()) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
@@ -1065,8 +1054,7 @@ public class StatementRegistrar {
      * Note that this is only the allocation not the initialization if there is any.
      */
     private void registerNewArray(SSANewInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
-                                  TypeRepository types,
-                                  PrettyPrinter pprint) {
+                                  TypeRepository types, PrettyPrinter pprint) {
         // all "new" instructions are assigned to a local
         TypeReference resultType = i.getConcreteType();
         assert resultType.getName().equals(types.getType(i.getDef()).getName());
@@ -1076,7 +1064,7 @@ public class StatementRegistrar {
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (useSingleAllocForPrimitiveArrays && resultType.getArrayElementType().isPrimitiveType()) {
             ReferenceVariable rv = getOrCreateSingleton(resultType);
-            this.addStatement(stmtFactory.localToLocal(a, rv, pp, false));
+            this.addStatement(stmtFactory.localToLocal(a, rv, pp));
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(a,
@@ -1125,18 +1113,18 @@ public class StatementRegistrar {
         if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
 
         }
         else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(allocType)) {
             // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
         }
         else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
 
         }
         else if (useSingleAllocForSwing
@@ -1144,7 +1132,7 @@ public class StatementRegistrar {
                                                                                                                    .contains("Lcom/sun/java/swing"))) {
             swingClasses++;
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp, false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
         }
         else if (klass.toString().contains("swing")) {
             System.err.println("SWING CLASS: " + klass);
@@ -1194,8 +1182,7 @@ public class StatementRegistrar {
      */
     @SuppressWarnings("unused")
     private void registerReflection(SSALoadMetadataInstruction i, IR ir, ProgramPoint pp,
-                                    ReferenceVariableFactory rvFactory,
-                                    TypeRepository types, PrettyPrinter pprint) {
+                                    ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
         // statement registrar not handling reflection yet
     }
 
@@ -1232,15 +1219,7 @@ public class StatementRegistrar {
 
         insToPPSubGraph.get(i).setCanExitNormally(false);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
-        this.registerThrownException(bb,
-                                     ir,
-                                     pp,
-                                     v,
-                                     rvFactory,
-                                     types,
-                                     pprint,
-                                     insToPPSubGraph,
-                                     useSingleAllocPerThrowableType);
+        this.registerThrownException(bb, ir, pp, v, rvFactory, types, pprint, insToPPSubGraph);
     }
 
     /**
@@ -1358,7 +1337,7 @@ public class StatementRegistrar {
         }
 
         // handle the mapping for program points
-        if (s.mayChangeFlowSensPointsToGraph()) {
+        if (s.mayChangeOrUseFlowSensPointsToGraph()) {
             ProgramPoint pp = s.programPoint();
             PointsToStatement existing = ppToStmtMap.putIfAbsent(pp, s);
             assert (existing == null) : "More than one statement that may modify the points to graph at a program point: existing is '"
@@ -1386,7 +1365,7 @@ public class StatementRegistrar {
         System.err.println("REGISTERED statements: " + (this.size + StatementRegistrar.removedStmts) + ", removed: "
                 + StatementRegistrar.removedStmts + ", effective: " + this.size + "\n           program points:  "
                 + (totalProgramPoints() + totalProgramPointsRemoved()) + ", removed: " + totalProgramPointsRemoved()
-                + ", effective: " + this.totalProgramPoints() + ", with stmt that may modify graph: "
+                + ", effective: " + totalProgramPoints() + ", with stmt that may modify or use graph: "
                 + this.ppToStmtMap.size());
 
     }
@@ -1437,8 +1416,7 @@ public class StatementRegistrar {
      * @param stringClass WALA representation of the java.lang.String class
      */
     private void findAndRegisterStringAndNullLiterals(SSAInstruction i, IR ir, PPSubGraph subgraph,
-                                               ReferenceVariableFactory rvFactory,
-                                               PrettyPrinter pprint) {
+                                                      ReferenceVariableFactory rvFactory, PrettyPrinter pprint) {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int use = i.getUse(j);
             if (ir.getSymbolTable().isStringConstant(use)) {
@@ -1481,13 +1459,12 @@ public class StatementRegistrar {
      * @param local local variable value number for the literal
      * @param ProgramPoint where the literal is created
      */
-    private void registerStringLiteral(ReferenceVariable stringLit, int local, PPSubGraph subgraph,
-                                               PrettyPrinter pprint) {
+    private void registerStringLiteral(ReferenceVariable stringLit, int local, PPSubGraph subgraph, PrettyPrinter pprint) {
         if (useSingleAllocForStrings) {
             // v = string
             ReferenceVariable rv = getOrCreateSingleton(AnalysisUtil.getStringClass().getReference());
             ProgramPoint newPP = subgraph.addIntermediateNormal("string-lit-alloc");
-            this.addStatement(stmtFactory.localToLocal(stringLit, rv, newPP, false));
+            this.addStatement(stmtFactory.localToLocal(stringLit, rv, newPP));
         }
         else {
             // v = new String
@@ -1530,15 +1507,7 @@ public class StatementRegistrar {
                 ex = getOrCreateSingleton(exType);
                 ProgramPoint throwPP = subgraph.addThrowException(exType);
                 if (throwPP != null) {
-                    this.registerThrownException(bb,
-                                                 ir,
-                                                 throwPP,
-                                                 ex,
-                                                 rvFactory,
-                                                 types,
-                                                 pprint,
-                                                 insToPPSubGraph,
-                                                 useSingleAlloc);
+                    this.registerThrownException(bb, ir, throwPP, ex, rvFactory, types, pprint, insToPPSubGraph);
                 }
             }
             else {
@@ -1550,15 +1519,7 @@ public class StatementRegistrar {
                 OrderedPair<ProgramPoint, ProgramPoint> pps = subgraph.addGenAndThrowException(exType);
                 if (pps != null) {
                     this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, pps.fst()));
-                    this.registerThrownException(bb,
-                                                 ir,
-                                                 pps.snd(),
-                                                 ex,
-                                                 rvFactory,
-                                                 types,
-                                                 pprint,
-                                                 insToPPSubGraph,
-                                                 useSingleAlloc);
+                    this.registerThrownException(bb, ir, pps.snd(), ex, rvFactory, types, pprint, insToPPSubGraph);
                 }
 
             }
@@ -1629,8 +1590,7 @@ public class StatementRegistrar {
      */
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
-                                               PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
-                                               boolean useSingletonAllocForThisException) {
+                                               PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
 
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
 
@@ -1670,7 +1630,7 @@ public class StatementRegistrar {
                     if (caught.localDef() == null) {
                         caught.setLocalDef(pp);
                     }
-                    this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, false, useSingletonAllocForThisException));
+                    this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
                 }
 
                 // if we have definitely caught the exception, no need to add more exception assignment statements.
@@ -1686,7 +1646,7 @@ public class StatementRegistrar {
                 // do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
-                this.addStatement(stmtFactory.exceptionAssignment(thrown, caught, notType, pp, true, useSingletonAllocForThisException));
+                this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
             }
         }
     }
@@ -1734,7 +1694,8 @@ public class StatementRegistrar {
             ProgramPoint classInitPP = new ProgramPoint(AnalysisUtil.getFakeRoot(), "class-init");
             pps.addFirst(classInitPP);
             classInitPP = this.classInitPPs.putIfAbsent(init.getDeclaringClass(), classInitPP);
-            assert classInitPP == null : "Registering duplicate clinit for " + PrettyPrinter.typeString(init.getDeclaringClass());
+            assert classInitPP == null : "Registering duplicate clinit for "
+                    + PrettyPrinter.typeString(init.getDeclaringClass());
         }
 
         if (pps.isEmpty()) {
@@ -1776,8 +1737,7 @@ public class StatementRegistrar {
      * @param type allocated type
      * @param summary summary reference variable for method exception or return
      */
-    private void registerAllocationForNative(IMethod m, ProgramPoint pp, TypeReference type,
-                                             ReferenceVariable summary) {
+    private void registerAllocationForNative(IMethod m, ProgramPoint pp, TypeReference type, ReferenceVariable summary) {
         IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
         this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m, pp));
     }
@@ -1803,12 +1763,10 @@ public class StatementRegistrar {
                     ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
                     this.registerAllocationForNative(m, pp, exType, ex);
                     pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
-                    this.addStatement(stmtFactory.exceptionAssignment(ex,
-                                                                      methodSummary.getException(),
-                                                                      Collections.<IClass> emptySet(),
-                                                                      pp,
-                                                                      true,
-                                                                      useSingleAllocPerThrowableType));
+                    this.addStatement(StatementFactory.exceptionAssignment(ex,
+                                                                           methodSummary.getException(),
+                                                                           Collections.<IClass> emptySet(),
+                                                                           pp));
 
                     containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
                     pp.addSucc(methodSummary.getExceptionExitPP());
@@ -1832,19 +1790,17 @@ public class StatementRegistrar {
                                              TypeReference.JavaLangRuntimeException,
                                              methodSummary.getException());
             pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
-            this.addStatement(stmtFactory.exceptionAssignment(ex,
-                                                              methodSummary.getException(),
-                                                              Collections.<IClass> emptySet(),
-                                                              pp,
-                                                              true,
-                                                              useSingleAllocPerThrowableType));
+            this.addStatement(StatementFactory.exceptionAssignment(ex,
+                                                                   methodSummary.getException(),
+                                                                   Collections.<IClass> emptySet(),
+                                                                   pp));
         }
 
         // connect the entry and the exit with some kind of program point.
 
     }
 
-    private ProgramPoint nextProgramPoint(ProgramPoint currPP, ProgramPoint nextPP) {
+    private static ProgramPoint nextProgramPoint(ProgramPoint currPP, ProgramPoint nextPP) {
         currPP.addSucc(nextPP);
         return nextPP;
     }
@@ -1860,7 +1816,7 @@ public class StatementRegistrar {
             }
             int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pprint);
-            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), pp, true));
+            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), pp));
         }
     }
 
@@ -1945,11 +1901,11 @@ public class StatementRegistrar {
         return this.entryMethod;
     }
 
-    public int totalProgramPoints() {
+    public static int totalProgramPoints() {
         return totalProgramPoints;
     }
 
-    public int totalProgramPointsRemoved() {
+    public static int totalProgramPointsRemoved() {
         return removedProgramPoints;
     }
 
@@ -2013,8 +1969,6 @@ public class StatementRegistrar {
         if (!visited.contains(pp)) {
             visited.add(pp);
             for (ProgramPoint succ : pp.succs()) {
-                PointsToStatement fromStmt = getStmtAtPP(pp);
-                PointsToStatement toStmt = getStmtAtPP(succ);
                 String fromStr = escape(pp.toString() + " : ((((" + getStmtAtPP(pp) + "))))");
                 String toStr = escape(succ.toString() + " : ((((" + getStmtAtPP(succ) + "))))");
                 writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");

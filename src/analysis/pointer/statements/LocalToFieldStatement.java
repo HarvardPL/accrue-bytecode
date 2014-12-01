@@ -43,17 +43,12 @@ public class LocalToFieldStatement extends PointsToStatement {
     /**
      * Statement for an assignment into a field, o.f = v
      *
-     * @param o
-     *            points-to graph node for receiver of field access
-     * @param f
-     *            field assigned to
-     * @param v
-     *            points-to graph node for value assigned
-     * @param m
-     *            method the points-to statement came from
+     * @param o points-to graph node for receiver of field access
+     * @param f field assigned to
+     * @param v points-to graph node for value assigned
+     * @param pp program point the points-to statement came from
      */
-    public LocalToFieldStatement(ReferenceVariable o, FieldReference f,
- ReferenceVariable v, ProgramPoint pp) {
+    public LocalToFieldStatement(ReferenceVariable o, FieldReference f, ReferenceVariable v, ProgramPoint pp) {
         super(pp);
         this.field = f;
         this.receiver = o;
@@ -63,8 +58,8 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
         PointsToGraphNode local = new ReferenceVariableReplica(context, this.localVar, haf);
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
@@ -106,7 +101,6 @@ public class LocalToFieldStatement extends PointsToStatement {
         return changed;
     }
 
-
     @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         ReferenceVariableReplica receiverReplica = new ReferenceVariableReplica(context, receiver, g.getHaf());
@@ -133,11 +127,8 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return this.receiver
-                + "."
-                + (this.field != null
-                ? this.field.getName() : PointsToGraph.ARRAY_CONTENTS)
-                + " = " + this.localVar;
+        return this.receiver + "." + (this.field != null ? this.field.getName() : PointsToGraph.ARRAY_CONTENTS) + " = "
+                + this.localVar;
     }
 
     @Override
@@ -183,7 +174,7 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // this depends on what the receiver points to. If it can point to a
         // recent object, then this will be a flow sensitive update.
         return true;
