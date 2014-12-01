@@ -2270,8 +2270,10 @@ public class PointsToGraph {
         if (dense) {
             float util = ((DenseIntMap<?>) newMap).utilization();
             int length = Math.round(newMap.size() / util);
-            System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
-                    + (length - newMap.size()) + " empty slots out of " + length + ")");
+            if (util < 1.0) {
+                System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
+                        + (length - newMap.size()) + " empty slots out of " + length + ")");
+            }
         }
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
