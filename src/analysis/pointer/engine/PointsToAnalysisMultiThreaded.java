@@ -14,6 +14,7 @@ import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
 import util.intset.ConcurrentIntHashSet;
+import util.print.CFGWriter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
@@ -192,6 +193,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
             g.dumpPointsToGraphToFile("tests/pointsToGraph");
+            for (IMethod m : registrar.getRegisteredMethods()) {
+                if (m.toString().contains("main")) {
+                    CFGWriter.writeToFile(m);
+                    break;
+                }
+            }
         }
 
 

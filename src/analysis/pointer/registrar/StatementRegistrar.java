@@ -1957,7 +1957,6 @@ public class StatementRegistrar {
                 continue;
             }
 
-            System.out.println("print meth");
             writeSucc(methSum.getEntryPP(), writer, visited);
         }
 
