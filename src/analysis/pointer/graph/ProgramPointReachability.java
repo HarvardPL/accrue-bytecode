@@ -359,10 +359,12 @@ public class ProgramPointReachability {
         for (InterProgramPointReplica src : sources) {
             SubQuery mr = new SubQuery(src, destination, noKill, noAlloc, forbidden);
             if (this.positiveCache.contains(mr)) {
+                assert !this.negativeCache.contains(mr);
                 return true;
             }
             else if (this.negativeCache.contains(mr)) {
                 // we know it's a negative result for this one.
+                assert !positiveCache.contains(mr);
             }
             else {
                 unknown.add(src);
@@ -419,7 +421,11 @@ public class ProgramPointReachability {
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
             SubQuery query = new SubQuery(src, destination, noKill, noAlloc, forbidden);
-            assert !positiveCache.contains(query);
+            if (positiveCache.contains(query)) {
+                assert !negativeCache.contains(query);
+                // The result was computed by another thread before this thread ran
+                return true;
+            }
 
             // First check the call graph to find the set of relevant call graph nodes.
             OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
@@ -429,7 +435,10 @@ public class ProgramPointReachability {
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
                 addDependency(query, origin);
-                recordQueryResult(query, false, tasksToReprocess);
+                if (recordQueryResult(query, false, tasksToReprocess)) {
+                    // We computed false, but the cache already had true
+                    return true;
+                }
                 continue;
             }
             // Now try a depth first search through the relevant nodes...
@@ -447,7 +456,10 @@ public class ProgramPointReachability {
                 return true;
             }
             addDependency(query, origin);
-            recordQueryResult(query, false, tasksToReprocess);
+            if (recordQueryResult(query, false, tasksToReprocess)) {
+                // We computed false, but the cache already had true
+                return true;
+            }
         }
         // we didn't find it.
         return false;
@@ -463,18 +475,29 @@ public class ProgramPointReachability {
      * @param mr
      * @param b
      * @param sacsToReprocess
+     *
+     * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
+     *         the cache already has a positive result.
      */
-    private void recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private synchronized boolean recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         if (b) {
             positiveCache.add(mr);
             if (negativeCache.remove(mr)) {
                 // we previously thought it was negative.
                 queryResultChanged(mr, sacsToReprocess);
             }
+            return true;
         }
-        else {
-            negativeCache.add(mr);
+
+        // Recording a false result
+        if (positiveCache.contains(mr)) {
+            assert !this.negativeCache.contains(mr);
+            // A positive result has already been computed return it
+            return true;
         }
+
+        negativeCache.add(mr);
+        return false;
     }
 
 
@@ -586,7 +609,6 @@ public class ProgramPointReachability {
         q.add(src);
         while (!q.isEmpty()) {
             InterProgramPointReplica ippr = q.poll();
-
             assert (ippr.getContainingProcedure().equals(currentMethod));
             if (inSameMethod && ippr.equals(destination)) {
                 // Found it!
@@ -1523,6 +1545,7 @@ public class ProgramPointReachability {
      */
     private boolean requestRerunQuery(SubQuery mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         if (this.positiveCache.contains(mr)) {
+            assert !this.negativeCache.contains(mr);
             // the query is already guaranteed to be true.
             return false;
         }
@@ -1537,6 +1560,7 @@ public class ProgramPointReachability {
      */
     private void queryResultChanged(SubQuery mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         assert this.positiveCache.contains(mr);
+        assert !this.negativeCache.contains(mr);
 
         // since the query is positive, it will never change in the future.
         // Let's save some memory by removing the set of dependent SaCs.
