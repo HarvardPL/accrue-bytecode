@@ -479,7 +479,7 @@ public class ProgramPointReachability {
      * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
      *         the cache already has a positive result.
      */
-    private synchronized boolean recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private boolean recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         if (b) {
             positiveCache.add(mr);
             if (negativeCache.remove(mr)) {
@@ -490,13 +490,12 @@ public class ProgramPointReachability {
         }
 
         // Recording a false result
+        negativeCache.add(mr);
         if (positiveCache.contains(mr)) {
-            assert !this.negativeCache.contains(mr);
+            this.negativeCache.remove(mr);
             // A positive result has already been computed return it
             return true;
         }
-
-        negativeCache.add(mr);
         return false;
     }
 
