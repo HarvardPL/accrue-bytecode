@@ -208,7 +208,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
         }
-
         return g;
     }
 
@@ -373,6 +372,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 catch (ConcurrentModificationException e) {
                     System.err.println("ConcurrentModificationException!!!");
                     e.printStackTrace();
+                    System.exit(0);
+                    // No seriously DIE!
+                    Runtime.getRuntime().halt(0);
+                }
+                catch (Throwable t) {
+                    System.err.println("Exception " + t);
+                    t.printStackTrace();
                     System.exit(0);
                     // No seriously DIE!
                     Runtime.getRuntime().halt(0);
