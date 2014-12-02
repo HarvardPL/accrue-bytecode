@@ -82,10 +82,10 @@ public class ReferenceVariableFactory {
         if (rv == null) {
             String name;
             if (pp != null) {
-                name = pp.valString(local) + "-" + PrettyPrinter.methodString(method);
+                name = pp.valString(local) /*+ "-" + PrettyPrinter.methodString(method)*/;
             }
             else {
-                name = PrettyPrinter.getCanonical("v" + local + "-" + PrettyPrinter.methodString(method));
+                name = PrettyPrinter.getCanonical("v" + local /* + "-" + PrettyPrinter.methodString(method)*/);
             }
             rv = new ReferenceVariable(name, type, false, false, true, false);
             locals.put(key, rv);

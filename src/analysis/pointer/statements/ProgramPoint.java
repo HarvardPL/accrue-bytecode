@@ -89,7 +89,7 @@ public class ProgramPoint {
 
     @Override
     public String toString() {
-        return "pp" + id + "(" + debugInfo + ")";
+        return "pp" + id + " " + debugInfo;
     }
 
     public String toStringSimple() {

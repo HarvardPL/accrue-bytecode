@@ -154,6 +154,9 @@ public class StatementRegistrar {
      */
     private final boolean useSingleAllocForImmutableWrappers;
 
+    /**
+     * Whether to use a single allocation site for all classes in the Swing GUI libraries
+     */
     private final boolean useSingleAllocForSwing = true;
 
     /**
@@ -204,6 +207,7 @@ public class StatementRegistrar {
      * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for any immutable wrapper
      *            class. This will reduce the size of the points-to graph (and speed up the points-to analysis), but
      *            result in a loss of precision for these classes.
+     * @param simplePrint If true then print less information to files for inspection
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
@@ -269,6 +273,8 @@ public class StatementRegistrar {
 
                 Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
                 Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
+                // Exceptions thrown at call sites
+                Set<ProgramPoint> callExceptions = new HashSet<>();
 
                 for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                     for (SSAInstruction ins : bb) {
@@ -277,7 +283,7 @@ public class StatementRegistrar {
                             System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
                                     + " in " + m);
                         }
-                        handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm);
+                        handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExceptions);
                     }
                     ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
                     bbToEntryPP.put(bb, pp);
@@ -293,7 +299,7 @@ public class StatementRegistrar {
                 }
 
                 // clean up graph
-                cleanUpProgramPoints(methSumm);
+                cleanUpProgramPoints(methSumm, callExceptions);
 
                 // now try to remove duplicates
                 Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -402,7 +408,7 @@ public class StatementRegistrar {
 
             if (insIter.hasNext()) {
                 // only the last instruction in a basic block is allowed to throw exceptions.
-                assert subgraph.exceptionExits.isEmpty();
+                assert subgraph.exceptionExits().isEmpty();
             }
         }
         assert prev != null;
@@ -417,7 +423,7 @@ public class StatementRegistrar {
         }
 
         addPPEdgesForExceptions(controlFlowGraph.getExceptionalSuccessors(bb),
-                                prev.exceptionExits,
+                                prev.exceptionExits(),
                                 bbToEntryPP,
                                 methSumm);
     }
@@ -528,7 +534,13 @@ public class StatementRegistrar {
         }
     }
 
-    private void cleanUpProgramPoints(MethodSummaryNodes methSumm) {
+    /**
+     * Remove unnecessary program points from the program point graph
+     *
+     * @param methSumm method summary nodes for this method (should not be removed)
+     * @param callExceptions exceptions at call sites (should not be removed)
+     */
+    private void cleanUpProgramPoints(MethodSummaryNodes methSumm, Set<ProgramPoint> callExceptions) {
         // try to clean up the program points. Let's first get a reverse mapping, and then check to see if there are any we can merge
         Map<ProgramPoint, Set<ProgramPoint>> preds = new HashMap<>();
 
@@ -565,7 +577,7 @@ public class StatementRegistrar {
         Set<ProgramPoint> removed = new HashSet<>();
         for (ProgramPoint pp : preds.keySet()) {
             if (getStmtAtPP(pp) != null) {
-                // this pp may modify the flow-sensitive part of the points to graph
+                // this pp may use or modify the flow-sensitive part of the points to graph
                 continue;
             }
             if (removed.contains(pp)) {
@@ -574,6 +586,10 @@ public class StatementRegistrar {
             }
             if (pp.isEntrySummaryNode() || pp.isExceptionExitSummaryNode() || pp.isNormalExitSummaryNode()) {
                 // don't try to remove summary nodes
+                continue;
+            }
+            if (callExceptions.contains(pp)) {
+                // don't remove program points for exceptions at call-sites
                 continue;
             }
 
@@ -653,18 +669,19 @@ public class StatementRegistrar {
     /**
      * Handle a particular instruction, this dispatches on the type of the instruction
      *
-     * @param pp ProgramPoint to use for the statement(s) generated by i
-     * @param ppForClassInit ProgramPoint to use for the class init statements, if any.
-     * @param types
-     * @param bb
-     * @param ir
-     * @param ins
-     *
-     * @param info information about the instruction to handle
+     * @param i instruction to handle
+     * @param bb basic block containing the instruction
+     * @param insToPPSubGraph program point subgraphs for each instruction (will be modified to add the subgraph for the
+     *            new instruction)
+     * @param printer pretty printer
+     * @param methSumm method summary reference variables for the method containing the instruction
+     * @param types repository for local variable type information
+     * @param callExceptions program points for exceptions at call-sites (may be modified)
      */
     protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb,
                                      Map<SSAInstruction, PPSubGraph> insToPPSubGraph, TypeRepository types,
-                                     PrettyPrinter printer, MethodSummaryNodes methSumm) {
+                                     PrettyPrinter printer, MethodSummaryNodes methSumm,
+                                     Set<ProgramPoint> callExceptions) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         assert !insToPPSubGraph.containsKey(i) || i instanceof SSAGetCaughtExceptionInstruction;
@@ -733,8 +750,13 @@ public class StatementRegistrar {
         case INVOKE_VIRTUAL:
             // procedure calls, instance initializers
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
-            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite());
-            subgraph.replaceWithCallSitePP(cspp);
+
+            // Create program points for any exceptions thrown by the callee
+            Map<TypeReference, ProgramPoint> exceptions = addCallExceptionProgramPoints(i.getExceptionTypes(), subgraph);
+            callExceptions.addAll(exceptions.values());
+
+            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exceptions);
+            subgraph.replaceNormalExitWithCallSitePP(cspp);
             this.registerInvoke(invocation, bb, ir, cspp, this.rvFactory, types, printer, insToPPSubGraph);
             return;
         case LOAD_METADATA:
@@ -785,6 +807,48 @@ public class StatementRegistrar {
     }
 
     /**
+     * Add exception program points for a method call (in the caller)
+     *
+     * @param exceptionTypes types of exceptions that can be thrown
+     * @param subgraph program point subgraph (may be modified)
+     * @return map from type of exception to program point
+     */
+    private static Map<TypeReference, ProgramPoint> addCallExceptionProgramPoints(Collection<TypeReference> exceptionTypes,
+                                                                                  PPSubGraph subgraph) {
+        Map<TypeReference, ProgramPoint> exceptions = new HashMap<>();
+        ProgramPoint throwPP;
+        if (subgraph.exceptionExits().containsKey(TypeReference.JavaLangThrowable)) {
+            throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangThrowable);
+        }
+        else {
+            throwPP = subgraph.addThrowException(TypeReference.JavaLangThrowable);
+            assert throwPP != null;
+        }
+        exceptions.put(TypeReference.JavaLangThrowable, throwPP);
+        return exceptions;
+        //        ProgramPoint throwPP;
+        //        for (TypeReference t : exceptionTypes) {
+        //            if (t.equals(TypeReference.JavaLangNullPointerException)
+        //                    && subgraph.exceptionExits.keySet().contains(TypeReference.JavaLangNullPointerException)) {
+        //                // A program point was already added for the generated exception
+        //                continue;
+        //            }
+        //            throwPP = subgraph.addThrowException(t);
+        //            exceptions.put(t, throwPP);
+        //            assert throwPP != null;
+        //        }
+        //        // Also add in a program point for RunTimeException and Error
+        //        throwPP = subgraph.addThrowException(TypeReference.JavaLangRuntimeException);
+        //        exceptions.put(TypeReference.JavaLangRuntimeException, throwPP);
+        //        assert throwPP != null;
+        //        throwPP = subgraph.addThrowException(TypeReference.JavaLangError);
+        //        exceptions.put(TypeReference.JavaLangError, throwPP);
+        //        assert throwPP != null;
+        //
+        //        return exceptions;
+    }
+
+    /**
      * v = a[j], load from an array
      */
     private void registerArrayLoad(SSAArrayLoadInstruction i, IR ir, ProgramPoint pp,
@@ -804,20 +868,6 @@ public class StatementRegistrar {
 
     /**
      * a[j] = v, store into an array
-     */
-    /**
-     * @param i
-     * @param ir
-     * @param rvFactory
-     * @param types
-     * @param pprint
-     */
-    /**
-     * @param i
-     * @param ir
-     * @param rvFactory
-     * @param types
-     * @param pprint
      */
     private void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ProgramPoint pp,
                                     ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
@@ -917,13 +967,6 @@ public class StatementRegistrar {
     /**
      * ClassName.f = v
      */
-    /**
-     * @param i
-     * @param ir
-     * @param rvFactory
-     * @param types
-     * @param pprint
-     */
     private void registerPutStatic(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                    TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
@@ -940,8 +983,6 @@ public class StatementRegistrar {
 
     /**
      * A virtual, static, special, or interface invocation
-     *
-     * @param bb
      */
     private void registerInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir, CallSiteProgramPoint pp,
                                 ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
@@ -996,6 +1037,7 @@ public class StatementRegistrar {
         // //////////// Exceptions ////////////
 
         TypeReference exType = types.getType(i.getException());
+        System.err.println("EX TYPE: " + exType);
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
         this.registerThrownException(bb, ir, pp, exception, rvFactory, types, pprint, insToPPSubGraph);
 
@@ -1209,8 +1251,6 @@ public class StatementRegistrar {
 
     /**
      * throw v
-     *
-     * @param bb
      */
     private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ProgramPoint pp,
                                ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
@@ -1240,14 +1280,14 @@ public class StatementRegistrar {
         return msn;
     }
 
-    /*
+    /**
      * Get the method summary nodes for the given method, return null if not found
      */
     public MethodSummaryNodes getMethodSummary(IMethod method) {
         return this.methods.get(method);
     }
 
-    /*
+    /**
      * Get the statement at a program point, return null is not found
      */
     public PointsToStatement getStmtAtPP(ProgramPoint pp) {
@@ -1457,7 +1497,8 @@ public class StatementRegistrar {
      *
      * @param stringLit reference variable for the string literal being handled
      * @param local local variable value number for the literal
-     * @param ProgramPoint where the literal is created
+     * @param subgraph Program point subgraph for the instruction where the literal is created
+     * @param pprint pretty printer
      */
     private void registerStringLiteral(ReferenceVariable stringLit, int local, PPSubGraph subgraph, PrettyPrinter pprint) {
         if (useSingleAllocForStrings) {
@@ -1488,11 +1529,6 @@ public class StatementRegistrar {
 
     /**
      * Add points-to statements for any generated exceptions thrown by the given instruction
-     *
-     * @param i instruction that may throw generated exceptions
-     * @param bb
-     * @param ir code containing the instruction
-     * @param rvFactory factory for creating new reference variables
      */
     @SuppressWarnings("unused")
     private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir,
@@ -1506,9 +1542,8 @@ public class StatementRegistrar {
             if (useSingleAlloc) {
                 ex = getOrCreateSingleton(exType);
                 ProgramPoint throwPP = subgraph.addThrowException(exType);
-                if (throwPP != null) {
-                    this.registerThrownException(bb, ir, throwPP, ex, rvFactory, types, pprint, insToPPSubGraph);
-                }
+                assert throwPP != null;
+                this.registerThrownException(bb, ir, throwPP, ex, rvFactory, types, pprint, insToPPSubGraph);
             }
             else {
                 ex = rvFactory.createImplicitExceptionNode(exType, bb.getNumber(), ir.getMethod());
@@ -1557,7 +1592,7 @@ public class StatementRegistrar {
     /**
      * Add a program point to the entry method.
      *
-     * @param pp
+     * @param pp program point to add
      */
     private void addEntryMethodProgramPoint(ProgramPoint pp) {
         // get the entry method entry program point
@@ -1831,92 +1866,59 @@ public class StatementRegistrar {
     }
 
     /**
-     * Instruction together with information about the containing code
+     * Listener for new statements added to the registrar
      */
-    public static final class InstructionInfo {
-        public final SSAInstruction instruction;
-        public final IR ir;
-        public final ISSABasicBlock basicBlock;
-        public final TypeRepository typeRepository;
-        public final PrettyPrinter prettyPrinter;
-
-        /**
-         * Instruction together with information about the containing code
-         *
-         * @param i instruction
-         * @param ir containing code
-         * @param bb containing basic block
-         * @param types results of type inference for the method
-         * @param pprint Pretty printer for local variables and instructions in enclosing method
-         */
-        public InstructionInfo(SSAInstruction i, IR ir, ISSABasicBlock bb, TypeRepository types, PrettyPrinter pprint) {
-            assert i != null;
-            assert ir != null;
-            assert types != null;
-            assert pprint != null;
-            assert bb != null;
-
-            this.instruction = i;
-            this.ir = ir;
-            this.typeRepository = types;
-            this.prettyPrinter = pprint;
-            this.basicBlock = bb;
-        }
-
-        @Override
-        public int hashCode() {
-            return this.instruction.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (this.getClass() != obj.getClass()) {
-                return false;
-            }
-            InstructionInfo other = (InstructionInfo) obj;
-            return this.instruction.equals(other.instruction);
-        }
-    }
-
     public interface StatementListener {
         /**
          * Called when a new statement is added to the registrar.
          *
-         * @param stmt
+         * @param stmt statement added
          */
         void newStatement(PointsToStatement stmt);
     }
 
+    /**
+     * Add a statement listener
+     *
+     * @param stmtListener Listener for new statements added to the registrar
+     */
     public void setStatementListener(StatementListener stmtListener) {
         this.stmtListener = stmtListener;
     }
 
+    /**
+     * Get the entry point for the application
+     *
+     * @return entry point method
+     */
     public IMethod getEntryPoint() {
         return this.entryMethod;
     }
 
+    /**
+     * Total number of program points
+     */
     public static int totalProgramPoints() {
         return totalProgramPoints;
     }
 
+    /**
+     * Total number of unecessary program points that were removed
+     */
     public static int totalProgramPointsRemoved() {
         return removedProgramPoints;
     }
 
-    public boolean shouldUseSingleAllocForGenEx() {
-        return useSingleAllocForGenEx;
-    }
-
+    /**
+     * Whether to print only for certain methods
+     */
     public boolean shouldUseSimplePrint() {
         return simplePrint;
     }
 
+    /**
+     * Get program points for any call sites where the given method is a possible target
+     */
     public Set<CallSiteProgramPoint> getCallSitesForMethod(IMethod m) {
         Set<CallSiteProgramPoint> s = this.callSitesForMethod.get(m);
         if (s == null) {
@@ -1940,7 +1942,10 @@ public class StatementRegistrar {
         }
     }
 
-    public Writer dumpProgramPointSuccGraph(Writer writer) throws IOException {
+    /**
+     * Write out the program point graph to the given writer
+     */
+    private Writer dumpProgramPointSuccGraph(Writer writer) throws IOException {
         double spread = 1.0;
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
@@ -1964,50 +1969,95 @@ public class StatementRegistrar {
         return writer;
     }
 
+    /**
+     * Write all successor edges of the given program point
+     */
     private void writeSucc(ProgramPoint pp, Writer writer, Set<ProgramPoint> visited) throws IOException {
         if (!visited.contains(pp)) {
             visited.add(pp);
             for (ProgramPoint succ : pp.succs()) {
-                String fromStr = escape(pp.toString() + " : ((((" + getStmtAtPP(pp) + "))))");
-                String toStr = escape(succ.toString() + " : ((((" + getStmtAtPP(succ) + "))))");
+                String fromStr = escape(pp.toString() + " : " + getStmtAtPP(pp));
+                String toStr = escape(succ.toString() + " : " + getStmtAtPP(succ));
                 writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
                 writeSucc(succ, writer, visited);
             }
         }
     }
 
+    /**
+     * Escape the string for dot format
+     */
     private static String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
     }
 
+    /**
+     * Program point graph for a particular instruction
+     */
     public class PPSubGraph {
 
-        ProgramPoint entry;
-        ProgramPoint normExit;
-        ProgramPoint preNormExit;
-        Map<TypeReference, ProgramPoint> exceptionExits;
+        /**
+         * Entry program point
+         */
+        private ProgramPoint entry;
+        /**
+         * Program point for normal (non-exceptional) exit
+         */
+        private ProgramPoint normExit;
+        /**
+         * Program point right before the normal exit (null if there is only one PP for this instruction)
+         */
+        private ProgramPoint preNormExit;
+        /**
+         * Program points for exceptional exit, one for each exception type
+         */
+        private Map<TypeReference, ProgramPoint> exceptionExits;
+        /**
+         * True if the instruction can exit normally, false if not (for a "throw" instruction)
+         */
         private boolean canExitNormally;
 
+        /**
+         * Create a new program point subgraph with a single node
+         *
+         * @param containingProcedure procedure the instructino is contained in
+         * @param i instruction the graph is for
+         * @param pprint pretty printer for the method
+         */
         PPSubGraph(IMethod containingProcedure, SSAInstruction i, PrettyPrinter pprint) {
-            this.entry = new ProgramPoint(containingProcedure, "i-entry-" + pprint.instructionString(i));
+            this.entry = new ProgramPoint(containingProcedure, "i-entry " + pprint.instructionString(i));
             this.normExit = this.entry;
             this.preNormExit = null;
             this.exceptionExits = new HashMap<>();
             this.canExitNormally = true;
         }
 
+        /**
+         * Get the entry program point for the instruction
+         */
         ProgramPoint entry() {
             return this.entry;
         }
 
+        /**
+         * Program point for normal (non-exceptional) exit
+         */
         ProgramPoint normalExit() {
             return this.normExit;
         }
 
+        /**
+         * Set whether this instruction can exit normally
+         *
+         * @param canExitNormally True if the instruction can exit normally, false if not (for a "throw" instruction)
+         */
         void setCanExitNormally(boolean canExitNormally) {
             this.canExitNormally = canExitNormally;
         }
 
+        /**
+         * Program points for exceptional exit, one for each exception type
+         */
         Map<TypeReference, ProgramPoint> exceptionExits() {
             return this.exceptionExits;
         }
@@ -2015,7 +2065,7 @@ public class StatementRegistrar {
         /**
          * Add a program point that throws an exception.
          *
-         * @param exType
+         * @param exType type of exception being added
          * @return the exception exit (i.e. the program point that throws the exception)
          */
         ProgramPoint addThrowException(TypeReference exType) {
@@ -2028,7 +2078,8 @@ public class StatementRegistrar {
                 assert false : "Exception exits already contains key";
                 return null;
             }
-            ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex)");
+            ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "throw "
+                    + PrettyPrinter.typeString(exType));
             exceptionExits.put(exType, pp);
             this.entry.addSucc(pp);
             return pp;
@@ -2037,7 +2088,7 @@ public class StatementRegistrar {
         /**
          * Add a program point that generates an exception and a program point that throws it.
          *
-         * @param exType
+         * @param exType type of exception being added
          * @return the exception exit (i.e. the program point that throws the exception)
          */
         OrderedPair<ProgramPoint, ProgramPoint> addGenAndThrowException(TypeReference exType) {
@@ -2061,7 +2112,7 @@ public class StatementRegistrar {
         /**
          * Add an intermediate program point between the entry and normal exit of the subgraph
          *
-         * @param debugString
+         * @param debugString pretty string for the intermediate node
          * @return intermediate program point
          */
         ProgramPoint addIntermediateNormal(String debugString) {
@@ -2081,32 +2132,9 @@ public class StatementRegistrar {
         }
 
         /**
-         * Add a possible intermediate program point.
-         *
-         * @param debugString
-         * @return
+         * Replace the normal exit node for an invoke instruction with a CallSiteProgramPoint
          */
-        public ProgramPoint addPossibleNormal(String debugString) {
-            ProgramPoint interNode = new ProgramPoint(this.entry.containingProcedure(), debugString);
-            ProgramPoint newPreNormExit = new ProgramPoint(this.entry.containingProcedure(), debugString);
-            if (this.entry == this.normExit) {
-                assert this.preNormExit == null;
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(inst-norm-exit)");
-                this.entry.addSucc(interNode);
-                this.preNormExit.addSucc(newPreNormExit);
-            }
-            else {
-                this.preNormExit.removeSucc(this.normExit);
-                this.preNormExit.addSucc(interNode);
-                this.preNormExit.addSucc(newPreNormExit);
-            }
-            interNode.addSucc(newPreNormExit);
-            newPreNormExit.addSucc(this.normExit);
-            this.preNormExit = newPreNormExit;
-            return interNode;
-        }
-
-        void replaceWithCallSitePP(CallSiteProgramPoint cspp) {
+        void replaceNormalExitWithCallSitePP(CallSiteProgramPoint cspp) {
             if (this.entry == this.normExit) {
                 assert this.preNormExit == null;
                 this.entry = cspp;
@@ -2118,6 +2146,10 @@ public class StatementRegistrar {
             this.normExit = cspp;
         }
 
+        /**
+         *
+         * @return True if the instruction can exit normally, false if not (for a "throw" instruction)
+         */
         public boolean canExitNormally() {
             return this.canExitNormally;
         }
