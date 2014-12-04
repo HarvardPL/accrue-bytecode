@@ -2721,14 +2721,8 @@ public class PointsToGraph {
     }
 
     @SuppressWarnings("static-method")
-    private boolean shouldPrint(InstanceKeyRecency ikr) {
-        String s = ikr.toString();
-        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive");
-    }
-
-    @SuppressWarnings("static-method")
-    private boolean shouldPrint(ReferenceVariableReplica rvr) {
-        String s = rvr.toString();
+    private boolean shouldPrint(Object o) {
+        String s = o.toString();
         return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive");
     }
 
