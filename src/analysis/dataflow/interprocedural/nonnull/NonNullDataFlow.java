@@ -103,7 +103,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                                                      currentNode,
                                                                                      ippr);
                 for (AbstractLocation loc : locs) {
-                    System.err.println("Initializing " + loc);
                     initial = initial.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
                 }
             }

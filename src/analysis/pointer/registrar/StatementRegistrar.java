@@ -23,6 +23,7 @@ import signatures.Signatures;
 import types.TypeRepository;
 import util.InstructionType;
 import util.OrderedPair;
+import util.WorkQueue;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -792,7 +793,7 @@ public class StatementRegistrar {
             return;
         case THROW:
             // throw e
-            this.registerThrow((SSAThrowInstruction) i, bb, ir, pp, this.rvFactory, types, printer, insToPPSubGraph);
+            this.registerThrow((SSAThrowInstruction) i, bb, ir, this.rvFactory, types, printer, insToPPSubGraph);
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op
@@ -1253,14 +1254,23 @@ public class StatementRegistrar {
     /**
      * throw v
      */
-    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ProgramPoint pp,
+    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir,
                                ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
         TypeReference throwType = types.getType(i.getException());
-
-        insToPPSubGraph.get(i).setCanExitNormally(false);
+        PPSubGraph subgraph = insToPPSubGraph.get(i);
+        ProgramPoint throwPP;
+        if (subgraph.exceptionExits().containsKey(throwType)) {
+            // This is an explicit throw of an NPE, but we already added NPE so do nothing
+            assert throwType.equals(TypeReference.JavaLangNullPointerException);
+            throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangNullPointerException);
+        }
+        else {
+            throwPP = subgraph.addThrowException(throwType);
+        }
+        subgraph.setCanExitNormally(false);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
-        this.registerThrownException(bb, ir, pp, v, rvFactory, types, pprint, insToPPSubGraph);
+        this.registerThrownException(bb, ir, throwPP, v, rvFactory, types, pprint, insToPPSubGraph);
     }
 
     /**
@@ -1627,7 +1637,6 @@ public class StatementRegistrar {
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
                                                PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
-
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
 
         Set<IClass> notType = new LinkedHashSet<>();
@@ -2060,6 +2069,11 @@ public class StatementRegistrar {
          * @param canExitNormally True if the instruction can exit normally, false if not (for a "throw" instruction)
          */
         void setCanExitNormally(boolean canExitNormally) {
+            if (!canExitNormally) {
+                if (preNormExit != null) {
+                    preNormExit.removeSucc(normExit);
+                }
+            }
             this.canExitNormally = canExitNormally;
         }
 
@@ -2083,7 +2097,7 @@ public class StatementRegistrar {
                 this.preNormExit = this.entry;
             }
             if (exceptionExits.containsKey(exType)) {
-                assert false : "Exception exits already contains key";
+                assert false : "Exception exits already contains key " + exType;
                 return null;
             }
             ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "throw "
@@ -2110,7 +2124,8 @@ public class StatementRegistrar {
                 return null;
             }
             ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
-            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex)");
+            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex) "
+                    + PrettyPrinter.typeString(exType));
             this.entry.addSucc(genPP);
             genPP.addSucc(throwPP);
             exceptionExits.put(exType, throwPP);
@@ -2160,6 +2175,29 @@ public class StatementRegistrar {
          */
         public boolean canExitNormally() {
             return this.canExitNormally;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            WorkQueue<ProgramPoint> q = new WorkQueue<>();
+            Set<ProgramPoint> visited = new HashSet<>();
+            q.add(entry);
+            while (!q.isEmpty()) {
+                ProgramPoint pp = q.poll();
+                visited.add(pp);
+                if (pp == entry && pp.succs().isEmpty()) {
+                    sb.append(pp.toString());
+                    break;
+                }
+                for (ProgramPoint succ : pp.succs()) {
+                    sb.append(pp.toString() + " -> " + succ.toString() + "\n");
+                    if (!visited.contains(succ)) {
+                        q.add(succ);
+                    }
+                }
+            }
+            return sb.toString();
         }
     }
 }
