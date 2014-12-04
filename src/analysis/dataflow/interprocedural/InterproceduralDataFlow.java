@@ -22,6 +22,7 @@ import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
@@ -564,8 +565,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      *            call graph node giving the method and context for the receiver
      * @return set of abstract locations for the field
      */
-    public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n) {
-        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n), null);
+    public Set<AbstractLocation> getLocationsForNonStaticField(int receiver, FieldReference field, CGNode n,
+                                                               InterProgramPointReplica ippr) {
+        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(receiver, n), ippr);
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Field target doesn't point to anything. v" + receiver + " in "
                                             + PrettyPrinter.cgNodeString(n) + " accessing field: "
@@ -593,7 +595,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
      * @return set of abstract locations for the contents of the array
      */
     public Set<AbstractLocation> getLocationsForArrayContents(int array, CGNode n) {
-        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
+        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n));
         if (!pointsToIter.hasNext() && outputLevel >= 1) {
             System.err.println("Array doesn't point to anything. v" + array + " in " + PrettyPrinter.cgNodeString(n));
             System.err.println("\tReplica was " + getReplica(array, n));
@@ -611,7 +613,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
     /**
      * Check whether the variable with the given value number is an array
      */
-    public boolean isArray(int array, CGNode n, TypeReference type) {
+    public boolean isArray(int array, CGNode n, TypeReference type, InterProgramPointReplica ippr) {
         if (type.isArrayType()) {
             return true;
         }
@@ -620,7 +622,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             return false;
         }
         // This is a java.lang.Object, but might point to an array
-        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), null);
+        Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), ippr);
         while (pointsToIter.hasNext()) {
             InstanceKey o = pointsToIter.next();
             if (o.getConcreteType().isArrayClass()) {

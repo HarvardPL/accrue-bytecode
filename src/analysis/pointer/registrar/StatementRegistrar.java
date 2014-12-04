@@ -185,7 +185,7 @@ public class StatementRegistrar {
     /**
      * Map from method and instruction in that method to the program point for that instruction
      */
-    private final Map<OrderedPair<IMethod, SSAInstruction>, ProgramPoint> insToPP = new LinkedHashMap<>();
+    private final Map<SSAInstruction, ProgramPoint> insToPP = new LinkedHashMap<>();
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -284,6 +284,10 @@ public class StatementRegistrar {
                                     + " in " + m);
                         }
                         handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExceptions);
+                        if (ppToStmtMap.containsKey(insToPPSubGraph.get(ins).normalExit())) {
+                            // Record the pp for this instruction
+                            insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
+                        }
                     }
                     ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
                     bbToEntryPP.put(bb, pp);
@@ -752,7 +756,7 @@ public class StatementRegistrar {
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
 
             // Create program points for any exceptions thrown by the callee
-            Map<TypeReference, ProgramPoint> exceptions = addCallExceptionProgramPoints(i.getExceptionTypes(), subgraph);
+            Map<TypeReference, ProgramPoint> exceptions = addCallExceptionProgramPoint(subgraph);
             callExceptions.addAll(exceptions.values());
 
             CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exceptions);
@@ -807,14 +811,12 @@ public class StatementRegistrar {
     }
 
     /**
-     * Add exception program points for a method call (in the caller)
+     * Add exception program point for a method call (in the caller)
      *
-     * @param exceptionTypes types of exceptions that can be thrown
      * @param subgraph program point subgraph (may be modified)
      * @return map from type of exception to program point
      */
-    private static Map<TypeReference, ProgramPoint> addCallExceptionProgramPoints(Collection<TypeReference> exceptionTypes,
-                                                                                  PPSubGraph subgraph) {
+    private static Map<TypeReference, ProgramPoint> addCallExceptionProgramPoint(PPSubGraph subgraph) {
         Map<TypeReference, ProgramPoint> exceptions = new HashMap<>();
         ProgramPoint throwPP;
         if (subgraph.exceptionExits().containsKey(TypeReference.JavaLangThrowable)) {
@@ -1037,7 +1039,6 @@ public class StatementRegistrar {
         // //////////// Exceptions ////////////
 
         TypeReference exType = types.getType(i.getException());
-        System.err.println("EX TYPE: " + exType);
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
         this.registerThrownException(bb, ir, pp, exception, rvFactory, types, pprint, insToPPSubGraph);
 
@@ -1925,6 +1926,13 @@ public class StatementRegistrar {
             return Collections.emptySet();
         }
         return s;
+    }
+
+    /**
+     * Map from instruction to program point
+     */
+    public Map<SSAInstruction, ProgramPoint> getInsToPP() {
+        return this.insToPP;
     }
 
     /**

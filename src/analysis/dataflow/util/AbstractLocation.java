@@ -85,6 +85,15 @@ public class AbstractLocation {
         return receiverContext;
     }
 
+    /**
+     * Get the field (null for array contents)
+     * 
+     * @return the field this location is for
+     */
+    public IField getField() {
+        return this.field;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;

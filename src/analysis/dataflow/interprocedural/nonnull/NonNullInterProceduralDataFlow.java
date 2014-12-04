@@ -24,21 +24,25 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      */
     private final NonNullResults results = new NonNullResults();
     /**
+     * should heap locations be tracked (flow-sensitively) in the var context
+     */
+    private final boolean trackHeapLocations;
+    /**
      * Name of this analysis
      */
     private static final String ANALYSIS_NAME = "Non-null Analysis";
 
     /**
      * Create a new inter-procedural non-null analysis over the given call graph
-     * 
-     * @param ptg
-     *            points-to graph
-     * @param reachable
-     *            results of a reachability analysis
+     *
+     * @param ptg points-to graph
+     * @param reachable results of a reachability analysis
+     * @param trackHeapLocations should heap locations be tracked (flow-sensitively) in the var context
      */
     public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable,
-                                    ReferenceVariableCache rvCache) {
+                                          ReferenceVariableCache rvCache, boolean trackHeapLocations) {
         super(ptg, reachable, rvCache);
+        this.trackHeapLocations = trackHeapLocations;
     }
 
     @Override
@@ -86,7 +90,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
 
     @Override
     protected VarContext<NonNullAbsVal> getInputForEntryPoint() {
-        return new NonNullVarContext(null, null);
+        return new NonNullVarContext(null, null, trackHeapLocations);
     }
 
     @Override
@@ -105,8 +109,8 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
 
     /**
      * Get the results after running this inter-procedural analysis, these may be unsound while the analysis is running
-     * 
-     * 
+     *
+     *
      * @return which variables are non-null before each instruction
      */
     @Override

@@ -1,7 +1,9 @@
 package analysis.dataflow.interprocedural.nonnull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,9 +16,20 @@ import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.graph.ObjectField;
+import analysis.pointer.graph.PointsToGraphNode;
+import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.ProgramPoint;
+import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
+import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
+import com.ibm.wala.classLoader.IField;
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.shrikeBT.IConditionalBranchInstruction.Operator;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
@@ -73,6 +86,36 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     }
 
     @Override
+    public Map<ExitType, VarContext<NonNullAbsVal>> dataflow(VarContext<NonNullAbsVal> initial) {
+        IMethod m = currentNode.getMethod();
+        if (m.isInit()) {
+            // Initialize the fields of the reciever to MAYBE_NULL
+            Collection<IField> fields = currentNode.getMethod().getDeclaringClass().getAllFields();
+            ProgramPoint entryPP = ptg.getRegistrar().getMethodSummary(m).getEntryPP();
+            InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), entryPP.pre());
+            int receiver = currentNode.getIR().getParameter(0);
+            for (IField f : fields) {
+                if (f.isStatic()) {
+                    continue;
+                }
+                Set<AbstractLocation> locs = interProc.getLocationsForNonStaticField(receiver,
+                                                                                     f.getReference(),
+                                                                                     currentNode,
+                                                                                     ippr);
+                for (AbstractLocation loc : locs) {
+                    System.err.println("Initializing " + loc);
+                    initial = initial.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+                }
+            }
+        }
+        if (currentNode.getMethod().isClinit()) {
+            // Initialize the static fields of the class
+        }
+
+        return super.dataflow(initial);
+    }
+
+    @Override
     protected Map<ISSABasicBlock, VarContext<NonNullAbsVal>> call(SSAInvokeInstruction i,
                                     Set<VarContext<NonNullAbsVal>> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb) {
@@ -103,6 +146,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             return guessResultsForMissingReceiver(i, nonNull, cfg, bb);
         }
 
+        Map<AbstractLocation, NonNullAbsVal> normalLocations = new LinkedHashMap<>();
+        Map<AbstractLocation, NonNullAbsVal> exceptionalLocations = new LinkedHashMap<>();
         for (CGNode callee : targets) {
             Map<ExitType, VarContext<NonNullAbsVal>> out;
             int[] formals;
@@ -152,6 +197,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                     NonNullAbsVal newVal = getLocal(formals[j], normal).join(newNormalActualValues.get(j));
                     newNormalActualValues.set(j, newVal);
                 }
+                joinLocations(normalLocations, normal);
             }
 
             VarContext<NonNullAbsVal> exception = out.get(ExitType.EXCEPTIONAL);
@@ -164,8 +210,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                     NonNullAbsVal newVal = getLocal(formals[j], exception).join(newExceptionActualValues.get(j));
                     newExceptionActualValues.set(j, newVal);
                 }
+                joinLocations(exceptionalLocations, exception);
             }
-        }
+        } // End of handling single callee
 
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> ret = new LinkedHashMap<>();
 
@@ -175,10 +222,13 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             if (!returnAlwaysNonNull) {
                 normal = nonNull.setLocal(i.getReturnValue(0), calleeReturn);
                 normal = updateActuals(newNormalActualValues, actuals, normal);
+
             } else {
                 normal = updateActuals(newNormalActualValues, actuals, nonNull);
+
             }
 
+            normal = normal.replaceAllLocations(normalLocations);
             for (ISSABasicBlock normalSucc : getNormalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, normalSucc)) {
                     assert normal != null : "Should be non-null if there is a normal successor.";
@@ -199,7 +249,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         if (canThrowException) {
             VarContext<NonNullAbsVal> callerExContext = nonNull.setExceptionValue(NonNullAbsVal.NON_NULL);
             callerExContext = updateActuals(newExceptionActualValues, actuals, callerExContext);
-
+            callerExContext = callerExContext.replaceAllLocations(exceptionalLocations);
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
                     if (npeSuccs != null && npeSuccs.contains(exSucc)) {
@@ -223,6 +273,19 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         }
 
         return ret;
+    }
+
+    /**
+     * Join the locations in the context with those in the accumulator
+     *
+     * @param accumulated map from abstract location to accumulated abstract value
+     * @param newContext new context to join into the accumulator
+     */
+    private static void joinLocations(Map<AbstractLocation, NonNullAbsVal> accumulated,
+                                      VarContext<NonNullAbsVal> newContext) {
+        for (AbstractLocation loc : newContext.getLocations()) {
+            accumulated.put(loc, VarContext.safeJoinValues(newContext.getLocation(loc), accumulated.get(loc)));
+        }
     }
 
     @Override
@@ -267,23 +330,52 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     @Override
     protected VarContext<NonNullAbsVal> confluence(Set<VarContext<NonNullAbsVal>> items, ISSABasicBlock bb) {
         assert !items.isEmpty();
-        return VarContext.join(items);
+        VarContext<NonNullAbsVal> joined = VarContext.join(items);
+        //        if (items.size() == 1) {
+        //            return joined;
+        //        }
+        //        // Joining locations is a little trickier, if they are not in one of the varcontexts, and NonNull in the others
+        //        // then we need to look it up rather than ignoring the empty one
+        //        Set<AbstractLocation> allLocations = new LinkedHashSet<>();
+        //        for (VarContext<NonNullAbsVal> vc : items) {
+        //            for (AbstractLocation loc : vc.getLocations()) {
+        //                allLocations.add(loc);
+        //            }
+        //        }
+        //
+        //        for (AbstractLocation loc : allLocations) {
+        //            NonNullAbsVal val = null;
+        //            for (VarContext<NonNullAbsVal> vc : items) {
+        //                val = VarContext.safeJoinValues(getLocation(vc, loc, XXX), val);
+        //            }
+        //            joined = (NonNullVarContext) joined.setLocation(loc, val);
+        //        }
+        return joined;
     }
 
     @Override
     protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
                                     Map<ISSABasicBlock, VarContext<NonNullAbsVal>> outItems) {
+        NonNullResults results = ((NonNullInterProceduralDataFlow) interProc).getAnalysisResults();
         for (SSAInstruction i : justProcessed) {
             assert getAnalysisRecord(i) != null : "No analysis record for " + i + " in "
                                             + PrettyPrinter.cgNodeString(currentNode);
             VarContext<NonNullAbsVal> input = confluence(getAnalysisRecord(i).getInput(), justProcessed);
             Set<Integer> nonNulls = new HashSet<>();
+            Set<AbstractLocation> nonNullLocations = new HashSet<>();
             for (Integer j : input.getLocals()) {
                 if (getLocal(j, input).isNonnull()) {
                     nonNulls.add(j);
                 }
             }
-            ((NonNullInterProceduralDataFlow) interProc).getAnalysisResults().replaceNonNull(nonNulls, i, currentNode);
+            for (AbstractLocation loc : input.getLocations()) {
+                NonNullAbsVal val = input.getLocation(loc);
+                if (val != null && val.isNonnull()) {
+                    nonNullLocations.add(loc);
+                }
+            }
+            results.replaceNonNull(nonNulls, i, currentNode);
+            results.replaceNonNullLocations(nonNullLocations, i, currentNode);
         }
         super.postBasicBlock(cfg, justProcessed, outItems);
     }
@@ -329,8 +421,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             return in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         }
-        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(),
-                                        in.getLocation(AbstractLocation.createStatic(i.getDeclaredField())));
+
+        NonNullAbsVal val = in.getLocation(AbstractLocation.createStatic(i.getDeclaredField()));
+        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(), val);
         return out;
     }
 
@@ -367,9 +460,49 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             return in;
         }
-        VarContext<NonNullAbsVal> out = in.setLocation(AbstractLocation.createStatic(i.getDeclaredField()),
-                                        getLocal(i.getVal(), in));
-        return out;
+
+
+        // Get the program point for this instruction
+        assert ptg.getRegistrar().getInsToPP().get(i) != null : "No PP for " + i + " in "
+                + PrettyPrinter.cgNodeString(currentNode);
+        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
+
+        // Check whether the field is amenable to strong update
+        AbstractLocation loc = AbstractLocation.createStatic(i.getDeclaredField());
+
+        // Whether the input value could be null
+        NonNullAbsVal inVal = getLocal(i.getVal(), in);
+        if (!inVal.isNonnull()) {
+            // The value may be null there is no advantage to strong update
+            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+        }
+
+        // Check whether this field can be strongly updated
+
+        // First check whether the points-to set for the field contains a single element
+        IField f = AnalysisUtil.getClassHierarchy().resolveField(i.getDeclaredField());
+        ReferenceVariable fieldRV = ptg.getRegistrar().getRvCache().getStaticField(f);
+        PointsToGraphNode fieldRVR = new ReferenceVariableReplica(currentNode.getContext(), fieldRV, ptg.getHaf());
+        Iterator<? extends InstanceKey> pti = ptg.pointsToIterator(fieldRVR, ippr);
+
+        if (!pti.hasNext()) {
+            // Field doesn't point to anything be conservative
+            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+        }
+
+        InstanceKeyRecency ikr = (InstanceKeyRecency) pti.next();
+        if (pti.hasNext() || (!ikr.isRecent() && !ptg.isNullInstanceKey(ikr))) {
+            // The points-to set has more than one element or the single element is not the most recent
+            //     cannot strongly update so join in the new value
+            NonNullAbsVal val = in.getLocation(loc);
+            return in.setLocation(loc, inVal.join(val));
+        }
+
+        // Can strongly update the value of the field since it
+        //     1. has a singleton points-to set
+        //     2. the singleton element is the most recent
+        return in.setLocation(loc, inVal);
     }
 
     @Override
@@ -401,7 +534,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
         NonNullAbsVal val = null;
         for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
-            val = VarContext.safeJoinValues(val, in.getLocation(loc));
+            NonNullAbsVal inLoc = normal.getLocation(loc);
+            val = VarContext.safeJoinValues(val, inLoc);
         }
         if (val == null) {
             // TODO Array doesn't point to anything, this could be OK, this could be dead code
@@ -447,9 +581,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getArrayRef(), NonNullAbsVal.NON_NULL);
 
-        NonNullAbsVal val = getLocal(i.getValue(), in);
         for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getArrayRef(), currentNode)) {
-            normal = normal.setLocation(loc, val);
+            // XXX array contents are always flow insensitive so be conservative
+            normal = normal.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
         }
 
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> out = new LinkedHashMap<>();
@@ -566,22 +700,25 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
+        VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
+        VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
+        npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
 
         NonNullAbsVal newValue = null;
+        // Get the program point for this instruction
+        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
         for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
-                                        currentNode)) {
-            newValue = VarContext.safeJoinValues(newValue, in.getLocation(loc));
+                                                                            currentNode,
+                                                                            ippr)) {
+            NonNullAbsVal inLoc = in.getLocation(loc);
+            newValue = VarContext.safeJoinValues(newValue, inLoc);
         }
         if (newValue == null) {
             // There were no locations found be conservative
             newValue = NonNullAbsVal.MAY_BE_NULL;
         }
-
-        VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
         normal = normal.setLocal(i.getDef(), newValue);
-        VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
-        npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
-
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
 
@@ -672,14 +809,70 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         VarContext<NonNullAbsVal> normal = in.setLocal(i.getRef(), NonNullAbsVal.NON_NULL);
-        NonNullAbsVal inVal = getLocal(i.getVal(), in);
-        for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
-                                        currentNode)) {
-            normal = normal.setLocation(loc, inVal);
-        }
-
         VarContext<NonNullAbsVal> npe = in.setLocal(i.getRef(), NonNullAbsVal.MAY_BE_NULL);
         npe = npe.setExceptionValue(NonNullAbsVal.NON_NULL);
+
+        // Get the program point for this instruction
+        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
+
+        // Check whether the field is amenable to strong update
+        Set<AbstractLocation> locs = interProc.getLocationsForNonStaticField(i.getRef(),
+                                                                             i.getDeclaredField(),
+                                                                             currentNode,
+                                                                             ippr);
+
+        // Whether the input value could be null
+        NonNullAbsVal inVal = getLocal(i.getVal(), in);
+        if (!inVal.isNonnull()) {
+            // The value may be null there is no advantage to strong update
+            for (AbstractLocation loc : locs) {
+                normal = normal.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+            }
+            return factsToMapWithExceptions(normal, npe, current, cfg);
+        }
+
+        // Check whether this field can be strongly updated
+
+        // First check whether the points-to set for the field contains a single element
+        ReferenceVariable recRV = ptg.getRegistrar().getRvCache().getReferenceVariable(i.getRef(), cfg.getMethod());
+        PointsToGraphNode recRVR = new ReferenceVariableReplica(currentNode.getContext(), recRV, ptg.getHaf());
+        Iterator<? extends InstanceKey> receivers = ptg.pointsToIterator(recRVR, ippr);
+        Set<InstanceKeyRecency> fieldPointsTo = new HashSet<>();
+        boolean singletonPointsTo = true;
+        outer: while (receivers.hasNext()) {
+            InstanceKeyRecency rec = (InstanceKeyRecency) receivers.next();
+            ObjectField of = new ObjectField(rec, i.getDeclaredField());
+            Iterator<? extends InstanceKey> fieldPT = ptg.pointsToIterator(of, ippr);
+            while (fieldPT.hasNext()) {
+                fieldPointsTo.add((InstanceKeyRecency) fieldPT.next());
+                if (fieldPointsTo.size() > 1) {
+                    // This field cannot be strongly updated since the points-to set has more than one element
+                    singletonPointsTo = false;
+                    break outer;
+                }
+            }
+        }
+
+        boolean strongUpdate = singletonPointsTo
+                && (fieldPointsTo.iterator().next().isRecent() || ptg.isNullInstanceKey(fieldPointsTo.iterator().next()));
+        for (AbstractLocation loc : locs) {
+            if (strongUpdate) {
+                // Can strongly update the value of the field since it
+                //     1. has a singleton points-to set
+                //     2. the singleton element is the most recent
+                normal = normal.setLocation(loc, inVal);
+            }
+            else {
+                // Cannot strong update so join in the new value of the field
+                NonNullAbsVal inLoc = in.getLocation(loc);
+                normal = normal.setLocation(loc, VarContext.safeJoinValues(inLoc, inVal));
+            }
+        }
+
+        if (locs.isEmpty()) {
+            System.err.println("\tEMPTY Locations");
+        }
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
