@@ -32,13 +32,10 @@ public class PhiStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
-     *
-     * @param v
-     *            value assigned into
-     * @param xs
-     *            list of arguments to the phi, v is a choice amongst these
-     * @param m
-     *            method containing the phi instruction
+     * 
+     * @param v value assigned into
+     * @param xs list of arguments to the phi, v is a choice amongst these
+     * @param pp program point of the phi instruction
      */
     protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, ProgramPoint pp) {
         super(pp);
@@ -59,8 +56,8 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee, haf);
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
@@ -82,7 +79,6 @@ public class PhiStatement extends PointsToStatement {
         return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, assignee.isFlowSensitive()
                 ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null);
     }
-
 
     @Override
     public String toString() {
@@ -113,7 +109,7 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // all the locals are flow insensitive.
         assert allFlowInsensitive(uses);
         assert !assignee.isFlowSensitive();

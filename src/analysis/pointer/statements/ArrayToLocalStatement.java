@@ -31,17 +31,13 @@ public class ArrayToLocalStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i]
-     *
-     * @param v
-     *            variable being assigned into
-     * @param a
-     *            variable for the array being accessed
-     * @param baseType
-     *            base type of the array
-     * @param m
+     * 
+     * @param v variable being assigned into
+     * @param a variable for the array being accessed
+     * @param baseType base type of the array
+     * @param pp the program point of the statement
      */
-    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a,
- TypeReference baseType, ProgramPoint pp) {
+    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, ProgramPoint pp) {
         super(pp);
         this.value = v;
         this.array = a;
@@ -69,6 +65,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
+                assert !contents.isFlowSensitive() : "Trying to use flow sensitive array contents field. Make sure the rest of the code is consistent.";
                 GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -81,6 +78,8 @@ public class ArrayToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
                 ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
+                assert !contents.isFlowSensitive() : "Trying to use flow sensitive array contents field. Make sure the rest of the code is consistent.";
+
                 GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -97,7 +96,6 @@ public class ArrayToLocalStatement extends PointsToStatement {
         return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, value.isFlowSensitive()
                 ? new ReferenceVariableReplica(context, value, g.getHaf()) : null);
     }
-
 
     @Override
     public String toString() {
@@ -121,12 +119,14 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         assert !this.value.isFlowSensitive();
         assert !this.array.isFlowSensitive();
 
         // the local is not flow sensitive, so we can't update the flow-sensitive
         // portion of the points to graph.
+
+        // Array contents are also treated flow insensitively
         return false;
     }
 }

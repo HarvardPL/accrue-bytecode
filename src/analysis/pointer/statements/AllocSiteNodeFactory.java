@@ -41,7 +41,6 @@ public class AllocSiteNodeFactory {
     protected static AllocSiteNode createNormal(IClass allocatedClass, IMethod allocatingMethod,
                                                 ReferenceVariable result, int pc, int lineNumber) {
         String name = PrettyPrinter.typeString(allocatedClass);
-        @SuppressWarnings("synthetic-access")
         AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingMethod, pc, false, lineNumber);
         assert nodeMap.put(result, n) == null;
         return n;

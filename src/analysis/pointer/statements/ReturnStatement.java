@@ -79,7 +79,7 @@ public class ReturnStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // all variables are flow-insensitive
         assert !result.isFlowSensitive();
         assert !returnSummary.isFlowSensitive();

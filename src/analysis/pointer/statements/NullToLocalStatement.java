@@ -76,7 +76,7 @@ public class NullToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // the allocation may affect the points to graph, even though result
         // is flow insensitive
         assert !result.isFlowSensitive();

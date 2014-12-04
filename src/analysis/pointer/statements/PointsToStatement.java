@@ -41,8 +41,7 @@ public abstract class PointsToStatement {
      * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
      * statement.
      *
-     * @param m
-     *            method this statement was created in
+     * @param pp program point this statement was created at
      */
     public PointsToStatement(ProgramPoint pp) {
         this.pp = pp;
@@ -80,7 +79,6 @@ public abstract class PointsToStatement {
     public abstract GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g,
                                        GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator);
 
-
     /**
      * Does this statement kill a PointsToGraphNode? Null is returned if this statement definitely cannot kill a
      * PointsToGraphNode. If this statement might kill a PointsToGraphNode, then a non-null value is returned. The first
@@ -94,6 +92,7 @@ public abstract class PointsToStatement {
      * @param g
      * @return
      */
+    @SuppressWarnings({ "static-method", "unused" })
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         return null;
     }
@@ -103,6 +102,7 @@ public abstract class PointsToStatement {
      *
      * @return
      */
+    @SuppressWarnings("static-method")
     public FieldReference getMaybeKilledField() {
         return null;
     }
@@ -114,6 +114,7 @@ public abstract class PointsToStatement {
      * @param g
      * @return
      */
+    @SuppressWarnings({ "static-method", "unused" })
     public InstanceKeyRecency justAllocated(Context context, PointsToGraph g) {
         return null;
     }
@@ -135,14 +136,11 @@ public abstract class PointsToStatement {
      * Check whether the types in the assignment satisfy type-system requirements (i.e. ensure that left = right is a
      * valid assignment)
      *
-     * @param left
-     *            assignee
-     * @param right
-     *            assigned
+     * @param left assignee
+     * @param right assigned
      * @return true if right can safely be assigned to the left
      */
-    protected final boolean checkTypes(ReferenceVariableReplica left,
-            ReferenceVariableReplica right) {
+    protected final boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         IClass c1 = cha.lookupClass(left.getExpectedType());
         IClass c2 = cha.lookupClass(right.getExpectedType());
@@ -165,12 +163,9 @@ public abstract class PointsToStatement {
             return true;
         }
 
-        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left
-                + " = " + right + " is invalid");
-        System.err.println("\t"
-                + PrettyPrinter.typeString(left.getExpectedType()) + " = "
-                + PrettyPrinter.typeString(right.getExpectedType())
-                + " does not type check");
+        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
+        System.err.println("\t" + PrettyPrinter.typeString(left.getExpectedType()) + " = "
+                + PrettyPrinter.typeString(right.getExpectedType()) + " does not type check");
         if (PointsToAnalysis.outputLevel >= 1) {
             CFGWriter.writeToFile(getMethod());
             TypeRepository.print(getMethod());
@@ -183,22 +178,15 @@ public abstract class PointsToStatement {
      * Check whether the given set is empty and print an error message if we are in debug mode (PointsToAnalysis.DEBUG =
      * true) and the output level is high enough.
      *
-     * @param pointsToSet
-     *            set to check
-     * @param r
-     *            replicate the points to set is for
-     * @param description
-     *            description of the replica the points to set came from
-     * @param callee
-     *            callee method
+     * @param pointsToSet set to check
+     * @param r replicate the points to set is for
+     * @param description description of the replica the points to set came from
+     * @param callee callee method
      * @return false if the check fails and all the conditions required to perform the check hold
      */
-    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet,
-            PointsToGraphNode r, String description) {
-        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6
-                && pointsToSet.isEmpty()) {
-            System.err.println("EMPTY: " + r + " in " + this + " "
-                    + description + " from "
+    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet, PointsToGraphNode r, String description) {
+        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && pointsToSet.isEmpty()) {
+            System.err.println("EMPTY: " + r + " in " + this + " " + description + " from "
                     + PrettyPrinter.methodString(getMethod()));
             return false;
         }
@@ -209,10 +197,8 @@ public abstract class PointsToStatement {
      * Replace a variable use with a different variable. What the number corresponds to is defined by the implementation
      * of {@link PointsToStatement#getUses()}.
      *
-     * @param useNumber
-     *            use number of the variable to be replaced
-     * @param newVariable
-     *            reference variable to replace the use
+     * @param useNumber use number of the variable to be replaced
+     * @param newVariable reference variable to replace the use
      */
     public abstract void replaceUse(int useNumber, ReferenceVariable newVariable);
 
@@ -237,6 +223,7 @@ public abstract class PointsToStatement {
      * ReferenceVariableReplicas, but may use other objects (e.g., FieldReferences and IMethods) to express dependencies
      * between statements.
      */
+    @SuppressWarnings({ "static-method", "unused" })
     public ReferenceVariableReplica getReadDependencyForKillField(Context ctxt, HeapAbstractionFactory haf) {
         return null;
     }
@@ -246,7 +233,7 @@ public abstract class PointsToStatement {
      * includes anything that may change what a flow-sensitive variable points to, or if it changes the succesor
      * relation of program points (i.e., statements that change the call graph).
      */
-    public abstract boolean mayChangeFlowSensPointsToGraph();
+    public abstract boolean mayChangeOrUseFlowSensPointsToGraph();
 
     public void setProgramPoint(ProgramPoint pp) {
         this.pp = pp;

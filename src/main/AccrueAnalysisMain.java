@@ -606,7 +606,8 @@ public class AccrueAnalysisMain {
      */
     private static NonNullResults runNonNull(int outputLevel, PointsToGraph g, ReachabilityResults r,
                                              ReferenceVariableCache rvCache) {
-        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, rvCache);
+        // XXX change true to false to be flow insensitive
+        NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, rvCache, true);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();

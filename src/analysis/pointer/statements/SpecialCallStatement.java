@@ -39,26 +39,16 @@ public class SpecialCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param callee
-     *            Method being called
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param receiver
-     *            Receiver of the call
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node representing the exception thrown by the callee and implicit exceptions
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * 
+     * @param callerPP Method call site
+     * @param callee Method being called
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param receiver Receiver of the call
+     * @param actuals Actual arguments to the call
+     * @param exception Node representing the exception thrown by the callee and implicit exceptions
+     * @param calleeSummary summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteProgramPoint callerPP,
-                                   IMethod callee, ReferenceVariable result,
+    protected SpecialCallStatement(CallSiteProgramPoint callerPP, IMethod callee, ReferenceVariable result,
                                    ReferenceVariable receiver, List<ReferenceVariable> actuals,
                                    ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
         super(callerPP, result, actuals, exception);
@@ -68,10 +58,9 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica receiverRep =
- new ReferenceVariableReplica(context, this.receiver, haf);
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
         GraphDelta changed = new GraphDelta(g);
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
@@ -80,13 +69,7 @@ public class SpecialCallStatement extends CallStatement {
                 : delta.pointsToIterator(receiverRep, pre, originator);
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
-            changed = changed.combine(this.processCall(context,
-                                                       recHeapCtxt,
-                                                       this.callee,
-                                                       g,
-                                                       haf,
-                                                       this.calleeSummary,
-                                                       originator));
+            changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
         }
         return changed;
 
@@ -140,7 +123,6 @@ public class SpecialCallStatement extends CallStatement {
         uses.addAll(this.getActuals());
         return uses;
     }
-
 
     /**
      * Get the resolved method being called

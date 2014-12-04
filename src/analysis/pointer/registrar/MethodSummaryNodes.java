@@ -57,14 +57,14 @@ public class MethodSummaryNodes {
             returnNode = null;
         }
 
-        this.entryPP = new ProgramPoint(method, "entryPP-" + PrettyPrinter.methodString(method), true, false, false);
+        this.entryPP = new ProgramPoint(method, "(entryPP) " + PrettyPrinter.methodString(method), true, false, false);
         this.normalExitPP = new ProgramPoint(method,
-                                             "normalExitPP-" + PrettyPrinter.methodString(method),
+                                             "(normalExitPP) " + PrettyPrinter.methodString(method),
                                              false,
                                              true,
                                              false);
         this.exceptionExitPP = new ProgramPoint(method,
-                                                "exceptionExitPP-" + PrettyPrinter.methodString(method),
+                                                "(exceptionExitPP) " + PrettyPrinter.methodString(method),
                                                 false,
                                                 false,
                                                 true);

@@ -15,6 +15,7 @@ import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
+import analysis.dataflow.util.AbstractLocation;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -66,6 +67,28 @@ public class NonNullResults implements AnalysisResults {
     }
 
     /**
+     * Whether the given field is non-null just <i>before</i> executing the given instruction
+     *
+     * @param loc abstract location for the field
+     * @param i instruction TODO Necessary to use the SSAInstruction for non-null results? Could be memory inefficient
+     * @param containingNode containing call graph node (context and code)
+     * @return true if the variable represented by the value number is definitely not null
+     */
+    public boolean isNonNull(AbstractLocation loc, SSAInstruction i, CGNode containingNode, TypeRepository types) {
+        if (types != null && loc.getField().getFieldTypeReference().isPrimitiveType()) {
+            // All primitives are non-null
+            return true;
+        }
+
+        ResultsForNode results = allResults.get(containingNode);
+        if (results == null) {
+            return false;
+        }
+
+        return results.isNonNull(loc, i);
+    }
+
+    /**
      * Record that the variables with the given value numbers are non-null just <i>before</i> executing the given
      * instruction in the given call graph node
      *
@@ -86,6 +109,23 @@ public class NonNullResults implements AnalysisResults {
     }
 
     /**
+     * Record that the given locations are non-null just <i>before</i> executing the given instruction in the given call
+     * graph node
+     *
+     * @param nonNull locations that are non-null
+     * @param i instruction
+     * @param containingNode current call graph node
+     */
+    public void replaceNonNullLocations(Set<AbstractLocation> nonNull, SSAInstruction i, CGNode containingNode) {
+        ResultsForNode resultsForNode = allResults.get(containingNode);
+        if (resultsForNode == null) {
+            resultsForNode = new ResultsForNode();
+            allResults.put(containingNode, resultsForNode);
+        }
+        resultsForNode.replaceNonNullLocations(nonNull, i);
+    }
+
+    /**
      * Non-null analysis results for a particular call graph node
      */
     private static class ResultsForNode {
@@ -93,8 +133,13 @@ public class NonNullResults implements AnalysisResults {
          * Map from instruction to value numbers that are definitely non-null just before executing the instruction.
          */
         private final Map<SSAInstruction, Set<Integer>> results = new HashMap<>();
+        /**
+         * Map from instruction to abstract locaions that are definitely non-null just before executing the instruction.
+         */
+        private final Map<SSAInstruction, Set<AbstractLocation>> nonNullLocations = new HashMap<>();
 
         public ResultsForNode() {
+            // intentionally blank
         }
 
         /**
@@ -116,13 +161,28 @@ public class NonNullResults implements AnalysisResults {
         }
 
         /**
+         * Whether the abstract location is non-null just <i>before</i> executing the given instruction
+         *
+         * @param loc location
+         * @param i instruction
+         * @return true if the abstract location is definitely not null
+         */
+        public boolean isNonNull(AbstractLocation loc, SSAInstruction i) {
+            Set<AbstractLocation> nonNulls = nonNullLocations.get(i);
+            if (nonNulls == null) {
+                return false;
+            }
+            return nonNulls.contains(loc);
+        }
+
+        /**
          * Get value numbers for all non-null variables right before executing i
          *
          * @param i
          *            instruction
          * @return set of non-null value numbers
          */
-        protected Set<Integer> getAllNonNull(SSAInstruction i) {
+        protected Set<Integer> getAllNonNullValues(SSAInstruction i) {
             Set<Integer> res = results.get(i);
             if (res == null) {
                 return Collections.emptySet();
@@ -131,16 +191,39 @@ public class NonNullResults implements AnalysisResults {
         }
 
         /**
-         * Record that the variable with the given value number is non-null just <i>before</i> executing the given
+         * Get all non-null locations right before executing i
+         *
+         * @param i instruction
+         * @return set of non-null locations
+         */
+        protected Set<AbstractLocation> getAllNonNullLocations(SSAInstruction i) {
+            Set<AbstractLocation> res = nonNullLocations.get(i);
+            if (res == null) {
+                return Collections.emptySet();
+            }
+            return res;
+        }
+
+        /**
+         * Record that the variable with the given value numbers are non-null just <i>before</i> executing the given
          * instruction, replace the current set of values if there are any
          *
-         * @param nonNullValues
-         *            variable value number for non-null value
-         * @param i
-         *            instruction
+         * @param nonNullValues variable value numbers for non-null values
+         * @param i instruction
          */
         public void replaceNonNull(Set<Integer> nonNullValues, SSAInstruction i) {
             results.put(i, nonNullValues);
+        }
+
+        /**
+         * Record that the locations is non-null just <i>before</i> executing the given instruction, replace the current
+         * set of values if there are any
+         *
+         * @param nonNull non-null abstract locations
+         * @param i instruction
+         */
+        public void replaceNonNullLocations(Set<AbstractLocation> nonNull, SSAInstruction i) {
+            nonNullLocations.put(i, nonNull);
         }
 
         @Override
@@ -196,7 +279,7 @@ public class NonNullResults implements AnalysisResults {
 
     /**
      * Write the results for each call graph node to the sepcified directory
-     * 
+     *
      * @param reachable results of a reachability analysis
      * @param directory directory to print to
      * @throws IOException file trouble
@@ -231,8 +314,11 @@ public class NonNullResults implements AnalysisResults {
                 }
 
                 Set<String> strings = new HashSet<>();
-                for (Integer val : results.getAllNonNull(i)) {
+                for (Integer val : results.getAllNonNullValues(i)) {
                     strings.add(pp.valString(val));
+                }
+                for (AbstractLocation loc : results.getAllNonNullLocations(i)) {
+                    strings.add(loc.toString());
                 }
                 return strings + "\\l";
             }

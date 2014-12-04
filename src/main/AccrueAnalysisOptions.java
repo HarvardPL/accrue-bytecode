@@ -192,6 +192,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("pdg")) {
                 return;
             }
+            if (value.equals("nonnull")) {
+                return;
+            }
             if (value.equals("bool")) {
                 return;
             }

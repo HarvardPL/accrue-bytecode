@@ -8,7 +8,7 @@ import java.util.Set;
 
 /**
  * Mapping from local variables and abstract heap locations to abstract values
- * 
+ *
  * @param <T>
  *            type of abstract values
  */
@@ -42,7 +42,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Create a new variable context with the given entries
-     * 
+     *
      * @param locals
      *            map from local variables to abstract values
      * @param locations
@@ -64,7 +64,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Get the abstract value for a local variable with the given value number
-     * 
+     *
      * @param i
      *            variable value number
      * @return abstract value for the variable
@@ -75,7 +75,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Set of all mapped local variables
-     * 
+     *
      * @return value numbers for variables mapped to abstract values
      */
     public Set<Integer> getLocals() {
@@ -84,7 +84,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Get the abstract value for the given abstract heap location
-     * 
+     *
      * @param loc
      *            location
      * @return abstract value for location
@@ -98,7 +98,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Get the set of abstract heap locations mapped to abstract values
-     * 
+     *
      * @return set of all mapped abstract heap locations
      */
     public Set<AbstractLocation> getLocations() {
@@ -110,7 +110,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Get the abstract value for the return result, null if there is none.
-     * 
+     *
      * @return abstract return value
      */
     public T getReturnResult() {
@@ -119,7 +119,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Get the abstract value for the exception, null if there is none.
-     * 
+     *
      * @return abstract exception value
      */
     public T getException() {
@@ -129,7 +129,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     /**
      * Get a new variable context. Replace the current abstract value for the
      * variable with the given value number.
-     * 
+     *
      * @param valueNumber
      *            variable value number
      * @param val
@@ -152,7 +152,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     /**
      * Get a new variable context. Replace the current abstract value for the
      * given location.
-     * 
+     *
      * @param location
      *            abstract heap location
      * @param val
@@ -171,8 +171,27 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     }
 
     /**
+     * Create a new context that is the same as this on with the locations swapped out for the new ones
+     *
+     * @param newLocations new locations
+     * @return new var context with the new locations
+     */
+    public VarContext<T> replaceAllLocations(Map<AbstractLocation, T> newLocations) {
+        if (!trackHeapLocations || newLocations.equals(this.locations)) {
+            return this;
+        }
+        assert newLocations != null : "No null values for locations";
+        return new VarContext<>(locals,
+                                newLocations,
+                                returnResult,
+                                exceptionValue,
+                                trackHeapLocations,
+                                untrackedHeapLocationValue);
+    }
+
+    /**
      * Replace the current return result with the given abstract value
-     * 
+     *
      * @param returnAbsVal
      *            new abstract value for the return item
      * @return copy of the variable context with the new return value
@@ -184,7 +203,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Replace the current value for the exception with the given abstract value
-     * 
+     *
      * @param exceptionAbsVal
      *            new abstract value for the exception
      * @return copy of the variable context with the new exception value
@@ -246,7 +265,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Join the given non-empty set of variable contexts
-     * 
+     *
      * @param contexts
      *            non-empty set of variable contexts to join
      * @return least upper bound of all the input items
@@ -262,7 +281,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     /**
      * Join the given variable contexts
-     * 
+     *
      * @param c1
      *            first variable context
      * @param c2
@@ -319,10 +338,10 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     /**
      * Join two abstract values where one (but not both) may be null, in which
      * case the other is returned
-     * 
+     *
      * @param val1
      *            first value
-     * 
+     *
      * @param val2
      *            second value
      */
@@ -339,7 +358,7 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     /**
      * Get a copy of the variable context with an empty set of locals and null
      * return and exception abstract values
-     * 
+     *
      * @return variable context with no locals and no exits
      */
     public VarContext<T> clearLocalsAndExits() {
@@ -367,41 +386,55 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         @SuppressWarnings("rawtypes")
         VarContext other = (VarContext) obj;
         if (exceptionValue == null) {
-            if (other.exceptionValue != null)
+            if (other.exceptionValue != null) {
                 return false;
-        } else if (!exceptionValue.equals(other.exceptionValue))
+            }
+        } else if (!exceptionValue.equals(other.exceptionValue)) {
             return false;
+        }
         if (locals == null) {
-            if (other.locals != null)
+            if (other.locals != null) {
                 return false;
-        } else if (!locals.equals(other.locals))
+            }
+        } else if (!locals.equals(other.locals)) {
             return false;
+        }
         if (locations == null) {
-            if (other.locations != null)
+            if (other.locations != null) {
                 return false;
-        } else if (!locations.equals(other.locations))
+            }
+        } else if (!locations.equals(other.locations)) {
             return false;
+        }
         if (returnResult == null) {
-            if (other.returnResult != null)
+            if (other.returnResult != null) {
                 return false;
-        } else if (!returnResult.equals(other.returnResult))
+            }
+        } else if (!returnResult.equals(other.returnResult)) {
             return false;
-        if (trackHeapLocations != other.trackHeapLocations)
+        }
+        if (trackHeapLocations != other.trackHeapLocations) {
             return false;
+        }
         if (untrackedHeapLocationValue == null) {
-            if (other.untrackedHeapLocationValue != null)
+            if (other.untrackedHeapLocationValue != null) {
                 return false;
-        } else if (!untrackedHeapLocationValue.equals(other.untrackedHeapLocationValue))
+            }
+        } else if (!untrackedHeapLocationValue.equals(other.untrackedHeapLocationValue)) {
             return false;
+        }
         return true;
     }
 }

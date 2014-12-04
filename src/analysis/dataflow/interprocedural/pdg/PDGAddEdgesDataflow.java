@@ -655,7 +655,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
         // Add edges from the field to the result
         Set<PDGNode> locNodes = new LinkedHashSet<>();
         for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
-                                        currentNode)) {
+                                                                            currentNode,
+                                                                            null)) {
             locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
         }
 
@@ -895,7 +896,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             addEdge(PDGNodeFactory.findOrCreateUse(i, j, currentNode, pp), expr, PDGEdgeType.EXP);
 
             // If this argument is an array add an edge from the contents as well
-            if ((j - offset) >= 0 && interProc.isArray(i.getUse(j), currentNode, mr.getParameterType(j - offset))) {
+            if ((j - offset) >= 0 && interProc.isArray(i.getUse(j), currentNode, mr.getParameterType(j - offset), null)) {
                 Set<PDGNode> locNodes = new LinkedHashSet<>();
                 for (AbstractLocation loc : interProc.getLocationsForArrayContents(i.getUse(j), currentNode)) {
                     locNodes.add(PDGNodeFactory.findOrCreateAbstractLocation(loc));
@@ -1159,7 +1160,8 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         // Add edge from the assignment to the field
         for (AbstractLocation loc : interProc.getLocationsForNonStaticField(i.getRef(), i.getDeclaredField(),
-                                        currentNode)) {
+                                                                            currentNode,
+                                                                            null)) {
             PDGNode locNode = PDGNodeFactory.findOrCreateAbstractLocation(loc);
             addEdge(result, locNode, PDGEdgeType.MERGE);
         }

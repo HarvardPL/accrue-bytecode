@@ -30,11 +30,9 @@ public class ClassInitStatement extends PointsToStatement {
     /**
      * Create a points-to statement for class initialization
      *
-     * @param clinits
-     *            class initialization methods that might need to be called in the order they need to be called (i.e.
-     *            element j is a super class of element j+1)
-     * @param m
-     *            method the instruction triggering the initialization is in
+     * @param clinits class initialization methods that might need to be called in the order they need to be called
+     *            (i.e. element j is a super class of element j+1)
+     * @param pp program point for the instruction triggering the initialization
      */
     protected ClassInitStatement(List<IMethod> clinits, ProgramPoint pp) {
         super(pp);
@@ -43,8 +41,8 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit
@@ -55,12 +53,9 @@ public class ClassInitStatement extends PointsToStatement {
         // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
         if (PointsToAnalysis.outputLevel >= 2 && added) {
             for (IMethod m : clinits) {
-                System.err.print("ADDING CLINIT: "
-                        + PrettyPrinter.methodString(m));
+                System.err.print("ADDING CLINIT: " + PrettyPrinter.methodString(m));
             }
-            System.err.println("\n\tFROM "
-                    + PrettyPrinter.methodString(getMethod()) + " in "
-                    + context);
+            System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
         }
 
         return new GraphDelta(g);
@@ -94,7 +89,7 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // this is like a call.
         return true;
     }

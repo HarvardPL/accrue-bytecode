@@ -14,6 +14,7 @@ import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
 import util.intset.ConcurrentIntHashSet;
+import util.print.CFGWriter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
@@ -192,6 +193,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
             g.dumpPointsToGraphToFile("tests/pointsToGraph");
+            for (IMethod m : registrar.getRegisteredMethods()) {
+                if (m.toString().contains("main")) {
+                    CFGWriter.writeToFile(m);
+                    break;
+                }
+            }
         }
 
 
@@ -208,7 +215,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
         }
-
         return g;
     }
 
@@ -373,6 +379,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 catch (ConcurrentModificationException e) {
                     System.err.println("ConcurrentModificationException!!!");
                     e.printStackTrace();
+                    System.exit(0);
+                    // No seriously DIE!
+                    Runtime.getRuntime().halt(0);
+                }
+                catch (Throwable t) {
+                    System.err.println("Exception " + t);
+                    t.printStackTrace();
                     System.exit(0);
                     // No seriously DIE!
                     Runtime.getRuntime().halt(0);

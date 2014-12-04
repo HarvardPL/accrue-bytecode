@@ -2220,9 +2220,7 @@ public class PointsToGraph {
         this.graphFinished = true;
 
         // set various fields to null to allow them to be garbage collected.
-        this.reverseInstanceKeyDictionary = null;
         this.concreteTypeDictionary = null;
-        this.graphNodeDictionary = null;
         this.isUnfilteredSubsetOf = null;
         this.isFilteredSubsetOf = null;
 
@@ -2231,7 +2229,7 @@ public class PointsToGraph {
         this.reachableContexts = null;
         this.classInitializers = null;
         this.entryPoints = null;
-        this.callGraphMap = null;
+
 
         // make more compact, read-only versions of the sets.
         IntIterator keyIterator = pointsToFI.keyIterator();
@@ -2245,6 +2243,11 @@ public class PointsToGraph {
         this.pointsToFI = compact(this.pointsToFI);
         this.instanceKeyDictionary = compact(this.instanceKeyDictionary);
         this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
+        // XXX needed for points-to iterator
+        this.graphNodeDictionary = compact(this.graphNodeDictionary);
+        // XXX needed for reachability for points-to set iteration
+        this.callGraphMap = compact(this.callGraphMap);
+        this.reverseInstanceKeyDictionary = compact(this.reverseInstanceKeyDictionary);
 
         keyIterator = pointsToFS.keyIterator();
         while (keyIterator.hasNext()) {
@@ -2270,8 +2273,10 @@ public class PointsToGraph {
         if (dense) {
             float util = ((DenseIntMap<?>) newMap).utilization();
             int length = Math.round(newMap.size() / util);
-            System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
-                    + (length - newMap.size()) + " empty slots out of " + length + ")");
+            if (util < 1.0) {
+                System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
+                        + (length - newMap.size()) + " empty slots out of " + length + ")");
+            }
         }
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }

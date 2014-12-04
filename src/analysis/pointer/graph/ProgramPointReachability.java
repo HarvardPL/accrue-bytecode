@@ -35,6 +35,7 @@ import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.FieldReference;
+import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
@@ -361,7 +362,8 @@ public class ProgramPointReachability {
             if (this.positiveCache.contains(mr)) {
                 return true;
             }
-            else if (this.negativeCache.contains(mr)) {
+            addDependency(mr, origin);
+            if (this.negativeCache.contains(mr)) {
                 // we know it's a negative result for this one.
             }
             else {
@@ -419,7 +421,10 @@ public class ProgramPointReachability {
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
             SubQuery query = new SubQuery(src, destination, noKill, noAlloc, forbidden);
-            assert !positiveCache.contains(query);
+            if (positiveCache.contains(query)) {
+                // The result was computed by another thread before this thread ran
+                return true;
+            }
 
             // First check the call graph to find the set of relevant call graph nodes.
             OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
@@ -428,8 +433,10 @@ public class ProgramPointReachability {
 
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
-                addDependency(query, origin);
-                recordQueryResult(query, false, tasksToReprocess);
+                if (recordQueryResult(query, false, tasksToReprocess)) {
+                    // We computed false, but the cache already had true
+                    return true;
+                }
                 continue;
             }
             // Now try a depth first search through the relevant nodes...
@@ -446,8 +453,10 @@ public class ProgramPointReachability {
                 recordQueryResult(query, true, tasksToReprocess);
                 return true;
             }
-            addDependency(query, origin);
-            recordQueryResult(query, false, tasksToReprocess);
+            if (recordQueryResult(query, false, tasksToReprocess)) {
+                // We computed false, but the cache already had true
+                return true;
+            }
         }
         // we didn't find it.
         return false;
@@ -463,18 +472,28 @@ public class ProgramPointReachability {
      * @param mr
      * @param b
      * @param sacsToReprocess
+     *
+     * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
+     *         the cache already has a positive result.
      */
-    private void recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private boolean recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
         if (b) {
             positiveCache.add(mr);
             if (negativeCache.remove(mr)) {
                 // we previously thought it was negative.
                 queryResultChanged(mr, sacsToReprocess);
             }
+            return true;
         }
-        else {
-            negativeCache.add(mr);
+
+        // Recording a false result
+        negativeCache.add(mr);
+        if (positiveCache.contains(mr)) {
+            this.negativeCache.remove(mr);
+            // A positive result has already been computed return it
+            return true;
         }
+        return false;
     }
 
 
@@ -586,7 +605,6 @@ public class ProgramPointReachability {
         q.add(src);
         while (!q.isEmpty()) {
             InterProgramPointReplica ippr = q.poll();
-
             assert (ippr.getContainingProcedure().equals(currentMethod));
             if (inSameMethod && ippr.equals(destination)) {
                 // Found it!
@@ -634,7 +652,7 @@ public class ProgramPointReachability {
                                                      noAlloc,
                                                      forbidden,
                                                      visited,
-                                                     tasksToReprocess);
+                                                     tasksToReprocess, pp.isExceptionExitSummaryNode());
                     if (found) {
                         return true;
                     }
@@ -750,6 +768,7 @@ public class ProgramPointReachability {
      * @param visited program points that have already been visited
      * @param tasksToReprocess Queries that need to be reprocessed because something may have caused the results to
      *            change
+     * @param isExceptionExit whether the method is exiting via exception
      * @return true if the destination program point was found
      */
     private boolean handleMethodExit(SubQuery query, OrderedPair<IMethod, Context> currentCallGraphNode,
@@ -757,7 +776,7 @@ public class ProgramPointReachability {
                                      Deque<InterProgramPointReplica> delayed,
                                      InterProgramPointReplica destination, IntSet noKill, IntSet noAlloc,
                                      Set<InterProgramPointReplica> forbidden, Set<InterProgramPointReplica> visited,
-                                     Set<ReachabilityQueryOrigin> tasksToReprocess) {
+                                     Set<ReachabilityQueryOrigin> tasksToReprocess, boolean isExceptionExit) {
         // We are exiting the current method!
         // register dependency from this result to the callee. i.e., we should be notified if a new caller is added
         addCallerDependency(query, currentCallGraphNode);
@@ -773,7 +792,16 @@ public class ProgramPointReachability {
                                                                      callerSite.snd());
             if (relevantNodes.contains(caller)) {
                 // this is a relevant node, and we need to dig into it.
-                InterProgramPointReplica callerSiteReplica = callerSite.fst().post().getReplica(callerSite.snd());
+                InterProgramPointReplica callerSiteReplica;
+                if (isExceptionExit) {
+                    callerSiteReplica = callerSite.fst()
+                                                  .getExceptionExit(TypeReference.JavaLangThrowable)
+                                                  .post()
+                                                  .getReplica(callerSite.snd());
+                }
+                else {
+                    callerSiteReplica = callerSite.fst().post().getReplica(callerSite.snd());
+                }
                 if (inSameMethod) {
                     // let's delay it as long as possible, in case we find the destination here
                     delayed.add(callerSiteReplica);

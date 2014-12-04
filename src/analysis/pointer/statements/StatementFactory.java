@@ -46,6 +46,7 @@ public class StatementFactory {
      * @param v Points-to graph node for the assignee
      * @param a Points-to graph node for the array being accessed
      * @param baseType base type of the array
+     * @param pp program point the statement was created at
      * @return statement to be processed during pointer analysis
      */
     public ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, TypeReference baseType,
@@ -65,6 +66,7 @@ public class StatementFactory {
      *
      * @param clinits class initialization methods that might need to be called in the order they need to be called
      *            (i.e. element j is a super class of element j+1)
+     * @param pp program point the statement was created at
      * @param i Instruction triggering the initialization
      * @return statement to be processed during pointer analysis
      */
@@ -89,25 +91,19 @@ public class StatementFactory {
      * @param caught reference variable for the caught exception (or summary for the method exit)
      * @param notType types that the exception being caught cannot have since those types must have been caught by
      *            previous catch blocks
-     * @param m method the statement was created for
+     * @param pp program point the statement was created for
      * @param isToMethodSummaryVariable true if the variable we are assigning into, <code>caught</code>, is the
      *            exception summary node for a method
      * @return statement to be processed during pointer analysis
      */
-    public ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
-                                                            Set<IClass> notType, ProgramPoint pp,
-                                                            boolean isToMethodSummaryVariable,
-                                                            boolean useSingletonAllocForThisException) {
+    public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
+                                                                   Set<IClass> notType, ProgramPoint pp) {
         assert thrown != null;
         assert caught != null;
         assert notType != null;
         assert pp != null;
 
-        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown,
-                                                                          caught,
-                                                                          notType,
-                                                                          pp,
-                                                                          isToMethodSummaryVariable);
+        ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown, caught, notType, pp);
         return s;
 
     }
@@ -118,7 +114,7 @@ public class StatementFactory {
      * @param l local assigned into
      * @param o receiver of field access
      * @param f field accessed
-     * @param m method the statement was created for
+     * @param pp program point the statement was created at
      * @return statement to be processed during pointer analysis
      */
     public FieldToLocalStatement fieldToLocal(ReferenceVariable l, ReferenceVariable o, FieldReference f,
@@ -140,7 +136,8 @@ public class StatementFactory {
      * @param array array assigned into
      * @param local assigned value
      * @param baseType type of the array elements
-     * @param m method the statement was created for
+     * @param pp program point the statement was created at
+     * @param i instruction the statement was for
      * @return statement to be processed during pointer analysis
      */
     public LocalToArrayStatement localToArrayContents(ReferenceVariable array, ReferenceVariable local,
@@ -164,12 +161,12 @@ public class StatementFactory {
      * @param o receiver of field access
      * @param f field assigned to
      * @param v value assigned
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
+     * @param i instruction the statement is for
      * @return statement to be processed during pointer analysis
      */
     public LocalToFieldStatement localToField(ReferenceVariable o, FieldReference f, ReferenceVariable v,
-                                              ProgramPoint pp,
-                                              SSAPutInstruction i) {
+                                              ProgramPoint pp, SSAPutInstruction i) {
         assert o != null;
         assert f != null;
         assert v != null;
@@ -187,16 +184,15 @@ public class StatementFactory {
      *
      * @param left assignee
      * @param right the assigned value
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      * @return statement to be processed during pointer analysis
      */
-    public LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, ProgramPoint pp,
-                                              boolean rightIsMethodSummary) {
+    public LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, ProgramPoint pp) {
         assert left != null;
         assert right != null;
         assert pp != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, pp, false, rightIsMethodSummary);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, pp, false);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -206,7 +202,7 @@ public class StatementFactory {
      *
      * @param left assignee
      * @param right the assigned value
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      * @return statement to be processed during pointer analysis
      */
     public LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, ProgramPoint pp) {
@@ -214,7 +210,7 @@ public class StatementFactory {
         assert right != null;
         assert pp != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, pp, true, false);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, pp, true);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -224,7 +220,7 @@ public class StatementFactory {
      *
      * @param staticField the assigned value
      * @param local assignee
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      * @param i Instruction that generated this points-to statement
      * @return statement to be processed during pointer analysis
      */
@@ -256,7 +252,8 @@ public class StatementFactory {
      * @param outerArray points-to graph node for outer array
      * @param innerArray points-to graph node for inner array
      * @param innerArrayType type of the inner array
-     * @param m Method the points-to statement came from
+     * @param pp program point the statement was created at
+     * @return statement to be processed by the pointer analysis
      */
     public LocalToArrayStatement multidimensionalArrayContents(ReferenceVariable outerArray,
                                                                ReferenceVariable innerArray, ProgramPoint pp) {
@@ -277,7 +274,8 @@ public class StatementFactory {
      * @param exceptionAssignee Reference variable for the local variable the exception is assigned to after being
      *            created
      * @param exceptionClass Class for the exception
-     * @param m method containing the instruction throwing the exception
+     * @param pp program point the statement was created at
+     *
      * @return a statement representing the allocation of a JVM generated exception to a local variable
      */
     public NewStatement newForGeneratedException(ReferenceVariable exceptionAssignee, IClass exceptionClass,
@@ -309,11 +307,11 @@ public class StatementFactory {
      *
      * @param v Reference variable for the method summary node assigned to after being created
      * @param allocatedClass Class being allocated
-     * @param pp programPoint
+     * @param pp program point the generated object was created at
      * @return a statement representing the allocation for a native method with no signature
      */
     public NewStatement newForGeneratedObject(ReferenceVariable v, IClass allocatedClass, ProgramPoint pp,
-                                               String description) {
+                                              String description) {
         assert v != null;
         assert allocatedClass != null;
         assert pp != null;
@@ -323,13 +321,12 @@ public class StatementFactory {
         return s;
     }
 
-
     /**
      * Get a points-to statement representing the allocation of an inner array of a multidimensional array
      *
      * @param innerArray Reference variable for the local variable the array is assigned to after being created
      * @param innerArrayClass Class for the array
-     * @param m method containing the instruction creating the multidimensional array
+     * @param pp program point the statement was created at
      * @return a statement representing the allocation of the inner array of a multidimensional array
      */
     public NewStatement newForInnerArray(ReferenceVariable innerArray, IClass innerArrayClass, ProgramPoint pp) {
@@ -342,7 +339,7 @@ public class StatementFactory {
      *
      * @param result Points-to graph node for the assignee of the new
      * @param newClass Class being created
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      * @param pc The program counter where the allocation occured
      * @param lineNumber line number from source code if one can be found, -1 otherwise
      * @return statement to be processed during pointer analysis
@@ -362,7 +359,7 @@ public class StatementFactory {
      * Get a points-to statement representing the allocation of the value field of a string
      *
      * @param local Reference variable for the local variable for the string at the allocation site
-     * @param m method containing the String literal
+     * @param pp program point the statement was created at
      * @return a statement representing the allocation of a new string literal's value field
      */
     public NewStatement newForStringField(ReferenceVariable local, ProgramPoint pp) {
@@ -374,7 +371,8 @@ public class StatementFactory {
      *
      * @param literalValue String value of the new string literal
      * @param local Reference variable for the local variable for the string at the allocation site
-     * @param m method containing the String literal
+     * @param pp program point the statement was created at
+     *
      * @return a statement representing the allocation of a new string literal
      */
     public NewStatement newForStringLiteral(String literalValue, ReferenceVariable local, ProgramPoint pp) {
@@ -390,7 +388,8 @@ public class StatementFactory {
      * Statement for a local assignment of null left = null.
      *
      * @param left assignee
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
+     *
      * @return statement to be processed during pointer analysis
      */
     public NullToLocalStatement nullToLocal(ReferenceVariable left, ProgramPoint pp) {
@@ -407,7 +406,8 @@ public class StatementFactory {
      *
      * @param v value assigned into
      * @param xs list of arguments to the phi, v is a choice amongst these
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
+     *
      * @return statement to be processed during pointer analysis
      */
     public PhiStatement phiToLocal(ReferenceVariable v, List<ReferenceVariable> xs, ProgramPoint pp) {
@@ -425,7 +425,7 @@ public class StatementFactory {
      *
      * @param result Node for return result
      * @param returnSummary Node summarizing all return values for the method
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      * @param i return instruction
      * @return statement to be processed during pointer analysis
      */
@@ -444,8 +444,7 @@ public class StatementFactory {
     /**
      * Points-to statement for a special method invocation.
      *
-     * @param callSite Method call site
-     * @param caller caller method
+     * @param callerPP Method call site
      * @param callee Method being called
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver Receiver of the call
@@ -454,10 +453,9 @@ public class StatementFactory {
      * @param calleeSummary summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
-    public SpecialCallStatement specialCall(CallSiteProgramPoint callerPP, IMethod callee,
-                                            ReferenceVariable result, ReferenceVariable receiver,
-                                            List<ReferenceVariable> actuals, ReferenceVariable callerException,
-                                            MethodSummaryNodes calleeSummary) {
+    public SpecialCallStatement specialCall(CallSiteProgramPoint callerPP, IMethod callee, ReferenceVariable result,
+                                            ReferenceVariable receiver, List<ReferenceVariable> actuals,
+                                            ReferenceVariable callerException, MethodSummaryNodes calleeSummary) {
         assert callee != null;
         assert callerPP != null;
         assert receiver != null;
@@ -479,8 +477,7 @@ public class StatementFactory {
     /**
      * Points-to statement for a special method invocation.
      *
-     * @param callSite Method call site
-     * @param caller caller method
+     * @param callerPP Method call site
      * @param callee Method being called
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param actuals Actual arguments to the call
@@ -488,9 +485,9 @@ public class StatementFactory {
      * @param calleeSummary summary nodes for formals and exits of the callee
      * @return statement to be processed during pointer analysis
      */
-    public StaticCallStatement staticCall(CallSiteProgramPoint callerPP, IMethod callee,
-                                          ReferenceVariable result, List<ReferenceVariable> actuals,
-                                          ReferenceVariable callerException, MethodSummaryNodes calleeSummary) {
+    public StaticCallStatement staticCall(CallSiteProgramPoint callerPP, IMethod callee, ReferenceVariable result,
+                                          List<ReferenceVariable> actuals, ReferenceVariable callerException,
+                                          MethodSummaryNodes calleeSummary) {
         assert callee != null;
         assert callerPP != null;
         assert actuals != null;
@@ -512,7 +509,7 @@ public class StatementFactory {
      *
      * @param local assignee
      * @param staticField the assigned value
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      * @return statement to be processed during pointer analysis
      */
     public StaticFieldToLocalStatement staticFieldToLocal(ReferenceVariable local, ReferenceVariable staticField,
@@ -532,7 +529,7 @@ public class StatementFactory {
      * @param string string literal
      * @param value field reference for the String.value
      * @param rv allocation of the value field
-     * @param m method the points-to statement came from
+     * @param pp program point the statement was created at
      *
      * @return statement to be processed during pointer analysis
      */
@@ -552,8 +549,7 @@ public class StatementFactory {
     /**
      * Points-to statement for a virtual method invocation.
      *
-     * @param callSite Method call site
-     * @param caller caller method
+     * @param callerPP Method call site
      * @param callee Method being called
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param receiver Receiver of the call
@@ -594,7 +590,6 @@ public class StatementFactory {
         public StatementKey(Object... keys) {
             this.keys = keys;
         }
-
 
         @Override
         public boolean equals(Object obj) {

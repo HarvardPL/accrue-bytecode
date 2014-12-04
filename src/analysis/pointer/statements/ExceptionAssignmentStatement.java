@@ -27,34 +27,21 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     private final TypeFilter filter;
 
     /**
-     * Is right from a method summary?
-     */
-    private final boolean isToMethodSummaryVariable;
-
-    /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
-     *
-     * @param thrown
-     *            reference variable for the exception being thrown
-     * @param caught
-     *            reference variable for the caught exception (or summary for the method exit)
-     * @param notType
-     *            types that the exception being caught cannot have since those types must have been caught by previous
-     *            catch blocks
-     * @param m
-     *            method the exception is thrown in
+     * 
+     * @param thrown reference variable for the exception being thrown
+     * @param caught reference variable for the caught exception (or summary for the method exit)
+     * @param notType types that the exception being caught cannot have since those types must have been caught by
+     *            previous catch blocks
+     * @param pp program point the exception is thrown at
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown,
-                                           ReferenceVariable caught,
- Set<IClass> notType,
-                                           ProgramPoint pp,
-                                           boolean isToMethodSummaryVariable) {
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
+                                           ProgramPoint pp) {
         super(pp);
         assert notType != null;
         assert !thrown.isFlowSensitive();
         assert !caught.isFlowSensitive();
-        this.isToMethodSummaryVariable = isToMethodSummaryVariable;
         this.thrown = thrown;
         this.caught = caught;
         if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
@@ -72,8 +59,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught, haf);
         PointsToGraphNode r;
         if (this.thrown.isSingleton()) {
@@ -98,10 +85,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return this.caught + " = ("
-                + PrettyPrinter.typeString(this.caught.getExpectedType()) + ") "
-                + this.thrown + " NOT "
-                + (this.filter == null ? "empty" : this.filter.notTypes);
+        return this.caught + " = (" + PrettyPrinter.typeString(this.caught.getExpectedType()) + ") " + this.thrown
+                + " NOT " + (this.filter == null ? "empty" : this.filter.notTypes);
     }
 
     @Override
@@ -139,7 +124,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayChangeFlowSensPointsToGraph() {
+    public boolean mayChangeOrUseFlowSensPointsToGraph() {
         assert !thrown.isFlowSensitive();
         assert !caught.isFlowSensitive();
         // neither variable is flow sensitive

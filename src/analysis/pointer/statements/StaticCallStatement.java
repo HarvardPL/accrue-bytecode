@@ -31,22 +31,13 @@ public class StaticCallStatement extends CallStatement {
     /**
      * Points-to statement for a static method invocation.
      *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param callee
-     *            Method being called
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node representing the exception thrown by this call (if any)
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
-     * @param receiver
-     *            Receiver of the call
+     * @param callerPP Method call site
+     * @param callee Method being called
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param actuals Actual arguments to the call
+     * @param exception Node representing the exception thrown by this call (if any)
+     * @param calleeSummary summary nodes for formals and exits of the callee
+     * @param receiver Receiver of the call
      */
     protected StaticCallStatement(CallSiteProgramPoint callerPP,
                                   IMethod callee, ReferenceVariable result,
@@ -60,7 +51,7 @@ public class StaticCallStatement extends CallStatement {
     @Override
     public GraphDelta process(Context context, RecencyHeapAbstractionFactory haf,
                               PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        return this.processCall(context, null, this.callee, g, haf, this.calleeSummary, originator);
+        return this.processCall(context, null, this.callee, g, haf, this.calleeSummary);
     }
 
     @Override
