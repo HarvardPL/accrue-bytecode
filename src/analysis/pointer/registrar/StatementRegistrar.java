@@ -35,6 +35,7 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.CallSiteProgramPoint;
+import analysis.pointer.statements.ClassInitProgramPoint;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -270,7 +271,7 @@ public class StatementRegistrar {
                 MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
 
                 // Add edges from formal summary nodes to the local variables representing the method parameters
-                this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, pprint);
+                this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, types, pprint);
 
                 Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
                 Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
@@ -713,6 +714,7 @@ public class StatementRegistrar {
             List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
             assert inits != null;
             if (!inits.isEmpty()) {
+
                 // XXX Steve I think this is what we want since this is the location of the
                 // class initialization _statement_ not the class initializer itself
                 ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit " + PrettyPrinter.typeString(reqInit));
@@ -875,7 +877,7 @@ public class StatementRegistrar {
     private void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ProgramPoint pp,
                                     ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getValue());
-        if (valueType.isPrimitiveType()) {
+        if (valueType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getValue())) {
             // Assigning from a primitive or assigning null (also no effect on points-to graph)
             return;
         }
@@ -954,8 +956,8 @@ public class StatementRegistrar {
     private void registerPutField(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                   TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
-        if (valueType.isPrimitiveType()) {
-            // Assigning into a primitive field, or assigning null
+        if (valueType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getVal())) {
+            // Assigning into a primitive field
             return;
         }
 
@@ -973,8 +975,8 @@ public class StatementRegistrar {
     private void registerPutStatic(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                    TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
-        if (valueType.isPrimitiveType()) {
-            // Assigning into a primitive field, or assigning null
+        if (valueType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getVal())) {
+            // Assigning into a primitive field
             return;
         }
 
@@ -1007,7 +1009,7 @@ public class StatementRegistrar {
         List<ReferenceVariable> actuals = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
             TypeReference actualType = types.getType(i.getUse(j));
-            if (actualType.isPrimitiveType()) {
+            if (actualType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getUse(j))) {
                 actuals.add(null);
             }
             else {
@@ -1196,7 +1198,7 @@ public class StatementRegistrar {
     private void registerPhiAssignment(SSAPhiInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                        TypeRepository types, PrettyPrinter pprint) {
         TypeReference phiType = types.getType(i.getDef());
-        if (phiType.isPrimitiveType()) {
+        if (phiType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getUse(0))) {
             // No pointers here
             return;
         }
@@ -1205,13 +1207,13 @@ public class StatementRegistrar {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int arg = i.getUse(j);
             TypeReference argType = types.getType(arg);
-            if (argType != TypeReference.Null) {
-                assert !argType.isPrimitiveType() : "arg type: " + PrettyPrinter.typeString(argType)
-                        + " for phi type: " + PrettyPrinter.typeString(phiType);
+            assert !argType.isPrimitiveType() || argType.equals(TypeReference.Null) : "arg type: "
+                    + PrettyPrinter.typeString(argType) + " for phi type: "
+                    + PrettyPrinter.typeString(phiType);
 
-                ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pprint);
-                uses.add(x_i);
-            }
+            ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pprint);
+            uses.add(x_i);
+
         }
 
         if (uses.isEmpty()) {
@@ -1241,7 +1243,7 @@ public class StatementRegistrar {
         }
 
         TypeReference valType = types.getType(i.getResult());
-        if (valType.isPrimitiveType()) {
+        if (valType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getResult())) {
             // returning a primitive or "null"
             return;
         }
@@ -1608,19 +1610,21 @@ public class StatementRegistrar {
     private void addEntryMethodProgramPoint(ProgramPoint pp) {
         // get the entry method entry program point
         ProgramPoint entryPP = getMethodSummary(this.entryMethod).getEntryPP();
-        if (entryPP.succs().isEmpty()) {
-            // we haven't processed the entry method yet
-            this.entryMethodProgramPoints.add(pp);
+        assert !entryPP.succs().isEmpty();
+
+        if (!(lastClassInitPP == null)) {
+            // If there are already class init program points put this PP after the class inits
+            entryPP = lastClassInitPP;
         }
-        else {
-            // add all of the succs of entryPP as succs of pp
-            // and add pp as a succ to entryPP.
-            // This is not great (quadratic-sized structure!) and
-            // we should make it more efficient sometime.
-            pp.addSuccs(entryPP.succs());
-            entryPP.clearSuccs();
-            entryPP.addSucc(pp);
-        }
+
+        // add all of the succs of entryPP as succs of pp
+        // and add pp as a succ to entryPP.
+        // This is not great (quadratic-sized structure!) and
+        // we should make it more efficient sometime.
+        pp.addSuccs(entryPP.succs());
+        entryPP.clearSuccs();
+        entryPP.addSucc(pp);
+
     }
 
     /**
@@ -1715,7 +1719,7 @@ public class StatementRegistrar {
      *
      * @param reqInit class that must be initialized
      */
-    private synchronized void addProgramPointsForClassInitializers(IClass reqInit) {
+    private void addProgramPointsForClassInitializers(IClass reqInit) {
         if (this.classInitPPs.containsKey(reqInit)) {
             // This class initializer was already added
             return;
@@ -1736,11 +1740,11 @@ public class StatementRegistrar {
             }
 
             // We assume all class initializers are called in the root method
-            ProgramPoint classInitPP = new ProgramPoint(AnalysisUtil.getFakeRoot(), "class-init");
+            ProgramPoint classInitPP = new ClassInitProgramPoint(init, getEntryPoint());
             pps.addFirst(classInitPP);
             classInitPP = this.classInitPPs.putIfAbsent(init.getDeclaringClass(), classInitPP);
             assert classInitPP == null : "Registering duplicate clinit for "
-                    + PrettyPrinter.typeString(init.getDeclaringClass());
+                    + PrettyPrinter.typeString(init.getDeclaringClass()) + " maybe a race?";
         }
 
         if (pps.isEmpty()) {
@@ -1751,11 +1755,10 @@ public class StatementRegistrar {
         // Add the program points to the root method in the correct order
 
         if (lastClassInitPP == null) {
-            // XXX Where should the first class init go? after the singletons? right before main?
-            // Some of the singletons are allocations which require a clinit,
-            // it is actually probably OK to interleave the singletons and class inits as long as the class inits come first
+            // put the class inits right after the entry pp for the entry point
             lastClassInitPP = getMethodSummary(getEntryPoint()).getEntryPP();
         }
+        System.err.println("Adding clinits after " + lastClassInitPP + " new PPs " + pps);
         Set<ProgramPoint> succs = lastClassInitPP.succs();
 
         // Add edge from the last class init PP seen to the first new one
@@ -1851,15 +1854,15 @@ public class StatementRegistrar {
     }
 
     private void registerFormalAssignments(IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
-                                           PrettyPrinter pprint) {
+                                           TypeRepository types, PrettyPrinter pprint) {
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
-            TypeReference paramType = ir.getParameterType(i);
-            if (paramType.isPrimitiveType()) {
+            int paramNum = ir.getParameter(i);
+            TypeReference paramType = types.getType(paramNum);
+            if (paramType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(paramNum)) {
                 // No statements for primitives
                 continue;
             }
-            int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pprint);
             this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), pp));
         }
@@ -1972,9 +1975,9 @@ public class StatementRegistrar {
         for (MethodSummaryNodes methSum : methods.values()) {
 
             if (simplePrint) {
-                if (methSum.toString().contains("main")) {
+                System.err.println("METHOD " + methSum);
+                if (methSum.toString().contains("main") || methSum.toString().contains("clinit")) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
-                    break;
                 }
                 continue;
             }

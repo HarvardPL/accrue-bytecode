@@ -1205,6 +1205,15 @@ public class PointsToGraph {
     }
 
     /**
+     * Get all the class initializer that have been registered
+     *
+     * @return set of registered class initializers
+     */
+    public Set<IMethod> getClassInitializers() {
+        return this.classInitializers;
+    }
+
+    /**
      * Get call graph map
      *
      * @return reverse call graph map

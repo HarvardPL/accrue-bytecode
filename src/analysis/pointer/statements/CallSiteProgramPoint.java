@@ -2,14 +2,10 @@ package analysis.pointer.statements;
 
 import java.util.Map;
 
-import types.TypeRepository;
 import util.print.PrettyPrinter;
-import analysis.AnalysisUtil;
 
 import com.ibm.wala.classLoader.CallSiteReference;
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
@@ -76,30 +72,31 @@ public class CallSiteProgramPoint extends ProgramPoint {
     }
 
     /**
-     * Get the program point for exceptional exit of this call in the caller, given the type of exception being thrown
-     * by the callee
+     * Get the program point for exceptional exit of this call in the caller
      *
-     * @param t type of the exception being thrown
      * @return Program point in the caller
      */
-    public ProgramPoint getExceptionExit(TypeReference t) {
-        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
-        IClass c = cha.lookupClass(t);
-        ProgramPoint pp = null;
-        IClass classForPP = null;
-        for (TypeReference exitType : exceptions.keySet()) {
-            IClass exitClass = cha.lookupClass(exitType);
-            if (TypeRepository.isAssignableFrom(exitClass, c)) {
-                // The exit type is a subtype of the type we are checking so the PP is possible
-                if (classForPP == null || TypeRepository.isAssignableFrom(classForPP, exitClass)) {
-                    // Either we had no valid PP yet or this PP is for a more specific (and still valid) exception type
-                    pp = exceptions.get(exitType);
-                    classForPP = exitClass;
-                }
-            }
-        }
-
-        assert pp != null : "Invalid exception type " + t;
+    public ProgramPoint getExceptionExit() {
+        // TODO handle exits per exception type
+        //        IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
+        //        IClass c = cha.lookupClass(t);
+        //        ProgramPoint pp = null;
+        //        IClass classForPP = null;
+        //        for (TypeReference exitType : exceptions.keySet()) {
+        //            IClass exitClass = cha.lookupClass(exitType);
+        //            if (TypeRepository.isAssignableFrom(exitClass, c)) {
+        //                // The exit type is a subtype of the type we are checking so the PP is possible
+        //                if (classForPP == null || TypeRepository.isAssignableFrom(classForPP, exitClass)) {
+        //                    // Either we had no valid PP yet or this PP is for a more specific (and still valid) exception type
+        //                    pp = exceptions.get(exitType);
+        //                    classForPP = exitClass;
+        //                }
+        //            }
+        //        }
+        //
+        //        assert pp != null : "Invalid exception type " + t;
+        ProgramPoint pp = exceptions.get(TypeReference.JavaLangThrowable);
+        assert pp != null;
         return pp;
     }
 }

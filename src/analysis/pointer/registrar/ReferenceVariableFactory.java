@@ -74,9 +74,8 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable getOrCreateLocal(int local, TypeReference type,
             IMethod method, PrettyPrinter pp) {
-        assert !type.isPrimitiveType() : "No reference variables for primitives: "
+        assert !type.isPrimitiveType() || (type == TypeReference.Null) : "No reference variables for primitives: "
                 + PrettyPrinter.typeString(type);
-        assert !(type == TypeReference.Null) : "Null literal don't have reference variables";
         OrderedPair<Integer, IMethod> key = new OrderedPair<>(local, method);
         ReferenceVariable rv = locals.get(key);
         if (rv == null) {
@@ -520,7 +519,7 @@ public class ReferenceVariableFactory {
             assert debugString != null;
             assert !debugString.equals("null");
             assert expectedType != null;
-            assert !expectedType.isPrimitiveType();
+            assert !expectedType.isPrimitiveType() || expectedType.equals(TypeReference.Null);
             assert isFlowSensitive ? !(hasLocalScope || hasInstantaneousScope) : true;
             assert !(hasLocalScope && hasInstantaneousScope);
 
