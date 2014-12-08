@@ -88,6 +88,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     @Override
     public Map<ExitType, VarContext<NonNullAbsVal>> dataflow(VarContext<NonNullAbsVal> initial) {
         IMethod m = currentNode.getMethod();
+        assert m.isStatic() || initial.getLocal(currentNode.getIR().getParameter(0)).isNonnull() : PrettyPrinter.methodString(m)
+                + " has a null _this_ parameter";
         if (m.isInit()) {
             // Initialize the fields of the reciever to MAYBE_NULL
             Collection<IField> fields = currentNode.getMethod().getDeclaringClass().getAllFields();
@@ -108,7 +110,14 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             }
         }
         if (currentNode.getMethod().isClinit()) {
-            // Initialize the static fields of the class
+            // Initialize the static fields of the class to MAYBE_NULL
+            Collection<IField> fields = currentNode.getMethod().getDeclaringClass().getAllFields();
+            for (IField f : fields) {
+                if (f.isStatic()) {
+                    initial = initial.setLocation(AbstractLocation.createStatic(f.getReference()),
+                                                  NonNullAbsVal.MAY_BE_NULL);
+                }
+            }
         }
 
         return super.dataflow(initial);
@@ -164,15 +173,17 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             for (int j = 0; j < numParams; j++) {
                 NonNullAbsVal actualVal = getLocal(actuals.get(j), nonNull);
                 if (actualVal == null) {
-                    if (types.getType(actuals.get(j)).isPrimitiveType()) {
+                    TypeReference actualType = types.getType(actuals.get(j));
+                    if (currentNode.getIR().getSymbolTable().isNullConstant(actuals.get(j))) {
+                        actualVal = NonNullAbsVal.MAY_BE_NULL;
+                    }
+                    else if (actualType.isPrimitiveType()) {
                         actualVal = NonNullAbsVal.NON_NULL;
-                    } else if (currentNode.getIR().getSymbolTable().isConstant(actuals.get(j))) {
-                        if (currentNode.getIR().getSymbolTable().isNullConstant(actuals.get(j))) {
-                            actualVal = NonNullAbsVal.MAY_BE_NULL;
-                        } else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals.get(j))) {
-                            actualVal = NonNullAbsVal.NON_NULL;
-                        }
-                    } else {
+                    }
+                    else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals.get(j))) {
+                        actualVal = NonNullAbsVal.NON_NULL;
+                    }
+                    else {
                         System.out.println(PrettyPrinter.methodString(callee.getMethod()));
                         throw new RuntimeException("null NonNullAbsValue for non-primitive non-constant.");
                     }
@@ -422,7 +433,17 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         }
 
         NonNullAbsVal val = in.getLocation(AbstractLocation.createStatic(i.getDeclaredField()));
-        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(), val);
+        VarContext<NonNullAbsVal> out;
+        if (val == null) {
+            System.err.println("NULL absval for " + i.getDeclaredField() + " in "
+                    + PrettyPrinter.cgNodeString(currentNode));
+            out = in.setLocal(i.getDef(), NonNullAbsVal.MAY_BE_NULL);
+        }
+        else {
+            System.err.println("FOUND absval for " + i.getDeclaredField() + " in "
+                    + PrettyPrinter.cgNodeString(currentNode) + " !!! " + val);
+            out = in.setLocal(i.getDef(), val);
+        }
         return out;
     }
 
