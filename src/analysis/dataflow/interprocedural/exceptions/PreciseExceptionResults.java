@@ -32,6 +32,7 @@ import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
 import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -348,6 +349,10 @@ public class PreciseExceptionResults implements AnalysisResults {
         case PUT_FIELD:
         case THROW: // if the object thrown is null
             // Not handling IllegalMonitorStateException for throw
+            if (type == InstructionType.INVOKE_SPECIAL && ((SSAInvokeInstruction) i).getDeclaredTarget().isInit()) {
+                // No null pointer exception if the method is an instance initializer
+                return Collections.emptySet();
+            }
             return nullPointerException;
         case CHECK_CAST:
             return classCastException;
