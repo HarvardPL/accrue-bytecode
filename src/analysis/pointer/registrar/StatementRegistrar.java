@@ -470,6 +470,7 @@ public class StatementRegistrar {
                                                 MethodSummaryNodes methSumm) {
         for (TypeReference exType : exceptionExits.keySet()) {
             IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
+            assert thrownClass != null;
 
             boolean definitelyCaught = false;
 
@@ -477,6 +478,7 @@ public class StatementRegistrar {
                 Iterator<TypeReference> caughtTypes = succBB.getCaughtExceptionTypes();
                 while (caughtTypes.hasNext()) {
                     IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next());
+                    assert caughtClass != null;
 
                     definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
                     boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
@@ -1490,7 +1492,7 @@ public class StatementRegistrar {
             }
             else if (ir.getSymbolTable().isNullConstant(use)) {
                 ReferenceVariable newNullLit = rvFactory.getOrCreateLocal(use,
-                                                                          TypeReference.JavaLangString,
+                                                                          TypeReference.Null,
                                                                           ir.getMethod(),
                                                                           pprint);
                 if (!this.handledLiterals.add(newNullLit)) {
@@ -1642,6 +1644,7 @@ public class StatementRegistrar {
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
                                                PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
+        assert thrownClass != null;
 
         Set<IClass> notType = new LinkedHashSet<>();
         for (ISSABasicBlock succ : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
@@ -1666,6 +1669,7 @@ public class StatementRegistrar {
                 assert caughtType.equals(types.getType(catchIns.getException()));
 
                 IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
+                assert caughtClass != null;
                 boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
                 boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
 
@@ -1688,7 +1692,7 @@ public class StatementRegistrar {
                 }
 
                 // Add this exception to the set of types that have already been caught
-                notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtType));
+                notType.add(caughtClass);
             }
             else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
@@ -1758,7 +1762,6 @@ public class StatementRegistrar {
             // put the class inits right after the entry pp for the entry point
             lastClassInitPP = getMethodSummary(getEntryPoint()).getEntryPP();
         }
-        System.err.println("Adding clinits after " + lastClassInitPP + " new PPs " + pps);
         Set<ProgramPoint> succs = lastClassInitPP.succs();
 
         // Add edge from the last class init PP seen to the first new one
@@ -1787,6 +1790,7 @@ public class StatementRegistrar {
      */
     private void registerAllocationForNative(IMethod m, ProgramPoint pp, TypeReference type, ReferenceVariable summary) {
         IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
+        assert allocatedClass != null;
         this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m, pp));
     }
 
@@ -1975,7 +1979,6 @@ public class StatementRegistrar {
         for (MethodSummaryNodes methSum : methods.values()) {
 
             if (simplePrint) {
-                System.err.println("METHOD " + methSum);
                 if (methSum.toString().contains("main") || methSum.toString().contains("clinit")) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
                 }

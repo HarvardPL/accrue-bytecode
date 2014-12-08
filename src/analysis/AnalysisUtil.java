@@ -229,20 +229,29 @@ public class AnalysisUtil {
 
     private static void setUpCommonClasses() {
         stringClass = cha.lookupClass(TypeReference.JavaLangString);
+        assert stringClass != null;
         stringValueClass = cha.lookupClass(STRING_VALUE_TYPE);
+        assert stringValueClass != null;
         objectClass = cha.lookupClass(TypeReference.JavaLangObject);
+        assert objectClass != null;
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
+        assert throwableClass != null;
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
+        assert errorClass != null;
         TypeName privTN = TypeName.string2TypeName("Ljava/security/PrivilegedAction");
         TypeReference privTR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privTN);
         privilegedActionClass = cha.lookupClass(privTR);
+        assert privilegedActionClass != null;
 
         TypeName privETN = TypeName.string2TypeName("Ljava/security/PrivilegedExceptionAction");
         TypeReference privETR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privETN);
         privilegedExceptionActionClass = cha.lookupClass(privETR);
+        assert privilegedExceptionActionClass != null;
 
         cloneableInterface = cha.lookupClass(TypeReference.JavaLangCloneable);
+        assert cloneableInterface != null;
         serializableInterface = cha.lookupClass(TypeReference.JavaIoSerializable);
+        assert serializableInterface != null;
 
     }
 

@@ -100,6 +100,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
         if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             IClass exClass = cha.lookupClass(type);
+            assert exClass != null;
             if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass)) {
                 // assume native methods can throw RTE
                 return true;
@@ -107,6 +108,7 @@ public class PreciseExceptionResults implements AnalysisResults {
             try {
                 for (TypeReference declEx : n.getMethod().getDeclaredExceptions()) {
                     IClass declClass = cha.lookupClass(declEx);
+                    assert declClass != null;
                     if (TypeRepository.isAssignableFrom(declClass, exClass)) {
                         // precise throw type could be any subtype of the
                         // declared exceptions

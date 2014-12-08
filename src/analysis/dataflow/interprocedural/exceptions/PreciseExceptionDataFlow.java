@@ -348,6 +348,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
         // TODO track "definitely null" in the non-null analysis
         boolean castAlwaysSucceeds = true;
         IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getDeclaredResultTypes()[0]);
+        assert checked != null;
         if (!currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
             Iterator<? extends InstanceKey> iter = ptg.pointsToIterator(interProc.getReplica(i.getVal(), currentNode));
             while (iter.hasNext()) {

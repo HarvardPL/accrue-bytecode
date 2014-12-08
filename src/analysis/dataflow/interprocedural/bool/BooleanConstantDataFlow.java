@@ -189,6 +189,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
                                     Set<VarContext<BooleanAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         IClass checkedClass = AnalysisUtil.getClassHierarchy().lookupClass(i.getCheckedType());
+        assert checkedClass != null;
 
         VarContext<BooleanAbsVal> in = confluence(previousItems);
         if (st.isNullConstant(i.getRef())) {

@@ -26,6 +26,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.FieldReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Defines how to process points-to graph information for a particular statement
@@ -141,9 +142,15 @@ public abstract class PointsToStatement {
      * @return true if right can safely be assigned to the left
      */
     protected final boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
+        if (right.getExpectedType() == TypeReference.Null) {
+            // null can be assigned to any reference type
+            return !left.getExpectedType().isPrimitiveType() || left.getExpectedType() == TypeReference.Null;
+        }
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         IClass c1 = cha.lookupClass(left.getExpectedType());
+        assert c1 != null;
         IClass c2 = cha.lookupClass(right.getExpectedType());
+        assert c2 != null;
         boolean check = cha.isAssignableFrom(c1, c2);
 
         if (check) {
