@@ -320,6 +320,7 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
             InstanceKey hContext = iter.next();
 
             IClass actual = hContext.getConcreteType();
+            assert actual != null;
             if (AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                 instanceOfAlwaysFalse = false;
             }

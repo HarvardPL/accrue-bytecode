@@ -108,6 +108,7 @@ public class ReferenceVariableCache {
      * @return reference variable for the static field
      */
     public ReferenceVariable getStaticField(IField field) {
+        assert field.isStatic();
         return staticFields.get(field);
     }
 

@@ -354,6 +354,7 @@ public class PreciseExceptionDataFlow extends IntraproceduralDataFlow<PreciseExc
             while (iter.hasNext()) {
                 InstanceKey hContext = iter.next();
                 IClass actual = hContext.getConcreteType();
+                assert actual != null;
                 if (!AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                     castAlwaysSucceeds = false;
                     break;
