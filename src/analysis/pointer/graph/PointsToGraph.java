@@ -26,6 +26,7 @@ import util.intmap.ReadOnlyConcurrentIntMap;
 import util.intmap.SimpleConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import util.intset.EmptyIntSet;
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
@@ -314,7 +315,6 @@ public class PointsToGraph {
     }
 
     public/*PointsToGraphNode*/int getRepresentative(/*PointsToGraphNode*/int n) {
-        // XXX Steve: Should this be used for something? int orig = n;
         int rep;
         Integer x = n;
         do {
@@ -791,6 +791,7 @@ public class PointsToGraph {
 
         while (iter.hasNext()) {
             int m = iter.next();
+            assert flowSensSupersetsMap != null;
             OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet> annotation = flowSensSupersetsMap.get(m);
             ExplicitProgramPointSet noFilterPPSet = annotation.fst();
             ExplicitProgramPointSet filterPPSet = annotation.snd();
@@ -1014,14 +1015,12 @@ public class PointsToGraph {
             }
             return ppsc.contains(ippr, this, originator);
         }
-        else {
-            // from is not flow sensitive
-            MutableIntSet s = this.pointsToFI.get(from);
-            if (s == null) {
-                return false;
-            }
-            return s.contains(to);
+        // from is not flow sensitive
+        MutableIntSet s = this.pointsToFI.get(from);
+        if (s == null) {
+            return false;
         }
+        return s.contains(to);
     }
 
     public Iterator<InstanceKeyRecency> pointsToIterator(PointsToGraphNode node, InterProgramPointReplica ippr,
@@ -1248,10 +1247,10 @@ public class PointsToGraph {
                     Context calleeContext = calleePair.snd();
 
                     CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
-                    // We are building a call graph so it is safe to call this "deprecated" method
-
-                    // We are building a call graph so it is safe to call this "deprecated" method
-                    src.addTarget(caller.getReference(), dst);
+                    if (!caller.isClinit() /* Class inits are handled as entry points below */) {
+                        // We are building a call graph so it is safe to call this "deprecated" method
+                        src.addTarget(caller.getReference(), dst);
+                    }
                 }
             }
 
@@ -1312,13 +1311,15 @@ public class PointsToGraph {
                 // new initializer
                 cgChanged = true;
                 this.recordReachableContext(clinit, initialContext);
+
+                CallSiteProgramPoint cspp = this.registrar.getClassInitPP(clinit);
+                addCall(cspp, haf.initialContext(), clinit, haf.initialContext());
+
                 this.clinitCount++;
             }
             else {
                 // Already added an initializer and thus must have added initializers for super classes. These are all
                 // that are left to process since we are adding from sub class to super class order
-
-                // If any were added then j would have been decremented
                 return cgChanged;
             }
         }
@@ -1612,7 +1613,7 @@ public class PointsToGraph {
         }
     }
 
-    class SortedIntSetUnion extends AbstractIntSet implements IntSet {
+    class SortedIntSetUnion extends AbstractIntSet {
         final IntSet a;
         final IntSet b;
 
@@ -1865,9 +1866,7 @@ public class PointsToGraph {
         if (targetIsFlowSensitive) {
             return getDifferenceFlowSensitive(srcIter, target, ExplicitProgramPointSet.singleton(ippr));
         }
-        else {
-            return getDifferenceFlowInsensitive(srcIter, target);
-        }
+        return getDifferenceFlowInsensitive(srcIter, target);
     }
 
     /**
@@ -2128,15 +2127,13 @@ public class PointsToGraph {
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            InstanceKeyRecency ikr = this.lookupInstanceKeyDictionary(to);
-            changed |= addProgramPoints(m, n, to, ikr.isRecent(), ikr.isTrackingMostRecent(), ppsToAdd);
+            changed |= addProgramPoints(m, n, to, ppsToAdd);
         }
         return changed;
     }
 
     private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from,
-    /*InstanceKeyRecency*/int to, boolean toIsMostRecentObject, boolean toIsTrackingMostRecenct,
-                                     ExplicitProgramPointSet toAdd) {
+    /*InstanceKeyRecency*/int to, ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
             p = new ProgramPointSetClosure(from, to, this);
@@ -2486,6 +2483,9 @@ public class PointsToGraph {
     }
 
     public Set<ProgramPointReplica> getCallSitesOf(OrderedPair<IMethod, Context> caller) {
+        assert !caller.fst().isClinit() || caller.snd().equals(haf.initialContext()) : " Class inits such as, "
+                + PrettyPrinter.methodString(caller.fst()) + " should be analyzed in the initial context not "
+                + caller.snd();
         Set<ProgramPointReplica> callSites = new LinkedHashSet<>();
         for (CallSiteProgramPoint cs : this.registrar.getCallSitesForMethod(caller.fst())) {
             callSites.add(cs.getReplica(caller.snd()));

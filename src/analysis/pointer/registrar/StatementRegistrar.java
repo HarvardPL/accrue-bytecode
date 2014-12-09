@@ -35,7 +35,6 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.CallSiteProgramPoint;
-import analysis.pointer.statements.ClassInitProgramPoint;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -97,14 +96,14 @@ public class StatementRegistrar {
     private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesForMethod;
 
     /**
+     * Program point for the normal exit of a class initialization method
+     */
+    private final ConcurrentMap<IMethod, CallSiteProgramPoint> programPointForClassInit;
+
+    /**
      * Program point to statement map
      */
     private final ConcurrentMap<ProgramPoint, PointsToStatement> ppToStmtMap;
-
-    /**
-     * Map from IClass to the program point for the call to the class static initializer
-     */
-    private final ConcurrentMap<IClass, ProgramPoint> classInitPPs;
     /**
      * Program point in the entry method for the last class initializer added
      */
@@ -218,12 +217,12 @@ public class StatementRegistrar {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
+        this.programPointForClassInit = AnalysisUtil.createConcurrentHashMap();
         this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledLiterals = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
         this.entryMethodProgramPoints = AnalysisUtil.createConcurrentSet();
-        this.classInitPPs = AnalysisUtil.createConcurrentHashMap();
         this.stmtFactory = factory;
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
@@ -302,6 +301,39 @@ public class StatementRegistrar {
                 // Chain together the subgraphs
                 for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                     addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
+                }
+
+                if (m.isClinit()) {
+                    // XXX to make sure static fields point to null before the clinit
+                    ProgramPoint entry = methSumm.getEntryPP();
+                    ProgramPoint prev = null;
+                    ProgramPoint first = null;
+                    for (IField f : m.getDeclaringClass().getAllStaticFields()) {
+                        if (f.getFieldTypeReference().isPrimitiveType()) {
+                            // No need to do anything with primitive fields
+                            continue;
+                        }
+                        ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                        ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
+                        addStatement(stmtFactory.nullToLocal(staticField, pp));
+                        if (first == null) {
+                            first = pp;
+                        }
+                        else {
+                            assert prev != null;
+                            prev.addSucc(pp);
+                        }
+                        prev = pp;
+                    }
+                    if (first != null) {
+                        // Some program points were added
+                        Set<ProgramPoint> succs = entry.succs();
+                        entry.clearSuccs();
+                        entry.addSucc(first);
+                        // prev is now the last pp added
+                        assert prev != null;
+                        prev.addSuccs(succs);
+                    }
                 }
 
                 // clean up graph
@@ -600,6 +632,10 @@ public class StatementRegistrar {
                 // don't remove program points for exceptions at call-sites
                 continue;
             }
+            if (pp instanceof CallSiteProgramPoint) {
+                // don't remove call sites
+                continue;
+            }
 
             Set<ProgramPoint> predSet = preds.get(pp);
             if (predSet.size() == 1) {
@@ -722,7 +758,7 @@ public class StatementRegistrar {
                 ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit " + PrettyPrinter.typeString(reqInit));
                 this.registerClassInitializers(i, clinitPP, inits);
 
-                if (!this.classInitPPs.containsKey(reqInit)) {
+                if (!this.programPointForClassInit.containsKey(reqInit)) {
                     // We have not seen this class before
                     // record program points for the class initializers
                     this.addProgramPointsForClassInitializers(reqInit);
@@ -761,10 +797,10 @@ public class StatementRegistrar {
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
 
             // Create program points for any exceptions thrown by the callee
-            Map<TypeReference, ProgramPoint> exceptions = addCallExceptionProgramPoint(subgraph);
-            callExceptions.addAll(exceptions.values());
+            ProgramPoint exception = addCallExceptionProgramPoint(subgraph);
+            callExceptions.add(exception);
 
-            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exceptions);
+            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exception);
             subgraph.replaceNormalExitWithCallSitePP(cspp);
             this.registerInvoke(invocation, bb, ir, cspp, this.rvFactory, types, printer, insToPPSubGraph);
             return;
@@ -819,10 +855,9 @@ public class StatementRegistrar {
      * Add exception program point for a method call (in the caller)
      *
      * @param subgraph program point subgraph (may be modified)
-     * @return map from type of exception to program point
+     * @return exception exit program point
      */
-    private static Map<TypeReference, ProgramPoint> addCallExceptionProgramPoint(PPSubGraph subgraph) {
-        Map<TypeReference, ProgramPoint> exceptions = new HashMap<>();
+    private static ProgramPoint addCallExceptionProgramPoint(PPSubGraph subgraph) {
         ProgramPoint throwPP;
         if (subgraph.exceptionExits().containsKey(TypeReference.JavaLangThrowable)) {
             throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangThrowable);
@@ -831,8 +866,8 @@ public class StatementRegistrar {
             throwPP = subgraph.addThrowException(TypeReference.JavaLangThrowable);
             assert throwPP != null;
         }
-        exceptions.put(TypeReference.JavaLangThrowable, throwPP);
-        return exceptions;
+        return throwPP;
+        // TODO disguish different types of thrown exceptions
         //        ProgramPoint throwPP;
         //        for (TypeReference t : exceptionTypes) {
         //            if (t.equals(TypeReference.JavaLangNullPointerException)
@@ -1383,7 +1418,6 @@ public class StatementRegistrar {
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         if (ss.add(s)) {
-            // System.err.println("NEW STATEMENT:" + s);
             this.size++;
         }
         if (stmtListener != null) {
@@ -1724,7 +1758,7 @@ public class StatementRegistrar {
      * @param reqInit class that must be initialized
      */
     private void addProgramPointsForClassInitializers(IClass reqInit) {
-        if (this.classInitPPs.containsKey(reqInit)) {
+        if (this.programPointForClassInit.containsKey(reqInit)) {
             // This class initializer was already added
             return;
         }
@@ -1738,17 +1772,31 @@ public class StatementRegistrar {
         // Loop from last clinit to be called (that for reqInit) to first (the highest superclass in the hierarchy)
         for (int i = inits.size(); i > 0; i--) {
             IMethod init = inits.get(i - 1);
-            if (this.classInitPPs.containsKey(init.getDeclaringClass())) {
+            if (this.programPointForClassInit.containsKey(init)) {
                 // Already seen this initializer and all super classes/interfaces
                 break;
             }
 
             // We assume all class initializers are called in the root method
-            ProgramPoint classInitPP = new ClassInitProgramPoint(init, getEntryPoint());
+            MethodSummaryNodes entryNodes = findOrCreateMethodSummary(getEntryPoint(), rvFactory);
+            // XXX We assume exceptions thrown by class inits are never caught but bubble out to the exception exit of the root method
+            CallSiteProgramPoint classInitPP = CallSiteProgramPoint.createClassInit(init,
+                                                                                    getEntryPoint(),
+                                                                                    entryNodes.getExceptionExitPP());
             pps.addFirst(classInitPP);
-            classInitPP = this.classInitPPs.putIfAbsent(init.getDeclaringClass(), classInitPP);
-            assert classInitPP == null : "Registering duplicate clinit for "
+            CallSiteProgramPoint prev = this.programPointForClassInit.putIfAbsent(init, classInitPP);
+            assert prev == null : "Registering duplicate clinit for "
                     + PrettyPrinter.typeString(init.getDeclaringClass()) + " maybe a race?";
+            Set<CallSiteProgramPoint> entryCallSites = callSitesForMethod.get(entryMethod);
+            if (entryCallSites == null) {
+                entryCallSites = AnalysisUtil.createConcurrentSet();
+                Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(entryMethod, entryCallSites);
+                if (existing != null) {
+                    // someone else got there first.
+                    entryCallSites = existing;
+                }
+            }
+            entryCallSites.add(classInitPP);
         }
 
         if (pps.isEmpty()) {
@@ -1800,9 +1848,14 @@ public class StatementRegistrar {
         ProgramPoint entryPP = methodSummary.getEntryPP();
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
-            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)
+                    + " ALLOC " + PrettyPrinter.typeString(m.getReturnType())));
             this.registerAllocationForNative(m, pp, m.getReturnType(), methodSummary.getReturn());
             pp.addSucc(methodSummary.getNormalExitPP());
+        }
+        else {
+            // The return value is not a reference so connect up the entry and exit
+            entryPP.addSucc(methodSummary.getNormalExitPP());
         }
 
         boolean containsRTE = false;
@@ -1812,9 +1865,11 @@ public class StatementRegistrar {
                 for (TypeReference exType : exceptions) {
                     // Allocation of exception of a particular type
                     ReferenceVariable ex = ReferenceVariableFactory.createNativeException(exType, m);
-                    ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+                    ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)
+                            + " ALLOC " + PrettyPrinter.typeString(exType)));
                     this.registerAllocationForNative(m, pp, exType, ex);
-                    pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+                    pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++) + " ASSIGN "
+                            + PrettyPrinter.typeString(exType)));
                     this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                            methodSummary.getException(),
                                                                            Collections.<IClass> emptySet(),
@@ -1836,20 +1891,20 @@ public class StatementRegistrar {
         if (!containsRTE) {
             ReferenceVariable ex = ReferenceVariableFactory.createNativeException(TypeReference.JavaLangRuntimeException,
                                                                                   m);
-            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)
+                    + " alloc " + PrettyPrinter.typeString(TypeReference.JavaLangRuntimeException)));
             this.registerAllocationForNative(m,
                                              pp,
                                              TypeReference.JavaLangRuntimeException,
                                              methodSummary.getException());
-            pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            pp = nextProgramPoint(pp, new ProgramPoint(m, "native-method-pp-" + (ppCount++) + " assign "
+                    + PrettyPrinter.typeString(TypeReference.JavaLangRuntimeException)));
             this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                    methodSummary.getException(),
                                                                    Collections.<IClass> emptySet(),
                                                                    pp));
+            pp.addSucc(methodSummary.getExceptionExitPP());
         }
-
-        // connect the entry and the exit with some kind of program point.
-
     }
 
     private static ProgramPoint nextProgramPoint(ProgramPoint currPP, ProgramPoint nextPP) {
@@ -1979,7 +2034,8 @@ public class StatementRegistrar {
         for (MethodSummaryNodes methSum : methods.values()) {
 
             if (simplePrint) {
-                if (methSum.toString().contains("main") || methSum.toString().contains("clinit")) {
+                if (methSum.toString().contains("main") || methSum.toString().contains("clinit")
+                        || methSum.toString().contains("fake") || methSum.toString().contains("Object")) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
                 }
                 continue;
@@ -2205,5 +2261,17 @@ public class StatementRegistrar {
             }
             return sb.toString();
         }
+    }
+
+    /**
+     * Get the program point for normal exit of a static class initialization method
+     *
+     * @param clinit method to get the pp for
+     * @return program point
+     */
+    public CallSiteProgramPoint getClassInitPP(IMethod clinit) {
+        CallSiteProgramPoint cspp = programPointForClassInit.get(clinit);
+        assert cspp != null : "Missing program point for " + PrettyPrinter.methodString(clinit);
+        return cspp;
     }
 }
