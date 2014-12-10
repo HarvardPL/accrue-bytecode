@@ -24,7 +24,6 @@ import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointReachability.SubQuery;
-import analysis.pointer.graph.ReachabilityQueryOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -62,7 +61,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
+    IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
 
     /**
      * An allocation dependency from InstanceKeyRecency ikr to AllocationDepender sac exists when a modification to the
@@ -93,9 +92,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
 
-    private Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue;
+    Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue;
 
-    private Set<IMethod> printed = new HashSet<>();
+    Set<IMethod> printed = new HashSet<>();
     public long lines2 = 0;
     public long instructions = 0;
 
@@ -413,7 +412,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
         }
-        this.handleChanges(nextQueue, noDeltaQueue, changed, g);
+        this.handleChanges(nextQueue, changed, g);
 
         long currTime = System.currentTimeMillis();
         if (currTime > this.nextMilestone) {
@@ -437,18 +436,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
     }
 
-    private void handleChanges(Queue<OrderedPair<StmtAndContext, GraphDelta>> queue,
-                               Queue<StmtAndContext> noDeltaQueue, GraphDelta changes, PointsToGraph g) {
+    void handleChanges(Queue<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta changes, PointsToGraph g) {
         if (changes.isEmpty()) {
             return;
         }
-        Set<ReachabilityQueryOrigin> reprocess = g.ppReach.checkPointsToGraphDelta(changes);
-        for (ReachabilityQueryOrigin task : reprocess) {
-            // run the task, but with an empty delta to force the appropriate reading of
-            // kill nodes.
-            task.trigger(this.analysisHandle);
-            //noDeltaQueue.add(sac);
-        }
+        g.ppReach.checkPointsToGraphDelta(changes);
 
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
@@ -462,7 +454,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             int n = iter.next();
             for (AllocationDepender sac : this.getAllocationDependencies(n)) {
                 sac.trigger(this.analysisHandle, changes);
-                //queue.add(new OrderedPair<>(sac, changes));
             }
         }
     }
@@ -474,8 +465,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param registrar points-to statement registrar
      * @return true if the points-to graph changed
      */
-    private boolean processAllStatements(PointsToGraph g,
-                                         StatementRegistrar registrar) {
+    @SuppressWarnings("unused")
+    private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
                 + registrar.getRegisteredMethods().size() + " methods");
@@ -690,7 +681,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         @Override
         public void submitStmtAndContext(StmtAndContext sac, GraphDelta delta) {
-            nextQueue.add(new OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>(sac, delta));
+            nextQueue.add(new OrderedPair<>(sac, delta));
         }
 
         @Override
@@ -700,7 +691,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         @Override
         public void handleChanges(GraphDelta changes) {
-            PointsToAnalysisSingleThreaded.this.handleChanges(nextQueue, noDeltaQueue, changes, g);
+            PointsToAnalysisSingleThreaded.this.handleChanges(nextQueue, changes, g);
         }
 
         @Override

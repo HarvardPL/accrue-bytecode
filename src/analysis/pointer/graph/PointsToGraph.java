@@ -635,7 +635,6 @@ public class PointsToGraph {
      * @param target
      * @param targetIsFlowSensitive
      * @param ippr
-     * @param originator
      */
     private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source,
                                                     boolean sourceIsFlowSensitive, TypeFilter filter,
@@ -1960,10 +1959,10 @@ public class PointsToGraph {
                 MethodSummaryNodes ms = this.registrar.getMethodSummary(use.getContainingProcedure());
                 forbidden.add(ms.getNormalExitPP().pre().getReplica(use.getContext()));
                 forbidden.add(ms.getExceptionExitPP().pre().getReplica(use.getContext()));
-                if (this.ppReach.reachable(localDef, allocSite.pre(), forbidden, origin, null)) {
+                if (this.ppReach.reachable(localDef, allocSite.pre(), forbidden, origin)) {
                     forbidden.remove(use);
                     forbidden.add(rvr.localDef());
-                    if (this.ppReach.reachable(allocSite.post(), use, forbidden, origin, null)) {
+                    if (this.ppReach.reachable(allocSite.post(), use, forbidden, origin)) {
                         // we need it!
                         return true;
                     }
@@ -2737,13 +2736,15 @@ public class PointsToGraph {
     @SuppressWarnings("static-method")
     private boolean shouldPrint(InstanceKeyRecency ikr) {
         String s = ikr.toString();
-        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive");
+        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive")
+                && !s.contains("CASE_INSENSITIVE");
     }
 
     @SuppressWarnings("static-method")
     private boolean shouldPrint(ReferenceVariableReplica rvr) {
         String s = rvr.toString();
-        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive");
+        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive")
+                && !s.contains("CASE_INSENSITIVE");
     }
 
     protected static String escape(String s) {

@@ -15,13 +15,11 @@ import com.ibm.wala.util.intset.EmptyIntSet;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.SparseIntSet;
 
-/*
- * Represents a set of InterProgramPointReplicas. The set is represented
- * by a set of sources and a points to graph node, and implicitly represents
- * all program points that are reachable from a source without going through a
- * program point that kills the node.
+/**
+ * Represents a set of InterProgramPointReplicas. The set is represented by a set of sources and a points to graph node,
+ * and implicitly represents all program points that are reachable from a source without going through a program point
+ * that kills the node.
  *
- * TODO: need to add a reference to whatever datastructure(s) allows us to determine successor relations over program points.
  */
 public class ProgramPointSetClosure {
     /**
@@ -68,12 +66,7 @@ public class ProgramPointSetClosure {
      * Does this set contain of the program points ippr?
      */
     public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, ReachabilityQueryOrigin originator) {
-        return g.programPointReachability().reachable(this,
-                                                      ippr,
-                                                      this.noKill(),
-                                                      this.noAlloc(g),
-                                                      originator,
-                                                      null);
+        return g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(g), originator);
     }
 
     /**
@@ -89,18 +82,12 @@ public class ProgramPointSetClosure {
                                ippr,
                                this.noKill(),
                                this.noAlloc(g),
-                               origin,
-                               null);
+                               origin);
         }
-        return g.programPointReachability().reachable(this,
-                                                      ippr,
-                                                      this.noKill(),
-                                                      this.noAlloc(g),
-                                                      origin,
-                                                      null);
+        return g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(g), origin);
     }
 
-    private Set<InterProgramPointReplica> convertToPost(Set<ProgramPointReplica> set) {
+    private static Set<InterProgramPointReplica> convertToPost(Set<ProgramPointReplica> set) {
         //XXX make this more efficient sometime in the future. Use an iterator instead of
         // realizing a set
         Set<InterProgramPointReplica> s = new LinkedHashSet<>();
@@ -112,27 +99,20 @@ public class ProgramPointSetClosure {
 
     private IntSet noAlloc(PointsToGraph g) {
         if (g.isMostRecentObject(this.to)) {
-            // to will be in the set!
+            // "to" will be in the set!
             if (this.fromBase >= 0) {
                 // fromBase is in the set, as is to.
                 return SparseIntSet.pair(this.to, this.fromBase);
             }
-            else {
-                return SparseIntSet.singleton(this.to);
-            }
-
+            return SparseIntSet.singleton(this.to);
         }
-        else {
-            // to will not be in the set.
-            if (this.fromBase >= 0) {
-                // fromBase is in the set
-                return SparseIntSet.singleton(this.fromBase);
-            }
-            else {
-                // nothing in the set
-                return EmptyIntSet.instance;
-            }
+        // "to" will not be in the set.
+        if (this.fromBase >= 0) {
+            // fromBase is in the set
+            return SparseIntSet.singleton(this.fromBase);
         }
+        // nothing in the set
+        return EmptyIntSet.instance;
 
     }
 
@@ -150,7 +130,7 @@ public class ProgramPointSetClosure {
      * @return
      */
     Collection<InterProgramPointReplica> getSources(PointsToGraph g, ReachabilityQueryOrigin originator) {
-        // XXX TODO turn this into an iterator, so that we lazily look at these allocation sites.
+        // XXX turn this into an iterator, so that we lazily look at these allocation sites.
         if (!g.isMostRecentObject(this.to) && g.isTrackingMostRecentObject(this.to)) {
             List<InterProgramPointReplica> s = new ArrayList<>();
             s.addAll(this.sources);
