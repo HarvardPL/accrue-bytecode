@@ -47,7 +47,7 @@ public class ClassInitFinder {
 
     /**
      * As defined in JLS 12.4.1, get the class (if any) that must be initialized before executing the given instruction.
-     * 
+     *
      * @param i current instruction
      * @return Class that must be initialized before executing <code>i</code>
      */
@@ -57,7 +57,9 @@ public class ClassInitFinder {
             SSANewInstruction ins = (SSANewInstruction) i;
             if (!ins.getConcreteType().isArrayType()) {
                 TypeReference rf = ins.getConcreteType();
-                return AnalysisUtil.getClassHierarchy().lookupClass(rf);
+                IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(rf);
+                assert klass != null;
+                return klass;
             }
         }
 

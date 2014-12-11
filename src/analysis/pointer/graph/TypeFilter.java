@@ -33,7 +33,7 @@ public class TypeFilter {
 
     /**
      * Create a filter which matches one type and does not match a set of types
-     * 
+     *
      * @param isType
      *            the filter matches only subtypes of this class, if this is null then no filtering will be done and
      *            everything matches
@@ -86,7 +86,9 @@ public class TypeFilter {
         Set<IClass> toRemove = new HashSet<>();
         for (IClass t1 : notTypes) {
             for (IClass t2 : notTypes) {
-                if (t1 == t2) continue;
+                if (t1 == t2) {
+                    continue;
+                }
                 if (TypeRepository.isAssignableFrom(t1, t2)) {
                     // t1 is a supertype of t2, so we can drop t2
                     toRemove.add(t2);
@@ -133,11 +135,19 @@ public class TypeFilter {
         return false;
     }
 
+    /**
+     * Is c2 a subtype of c1, c1 x := c2 y type checks
+     *
+     * @param c1
+     * @param c2
+     * @return
+     */
     private boolean isAssignableFrom(IClass c1, IClass c2) {
         if (c1 == null) {
             // Null indicates no filter
             return true;
         }
+        assert c2 != null;
 
         if (notTypes == null) {
             return AnalysisUtil.getClassHierarchy().isAssignableFrom(c1, c2);
@@ -257,8 +267,9 @@ public class TypeFilter {
     }
 
     public static TypeFilter create(TypeReference isType, Set<IClass> notTypes) {
-        return create(AnalysisUtil.getClassHierarchy().lookupClass(isType),
-                      notTypes);
+        IClass isClass = AnalysisUtil.getClassHierarchy().lookupClass(isType);
+        assert isClass != null;
+        return create(isClass, notTypes);
     }
 
     public static TypeFilter create(TypeReference isType) {
@@ -292,12 +303,12 @@ public class TypeFilter {
         if (filter.isTypes != null) {
             for (IClass t1 : filter.isTypesAsSet()) {
                 for (IClass t2 : filter.isTypesAsSet()) {
-                    if (t1 == t2) continue;
+                    if (t1 == t2) {
+                        continue;
+                    }
 
-                    if (!t1.isInterface()
-                            && !t2.isInterface()
-                            && !(TypeRepository.isAssignableFrom(t1, t2) || TypeRepository.isAssignableFrom(t2,
-                                                                                                            t1))) {
+                    if (!t1.isInterface() && !t2.isInterface()
+                            && !(TypeRepository.isAssignableFrom(t1, t2) || TypeRepository.isAssignableFrom(t2, t1))) {
                         // t1 and t2 are both non-interfaces (classes or arrays), and t1 is not a superclass of t2, nor vice versa.
                         return true;
                     }

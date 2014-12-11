@@ -33,9 +33,10 @@ import analysis.pointer.statements.ProgramPoint.PreProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.types.TypeReference;
+import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
@@ -177,7 +178,6 @@ public class ProgramPointReachability {
             return this.maybeKilledFields.add(f);
         }
 
-
         /**
          * Add an instance key to the alloced set.
          */
@@ -193,7 +193,7 @@ public class ProgramPointReachability {
         public void setEmpty() {
             assert killed == null && maybeKilledFields == null && alloced == null;
             this.killed = MutableSparseIntSet.createMutableSparseIntSet(1);
-            this.maybeKilledFields = Collections.EMPTY_SET;
+            this.maybeKilledFields = Collections.emptySet();
             this.alloced = MutableSparseIntSet.createMutableSparseIntSet(1);
         }
 
@@ -275,7 +275,6 @@ public class ProgramPointReachability {
 
     }
 
-
     /**
      * Given a map from InterProgramPoints to KilledAndAlloceds, either get the existing KilledAndAlloced for ipp, or
      * craete one that represents all-killled-all-allocated and add it to the map for ipp.
@@ -293,54 +292,49 @@ public class ProgramPointReachability {
         return res;
     }
 
-    /*
-     * Can destination be reached from any InterProgramPointReplica in sources without
-     * going through a program point that kills any PointsToGraphNode in noKill, and
-     * without going through a program point that allocates any InstanceKey in noAlloc?
+    /**
+     * Can destination be reached from any InterProgramPointReplica in sources without going through a program point
+     * that kills any PointsToGraphNode in noKill, and without going through a program point that allocates any
+     * InstanceKey in noAlloc?
      */
     public boolean reachable(ProgramPointSetClosure ppsc, InterProgramPointReplica destination,
-    /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                             ReachabilityQueryOrigin origin, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, ReachabilityQueryOrigin origin) {
         return reachableImpl(ppsc.getSources(this.g, origin),
                              destination,
                              noKill,
                              noAlloc,
                              Collections.<InterProgramPointReplica> emptySet(),
-                             origin,
-                             sacsToReprocess);
+                             origin);
     }
 
-    /*
-     * Can destination be reached from source without going through any of the forbidden program points?
-     * If forbidden is non empty, then all of the forbidden IPPRs must be in the same method and context as one of the source or the destination.
+    /**
+     * Can destination be reached from source without going through any of the forbidden program points? If forbidden is
+     * non empty, then all of the forbidden IPPRs must be in the same method and context as one of the source or the
+     * destination.
      */
     public boolean reachable(InterProgramPointReplica source, InterProgramPointReplica destination,
-                             Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin,
-                             Set<ReachabilityQueryOrigin> sacsToReprocess) {
+                             Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
         return reachableImpl(Collections.singleton(source),
                              destination,
                              EmptyIntSet.INSTANCE,
                              EmptyIntSet.INSTANCE,
                              forbidden,
-                             origin,
-                             sacsToReprocess);
+                             origin);
     }
 
-    /*
-     * Can destination be reached from any InterProgramPointReplica in sources without
-     * going through a program point that kills any PointsToGraphNode in noKill, and
-     * without going through a program point that allocates any InstanceKey in noAlloc?
+    /**
+     * Can destination be reached from any InterProgramPointReplica in sources without going through a program point
+     * that kills any PointsToGraphNode in noKill, and without going through a program point that allocates any
+     * InstanceKey in noAlloc?
      */
     public boolean reachable(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
-    /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                             ReachabilityQueryOrigin origin, Set<ReachabilityQueryOrigin> tasksToReprocess) {
+    /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, ReachabilityQueryOrigin origin) {
         return reachableImpl(sources,
                              destination,
                              noKill,
                              noAlloc,
                              Collections.<InterProgramPointReplica> emptySet(),
-                             origin,
-                             tasksToReprocess);
+                             origin);
     }
 
     /*
@@ -351,8 +345,7 @@ public class ProgramPointReachability {
      */
     private boolean reachableImpl(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                             Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin,
-                             Set<ReachabilityQueryOrigin> tasksToReprocess) {
+                                  Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
         assert allMostRecent(noAlloc);
         assert allInSameMethodAndContext(forbidden, sources, destination);
         // check the caches
@@ -376,12 +369,12 @@ public class ProgramPointReachability {
             return false;
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
-        return computeQuery(unknown, destination, noKill, noAlloc, forbidden, origin, tasksToReprocess);
+        return computeQuery(unknown, destination, noKill, noAlloc, forbidden);
     }
 
     private static boolean allInSameMethodAndContext(Set<InterProgramPointReplica> forbidden,
-                                              Collection<InterProgramPointReplica> sources,
-                                              InterProgramPointReplica destination) {
+                                                     Collection<InterProgramPointReplica> sources,
+                                                     InterProgramPointReplica destination) {
         if (forbidden.isEmpty()) {
             return true;
         }
@@ -412,12 +405,10 @@ public class ProgramPointReachability {
     }
 
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
-                                 IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden,
-                                 ReachabilityQueryOrigin origin,
-                                 Set<ReachabilityQueryOrigin> tasksToReprocess) {
+                                 IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden) {
         // try to solve it for each source.
         OrderedPair<IMethod, Context> destinationMethod = new OrderedPair<>(destination.getContainingProcedure(),
-                destination.getContext());
+                                                                            destination.getContext());
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
             SubQuery query = new SubQuery(src, destination, noKill, noAlloc, forbidden);
@@ -428,32 +419,24 @@ public class ProgramPointReachability {
 
             // First check the call graph to find the set of relevant call graph nodes.
             OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
-                    src.getContext());
+                                                                           src.getContext());
             Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(sourceMethod, destinationMethod, query);
 
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
-                if (recordQueryResult(query, false, tasksToReprocess)) {
+                if (recordQueryResult(query, false)) {
                     // We computed false, but the cache already had true
                     return true;
                 }
                 continue;
             }
             // Now try a depth first search through the relevant nodes...
-            if (searchThroughRelevantNodes(src,
-                                           destination,
-                                           noKill,
-                                           noAlloc,
-                                           forbidden,
-                                           relevantNodes,
-                                           visited,
-                                           query,
-                                           tasksToReprocess)) {
+            if (searchThroughRelevantNodes(src, destination, noKill, noAlloc, forbidden, relevantNodes, visited, query)) {
                 // we found it!
-                recordQueryResult(query, true, tasksToReprocess);
+                recordQueryResult(query, true);
                 return true;
             }
-            if (recordQueryResult(query, false, tasksToReprocess)) {
+            if (recordQueryResult(query, false)) {
                 // We computed false, but the cache already had true
                 return true;
             }
@@ -476,12 +459,12 @@ public class ProgramPointReachability {
      * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
      *         the cache already has a positive result.
      */
-    private boolean recordQueryResult(SubQuery mr, boolean b, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private boolean recordQueryResult(SubQuery mr, boolean b) {
         if (b) {
             positiveCache.add(mr);
             if (negativeCache.remove(mr)) {
                 // we previously thought it was negative.
-                queryResultChanged(mr, sacsToReprocess);
+                queryResultChanged(mr);
             }
             return true;
         }
@@ -495,7 +478,6 @@ public class ProgramPointReachability {
         }
         return false;
     }
-
 
     private boolean allMostRecent(IntSet s) {
         IntIterator iter = s.intIterator();
@@ -587,8 +569,7 @@ public class ProgramPointReachability {
     private boolean searchThroughRelevantNodes(InterProgramPointReplica src, InterProgramPointReplica destination,
                                                IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden,
                                                Set<OrderedPair<IMethod, Context>> relevantNodes,
-                                               Set<InterProgramPointReplica> visited, SubQuery query,
-                                               Set<ReachabilityQueryOrigin> tasksToReprocess) {
+                                               Set<InterProgramPointReplica> visited, SubQuery query) {
         if (!visited.add(src)) {
             // we've already tried it...
             return false;
@@ -633,11 +614,37 @@ public class ProgramPointReachability {
                                                noAlloc,
                                                forbidden,
                                                visited,
-                                               tasksToReprocess,
                                                q,
                                                currentContext);
                     if (found) {
                         return true;
+                    }
+                    CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
+                    if (cspp.isClinit()) {
+                        // Whether the class initializer has been processed
+                        boolean hasBeenAdded;
+                        if (g.getClassInitializers() != null) {
+                            // Still constructing the call graph
+                            hasBeenAdded = g.getClassInitializers().contains(cspp.getClinit());
+                        }
+                        else {
+                            try {
+                                Context c = g.getHaf().initialContext();
+                                CGNode clinitNode = g.getCallGraph().findOrCreateNode(cspp.getClinit(), c);
+                                hasBeenAdded = g.getCallGraph().getEntrypointNodes().contains(clinitNode);
+                            }
+                            catch (CancelException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                        if (!hasBeenAdded) {
+                            // This is a class initializer that has not been added to the call graph yet.
+                            // Add the post program point anyway. This is potentially imprecise, but sound.
+                            InterProgramPointReplica post = pp.post().getReplica(currentContext);
+                            if (visited.add(post)) {
+                                q.add(post);
+                            }
+                        }
                     }
                     continue;
                 }
@@ -652,7 +659,7 @@ public class ProgramPointReachability {
                                                      noAlloc,
                                                      forbidden,
                                                      visited,
-                                                     tasksToReprocess, pp.isExceptionExitSummaryNode());
+                                                     pp.isExceptionExitSummaryNode());
                     if (found) {
                         return true;
                     }
@@ -685,15 +692,7 @@ public class ProgramPointReachability {
         } // end of normal queue
         while (!delayed.isEmpty()) {
             InterProgramPointReplica ippr = delayed.poll();
-            if (searchThroughRelevantNodes(ippr,
-                                           destination,
-                                           noKill,
-                                           noAlloc,
-                                           forbidden,
-                                           relevantNodes,
-                                           visited,
-                                           query,
-                                           tasksToReprocess)) {
+            if (searchThroughRelevantNodes(ippr, destination, noKill, noAlloc, forbidden, relevantNodes, visited, query)) {
                 return true;
             }
         }
@@ -752,7 +751,6 @@ public class ProgramPointReachability {
         return false;
     }
 
-
     /**
      * Handle a the exit from a method, check whether the destination is reachable from the exit (by checking callers)
      *
@@ -773,10 +771,9 @@ public class ProgramPointReachability {
      */
     private boolean handleMethodExit(SubQuery query, OrderedPair<IMethod, Context> currentCallGraphNode,
                                      Set<OrderedPair<IMethod, Context>> relevantNodes, boolean inSameMethod,
-                                     Deque<InterProgramPointReplica> delayed,
-                                     InterProgramPointReplica destination, IntSet noKill, IntSet noAlloc,
-                                     Set<InterProgramPointReplica> forbidden, Set<InterProgramPointReplica> visited,
-                                     Set<ReachabilityQueryOrigin> tasksToReprocess, boolean isExceptionExit) {
+                                     Deque<InterProgramPointReplica> delayed, InterProgramPointReplica destination,
+                                     IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden,
+                                     Set<InterProgramPointReplica> visited, boolean isExceptionExit) {
         // We are exiting the current method!
         // register dependency from this result to the callee. i.e., we should be notified if a new caller is added
         addCallerDependency(query, currentCallGraphNode);
@@ -794,10 +791,7 @@ public class ProgramPointReachability {
                 // this is a relevant node, and we need to dig into it.
                 InterProgramPointReplica callerSiteReplica;
                 if (isExceptionExit) {
-                    callerSiteReplica = callerSite.fst()
-                                                  .getExceptionExit(TypeReference.JavaLangThrowable)
-                                                  .post()
-                                                  .getReplica(callerSite.snd());
+                    callerSiteReplica = callerSite.fst().getExceptionExit().post().getReplica(callerSite.snd());
                 }
                 else {
                     callerSiteReplica = callerSite.fst().post().getReplica(callerSite.snd());
@@ -815,8 +809,7 @@ public class ProgramPointReachability {
                                                    forbidden,
                                                    relevantNodes,
                                                    visited,
-                                                   query,
-                                                   tasksToReprocess)) {
+                                                   query)) {
                         // we found it!
                         return true;
                     }
@@ -853,15 +846,14 @@ public class ProgramPointReachability {
                                Set<OrderedPair<IMethod, Context>> relevantNodes, boolean inSameMethod,
                                Deque<InterProgramPointReplica> delayed, InterProgramPointReplica destination,
                                IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden,
-                               Set<InterProgramPointReplica> visited, Set<ReachabilityQueryOrigin> tasksToReprocess,
+                               Set<InterProgramPointReplica> visited,
                                Deque<InterProgramPointReplica> q, Context currentContext) {
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
 
         // this is a method call! Register the dependency and use some cached results
         addCalleeDependency(query, pp.getReplica(ippr.getContext()));
 
-        OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>( pp,
-                                                                              ippr.getContext());
+        OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>(pp, ippr.getContext());
         Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
         if (calleeSet == null) {
             // no callees, so nothing to do
@@ -871,7 +863,6 @@ public class ProgramPointReachability {
         for (OrderedPair<IMethod, Context> callee : calleeSet) {
             MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
-
             if (relevantNodes.contains(callee)) {
                 // this is a relevant node, and we need to dig into it.
                 if (inSameMethod) {
@@ -887,8 +878,7 @@ public class ProgramPointReachability {
                                                    forbidden,
                                                    relevantNodes,
                                                    visited,
-                                                   query,
-                                                   tasksToReprocess)) {
+                                                   query)) {
                         // we found it!
                         return true;
                     }
@@ -896,7 +886,7 @@ public class ProgramPointReachability {
             }
             // now use the summary results.
             addMethodDependency(query, callee);
-            ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd(), tasksToReprocess);
+            ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
             KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
                                                                  calleeSummary.getNormalExitPP()
                                                                               .pre()
@@ -905,20 +895,23 @@ public class ProgramPointReachability {
                                                                                            .pre()
                                                                                            .getReplica(callee.snd()));
 
-            // HERE WE SHOULD BE MORE PRECISE ABOUT PROGRAM POINT SUCCESSORS, AND PAY ATTENTION TO NORMAL VS EXCEPTIONAL EXIT
-
-            if (normalRet.allows(noKill, noAlloc, g) || exRet.allows(noKill, noAlloc, g)) {
+            if (normalRet.allows(noKill, noAlloc, g)) {
                 // we don't kill things we aren't meant to, not allocated things we aren't meant to!
                 InterProgramPointReplica post = pp.post().getReplica(currentContext);
                 if (visited.add(post)) {
                     q.add(post);
                 }
             }
-            else {
-                // nope, this means the callee kills a pointstographnode we are interseted in,
-                // or it allocates an instancekey we are interested in.
-                // Prune the search...
+            if (exRet.allows(noKill, noAlloc, g)) {
+                // we don't kill things we aren't meant to, not allocated things we aren't meant to!
+                InterProgramPointReplica post = pp.getExceptionExit().post().getReplica(currentContext);
+                if (visited.add(post)) {
+                    q.add(post);
+                }
             }
+            // otherwise, this means the callee kills a points-to graph node we are interseted in,
+            // or it allocates an instancekey we are interested in.
+            // Prune the search...
 
         }
         // We didn't find the destination node
@@ -953,6 +946,10 @@ public class ProgramPointReachability {
          */
         final ConcurrentMap<InterProgramPointReplica, ConcurrentMap<InterProgramPointReplica, KilledAndAlloced>> m = AnalysisUtil.createConcurrentHashMap();
 
+        private ReachabilityResult() {
+            // Intentionally left blank
+        }
+
         public static ReachabilityResult createInitial() {
             return new ReachabilityResult();
         }
@@ -983,22 +980,6 @@ public class ProgramPointReachability {
                 assert !thisTargetMap.containsKey(target);
                 //thisTargetMap.remove(target);
             }
-        }
-
-        private static KilledAndAlloced getTargetResult(ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> targetMap,
-                                                        InterProgramPointReplica t, KilledAndAlloced initialResult) {
-            KilledAndAlloced p = targetMap.get(t);
-            if (p != null) {
-                // great, a result already exists. return it.
-                return p;
-            }
-            p = targetMap.putIfAbsent(t, initialResult);
-            if (p != null) {
-                // someone else beat us.
-                return p;
-            }
-            // we successfully put in the initial result.
-            return initialResult;
         }
 
         private ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
@@ -1048,8 +1029,7 @@ public class ProgramPointReachability {
     /*
      * Get the reachability results for a method.
      */
-    ReachabilityResult getReachabilityForMethod(IMethod m, Context context,
-                                                Set<ReachabilityQueryOrigin> tasksToReprocess) {
+    ReachabilityResult getReachabilityForMethod(IMethod m, Context context) {
         OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
         ReachabilityResult res = memoization.get(cgnode);
         if (res != null) {
@@ -1062,22 +1042,19 @@ public class ProgramPointReachability {
             // someone beat us to it, and is currently working on the results.
             return existing;
         }
-        return computeReachabilityForMethod(m, context, tasksToReprocess);
+        return computeReachabilityForMethod(m, context);
     }
 
-    private void recordMethodReachability(IMethod m, Context context, ReachabilityResult res,
-                                          Set<ReachabilityQueryOrigin> tasksToReprocess) {
-        System.err.println("Recording method reachavility result : " + m + " " + context);
+    private void recordMethodReachability(IMethod m, Context context, ReachabilityResult res) {
         OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
         ReachabilityResult existing = memoization.put(cgnode, res);
         if (existing != null && !existing.equals(res)) {
             // trigger update for dependencies.
-            methodReachabilityChanged(m, context, tasksToReprocess);
+            methodReachabilityChanged(m, context);
         }
     }
 
-    private ReachabilityResult computeReachabilityForMethod(IMethod m, Context context,
-                                                            Set<ReachabilityQueryOrigin> tasksToReprocess) {
+    private ReachabilityResult computeReachabilityForMethod(IMethod m, Context context) {
         // XXX at the moment we will just record from the start node.
 
         // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
@@ -1114,9 +1091,7 @@ public class ProgramPointReachability {
                     boolean changed = false;
                     for (OrderedPair<IMethod, Context> callee : calleeSet) {
                         addMethodDependency(m, context, callee);
-                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(),
-                                                                                    callee.snd(),
-                                                                                    tasksToReprocess);
+                        ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
                         MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
                         InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
                                                                                               calleeSummary.getEntryPP())
@@ -1174,7 +1149,6 @@ public class ProgramPointReachability {
                             }
                         }
 
-
                         // is "to" allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
                         if (justAllocated != null) {
@@ -1206,18 +1180,17 @@ public class ProgramPointReachability {
 
         }
 
-        ReachabilityResult rr = new ReachabilityResult();
+        ReachabilityResult rr = ReachabilityResult.createInitial();
         PreProgramPoint normExitIPP = summ.getNormalExitPP().pre();
         PreProgramPoint exExitIPP = summ.getExceptionExitPP().pre();
 
         rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), getOrCreate(results, normExitIPP));
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
-        recordMethodReachability(m, context, rr, tasksToReprocess);
+        recordMethodReachability(m, context, rr);
 
         return rr;
     }
-
 
     /* *****************************************************************************
      *
@@ -1242,8 +1215,7 @@ public class ProgramPointReachability {
         final Set<InterProgramPointReplica> forbidden;
 
         SubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
-                   IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                   Set<InterProgramPointReplica> forbidden) {
+                 IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc, Set<InterProgramPointReplica> forbidden) {
             this.source = source;
             this.destination = destination;
             this.noKill = noKill;
@@ -1261,7 +1233,6 @@ public class ProgramPointReachability {
             result = prime * result + forbidden.hashCode();
             return result;
         }
-
 
         @Override
         public boolean equals(Object obj) {
@@ -1292,8 +1263,7 @@ public class ProgramPointReachability {
 
         @Override
         public String toString() {
-            return "SubQuery [" + source + " => " + destination + ", noKill=" + noKill
- + ", noAlloc=" + noAlloc
+            return "SubQuery [" + source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc
                     + ", forbidden=" + forbidden + "]";
         }
 
@@ -1465,20 +1435,20 @@ public class ProgramPointReachability {
     }
 
     /**
-     * This method is invoked to let us know that a new edge in the
-     * call graph has been added from the callSite.
+     * This method is invoked to let us know that a new edge in the call graph has been added from the callSite.
      *
-     *  We use this method to make sure that we re-run any method reachability results
-     *  and (negative) queries depended on the call site.
+     * We use this method to make sure that we re-run any method reachability results and (negative) queries depended on
+     * the call site.
+     *
      * @param callSite
      */
-    public void calleeAddedTo(ProgramPointReplica callSite) {
+    private void calleeAddedTo(ProgramPointReplica callSite) {
         assert callSite.getPP() instanceof CallSiteProgramPoint;
         Set<OrderedPair<IMethod, Context>> meths = calleeMethodDependencies.get(callSite);
         if (meths != null) {
             for (OrderedPair<IMethod, Context> p : meths) {
                 // need to re-run the analysis of p
-                computeReachabilityForMethod(p.fst(), p.snd(), null);
+                computeReachabilityForMethod(p.fst(), p.snd());
             }
         }
         Set<SubQuery> queries = calleeQueryDependencies.get(callSite);
@@ -1488,7 +1458,7 @@ public class ProgramPointReachability {
             while (iter.hasNext()) {
                 SubQuery mr = iter.next();
                 // need to re-run the query of mr
-                if (!requestRerunQuery(mr, null)) {
+                if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
                     iter.remove();
                 }
@@ -1498,21 +1468,21 @@ public class ProgramPointReachability {
     }
 
     /**
-     * This method is invoked to let us know that a new edge in the
-     * call graph has been added that goes to the callGraphNode
+     * This method is invoked to let us know that a new edge in the call graph has been added that goes to the
+     * callGraphNode
      *
-     *  We use this method to make sure that we re-run any
-     *   queries that depended on the call site.
+     * We use this method to make sure that we re-run any queries that depended on the call site.
+     *
      * @param callSite
      */
-    public void callerAddedTo(OrderedPair<IMethod, Context> callGraphNode) {
+    private void callerAddedTo(OrderedPair<IMethod, Context> callGraphNode) {
         Set<SubQuery> queries = callerQueryDependencies.get(callGraphNode);
         if (queries != null) {
             Iterator<SubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
                 SubQuery mr = iter.next();
                 // need to re-run the query of mr
-                if (!requestRerunQuery(mr, null)) {
+                if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
                     iter.remove();
                 }
@@ -1521,13 +1491,13 @@ public class ProgramPointReachability {
 
     }
 
-    private void methodReachabilityChanged(IMethod m, Context context, Set<ReachabilityQueryOrigin> tasksToReprocess) {
+    private void methodReachabilityChanged(IMethod m, Context context) {
         OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
         Set<OrderedPair<IMethod, Context>> meths = methodMethodDependencies.get(cgnode);
         if (meths != null) {
             for (OrderedPair<IMethod, Context> p : meths) {
                 // need to re-run the analysis of p
-                computeReachabilityForMethod(p.fst(), p.snd(), tasksToReprocess);
+                computeReachabilityForMethod(p.fst(), p.snd());
             }
         }
         Set<SubQuery> queries = methodQueryDependencies.get(cgnode);
@@ -1536,7 +1506,7 @@ public class ProgramPointReachability {
             while (iter.hasNext()) {
                 SubQuery mr = iter.next();
                 // need to re-run the query of mr
-                if (!requestRerunQuery(mr, tasksToReprocess)) {
+                if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
                     iter.remove();
                 }
@@ -1545,11 +1515,11 @@ public class ProgramPointReachability {
     }
 
     /**
-     * Rerun the query mr if necessary. Will return true if the query was rerun,
-     * false if it did not need to be rerurn.
+     * Rerun the query mr if necessary. Will return true if the query was rerun, false if it did not need to be rerurn.
+     *
      * @param mr
      */
-    private boolean requestRerunQuery(SubQuery mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private boolean requestRerunQuery(SubQuery mr) {
         if (this.positiveCache.contains(mr)) {
             // the query is already guaranteed to be true.
             return false;
@@ -1563,7 +1533,7 @@ public class ProgramPointReachability {
      * depended on it, either by adding it to toReprocess, or giving it to the engine immediately.
      *
      */
-    private void queryResultChanged(SubQuery mr, Set<ReachabilityQueryOrigin> sacsToReprocess) {
+    private void queryResultChanged(SubQuery mr) {
         assert this.positiveCache.contains(mr);
 
         // since the query is positive, it will never change in the future.
@@ -1573,29 +1543,22 @@ public class ProgramPointReachability {
             // nothing to do.
             return;
         }
-        if (sacsToReprocess != null) {
-            sacsToReprocess.addAll(deps);
-        }
-        else {
-            // immediately execute the tasks that depended on this.
-            for (ReachabilityQueryOrigin task : deps) {
-                task.trigger(this.analysisHandle);
-            }
+        // immediately execute the tasks that depended on this.
+        for (ReachabilityQueryOrigin task : deps) {
+            task.trigger(this.analysisHandle);
         }
     }
 
     /**
-     * This is invoked by the PointsToGraph to let us know that a new edge has been
-     * added to the call graph. This allows us to retrigger computation as needed.
+     * This is invoked by the PointsToGraph to let us know that a new edge has been added to the call graph. This allows
+     * us to retrigger computation as needed.
      *
      */
-    void addCallGraphEdge(CallSiteProgramPoint callSite, Context callerContext, IMethod callee,
-                                Context calleeContext) {
+    void addCallGraphEdge(CallSiteProgramPoint callSite, Context callerContext, IMethod callee, Context calleeContext) {
 
         // XXX turn these into separate tasks that can be run concurrently
         calleeAddedTo(callSite.getReplica(callerContext));
         callerAddedTo(new OrderedPair<>(callee, calleeContext));
-
 
     }
 
@@ -1622,8 +1585,7 @@ public class ProgramPointReachability {
 
     }
 
-    public Set<ReachabilityQueryOrigin> checkPointsToGraphDelta(GraphDelta delta) {
-        Set<ReachabilityQueryOrigin> stmtsToReprocess = new HashSet<>();
+    public void checkPointsToGraphDelta(GraphDelta delta) {
         IntIterator domainIter = delta.domainIterator();
         while (domainIter.hasNext()) {
             int n = domainIter.next();
@@ -1631,7 +1593,7 @@ public class ProgramPointReachability {
             if (meths != null) {
                 for (OrderedPair<IMethod, Context> p : meths) {
                     // need to re-run the analysis of p
-                    computeReachabilityForMethod(p.fst(), p.snd(), stmtsToReprocess);
+                    computeReachabilityForMethod(p.fst(), p.snd());
                 }
             }
             Set<SubQuery> queries = killQueryDependencies.get(n);
@@ -1640,23 +1602,16 @@ public class ProgramPointReachability {
                 while (iter.hasNext()) {
                     SubQuery mr = iter.next();
                     // need to re-run the query of mr
-                    if (!requestRerunQuery(mr, stmtsToReprocess)) {
+                    if (!requestRerunQuery(mr)) {
                         // whoops, no need to rerun this anymore.
                         iter.remove();
                     }
                 }
             }
         }
-        return stmtsToReprocess;
     }
 
     public void processSubQuery(SubQuery sq) {
-        this.computeQuery(Collections.singleton(sq.source),
-                          sq.destination,
-                          sq.noKill,
-                          sq.noAlloc,
-                          sq.forbidden,
-                          null,
-                          null);
+        this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden);
     }
 }

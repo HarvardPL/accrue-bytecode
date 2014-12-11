@@ -23,6 +23,7 @@ import signatures.Signatures;
 import types.TypeRepository;
 import util.InstructionType;
 import util.OrderedPair;
+import util.WorkQueue;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -95,14 +96,14 @@ public class StatementRegistrar {
     private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesForMethod;
 
     /**
+     * Program point for the normal exit of a class initialization method
+     */
+    private final ConcurrentMap<IMethod, CallSiteProgramPoint> programPointForClassInit;
+
+    /**
      * Program point to statement map
      */
     private final ConcurrentMap<ProgramPoint, PointsToStatement> ppToStmtMap;
-
-    /**
-     * Map from IClass to the program point for the call to the class static initializer
-     */
-    private final ConcurrentMap<IClass, ProgramPoint> classInitPPs;
     /**
      * Program point in the entry method for the last class initializer added
      */
@@ -216,12 +217,12 @@ public class StatementRegistrar {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
+        this.programPointForClassInit = AnalysisUtil.createConcurrentHashMap();
         this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledLiterals = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
         this.entryMethodProgramPoints = AnalysisUtil.createConcurrentSet();
-        this.classInitPPs = AnalysisUtil.createConcurrentHashMap();
         this.stmtFactory = factory;
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
@@ -269,7 +270,7 @@ public class StatementRegistrar {
                 MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
 
                 // Add edges from formal summary nodes to the local variables representing the method parameters
-                this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, pprint);
+                this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, types, pprint);
 
                 Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
                 Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
@@ -300,6 +301,39 @@ public class StatementRegistrar {
                 // Chain together the subgraphs
                 for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                     addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
+                }
+
+                if (m.isClinit()) {
+                    // XXX to make sure static fields point to null before the clinit
+                    ProgramPoint entry = methSumm.getEntryPP();
+                    ProgramPoint prev = null;
+                    ProgramPoint first = null;
+                    for (IField f : m.getDeclaringClass().getAllStaticFields()) {
+                        if (f.getFieldTypeReference().isPrimitiveType()) {
+                            // No need to do anything with primitive fields
+                            continue;
+                        }
+                        ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                        ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
+                        addStatement(stmtFactory.nullToLocal(staticField, pp));
+                        if (first == null) {
+                            first = pp;
+                        }
+                        else {
+                            assert prev != null;
+                            prev.addSucc(pp);
+                        }
+                        prev = pp;
+                    }
+                    if (first != null) {
+                        // Some program points were added
+                        Set<ProgramPoint> succs = entry.succs();
+                        entry.clearSuccs();
+                        entry.addSucc(first);
+                        // prev is now the last pp added
+                        assert prev != null;
+                        prev.addSuccs(succs);
+                    }
                 }
 
                 // clean up graph
@@ -468,6 +502,7 @@ public class StatementRegistrar {
                                                 MethodSummaryNodes methSumm) {
         for (TypeReference exType : exceptionExits.keySet()) {
             IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
+            assert thrownClass != null;
 
             boolean definitelyCaught = false;
 
@@ -475,6 +510,7 @@ public class StatementRegistrar {
                 Iterator<TypeReference> caughtTypes = succBB.getCaughtExceptionTypes();
                 while (caughtTypes.hasNext()) {
                     IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next());
+                    assert caughtClass != null;
 
                     definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
                     boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
@@ -596,6 +632,10 @@ public class StatementRegistrar {
                 // don't remove program points for exceptions at call-sites
                 continue;
             }
+            if (pp instanceof CallSiteProgramPoint) {
+                // don't remove call sites
+                continue;
+            }
 
             Set<ProgramPoint> predSet = preds.get(pp);
             if (predSet.size() == 1) {
@@ -712,12 +752,13 @@ public class StatementRegistrar {
             List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
             assert inits != null;
             if (!inits.isEmpty()) {
+
                 // XXX Steve I think this is what we want since this is the location of the
                 // class initialization _statement_ not the class initializer itself
                 ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit " + PrettyPrinter.typeString(reqInit));
                 this.registerClassInitializers(i, clinitPP, inits);
 
-                if (!this.classInitPPs.containsKey(reqInit)) {
+                if (!this.programPointForClassInit.containsKey(reqInit)) {
                     // We have not seen this class before
                     // record program points for the class initializers
                     this.addProgramPointsForClassInitializers(reqInit);
@@ -756,10 +797,10 @@ public class StatementRegistrar {
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
 
             // Create program points for any exceptions thrown by the callee
-            Map<TypeReference, ProgramPoint> exceptions = addCallExceptionProgramPoint(subgraph);
-            callExceptions.addAll(exceptions.values());
+            ProgramPoint exception = addCallExceptionProgramPoint(subgraph);
+            callExceptions.add(exception);
 
-            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exceptions);
+            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exception);
             subgraph.replaceNormalExitWithCallSitePP(cspp);
             this.registerInvoke(invocation, bb, ir, cspp, this.rvFactory, types, printer, insToPPSubGraph);
             return;
@@ -792,7 +833,7 @@ public class StatementRegistrar {
             return;
         case THROW:
             // throw e
-            this.registerThrow((SSAThrowInstruction) i, bb, ir, pp, this.rvFactory, types, printer, insToPPSubGraph);
+            this.registerThrow((SSAThrowInstruction) i, bb, ir, this.rvFactory, types, printer, insToPPSubGraph);
             return;
         case ARRAY_LENGTH: // primitive op with generated exception
         case BINARY_OP: // primitive op
@@ -814,10 +855,9 @@ public class StatementRegistrar {
      * Add exception program point for a method call (in the caller)
      *
      * @param subgraph program point subgraph (may be modified)
-     * @return map from type of exception to program point
+     * @return exception exit program point
      */
-    private static Map<TypeReference, ProgramPoint> addCallExceptionProgramPoint(PPSubGraph subgraph) {
-        Map<TypeReference, ProgramPoint> exceptions = new HashMap<>();
+    private static ProgramPoint addCallExceptionProgramPoint(PPSubGraph subgraph) {
         ProgramPoint throwPP;
         if (subgraph.exceptionExits().containsKey(TypeReference.JavaLangThrowable)) {
             throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangThrowable);
@@ -826,8 +866,8 @@ public class StatementRegistrar {
             throwPP = subgraph.addThrowException(TypeReference.JavaLangThrowable);
             assert throwPP != null;
         }
-        exceptions.put(TypeReference.JavaLangThrowable, throwPP);
-        return exceptions;
+        return throwPP;
+        // TODO disguish different types of thrown exceptions
         //        ProgramPoint throwPP;
         //        for (TypeReference t : exceptionTypes) {
         //            if (t.equals(TypeReference.JavaLangNullPointerException)
@@ -874,7 +914,7 @@ public class StatementRegistrar {
     private void registerArrayStore(SSAArrayStoreInstruction i, IR ir, ProgramPoint pp,
                                     ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getValue());
-        if (valueType.isPrimitiveType()) {
+        if (valueType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getValue())) {
             // Assigning from a primitive or assigning null (also no effect on points-to graph)
             return;
         }
@@ -953,8 +993,8 @@ public class StatementRegistrar {
     private void registerPutField(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                   TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
-        if (valueType.isPrimitiveType()) {
-            // Assigning into a primitive field, or assigning null
+        if (valueType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getVal())) {
+            // Assigning into a primitive field
             return;
         }
 
@@ -972,8 +1012,8 @@ public class StatementRegistrar {
     private void registerPutStatic(SSAPutInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                    TypeRepository types, PrettyPrinter pprint) {
         TypeReference valueType = types.getType(i.getVal());
-        if (valueType.isPrimitiveType()) {
-            // Assigning into a primitive field, or assigning null
+        if (valueType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getVal())) {
+            // Assigning into a primitive field
             return;
         }
 
@@ -1006,7 +1046,7 @@ public class StatementRegistrar {
         List<ReferenceVariable> actuals = new LinkedList<>();
         for (int j = 0; j < i.getNumberOfParameters(); j++) {
             TypeReference actualType = types.getType(i.getUse(j));
-            if (actualType.isPrimitiveType()) {
+            if (actualType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getUse(j))) {
                 actuals.add(null);
             }
             else {
@@ -1195,7 +1235,7 @@ public class StatementRegistrar {
     private void registerPhiAssignment(SSAPhiInstruction i, IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
                                        TypeRepository types, PrettyPrinter pprint) {
         TypeReference phiType = types.getType(i.getDef());
-        if (phiType.isPrimitiveType()) {
+        if (phiType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getUse(0))) {
             // No pointers here
             return;
         }
@@ -1204,13 +1244,13 @@ public class StatementRegistrar {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int arg = i.getUse(j);
             TypeReference argType = types.getType(arg);
-            if (argType != TypeReference.Null) {
-                assert !argType.isPrimitiveType() : "arg type: " + PrettyPrinter.typeString(argType)
-                        + " for phi type: " + PrettyPrinter.typeString(phiType);
+            assert !argType.isPrimitiveType() || argType.equals(TypeReference.Null) : "arg type: "
+                    + PrettyPrinter.typeString(argType) + " for phi type: "
+                    + PrettyPrinter.typeString(phiType);
 
-                ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pprint);
-                uses.add(x_i);
-            }
+            ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pprint);
+            uses.add(x_i);
+
         }
 
         if (uses.isEmpty()) {
@@ -1240,7 +1280,7 @@ public class StatementRegistrar {
         }
 
         TypeReference valType = types.getType(i.getResult());
-        if (valType.isPrimitiveType()) {
+        if (valType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(i.getResult())) {
             // returning a primitive or "null"
             return;
         }
@@ -1253,14 +1293,23 @@ public class StatementRegistrar {
     /**
      * throw v
      */
-    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ProgramPoint pp,
+    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir,
                                ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
         TypeReference throwType = types.getType(i.getException());
-
-        insToPPSubGraph.get(i).setCanExitNormally(false);
+        PPSubGraph subgraph = insToPPSubGraph.get(i);
+        ProgramPoint throwPP;
+        if (subgraph.exceptionExits().containsKey(throwType)) {
+            // This is an explicit throw of an NPE, but we already added NPE so do nothing
+            assert throwType.equals(TypeReference.JavaLangNullPointerException);
+            throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangNullPointerException);
+        }
+        else {
+            throwPP = subgraph.addThrowException(throwType);
+        }
+        subgraph.setCanExitNormally(false);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
-        this.registerThrownException(bb, ir, pp, v, rvFactory, types, pprint, insToPPSubGraph);
+        this.registerThrownException(bb, ir, throwPP, v, rvFactory, types, pprint, insToPPSubGraph);
     }
 
     /**
@@ -1369,7 +1418,6 @@ public class StatementRegistrar {
         }
         assert !ss.contains(s) : "STATEMENT: " + s + " was already added";
         if (ss.add(s)) {
-            // System.err.println("NEW STATEMENT:" + s);
             this.size++;
         }
         if (stmtListener != null) {
@@ -1478,7 +1526,7 @@ public class StatementRegistrar {
             }
             else if (ir.getSymbolTable().isNullConstant(use)) {
                 ReferenceVariable newNullLit = rvFactory.getOrCreateLocal(use,
-                                                                          TypeReference.JavaLangString,
+                                                                          TypeReference.Null,
                                                                           ir.getMethod(),
                                                                           pprint);
                 if (!this.handledLiterals.add(newNullLit)) {
@@ -1598,19 +1646,21 @@ public class StatementRegistrar {
     private void addEntryMethodProgramPoint(ProgramPoint pp) {
         // get the entry method entry program point
         ProgramPoint entryPP = getMethodSummary(this.entryMethod).getEntryPP();
-        if (entryPP.succs().isEmpty()) {
-            // we haven't processed the entry method yet
-            this.entryMethodProgramPoints.add(pp);
+        assert !entryPP.succs().isEmpty();
+
+        if (!(lastClassInitPP == null)) {
+            // If there are already class init program points put this PP after the class inits
+            entryPP = lastClassInitPP;
         }
-        else {
-            // add all of the succs of entryPP as succs of pp
-            // and add pp as a succ to entryPP.
-            // This is not great (quadratic-sized structure!) and
-            // we should make it more efficient sometime.
-            pp.addSuccs(entryPP.succs());
-            entryPP.clearSuccs();
-            entryPP.addSucc(pp);
-        }
+
+        // add all of the succs of entryPP as succs of pp
+        // and add pp as a succ to entryPP.
+        // This is not great (quadratic-sized structure!) and
+        // we should make it more efficient sometime.
+        pp.addSuccs(entryPP.succs());
+        entryPP.clearSuccs();
+        entryPP.addSucc(pp);
+
     }
 
     /**
@@ -1627,8 +1677,8 @@ public class StatementRegistrar {
     private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
                                                PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
-
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
+        assert thrownClass != null;
 
         Set<IClass> notType = new LinkedHashSet<>();
         for (ISSABasicBlock succ : ir.getControlFlowGraph().getExceptionalSuccessors(bb)) {
@@ -1653,6 +1703,7 @@ public class StatementRegistrar {
                 assert caughtType.equals(types.getType(catchIns.getException()));
 
                 IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
+                assert caughtClass != null;
                 boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
                 boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
 
@@ -1675,7 +1726,7 @@ public class StatementRegistrar {
                 }
 
                 // Add this exception to the set of types that have already been caught
-                notType.add(AnalysisUtil.getClassHierarchy().lookupClass(caughtType));
+                notType.add(caughtClass);
             }
             else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
@@ -1706,8 +1757,8 @@ public class StatementRegistrar {
      *
      * @param reqInit class that must be initialized
      */
-    private synchronized void addProgramPointsForClassInitializers(IClass reqInit) {
-        if (this.classInitPPs.containsKey(reqInit)) {
+    private void addProgramPointsForClassInitializers(IClass reqInit) {
+        if (this.programPointForClassInit.containsKey(reqInit)) {
             // This class initializer was already added
             return;
         }
@@ -1721,17 +1772,31 @@ public class StatementRegistrar {
         // Loop from last clinit to be called (that for reqInit) to first (the highest superclass in the hierarchy)
         for (int i = inits.size(); i > 0; i--) {
             IMethod init = inits.get(i - 1);
-            if (this.classInitPPs.containsKey(init.getDeclaringClass())) {
+            if (this.programPointForClassInit.containsKey(init)) {
                 // Already seen this initializer and all super classes/interfaces
                 break;
             }
 
             // We assume all class initializers are called in the root method
-            ProgramPoint classInitPP = new ProgramPoint(AnalysisUtil.getFakeRoot(), "class-init");
+            MethodSummaryNodes entryNodes = findOrCreateMethodSummary(getEntryPoint(), rvFactory);
+            // XXX We assume exceptions thrown by class inits are never caught but bubble out to the exception exit of the root method
+            CallSiteProgramPoint classInitPP = CallSiteProgramPoint.createClassInit(init,
+                                                                                    getEntryPoint(),
+                                                                                    entryNodes.getExceptionExitPP());
             pps.addFirst(classInitPP);
-            classInitPP = this.classInitPPs.putIfAbsent(init.getDeclaringClass(), classInitPP);
-            assert classInitPP == null : "Registering duplicate clinit for "
-                    + PrettyPrinter.typeString(init.getDeclaringClass());
+            CallSiteProgramPoint prev = this.programPointForClassInit.putIfAbsent(init, classInitPP);
+            assert prev == null : "Registering duplicate clinit for "
+                    + PrettyPrinter.typeString(init.getDeclaringClass()) + " maybe a race?";
+            Set<CallSiteProgramPoint> entryCallSites = callSitesForMethod.get(entryMethod);
+            if (entryCallSites == null) {
+                entryCallSites = AnalysisUtil.createConcurrentSet();
+                Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(entryMethod, entryCallSites);
+                if (existing != null) {
+                    // someone else got there first.
+                    entryCallSites = existing;
+                }
+            }
+            entryCallSites.add(classInitPP);
         }
 
         if (pps.isEmpty()) {
@@ -1742,9 +1807,7 @@ public class StatementRegistrar {
         // Add the program points to the root method in the correct order
 
         if (lastClassInitPP == null) {
-            // XXX Where should the first class init go? after the singletons? right before main?
-            // Some of the singletons are allocations which require a clinit,
-            // it is actually probably OK to interleave the singletons and class inits as long as the class inits come first
+            // put the class inits right after the entry pp for the entry point
             lastClassInitPP = getMethodSummary(getEntryPoint()).getEntryPP();
         }
         Set<ProgramPoint> succs = lastClassInitPP.succs();
@@ -1775,6 +1838,7 @@ public class StatementRegistrar {
      */
     private void registerAllocationForNative(IMethod m, ProgramPoint pp, TypeReference type, ReferenceVariable summary) {
         IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
+        assert allocatedClass != null;
         this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m, pp));
     }
 
@@ -1784,9 +1848,14 @@ public class StatementRegistrar {
         ProgramPoint entryPP = methodSummary.getEntryPP();
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
-            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)
+                    + " ALLOC " + PrettyPrinter.typeString(m.getReturnType())));
             this.registerAllocationForNative(m, pp, m.getReturnType(), methodSummary.getReturn());
             pp.addSucc(methodSummary.getNormalExitPP());
+        }
+        else {
+            // The return value is not a reference so connect up the entry and exit
+            entryPP.addSucc(methodSummary.getNormalExitPP());
         }
 
         boolean containsRTE = false;
@@ -1796,9 +1865,11 @@ public class StatementRegistrar {
                 for (TypeReference exType : exceptions) {
                     // Allocation of exception of a particular type
                     ReferenceVariable ex = ReferenceVariableFactory.createNativeException(exType, m);
-                    ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+                    ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)
+                            + " ALLOC " + PrettyPrinter.typeString(exType)));
                     this.registerAllocationForNative(m, pp, exType, ex);
-                    pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+                    pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++) + " ASSIGN "
+                            + PrettyPrinter.typeString(exType)));
                     this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                            methodSummary.getException(),
                                                                            Collections.<IClass> emptySet(),
@@ -1820,20 +1891,20 @@ public class StatementRegistrar {
         if (!containsRTE) {
             ReferenceVariable ex = ReferenceVariableFactory.createNativeException(TypeReference.JavaLangRuntimeException,
                                                                                   m);
-            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            ProgramPoint pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)
+                    + " alloc " + PrettyPrinter.typeString(TypeReference.JavaLangRuntimeException)));
             this.registerAllocationForNative(m,
                                              pp,
                                              TypeReference.JavaLangRuntimeException,
                                              methodSummary.getException());
-            pp = nextProgramPoint(entryPP, new ProgramPoint(m, "native-method-pp-" + (ppCount++)));
+            pp = nextProgramPoint(pp, new ProgramPoint(m, "native-method-pp-" + (ppCount++) + " assign "
+                    + PrettyPrinter.typeString(TypeReference.JavaLangRuntimeException)));
             this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                    methodSummary.getException(),
                                                                    Collections.<IClass> emptySet(),
                                                                    pp));
+            pp.addSucc(methodSummary.getExceptionExitPP());
         }
-
-        // connect the entry and the exit with some kind of program point.
-
     }
 
     private static ProgramPoint nextProgramPoint(ProgramPoint currPP, ProgramPoint nextPP) {
@@ -1842,15 +1913,15 @@ public class StatementRegistrar {
     }
 
     private void registerFormalAssignments(IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
-                                           PrettyPrinter pprint) {
+                                           TypeRepository types, PrettyPrinter pprint) {
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
-            TypeReference paramType = ir.getParameterType(i);
-            if (paramType.isPrimitiveType()) {
+            int paramNum = ir.getParameter(i);
+            TypeReference paramType = types.getType(paramNum);
+            if (paramType.isPrimitiveType() && !ir.getSymbolTable().isNullConstant(paramNum)) {
                 // No statements for primitives
                 continue;
             }
-            int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pprint);
             this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), pp));
         }
@@ -1963,9 +2034,9 @@ public class StatementRegistrar {
         for (MethodSummaryNodes methSum : methods.values()) {
 
             if (simplePrint) {
-                if (methSum.toString().contains("main")) {
+                if (methSum.toString().contains("main") || methSum.toString().contains("clinit")
+                        || methSum.toString().contains("fake") || methSum.toString().contains("Object")) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
-                    break;
                 }
                 continue;
             }
@@ -2060,6 +2131,11 @@ public class StatementRegistrar {
          * @param canExitNormally True if the instruction can exit normally, false if not (for a "throw" instruction)
          */
         void setCanExitNormally(boolean canExitNormally) {
+            if (!canExitNormally) {
+                if (preNormExit != null) {
+                    preNormExit.removeSucc(normExit);
+                }
+            }
             this.canExitNormally = canExitNormally;
         }
 
@@ -2083,7 +2159,7 @@ public class StatementRegistrar {
                 this.preNormExit = this.entry;
             }
             if (exceptionExits.containsKey(exType)) {
-                assert false : "Exception exits already contains key";
+                assert false : "Exception exits already contains key " + exType;
                 return null;
             }
             ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "throw "
@@ -2110,7 +2186,8 @@ public class StatementRegistrar {
                 return null;
             }
             ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
-            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex)");
+            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex) "
+                    + PrettyPrinter.typeString(exType));
             this.entry.addSucc(genPP);
             genPP.addSucc(throwPP);
             exceptionExits.put(exType, throwPP);
@@ -2161,5 +2238,40 @@ public class StatementRegistrar {
         public boolean canExitNormally() {
             return this.canExitNormally;
         }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            WorkQueue<ProgramPoint> q = new WorkQueue<>();
+            Set<ProgramPoint> visited = new HashSet<>();
+            q.add(entry);
+            while (!q.isEmpty()) {
+                ProgramPoint pp = q.poll();
+                visited.add(pp);
+                if (pp == entry && pp.succs().isEmpty()) {
+                    sb.append(pp.toString());
+                    break;
+                }
+                for (ProgramPoint succ : pp.succs()) {
+                    sb.append(pp.toString() + " -> " + succ.toString() + "\n");
+                    if (!visited.contains(succ)) {
+                        q.add(succ);
+                    }
+                }
+            }
+            return sb.toString();
+        }
+    }
+
+    /**
+     * Get the program point for normal exit of a static class initialization method
+     *
+     * @param clinit method to get the pp for
+     * @return program point
+     */
+    public CallSiteProgramPoint getClassInitPP(IMethod clinit) {
+        CallSiteProgramPoint cspp = programPointForClassInit.get(clinit);
+        assert cspp != null : "Missing program point for " + PrettyPrinter.methodString(clinit);
+        return cspp;
     }
 }

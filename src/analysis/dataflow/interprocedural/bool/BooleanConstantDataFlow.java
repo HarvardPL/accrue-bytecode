@@ -189,6 +189,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
                                     Set<VarContext<BooleanAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         IClass checkedClass = AnalysisUtil.getClassHierarchy().lookupClass(i.getCheckedType());
+        assert checkedClass != null;
 
         VarContext<BooleanAbsVal> in = confluence(previousItems);
         if (st.isNullConstant(i.getRef())) {
@@ -207,6 +208,7 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
             }
 
             IClass actual = hContext.getConcreteType();
+            assert actual != null;
             if (checkedClass.isArrayClass() && actual.equals(AnalysisUtil.getObjectClass())) {
                 // Sometimes arrays are mistakenly set to Object in the type inference algorithm
                 // Lets be conservative here

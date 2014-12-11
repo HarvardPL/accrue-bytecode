@@ -32,6 +32,7 @@ import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
 import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.ssa.SSAInvokeInstruction;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -99,6 +100,7 @@ public class PreciseExceptionResults implements AnalysisResults {
 
         if (n.getMethod().isNative() && !AnalysisUtil.hasSignature(n.getMethod())) {
             IClass exClass = cha.lookupClass(type);
+            assert exClass != null;
             if (TypeRepository.isAssignableFrom(cha.lookupClass(TypeReference.JavaLangRuntimeException), exClass)) {
                 // assume native methods can throw RTE
                 return true;
@@ -106,6 +108,7 @@ public class PreciseExceptionResults implements AnalysisResults {
             try {
                 for (TypeReference declEx : n.getMethod().getDeclaredExceptions()) {
                     IClass declClass = cha.lookupClass(declEx);
+                    assert declClass != null;
                     if (TypeRepository.isAssignableFrom(declClass, exClass)) {
                         // precise throw type could be any subtype of the
                         // declared exceptions
@@ -348,6 +351,10 @@ public class PreciseExceptionResults implements AnalysisResults {
         case PUT_FIELD:
         case THROW: // if the object thrown is null
             // Not handling IllegalMonitorStateException for throw
+            if (type == InstructionType.INVOKE_SPECIAL && ((SSAInvokeInstruction) i).getDeclaredTarget().isInit()) {
+                // No null pointer exception if the method is an instance initializer
+                return Collections.emptySet();
+            }
             return nullPointerException;
         case CHECK_CAST:
             return classCastException;

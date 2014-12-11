@@ -117,11 +117,13 @@ public class VirtualCallStatement extends CallStatement {
             if (resolvedCallee == null) {
                 // XXX Try the type of the reference variable instead
                 // This is probably a variable created for the return of a native method, then cast down
+                IClass receiverClass = cha.lookupClass(receiverExpectedType);
+                assert receiverClass != null;
                 if (PointsToAnalysis.outputLevel >= 1) {
                     System.err.println("Could not resolve " + receiverConcreteType + " " + this.callee.getSelector());
-                    System.err.println("\ttrying reference variable type " + cha.lookupClass(receiverExpectedType));
+                    System.err.println("\ttrying reference variable type " + receiverClass);
                 }
-                resolvedCallee = cha.resolveMethod(cha.lookupClass(receiverExpectedType), this.callee.getSelector());
+                resolvedCallee = cha.resolveMethod(receiverClass, this.callee.getSelector());
             }
             return resolvedCallee;
         }

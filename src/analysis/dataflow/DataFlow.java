@@ -557,6 +557,7 @@ public abstract class DataFlow<F> {
         Set<ISSABasicBlock> result = new LinkedHashSet<>();
 
         IClass thrown = cha.lookupClass(exType);
+        assert thrown != null;
         InstructionType throwerType = InstructionType.forInstruction(getLastInstruction(current));
         boolean isCaught = false;
 

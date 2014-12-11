@@ -902,6 +902,9 @@ public class PrettyPrinter {
                 // the boolean case does not trigger, they are just integers
                 assert false;
             }
+            if (st.isNullConstant(valueNumber)) {
+                c = "null-lit";
+            }
             if (useDebugVariableNames) {
                 name = getCanonical(c + "{v" + valueNumber + "}");
             }

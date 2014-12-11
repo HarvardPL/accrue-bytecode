@@ -313,12 +313,14 @@ public class PDGAddEdgesDataflow extends InstructionDispatchDataFlow<Unit> {
 
         // Check if everything the cast object could point to is safe to cast (or unsafe)
         IClass checked = AnalysisUtil.getClassHierarchy().lookupClass(i.getCheckedType());
+        assert checked != null;
         Iterator<? extends InstanceKey> iter = interProc.getPointsToGraph()
                                                         .pointsToIterator(interProc.getReplica(i.getRef(), currentNode));
         while (iter.hasNext()) {
             InstanceKey hContext = iter.next();
 
             IClass actual = hContext.getConcreteType();
+            assert actual != null;
             if (AnalysisUtil.getClassHierarchy().isAssignableFrom(checked, actual)) {
                 instanceOfAlwaysFalse = false;
             }

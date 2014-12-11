@@ -79,6 +79,8 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
         for (CGNode callee : targets) {
             Map<ExitType, ReachabilityAbsVal> out = interProc.getResults(currentNode, callee, in);
+            assert out != null : "No results for " + PrettyPrinter.cgNodeString(callee) + " from "
+                    + PrettyPrinter.cgNodeString(currentNode);
             normal = normal.join(out.get(ExitType.NORMAL));
             exceptional = exceptional.join(out.get(ExitType.EXCEPTIONAL));
         }

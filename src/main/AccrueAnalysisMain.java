@@ -262,6 +262,7 @@ public class AccrueAnalysisMain {
             TypeReference type = TypeReference.findOrCreate(ClassLoaderReference.Application, name);
             System.err.println("Found type " + type);
             IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(type);
+            assert klass != null : "Cannot resolve requested type: " + type;
             System.err.println("Found class " + klass);
             for (IMethod m : klass.getAllMethods()) {
                 IR methodIR = AnalysisUtil.getIR(m);

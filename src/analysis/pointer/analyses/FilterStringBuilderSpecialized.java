@@ -58,6 +58,7 @@ public class FilterStringBuilderSpecialized extends HeapAbstractionFactory {
             if (abstractStringBuilderClass == null) {
                 cha = AnalysisUtil.getClassHierarchy();
                 abstractStringBuilderClass = cha.lookupClass(ASB_TYPE);
+                assert abstractStringBuilderClass != null;
             }
 
             if (!cha.isAssignableFrom(abstractStringBuilderClass, allocationSite.getAllocatedClass())) {

@@ -18,6 +18,7 @@ import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.ObjectField;
+import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
@@ -58,6 +59,7 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.ssa.SymbolTable;
 import com.ibm.wala.ssa.Value;
+import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -88,6 +90,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     @Override
     public Map<ExitType, VarContext<NonNullAbsVal>> dataflow(VarContext<NonNullAbsVal> initial) {
         IMethod m = currentNode.getMethod();
+        assert m.isStatic() || initial.getLocal(currentNode.getIR().getParameter(0)).isNonnull() : PrettyPrinter.methodString(m)
+                + " has a null _this_ parameter";
         if (m.isInit()) {
             // Initialize the fields of the reciever to MAYBE_NULL
             Collection<IField> fields = currentNode.getMethod().getDeclaringClass().getAllFields();
@@ -103,13 +107,19 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                                                      currentNode,
                                                                                      ippr);
                 for (AbstractLocation loc : locs) {
-                    System.err.println("Initializing " + loc);
                     initial = initial.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
                 }
             }
         }
         if (currentNode.getMethod().isClinit()) {
-            // Initialize the static fields of the class
+            // Initialize the static fields of the class to MAYBE_NULL
+            Collection<IField> fields = currentNode.getMethod().getDeclaringClass().getAllFields();
+            for (IField f : fields) {
+                if (f.isStatic()) {
+                    initial = initial.setLocation(AbstractLocation.createStatic(f.getReference()),
+                                                  NonNullAbsVal.MAY_BE_NULL);
+                }
+            }
         }
 
         return super.dataflow(initial);
@@ -165,15 +175,17 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             for (int j = 0; j < numParams; j++) {
                 NonNullAbsVal actualVal = getLocal(actuals.get(j), nonNull);
                 if (actualVal == null) {
-                    if (types.getType(actuals.get(j)).isPrimitiveType()) {
+                    TypeReference actualType = types.getType(actuals.get(j));
+                    if (currentNode.getIR().getSymbolTable().isNullConstant(actuals.get(j))) {
+                        actualVal = NonNullAbsVal.MAY_BE_NULL;
+                    }
+                    else if (actualType.isPrimitiveType()) {
                         actualVal = NonNullAbsVal.NON_NULL;
-                    } else if (currentNode.getIR().getSymbolTable().isConstant(actuals.get(j))) {
-                        if (currentNode.getIR().getSymbolTable().isNullConstant(actuals.get(j))) {
-                            actualVal = NonNullAbsVal.MAY_BE_NULL;
-                        } else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals.get(j))) {
-                            actualVal = NonNullAbsVal.NON_NULL;
-                        }
-                    } else {
+                    }
+                    else if (currentNode.getIR().getSymbolTable().isStringConstant(actuals.get(j))) {
+                        actualVal = NonNullAbsVal.NON_NULL;
+                    }
+                    else {
                         System.out.println(PrettyPrinter.methodString(callee.getMethod()));
                         throw new RuntimeException("null NonNullAbsValue for non-primitive non-constant.");
                     }
@@ -416,15 +428,62 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     protected VarContext<NonNullAbsVal> flowGetStatic(SSAGetInstruction i,
                                     Set<VarContext<NonNullAbsVal>> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-
         VarContext<NonNullAbsVal> in = confluence(previousItems, current);
         if (i.getDeclaredFieldType().isPrimitiveType()) {
             return in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
         }
 
-        NonNullAbsVal val = in.getLocation(AbstractLocation.createStatic(i.getDeclaredField()));
-        VarContext<NonNullAbsVal> out = in.setLocal(i.getDef(), val);
+        AbstractLocation loc = AbstractLocation.createStatic(i.getDeclaredField());
+        NonNullAbsVal val = in.getLocation(loc);
+        VarContext<NonNullAbsVal> out;
+        if (val == null) {
+            // Have not seen this field on any paths to this instruction look up whether it points to null
+
+            // Get the points-to graph node
+            PointsToGraph g = interProc.getPointsToGraph();
+            IField field = AnalysisUtil.getClassHierarchy().resolveField(i.getDeclaredField());
+            ReferenceVariable rv = interProc.getRvCache().getStaticField(field);
+            PointsToGraphNode f = new ReferenceVariableReplica(currentNode.getContext(), rv, g.getHaf());
+
+            boolean couldBeNull = couldFieldPointToNull(f, i);
+
+            if (couldBeNull) {
+                out = in.setLocal(i.getDef(), NonNullAbsVal.MAY_BE_NULL);
+                out = in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+            } else {
+                out = in.setLocal(i.getDef(), NonNullAbsVal.NON_NULL);
+                out = in.setLocation(loc, NonNullAbsVal.NON_NULL);
+            }
+        }
+        else {
+            out = in.setLocal(i.getDef(), val);
+        }
         return out;
+    }
+
+    /**
+     * Check whether a particular field could point to null at the given instruction
+     *
+     * @param fieldNode node for the field
+     * @param i instruction to check
+     * @return true if the field could point to null at the given instruction
+     */
+    private boolean couldFieldPointToNull(PointsToGraphNode fieldNode, SSAInstruction i) {
+        // Get the program point
+        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
+        Iterator<? extends InstanceKey> iter = interProc.getPointsToGraph().pointsToIterator(fieldNode, ippr);
+        assert iter.hasNext() : "Nothing pointed to by points-to graph node " + fieldNode + " at " + ippr;
+
+        boolean couldBeNull = false;
+        while (iter.hasNext()) {
+            InstanceKey ik = iter.next();
+            if (interProc.getPointsToGraph().isNullInstanceKey((InstanceKeyRecency) ik)) {
+                couldBeNull = true;
+                break;
+            }
+        }
+        return couldBeNull;
     }
 
     @Override
@@ -485,11 +544,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         ReferenceVariable fieldRV = ptg.getRegistrar().getRvCache().getStaticField(f);
         PointsToGraphNode fieldRVR = new ReferenceVariableReplica(currentNode.getContext(), fieldRV, ptg.getHaf());
         Iterator<? extends InstanceKey> pti = ptg.pointsToIterator(fieldRVR, ippr);
-
-        if (!pti.hasNext()) {
-            // Field doesn't point to anything be conservative
-            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
-        }
+        assert pti.hasNext() : "Nothing pointed to by static field " + f + " at " + ippr;
 
         InstanceKeyRecency ikr = (InstanceKeyRecency) pti.next();
         if (pti.hasNext() || (!ikr.isRecent() && !ptg.isNullInstanceKey(ikr))) {
@@ -501,7 +556,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         // Can strongly update the value of the field since it
         //     1. has a singleton points-to set
-        //     2. the singleton element is the most recent
+        //     2. the singleton element is the most recent (or null)
         return in.setLocation(loc, inVal);
     }
 
@@ -712,11 +767,22 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                                             currentNode,
                                                                             ippr)) {
             NonNullAbsVal inLoc = in.getLocation(loc);
+            if (inLoc == null) {
+                // Haven't seen this field yet check whether it could point to null at this instruction
+                FieldReference fieldRef = loc.getField().getReference();
+                ObjectField of = new ObjectField((InstanceKeyRecency) loc.getReceiverContext(), fieldRef);
+                if (couldFieldPointToNull(of, i)) {
+                    inLoc = NonNullAbsVal.MAY_BE_NULL;
+                }
+                else {
+                    inLoc = NonNullAbsVal.NON_NULL;
+                }
+            }
             newValue = VarContext.safeJoinValues(newValue, inLoc);
         }
         if (newValue == null) {
-            // There were no locations found be conservative
-            newValue = NonNullAbsVal.MAY_BE_NULL;
+            assert false : "No locations found for field access " + i + " in "
+                    + PrettyPrinter.cgNodeString(currentNode);
         }
         normal = normal.setLocal(i.getDef(), newValue);
         return factsToMapWithExceptions(normal, npe, current, cfg);
@@ -844,6 +910,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             InstanceKeyRecency rec = (InstanceKeyRecency) receivers.next();
             ObjectField of = new ObjectField(rec, i.getDeclaredField());
             Iterator<? extends InstanceKey> fieldPT = ptg.pointsToIterator(of, ippr);
+            assert fieldPT.hasNext() : "Nothing pointed to by nonstatic field " + of + " at " + ippr;
             while (fieldPT.hasNext()) {
                 fieldPointsTo.add((InstanceKeyRecency) fieldPT.next());
                 if (fieldPointsTo.size() > 1) {
@@ -868,10 +935,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 NonNullAbsVal inLoc = in.getLocation(loc);
                 normal = normal.setLocation(loc, VarContext.safeJoinValues(inLoc, inVal));
             }
-        }
-
-        if (locs.isEmpty()) {
-            System.err.println("\tEMPTY Locations");
         }
 
         return factsToMapWithExceptions(normal, npe, current, cfg);

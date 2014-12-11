@@ -145,6 +145,7 @@ public class StatementRegistrationPass {
                 // Assume that the return object was constructed by the method (and thus methods can be called on the return type)
                 if (!m.getReturnType().isPrimitiveType()) {
                     IClass retType = AnalysisUtil.getClassHierarchy().lookupClass(m.getReturnType());
+                    assert retType != null;
                     processInstanceClass(seenInstancesOf, retType, waitingForInstances, q);
                 }
 
@@ -155,6 +156,7 @@ public class StatementRegistrationPass {
                         for (TypeReference exType : exceptions) {
                             // Record the "initialization" of the exception type
                             IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
+                            assert exClass != null;
                             processInstanceClass(seenInstancesOf, exClass, waitingForInstances, q);
                         }
                     }

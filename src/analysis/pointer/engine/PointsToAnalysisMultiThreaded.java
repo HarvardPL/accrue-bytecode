@@ -3,7 +3,6 @@ package analysis.pointer.engine;
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -23,7 +22,6 @@ import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointReachability.SubQuery;
-import analysis.pointer.graph.ReachabilityQueryOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -39,7 +37,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
@@ -58,7 +56,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private static boolean paranoidMode = false;
 
-    int numThreads() {
+    static int numThreads() {
         //return 1;
         return Runtime.getRuntime().availableProcessors();
     }
@@ -83,7 +81,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         long startTime = System.currentTimeMillis();
 
 
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -182,7 +180,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.err.println("   Number of threads used : " + this.numThreads());
+        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         if (!AccrueAnalysisMain.testMode) {
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
@@ -228,32 +226,17 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         handleChanges(changes, execService);
     }
 
-    private void handleChanges(GraphDelta changes, ExecutorServiceCounter execService) {
+    void handleChanges(GraphDelta changes, ExecutorServiceCounter execService) {
         if (changes.isEmpty()) {
             // nothing to do.
             return;
         }
-        Set<ReachabilityQueryOrigin> reprocess = execService.g.ppReach.checkPointsToGraphDelta(changes);
-        Set<StmtAndContext> seenSacs = new HashSet<>();
-        for (ReachabilityQueryOrigin tasks : reprocess) {
-            // run the task, but with an empty delta to force the appropriate reading of
-            // kill nodes.
-            tasks.trigger(this.analysisHandle);
-            StmtAndContext sacOrigin = tasks.getStmtAndContext();
-            if (sacOrigin != null) {
-                seenSacs.add(sacOrigin);
-            }
-        }
-
 
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
             for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
-                if (!seenSacs.contains(depSaC)) {
-                    execService.submitTask(depSaC, changes);
-                    seenSacs.add(depSaC);
-                }
+                execService.submitTask(depSaC, changes);
             }
         }
         iter = changes.newAllocationSitesIterator();
@@ -261,8 +244,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             int ikr = iter.next();
             for (AllocationDepender depSaC : this.getAllocationDependencies(ikr)) {
                 StmtAndContext s = depSaC.getStmtAndContext();
-
-                if ((s == null || !seenSacs.contains(s)) && !reprocess.contains(depSaC)) {
+                if (s == null) {
                     depSaC.trigger(this.analysisHandle, changes);
                 }
             }
@@ -466,7 +448,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     /**
-     * XXX
+     * An allocation dependency from InstanceKeyRecency ikr to a depender exists when a modification to the program
+     * points set that allocate ikr requires reevaluation of sac.
+     *
+     * @param ikr instance key to get dependencies for
+     * @return set of dependencies consisting of a points-to statement and an action to invoke when a new allocation
+     *         occurs
      */
     private Set<AllocationDepender> getAllocationDependencies(/*InstanceKeyRecency*/int ikr) {
         Set<AllocationDepender> sacs = this.allocationDepedencies.get(ikr);
