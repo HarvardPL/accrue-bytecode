@@ -36,7 +36,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     /**
      * Statement for a local assignment, left = right
-     * 
+     *
      * @param left points-to graph node for assignee
      * @param right points-to graph node for the assigned value
      * @param pp program point the assignment is from
@@ -96,7 +96,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public boolean mayChangeOrUseFlowSensPointsToGraph() {
-        return left.isFlowSensitive() || right.isFlowSensitive();
+        return left.isFlowSensitive() || right.isFlowSensitive() || left.hasLocalScope();
     }
 
 }
