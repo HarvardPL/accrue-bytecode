@@ -113,7 +113,16 @@ public class PhiStatement extends PointsToStatement {
         // all the locals are flow insensitive.
         assert allFlowInsensitive(uses);
         assert !assignee.isFlowSensitive();
-        return assignee.hasLocalScope();
+        return assignee.hasLocalScope() || anyUseHasLocalScope();
+    }
+
+    private boolean anyUseHasLocalScope() {
+        for (int i = 0; i < uses.size() - 1; i++) {
+            if (uses.get(i).hasLocalScope()) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

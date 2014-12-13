@@ -29,7 +29,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
-     * 
+     *
      * @param thrown reference variable for the exception being thrown
      * @param caught reference variable for the caught exception (or summary for the method exit)
      * @param notType types that the exception being caught cannot have since those types must have been caught by
@@ -127,8 +127,9 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     public boolean mayChangeOrUseFlowSensPointsToGraph() {
         assert !thrown.isFlowSensitive();
         assert !caught.isFlowSensitive();
-        // neither variable is flow sensitive
-        return false;
+        // neither variable is flow sensitive, but if the thrown variable has local scope, then
+        // we may need to determine where it has been used
+        return this.thrown.hasLocalScope();
     }
 
 }

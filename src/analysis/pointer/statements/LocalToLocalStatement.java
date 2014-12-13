@@ -96,7 +96,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public boolean mayChangeOrUseFlowSensPointsToGraph() {
-        return left.isFlowSensitive() || right.isFlowSensitive() || left.hasLocalScope();
+        return left.isFlowSensitive() || right.isFlowSensitive() || left.hasLocalScope() || right.hasLocalScope();
     }
 
 }

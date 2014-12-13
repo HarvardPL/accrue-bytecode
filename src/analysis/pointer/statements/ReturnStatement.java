@@ -83,7 +83,7 @@ public class ReturnStatement extends PointsToStatement {
         // all variables are flow-insensitive
         assert !result.isFlowSensitive();
         assert !returnSummary.isFlowSensitive();
-        return false;
+        return result.hasLocalScope();
     }
 
 }

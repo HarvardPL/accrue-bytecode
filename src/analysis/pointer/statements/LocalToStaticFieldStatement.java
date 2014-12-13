@@ -89,7 +89,7 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
 
     @Override
     public boolean mayChangeOrUseFlowSensPointsToGraph() {
-        return staticField.isFlowSensitive();
+        return staticField.isFlowSensitive() || local.hasLocalScope();
     }
 
 }
