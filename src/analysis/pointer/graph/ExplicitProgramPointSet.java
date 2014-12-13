@@ -10,6 +10,20 @@ import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
  * Represents an explicit set of InterProgramPointReplicas.
  */
 public class ExplicitProgramPointSet implements Iterable<InterProgramPointReplica> {
+    public static ExplicitProgramPointSet EMPTY_SET = new ExplicitProgramPointSet() {
+
+        @Override
+        public boolean add(InterProgramPointReplica ippr) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean addAll(ExplicitProgramPointSet pps) {
+            throw new UnsupportedOperationException();
+        }
+
+    };
+
     private final Set<InterProgramPointReplica> points;
 
 
