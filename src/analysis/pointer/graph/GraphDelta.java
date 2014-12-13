@@ -83,7 +83,7 @@ public class GraphDelta {
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (g.isMostRecentObject(next) && nIsObjectField) {
+                if (g.isMostRecentObject(next) && nIsObjectField) { // XXX TODO: I don't understand why we restrict to object fields; make some of the code in the conditional dead. What's going on?
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, may also need to point to
                     // the non-most recent version.

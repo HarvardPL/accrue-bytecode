@@ -1284,11 +1284,7 @@ public class PointsToGraph {
     }
 
     public void recordAllocationDependency(/*InstanceKeyDependency*/int ikr, AllocationDepender sac) {
-        assert sac != null || this.graphFinished;
-
-        if (sac != null) {
-            this.depRecorder.recordAllocationDependency(ikr, sac);
-        }
+        this.depRecorder.recordAllocationDependency(ikr, sac);
     }
 
     public void setOutputLevel(int outputLevel) {
@@ -1873,7 +1869,7 @@ public class PointsToGraph {
     }
 
     /**
-     * Compute the difference between the set implied by srcIter and the set pointed to by target. here.
+     * Compute the difference between the set implied by srcIter and the set pointed to by target.
      *
      * @param srcIter Iterator over the InstanceKeyRecencys that we want to check whether they are in the points to set
      *            of target.
@@ -2100,7 +2096,7 @@ public class PointsToGraph {
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (isMostRecentObject(next) && nIsObjectField) {
+                if (isMostRecentObject(next) && nIsObjectField) { // XXX TODO: I don't understand why we restrict to object fields; make some of the code in the conditional dead. What's going on?
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, may also need to point to
                     // the non-most recent version.

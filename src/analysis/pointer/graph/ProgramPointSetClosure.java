@@ -138,7 +138,9 @@ public class ProgramPointSetClosure {
             // the most recent version just before the allocation.
             int mostRecentVersion = g.mostRecentVersion(this.to);
             assert mostRecentVersion != this.to;
-            g.recordAllocationDependency(mostRecentVersion, originator);
+            if (originator != null) {
+                g.recordAllocationDependency(mostRecentVersion, originator);
+            }
 
             for (ProgramPointReplica allocPP : g.getAllocationSitesOf(mostRecentVersion)) {
                 if (g.pointsTo(this.from, mostRecentVersion, allocPP.pre(), originator)) {
