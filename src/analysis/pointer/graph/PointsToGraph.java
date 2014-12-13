@@ -2134,8 +2134,6 @@ public class PointsToGraph {
             // If we are adding an edge to the most recent version of a node,
             // make sure that the ConcurrentIntMap contains a ProgramPointSetClosure for the not-most recent version.
             if (this.isMostRecentObject(to) && this.isTrackingMostRecentObject(to)) {
-                System.err.println("Adding thing for " + this.lookupPointsToGraphNodeDictionary(n) + " to "
-                        + this.lookupInstanceKeyDictionary(to));
                 addProgramPoints(m, n, this.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
             }
         }

@@ -114,6 +114,11 @@ public class GraphDelta {
         while (iter.hasNext()) {
             int to = iter.next();
             changed |= addProgramPoints(m, n, to, ppsToAdd);
+
+            if (g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
+                addProgramPoints(m, n, g.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
+            }
+
         }
         return changed;
     }
