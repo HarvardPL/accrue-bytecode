@@ -1284,7 +1284,11 @@ public class PointsToGraph {
     }
 
     public void recordAllocationDependency(/*InstanceKeyDependency*/int ikr, AllocationDepender sac) {
-        this.depRecorder.recordAllocationDependency(ikr, sac);
+        assert sac != null || this.graphFinished;
+
+        if (sac != null) {
+            this.depRecorder.recordAllocationDependency(ikr, sac);
+        }
     }
 
     public void setOutputLevel(int outputLevel) {
@@ -2122,21 +2126,31 @@ public class PointsToGraph {
         // flow sensitive!
         assert ppsToAdd != null;
         boolean changed = false;
-        IntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
+        ConcurrentIntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
             changed |= addProgramPoints(m, n, to, ppsToAdd);
+            // If we are adding an edge to the most recent version of a node,
+            // make sure that the ConcurrentIntMap contains a ProgramPointSetClosure for the not-most recent version.
+            if (this.isMostRecentObject(to) && this.isTrackingMostRecentObject(to)) {
+                System.err.println("Adding thing for " + this.lookupPointsToGraphNodeDictionary(n) + " to "
+                        + this.lookupInstanceKeyDictionary(to));
+                addProgramPoints(m, n, this.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
+            }
         }
         return changed;
     }
 
-    private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from,
+    private boolean addProgramPoints(ConcurrentIntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from,
     /*InstanceKeyRecency*/int to, ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
             p = new ProgramPointSetClosure(from, to, this);
-            m.put(to, p);
+            ProgramPointSetClosure existing = m.putIfAbsent(to, p);
+            if (existing != null) {
+                p = existing;
+            }
         }
         return p.addAll(toAdd);
     }
@@ -2637,7 +2651,7 @@ public class PointsToGraph {
             int f = fromIter.next();
             PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
 
-            // print flow-sentsitive points-to relations for reference variable
+            // print flow-sensitive points-to relations for reference variable
             if (from instanceof ReferenceVariableReplica) {
                 ReferenceVariableReplica rvr = (ReferenceVariableReplica) from;
                 String fromNode = repMap.getRepOrPutIfAbsent(rvr);
@@ -2651,7 +2665,8 @@ public class PointsToGraph {
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(rvr))) {
                         repMap.addPrint(rvr);
                         repMap.addPrint(to);
-                        writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + ikrToPP.get(t)
+                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
+                        writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + sources
                                 + "\"];\n");
                     }
                 }
