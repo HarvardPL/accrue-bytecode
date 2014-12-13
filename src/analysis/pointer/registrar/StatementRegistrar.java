@@ -1240,7 +1240,7 @@ public class StatementRegistrar {
             return;
         }
         ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(), phiType, ir.getMethod(), pprint);
-        List<ReferenceVariable> uses = new LinkedList<>();
+        List<ReferenceVariable> uses = new ArrayList<>(i.getNumberOfUses());
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int arg = i.getUse(j);
             TypeReference argType = types.getType(arg);
