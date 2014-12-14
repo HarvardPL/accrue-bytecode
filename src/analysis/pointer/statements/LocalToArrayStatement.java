@@ -137,7 +137,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     public boolean mayChangeOrUseFlowSensPointsToGraph() {
         // array contents are never singleton fields, and so
         // it is always a flow insensitive source node.
-        return false;
+        // However, if either the value has local scope, we need to track that usage.
+        return value.hasLocalScope();
     }
 
 }

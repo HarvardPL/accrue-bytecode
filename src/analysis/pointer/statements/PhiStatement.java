@@ -32,7 +32,7 @@ public class PhiStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
-     * 
+     *
      * @param v value assigned into
      * @param xs list of arguments to the phi, v is a choice amongst these
      * @param pp program point of the phi instruction
@@ -113,6 +113,15 @@ public class PhiStatement extends PointsToStatement {
         // all the locals are flow insensitive.
         assert allFlowInsensitive(uses);
         assert !assignee.isFlowSensitive();
+        return assignee.hasLocalScope() || anyUseHasLocalScope();
+    }
+
+    private boolean anyUseHasLocalScope() {
+        for (int i = 0; i < uses.size() - 1; i++) {
+            if (uses.get(i).hasLocalScope()) {
+                return true;
+            }
+        }
         return false;
     }
 

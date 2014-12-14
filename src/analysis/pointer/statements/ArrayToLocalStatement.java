@@ -31,7 +31,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
 
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i]
-     * 
+     *
      * @param v variable being assigned into
      * @param a variable for the array being accessed
      * @param baseType base type of the array
@@ -123,10 +123,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
         assert !this.value.isFlowSensitive();
         assert !this.array.isFlowSensitive();
 
-        // the local is not flow sensitive, so we can't update the flow-sensitive
-        // portion of the points to graph.
-
-        // Array contents are also treated flow insensitively
-        return false;
+        // if the local has local scope, we need to track where it is defined.
+        return value.hasLocalScope();
     }
 }

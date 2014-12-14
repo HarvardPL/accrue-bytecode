@@ -182,6 +182,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
+
         if (!AccrueAnalysisMain.testMode) {
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
             System.gc();
@@ -189,6 +190,15 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
 
+        }
+
+        if (paranoidMode) {
+            // check that nothing went wrong, and that we have indeed reached a fixed point.
+            this.processAllStatements(g, registrar);
+        }
+
+        g.constructionFinished();
+        if (!AccrueAnalysisMain.testMode) {
             registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
             g.dumpPointsToGraphToFile("tests/pointsToGraph");
             for (IMethod m : registrar.getRegisteredMethods()) {
@@ -199,14 +209,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
-
-
-        if (paranoidMode) {
-            // check that nothing went wrong, and that we have indeed reached a fixed point.
-            this.processAllStatements(g, registrar);
-        }
-
-        g.constructionFinished();
         if (!AccrueAnalysisMain.testMode) {
             System.gc();
             System.err.println("   Memory post compression: "
