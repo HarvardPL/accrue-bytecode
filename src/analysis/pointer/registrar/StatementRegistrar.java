@@ -81,12 +81,6 @@ public class StatementRegistrar {
     private final IMethod entryMethod;
 
     /**
-     * Program points that are used for special initializations at the beginning of the program. This set is the program
-     * points that were added before the entry method was processed.
-     */
-    private final Set<ProgramPoint> entryMethodProgramPoints;
-
-    /**
      * Map from method to the points-to statements generated from instructions in that method
      */
     private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
@@ -105,9 +99,9 @@ public class StatementRegistrar {
      */
     private final ConcurrentMap<ProgramPoint, PointsToStatement> ppToStmtMap;
     /**
-     * Program point in the entry method for the last class initializer added
+     * Program point in the entry method for the last class initializer or singleton allocation added
      */
-    private ProgramPoint lastClassInitPP = null;
+    private ProgramPoint lastEntryMethodPP = null;
 
     /**
      * The total number of statements
@@ -222,7 +216,6 @@ public class StatementRegistrar {
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledLiterals = AnalysisUtil.createConcurrentSet();
         this.entryMethod = AnalysisUtil.getFakeRoot();
-        this.entryMethodProgramPoints = AnalysisUtil.createConcurrentSet();
         this.stmtFactory = factory;
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
@@ -253,166 +246,152 @@ public class StatementRegistrar {
         }
 
         if (this.registeredMethods.add(m)) {
-            try {
-                // we need to register the method.
+            // we need to register the method.
 
-                IR ir = AnalysisUtil.getIR(m);
-                if (ir == null) {
-                    // Native method with no signature
-                    assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-                    this.registerNative(m, this.rvFactory);
-                    return true;
-                }
-
-                TypeRepository types = new TypeRepository(ir);
-                PrettyPrinter pprint = new PrettyPrinter(ir);
-
-                MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
-
-                // Add edges from formal summary nodes to the local variables representing the method parameters
-                this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, types, pprint);
-
-                Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
-                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
-                // Exceptions thrown at call sites
-                Set<ProgramPoint> callExceptions = new HashSet<>();
-
-                for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                    for (SSAInstruction ins : bb) {
-                        if (ins.toString().contains("signatures/library/java/lang/String")
-                                || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
-                            System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
-                                    + " in " + m);
-                        }
-                        handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExceptions);
-                        if (ppToStmtMap.containsKey(insToPPSubGraph.get(ins).normalExit())) {
-                            // Record the pp for this instruction
-                            insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
-                        }
-                    }
-                    ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
-                    bbToEntryPP.put(bb, pp);
-
-                    if (ir.getControlFlowGraph().entry() == bb) {
-                        methSumm.getEntryPP().addSucc(pp);
-                    }
-                }
-
-                // Chain together the subgraphs
-                for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                    addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
-                }
-
-                if (m.isClinit()) {
-                    // XXX to make sure static fields point to null before the clinit
-                    ProgramPoint entry = methSumm.getEntryPP();
-                    ProgramPoint prev = null;
-                    ProgramPoint first = null;
-                    for (IField f : m.getDeclaringClass().getAllStaticFields()) {
-                        if (f.getFieldTypeReference().isPrimitiveType()) {
-                            // No need to do anything with primitive fields
-                            continue;
-                        }
-                        ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
-                        ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
-                        addStatement(stmtFactory.nullToLocal(staticField, pp));
-                        if (first == null) {
-                            first = pp;
-                        }
-                        else {
-                            assert prev != null;
-                            prev.addSucc(pp);
-                        }
-                        prev = pp;
-                    }
-                    if (first != null) {
-                        // Some program points were added
-                        Set<ProgramPoint> succs = entry.succs();
-                        entry.clearSuccs();
-                        entry.addSucc(first);
-                        // prev is now the last pp added
-                        assert prev != null;
-                        prev.addSuccs(succs);
-                    }
-                }
-
-                // clean up graph
-                cleanUpProgramPoints(methSumm, callExceptions);
-
-                // now try to remove duplicates
-                Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
-                int oldSize = oldStatements.size();
-                OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-                Set<PointsToStatement> newStatements = duplicateResults.fst();
-                replacedVariableMap.put(m, duplicateResults.snd());
-                int newSize = newStatements.size();
-
-                removedStmts += (oldSize - newSize);
-                this.statementsForMethod.put(m, newStatements);
-                this.size += (newSize - oldSize);
-
-                if (PointsToAnalysis.outputLevel >= 1) {
-                    System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
-                    CFGWriter.writeToFile(ir);
-                    System.err.println();
-                }
-
-                if (PointsToAnalysis.outputLevel >= 6) {
-                    try (Writer writer = new StringWriter()) {
-                        PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-                        System.err.print(writer.toString());
-                    }
-                    catch (IOException e) {
-                        throw new RuntimeException();
-                    }
-                }
-
-                // int[] stats = df.cleanUpProgramPoints();
-                // removedProgramPoints += stats[1];
-                // totalProgramPoints += stats[0] - stats[1];
-
-                for (PointsToStatement stmt : newStatements) {
-                    if (stmt.programPoint() instanceof CallSiteProgramPoint) {
-                        CallSiteProgramPoint pp = (CallSiteProgramPoint) stmt.programPoint();
-                        assert !pp.isDiscarded();
-                        Set<CallSiteProgramPoint> scpps = this.callSitesForMethod.get(m);
-                        if (scpps == null) {
-                            scpps = AnalysisUtil.createConcurrentSet();
-                            Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(m, scpps);
-                            if (existing != null) {
-                                // someone else got there first.
-                                scpps = existing;
-                            }
-                        }
-                        scpps.add(pp);
-                    }
-                    for (ReferenceVariable def : stmt.getDefs()) {
-                        if (def.hasLocalScope()) {
-                            def.setLocalDef(stmt.programPoint());
-                        }
-                    }
-                    for (ReferenceVariable use : stmt.getUses()) {
-                        if (use != null && use.hasLocalScope()) {
-                            use.addLocalUse(stmt.programPoint());
-                        }
-                    }
-                }
-
+            IR ir = AnalysisUtil.getIR(m);
+            if (ir == null) {
+                // Native method with no signature
+                assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
+                this.registerNative(m, this.rvFactory);
                 return true;
             }
-            finally {
-                // if we just registered the entry method, add the entry method program points
-                if (m.equals(this.entryMethod)) {
-                    ProgramPoint entryPP = getMethodSummary(m).getEntryPP();
-                    for (ProgramPoint pp : this.entryMethodProgramPoints) {
-                        pp.addSuccs(entryPP.succs());
-                        entryPP.clearSuccs();
-                        entryPP.addSucc(pp);
-                    }
 
-                    this.entryMethodProgramPoints.clear();
+            TypeRepository types = new TypeRepository(ir);
+            PrettyPrinter pprint = new PrettyPrinter(ir);
+
+            MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
+
+            // Add edges from formal summary nodes to the local variables representing the method parameters
+            this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, types, pprint);
+
+            Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
+            Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
+            // Exceptions thrown at call sites
+            Set<ProgramPoint> callExceptions = new HashSet<>();
+
+            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                for (SSAInstruction ins : bb) {
+                    if (ins.toString().contains("signatures/library/java/lang/String")
+                            || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
+                        System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
+                                + " in " + m);
+                    }
+                    handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExceptions);
+                    if (ppToStmtMap.containsKey(insToPPSubGraph.get(ins).normalExit())) {
+                        // Record the pp for this instruction
+                        insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
+                    }
+                }
+                ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
+                bbToEntryPP.put(bb, pp);
+
+                if (ir.getControlFlowGraph().entry() == bb) {
+                    methSumm.getEntryPP().addSucc(pp);
                 }
             }
+
+            // Chain together the subgraphs
+            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+                addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
+            }
+
+            if (m.isClinit()) {
+                // XXX the following is to make sure static fields point to null before the clinit
+                ProgramPoint entry = methSumm.getEntryPP();
+                ProgramPoint prev = null;
+                ProgramPoint first = null;
+                for (IField f : m.getDeclaringClass().getAllStaticFields()) {
+                    if (f.getFieldTypeReference().isPrimitiveType()) {
+                        // No need to do anything with primitive fields
+                        continue;
+                    }
+                    ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                    ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
+                    addStatement(stmtFactory.nullToLocal(staticField, pp));
+                    if (first == null) {
+                        first = pp;
+                    }
+                    else {
+                        assert prev != null;
+                        prev.addSucc(pp);
+                    }
+                    prev = pp;
+                }
+                if (first != null) {
+                    // Some program points were added
+                    Set<ProgramPoint> succs = entry.succs();
+                    entry.clearSuccs();
+                    entry.addSucc(first);
+                    // prev is now the last pp added
+                    assert prev != null;
+                    prev.addSuccs(succs);
+                }
+            }
+
+            // clean up graph
+            cleanUpProgramPoints(methSumm, callExceptions);
+
+            // now try to remove duplicates
+            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
+            int oldSize = oldStatements.size();
+            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            Set<PointsToStatement> newStatements = duplicateResults.fst();
+            replacedVariableMap.put(m, duplicateResults.snd());
+            int newSize = newStatements.size();
+
+            removedStmts += (oldSize - newSize);
+            this.statementsForMethod.put(m, newStatements);
+            this.size += (newSize - oldSize);
+
+            if (PointsToAnalysis.outputLevel >= 1) {
+                System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
+                CFGWriter.writeToFile(ir);
+                System.err.println();
+            }
+
+            if (PointsToAnalysis.outputLevel >= 6) {
+                try (Writer writer = new StringWriter()) {
+                    PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+                    System.err.print(writer.toString());
+                }
+                catch (IOException e) {
+                    throw new RuntimeException();
+                }
+            }
+
+            // int[] stats = df.cleanUpProgramPoints();
+            // removedProgramPoints += stats[1];
+            // totalProgramPoints += stats[0] - stats[1];
+
+            for (PointsToStatement stmt : newStatements) {
+                if (stmt.programPoint() instanceof CallSiteProgramPoint) {
+                    CallSiteProgramPoint pp = (CallSiteProgramPoint) stmt.programPoint();
+                    assert !pp.isDiscarded();
+                    Set<CallSiteProgramPoint> scpps = this.callSitesForMethod.get(m);
+                    if (scpps == null) {
+                        scpps = AnalysisUtil.createConcurrentSet();
+                        Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(m, scpps);
+                        if (existing != null) {
+                            // someone else got there first.
+                            scpps = existing;
+                        }
+                    }
+                    scpps.add(pp);
+                }
+                for (ReferenceVariable def : stmt.getDefs()) {
+                    if (def.hasLocalScope()) {
+                        def.setLocalDef(stmt.programPoint());
+                    }
+                }
+                for (ReferenceVariable use : stmt.getUses()) {
+                    if (use != null && use.hasLocalScope()) {
+                        use.addLocalUse(stmt.programPoint());
+                    }
+                }
+            }
+
+            return true;
+
         }
         return false;
 
@@ -427,13 +406,21 @@ public class StatementRegistrar {
      * @param insToPPSubGraph map from instruction to program point subgraph for that instruction
      * @param bbToEntryPP map from basic block to entry program point
      */
-    private static void addPPEdgesForBasicBlock(ISSABasicBlock bb, MethodSummaryNodes methSumm,
+    private void addPPEdgesForBasicBlock(ISSABasicBlock bb, MethodSummaryNodes methSumm,
                                                 SSACFG controlFlowGraph,
                                                 Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
                                                 Map<ISSABasicBlock, ProgramPoint> bbToEntryPP) {
+
+        ProgramPoint thisBBEntryPP = bbToEntryPP.get(bb);
+        if (controlFlowGraph.getMethod().equals(entryMethod) && bb.isEntryBlock()) {
+            // This is the entry block.
+            // We may have inserted class-inits or singleton allocations after the method summary-entry PP
+            // Use the last PP added
+            thisBBEntryPP = lastEntryMethodPP;
+        }
         Iterator<SSAInstruction> insIter = bb.iterator();
         if (!insIter.hasNext()) {
-            addPPEdgesForEmptyBlock(controlFlowGraph, methSumm, bbToEntryPP, bb);
+            addPPEdgesForEmptyBlock(controlFlowGraph, methSumm, bbToEntryPP, thisBBEntryPP, bb);
             return;
         }
 
@@ -441,7 +428,7 @@ public class StatementRegistrar {
         PPSubGraph prev = null; // previous instruction within the basic block
         while (insIter.hasNext()) {
             PPSubGraph subgraph = insToPPSubGraph.get(insIter.next());
-            addPPEdgesForInstruction(subgraph, prev, bbToEntryPP.get(bb));
+            addPPEdgesForInstruction(subgraph, prev, thisBBEntryPP);
             prev = subgraph;
 
             if (insIter.hasNext()) {
@@ -558,18 +545,20 @@ public class StatementRegistrar {
      * @param cfg control flow graph for the containing method
      * @param methSumm method summary nodes
      * @param bbToEntryPP map from basic bloc to entry program point
+     * @param thisBBEntryPP entry program point for this basic block
      * @param bb empty basic block
      */
     private static void addPPEdgesForEmptyBlock(SSACFG cfg, MethodSummaryNodes methSumm,
-                                                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP, ISSABasicBlock bb) {
+                                         Map<ISSABasicBlock, ProgramPoint> bbToEntryPP, ProgramPoint thisBBEntryPP,
+                                         ISSABasicBlock bb) {
         assert !bb.iterator().hasNext();
         Collection<ISSABasicBlock> normalSuccs = cfg.getNormalSuccessors(bb);
         if (normalSuccs.isEmpty()) {
-            bbToEntryPP.get(bb).addSucc(methSumm.getNormalExitPP());
+            thisBBEntryPP.addSucc(methSumm.getNormalExitPP());
         }
         else {
             for (ISSABasicBlock succBB : normalSuccs) {
-                bbToEntryPP.get(bb).addSucc(bbToEntryPP.get(succBB));
+                thisBBEntryPP.addSucc(bbToEntryPP.get(succBB));
             }
         }
     }
@@ -1644,23 +1633,18 @@ public class StatementRegistrar {
      * @param pp program point to add
      */
     private void addEntryMethodProgramPoint(ProgramPoint pp) {
-        // get the entry method entry program point
-        ProgramPoint entryPP = getMethodSummary(this.entryMethod).getEntryPP();
-        assert !entryPP.succs().isEmpty();
-
-        if (!(lastClassInitPP == null)) {
-            // If there are already class init program points put this PP after the class inits
-            entryPP = lastClassInitPP;
+        if (lastEntryMethodPP == null) {
+            // This is the first entry method PP being added, add it after the method summary-entry PP
+            lastEntryMethodPP = getMethodSummary(this.entryMethod).getEntryPP();
         }
 
-        // add all of the succs of entryPP as succs of pp
-        // and add pp as a succ to entryPP.
-        // This is not great (quadratic-sized structure!) and
-        // we should make it more efficient sometime.
-        pp.addSuccs(entryPP.succs());
-        entryPP.clearSuccs();
-        entryPP.addSucc(pp);
-
+        // add all of the succs of lastEntryMethodPP as succs of pp
+        // and add pp as a succ to lastEntryMethodPP.
+        pp.addSuccs(lastEntryMethodPP.succs());
+        lastEntryMethodPP.clearSuccs();
+        lastEntryMethodPP.addSucc(pp);
+        lastEntryMethodPP = pp;
+        System.err.println(lastEntryMethodPP);
     }
 
     /**
@@ -1806,19 +1790,20 @@ public class StatementRegistrar {
 
         // Add the program points to the root method in the correct order
 
-        if (lastClassInitPP == null) {
+
+        if (lastEntryMethodPP == null) {
             // put the class inits right after the entry pp for the entry point
-            lastClassInitPP = getMethodSummary(getEntryPoint()).getEntryPP();
+            lastEntryMethodPP = getMethodSummary(getEntryPoint()).getEntryPP();
         }
-        Set<ProgramPoint> succs = lastClassInitPP.succs();
+        Set<ProgramPoint> succs = lastEntryMethodPP.succs();
 
         // Add edge from the last class init PP seen to the first new one
-        lastClassInitPP.clearSuccs();
-        lastClassInitPP.addSucc(pps.getFirst());
+        lastEntryMethodPP.clearSuccs();
+        lastEntryMethodPP.addSucc(pps.getFirst());
 
         // Add edges from the last new program point to the successors
-        lastClassInitPP = pps.getLast();
-        lastClassInitPP.addSuccs(succs);
+        lastEntryMethodPP = pps.getLast();
+        lastEntryMethodPP.addSuccs(succs);
 
         if (pps.size() >= 2) {
             for (int i = 0; i < pps.size() - 1; i++) {
@@ -2042,6 +2027,17 @@ public class StatementRegistrar {
             }
 
             writeSucc(methSum.getEntryPP(), writer, visited);
+        }
+        for (MethodSummaryNodes methSum : methods.values()) {
+            if (!visited.contains(methSum.getEntryPP())) {
+                System.err.println("MISSING " + methSum.getEntryPP());
+            }
+            if (!visited.contains(methSum.getExceptionExitPP())) {
+                System.err.println("MISSING " + methSum.getExceptionExitPP());
+            }
+            if (!visited.contains(methSum.getNormalExitPP())) {
+                System.err.println("MISSING " + methSum.getNormalExitPP());
+            }
         }
 
         writer.write("};\n");
