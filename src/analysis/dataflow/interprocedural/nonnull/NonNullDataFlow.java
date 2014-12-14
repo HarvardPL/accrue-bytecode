@@ -524,8 +524,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // Get the program point for this instruction
         assert ptg.getRegistrar().getInsToPP().get(i) != null : "No PP for " + i + " in "
                 + PrettyPrinter.cgNodeString(currentNode);
-        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
-        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
 
         // Check whether the field is amenable to strong update
         AbstractLocation loc = AbstractLocation.createStatic(i.getDeclaredField());
@@ -536,6 +534,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             // The value may be null there is no advantage to strong update
             return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
         }
+
+        // Value is non-null
+        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
+        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
 
         // Check whether this field can be strongly updated
 
@@ -550,6 +552,11 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         if (pti.hasNext() || (!ikr.isRecent() && !ptg.isNullInstanceKey(ikr))) {
             // The points-to set has more than one element or the single element is not the most recent
             //     cannot strongly update so join in the new value
+
+            if (couldFieldPointToNull(fieldRVR, i)) {
+                return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+            }
+
             NonNullAbsVal val = in.getLocation(loc);
             return in.setLocation(loc, inVal.join(val));
         }
