@@ -90,8 +90,9 @@ public class ClassInitStatement extends PointsToStatement {
 
     @Override
     public boolean mayChangeOrUseFlowSensPointsToGraph() {
-        // this is like a call.
-        return true;
+        // We model invocatoins of class inits as happening in the fake root method,
+        // so these program points do not affect the flow sensitive part of the points to graph
+        return false;
     }
 
 }
