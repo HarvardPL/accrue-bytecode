@@ -1069,7 +1069,14 @@ public class StatementRegistrar {
 
         TypeReference exType = types.getType(i.getException());
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
-        this.registerThrownException(bb, ir, pp, exception, rvFactory, types, pprint, insToPPSubGraph);
+        this.registerThrownException(bb,
+                                     ir,
+                                     pp.getExceptionExit(),
+                                     exception,
+                                     rvFactory,
+                                     types,
+                                     pprint,
+                                     insToPPSubGraph);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -1644,7 +1651,6 @@ public class StatementRegistrar {
         lastEntryMethodPP.clearSuccs();
         lastEntryMethodPP.addSucc(pp);
         lastEntryMethodPP = pp;
-        System.err.println(lastEntryMethodPP);
     }
 
     /**
