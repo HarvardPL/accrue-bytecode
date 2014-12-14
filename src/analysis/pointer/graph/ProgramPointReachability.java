@@ -66,8 +66,8 @@ public class ProgramPointReachability {
     }
 
     /**
-     * A KilledAndAlloced object is simply the pair of two sets, one set which records which PointsTGraphNodes have been
-     * killed, and the other set records which InstanceKeys have been allocated.
+     * A KilledAndAlloced object is simply the pair of two sets, one set which records which PointsToGraphNodes have
+     * been killed, and the other set records which InstanceKeys have been allocated.
      *
      * KilledAndAlloced objects are used as program analysis facts. That is, when analyzing a method, we may record for
      * each program point pp in the method, which PointsToGraphNodes must have been killed on all path from the method
@@ -273,11 +273,16 @@ public class ProgramPointReachability {
             return true;
         }
 
+        @Override
+        public String toString() {
+            return "killed=" + this.killed + " alloced=" + this.alloced + " killedFields="
+                    + this.maybeKilledFields;
+        }
     }
 
     /**
      * Given a map from InterProgramPoints to KilledAndAlloceds, either get the existing KilledAndAlloced for ipp, or
-     * craete one that represents all-killled-all-allocated and add it to the map for ipp.
+     * create one that represents all-killed-all-allocated and add it to the map for ipp.
      *
      * @param results
      * @param ipp
@@ -884,6 +889,9 @@ public class ProgramPointReachability {
                     }
                 }
             }
+            else {
+                System.err.println("IRRELEVANT " + callee + " for " + query);
+            }
             // now use the summary results.
             addMethodDependency(query, callee);
             ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
@@ -950,6 +958,11 @@ public class ProgramPointReachability {
             // Intentionally left blank
         }
 
+        /**
+         * Create a result in which every result is unreachable
+         *
+         * @return
+         */
         public static ReachabilityResult createInitial() {
             return new ReachabilityResult();
         }
@@ -1022,6 +1035,17 @@ public class ProgramPointReachability {
             return true;
         }
 
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("REACHABILITY RESULTS:");
+            for (InterProgramPointReplica s : m.keySet()) {
+                for (InterProgramPointReplica t : m.get(s).keySet()) {
+                    sb.append("\n\t" + s + " -> " + t + "\n\t\t" + m.get(s).get(t));
+                }
+            }
+            return sb.toString();
+        }
     }
 
     private final ConcurrentMap<OrderedPair<IMethod, Context>, ReachabilityResult> memoization = AnalysisUtil.createConcurrentHashMap();
@@ -1066,12 +1090,10 @@ public class ProgramPointReachability {
         PostProgramPoint entryIPP = summ.getEntryPP().post();
         q.add(entryIPP);
         getOrCreate(results, entryIPP).setEmpty();
-
         while (!q.isEmpty()) {
             InterProgramPoint ipp = q.poll();
             ProgramPoint pp = ipp.getPP();
             assert pp.containingProcedure().equals(m);
-
             KilledAndAlloced current = getOrCreate(results, ipp);
 
             if (ipp instanceof PreProgramPoint) {
@@ -1079,16 +1101,18 @@ public class ProgramPointReachability {
                     // this is a method call! Register the dependency and get some cached results
                     addCalleeDependency(m, context, pp.getReplica(context));
 
-                    OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>((CallSiteProgramPoint) pp,
-                                                                                          context);
+                    CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
+                    OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>(cspp, context);
+
                     Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
                     if (calleeSet == null) {
                         // no callees, so nothing to do
                         continue;
                     }
 
-                    KilledAndAlloced post = getOrCreate(results, pp.post());
-                    boolean changed = false;
+                    KilledAndAlloced postNormal = getOrCreate(results, pp.post());
+                    KilledAndAlloced postEx = getOrCreate(results, cspp.getExceptionExit().post());
+
                     for (OrderedPair<IMethod, Context> callee : calleeSet) {
                         addMethodDependency(m, context, callee);
                         ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
@@ -1105,15 +1129,15 @@ public class ProgramPointReachability {
                                                                                                     calleeSummary.getExceptionExitPP())
                                                                                             .pre());
 
-                        // HERE WE SHOULD BE MORE PRECISE ABOUT PROGRAM POINT SUCCESSORS, AND PAY ATTENTION TO NORMAL VS EXCEPTIONAL EXIT
-                        changed |= post.meet(KilledAndAlloced.join(current, normalRet));
-                        changed |= post.meet(KilledAndAlloced.join(current, exRet));
+                        // The final results will be the sets that are killed or alloced for all the callees
+                        //     so intersect the results
+                        postNormal.meet(KilledAndAlloced.join(current, normalRet));
+                        postEx.meet(KilledAndAlloced.join(current, exRet));
 
                     }
-                    if (changed) {
-                        q.add(pp.post());
-                    }
-
+                    // Add the successor program points to the queue
+                    q.add(pp.post());
+                    q.add(cspp.getExceptionExit().post());
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // not much to do here. The results will be copied once the work queue finishes.
@@ -1124,20 +1148,19 @@ public class ProgramPointReachability {
                     // not a call or a return, it's just a normal statement.
                     // does ipp kill this.node?
                     if (stmt != null) {
-                        boolean changed = false;
                         OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
                         if (killed != null) {
                             if (!killed.fst()) {
                                 // not enough info available yet.
                                 // add a depedency since more information may change this search
                                 // conservatively assume that it kills any kind of the field we give it.
-                                changed |= current.addMaybeKilledField(stmt.getMaybeKilledField());
+                                current.addMaybeKilledField(stmt.getMaybeKilledField());
                                 addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
 
                             }
                             else if (killed.snd() != null && killed.snd() != null) {
                                 // this statement really does kill something.
-                                changed |= current.addKill(g.lookupDictionary(killed.snd()));
+                                current.addKill(g.lookupDictionary(killed.snd()));
                                 // record it, including the dependency.
                                 addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
                             }
@@ -1149,29 +1172,30 @@ public class ProgramPointReachability {
                             }
                         }
 
-                        // is "to" allocated at this program point?
+                        // is anything allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
                         if (justAllocated != null) {
                             assert justAllocated.isRecent();
                             int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
                             if (g.isMostRecentObject(justAllocatedKey)
                                     && g.isTrackingMostRecentObject(justAllocatedKey)) {
-                                changed |= current.addAlloced(justAllocatedKey);
+                                current.addAlloced(justAllocatedKey);
                             }
                         }
-                        if (changed) {
-                            q.add(pp.post());
-                        }
                     }
+                    // Add the post program point to continue the traversal
+                    KilledAndAlloced postResults = getOrCreate(results, pp.post());
+                    postResults.meet(current);
+                    q.add(pp.post());
                 }
             }
             else if (ipp instanceof PostProgramPoint) {
                 Set<ProgramPoint> ppSuccs = pp.succs();
+                // Add all the successor program points
                 for (ProgramPoint succ : ppSuccs) {
                     KilledAndAlloced succResults = getOrCreate(results, succ.pre());
-                    if (succResults.meet(current)) {
-                        q.add(succ.pre());
-                    }
+                    succResults.meet(current);
+                    q.add(succ.pre());
                 }
             }
             else {
@@ -1188,7 +1212,6 @@ public class ProgramPointReachability {
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
         recordMethodReachability(m, context, rr);
-
         return rr;
     }
 
