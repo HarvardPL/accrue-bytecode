@@ -18,6 +18,7 @@ import util.OrderedPair;
 import util.WorkQueue;
 import util.intmap.ConcurrentIntMap;
 import util.intset.EmptyIntSet;
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysisHandle;
@@ -275,8 +276,7 @@ public class ProgramPointReachability {
 
         @Override
         public String toString() {
-            return "killed=" + this.killed + " alloced=" + this.alloced + " killedFields="
-                    + this.maybeKilledFields;
+            return "killed=" + this.killed + " alloced=" + this.alloced + " killedFields=" + this.maybeKilledFields;
         }
     }
 
@@ -412,8 +412,6 @@ public class ProgramPointReachability {
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
                                  IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden) {
         // try to solve it for each source.
-        OrderedPair<IMethod, Context> destinationMethod = new OrderedPair<>(destination.getContainingProcedure(),
-                                                                            destination.getContext());
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
             SubQuery query = new SubQuery(src, destination, noKill, noAlloc, forbidden);
@@ -423,9 +421,7 @@ public class ProgramPointReachability {
             }
 
             // First check the call graph to find the set of relevant call graph nodes.
-            OrderedPair<IMethod, Context> sourceMethod = new OrderedPair<>(src.getContainingProcedure(),
-                                                                           src.getContext());
-            Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(sourceMethod, destinationMethod, query);
+            Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(query);
 
             if (relevantNodes.isEmpty()) {
                 // this one isn't possible.
@@ -496,72 +492,237 @@ public class ProgramPointReachability {
     }
 
     /**
-     * Find the relevant call graph nodes. That is, the call graph nodes that are reachable (forward or backward) from
-     * sourceCGNode and also reachable (forward or backward) from destinationCGNode.
+     * Find call graph nodes, (Method, Context) pairs, that are relevant for the given query. A relevant call graph node
+     * is one which appears on some path (a sequence of call and return edges) from the node containing the source to
+     * the node containing the destination that does not contain a call edge and subsequently contain the corresponding
+     * return edge.
+     * <p>
+     * If a CG node only appears on paths containing a call edge followed by the corresponding return edge then it is
+     * safe to summarize the kill and alloc results from the entry to the exit since the method will never be entered or
+     * exited in the middle (via a call or return) on a path from the source program point to the destination program
+     * point.
      *
-     * @param sourceCGNode
-     * @param destinationCGNode
-     * @param query
-     * @return
+     * @param query query to get the interesting nodes for
+     * @return Set of call graph nodes
      */
-    private Set<OrderedPair<IMethod, Context>> findRelevantNodes(OrderedPair<IMethod, Context> sourceCGNode,
-                                                                 OrderedPair<IMethod, Context> destinationCGNode,
-                                                                 SubQuery query) {
-        Set<OrderedPair<IMethod, Context>> s = new HashSet<>();
-        // first find the CG nodes reachable from sourceCGNode
-        Deque<OrderedPair<IMethod, Context>> q = new ArrayDeque<>();
-        q.add(sourceCGNode);
-        s.add(sourceCGNode);
-        while (!q.isEmpty()) {
-            OrderedPair<IMethod, Context> cgnode = q.poll();
-            for (ProgramPointReplica callSite : g.getCallSitesOf(cgnode)) {
-                this.addCalleeDependency(query, callSite);
-                for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
-                    if (s.add(callee)) {
-                        q.add(callee);
-                    }
-                }
+    private Set<OrderedPair<IMethod, Context>> findRelevantNodes(SubQuery query) {
+        OrderedPair<IMethod, Context> sourceCGNode = new OrderedPair<>(query.source.getContainingProcedure(),
+                                                                       query.source.getContext());
+        OrderedPair<IMethod, Context> destinationCGNode = new OrderedPair<>(query.destination.getContainingProcedure(),
+                                                                            query.destination.getContext());
 
-            }
-            this.addCallerDependency(query, cgnode);
-            for (OrderedPair<IMethod, Context> caller : g.getCallersOf(cgnode)) {
-                if (s.add(caller)) {
-                    q.add(caller);
-                }
-            }
+        // Nodes that are reachable on some path from the source to the target such that
+        // the path does not contain a call then the corresponding return
+        Set<OrderedPair<IMethod, Context>> relevant = new LinkedHashSet<>();
+        if (sourceCGNode.equals(destinationCGNode)) {
+            // Special case when the source and destination are the same
+            relevant.add(sourceCGNode);
         }
-        if (!s.contains(destinationCGNode)) {
-            // the destination isn't reachable
-            // Nothing is relevant.
-            return Collections.emptySet();
+
+        // The queue contains the next call graph edge to process and the edges
+        // that have been seen before processing that edge
+        Deque<OrderedPair<CallGraphEdge, Set<CallGraphEdge>>> q = new ArrayDeque<>();
+
+        // Initialize workqueue with the edges leaving the source and an empty path
+        for (CallGraphEdge sourceEdge : getOutGoingEdges(sourceCGNode, query)) {
+            q.addFirst(new OrderedPair<>(sourceEdge, Collections.<CallGraphEdge> emptySet()));
         }
-        // Now restrict the relevant stuff to what is reachable from the destination.
-        Set<OrderedPair<IMethod, Context>> t = new HashSet<>();
-        q.add(destinationCGNode);
-        t.add(destinationCGNode);
+
+        Set<CallGraphEdge> allVisited = new LinkedHashSet<>();
         while (!q.isEmpty()) {
-            OrderedPair<IMethod, Context> cgnode = q.poll();
-            for (ProgramPointReplica callSite : g.getCallSitesOf(cgnode)) {
-                this.addCalleeDependency(query, callSite);
-                for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
-                    if (s.contains(callee) && t.add(callee)) {
-                        q.add(callee);
-                    }
-                }
+            OrderedPair<CallGraphEdge, Set<CallGraphEdge>> p = q.poll();
+            CallGraphEdge e = p.fst();
+            Set<CallGraphEdge> path = p.snd();
+
+            // XXX Adding to the visited set after checking the other failure condition
+            // It is safer to do it after, but may result in more work
+
+            if (e.isReturnEdge && path.contains(CallGraphEdge.getCallForReturn(e))) {
+                // This is a return edge and we have already seen the corresponding call.
+                // Cut off the search here.
+                continue;
             }
-            this.addCallerDependency(query, cgnode);
-            for (OrderedPair<IMethod, Context> caller : g.getCallersOf(cgnode)) {
-                if (s.contains(caller) && t.add(caller)) {
-                    q.add(caller);
+
+            if (!allVisited.add(e)) {
+                // We have already seen this edge on a valid path
+                continue;
+            }
+
+            path = new LinkedHashSet<>(path);
+            path.add(e);
+            if (relevant.contains(e.getTarget()) || e.getTarget().equals(destinationCGNode)) {
+                // The target is in the relevant set or it is the node we are looking for
+                // All nodes seen so far are also relevant
+                for (CallGraphEdge seenEdge : path) {
+                    relevant.add(seenEdge.getSource());
                 }
+                // Also add the target since it might be the destination which may not have been added yet
+                relevant.add(e.getTarget());
+            }
+
+            for (CallGraphEdge out : getOutGoingEdges(e.getTarget(), query)) {
+                // Add the successors with the new path
+                q.addFirst(new OrderedPair<>(out, path));
             }
         }
-        return t;
+
+        return relevant;
+    }
+
+    private Set<CallGraphEdge> getOutGoingEdges(OrderedPair<IMethod, Context> cgNode, SubQuery query) {
+        Set<CallGraphEdge> out = new LinkedHashSet<>();
+        for (ProgramPointReplica callSite : g.getCallSitesOf(cgNode)) {
+            this.addCalleeDependency(query, callSite);
+            for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
+                out.add(CallGraphEdge.createCallEdge(cgNode, callee));
+            }
+        }
+
+        this.addCallerDependency(query, cgNode);
+        for (OrderedPair<IMethod, Context> caller : g.getCallersOf(cgNode)) {
+            out.add(CallGraphEdge.createReturnEdge(caller, cgNode));
+        }
+        return out;
+    }
+
+    /**
+     * Edge in the call graph from one (Method, Context) pair to another. Such edges can either be call or return edges.
+     */
+    private static class CallGraphEdge {
+
+        // XXX We don't want (CallSiteProgramPoint, Context) here, right?
+        /**
+         * (Method, Context) for the caller
+         */
+        final OrderedPair<IMethod, Context> caller;
+        /**
+         * (Method, Context) for the callee
+         */
+        final OrderedPair<IMethod, Context> callee;
+        /**
+         * whether this is a return edge from the callee to the caller (false if it is a "call" edge from the caller to
+         * the callee)
+         */
+        final boolean isReturnEdge;
+
+        /**
+         * Create a call graph "call" edge from the caller to the callee
+         *
+         * @param caller (Method, Context) for the caller
+         * @param callee (Method, Context) for the callee
+         * @param isReturnEdge whether this is a return edge from the callee to the caller (false if it is a "call" edge
+         *            from the caller to the callee)
+         */
+        private CallGraphEdge(OrderedPair<IMethod, Context> caller, OrderedPair<IMethod, Context> callee,
+                              boolean isReturnEdge) {
+            assert callee != null;
+            assert caller != null;
+            this.callee = callee;
+            this.caller = caller;
+            this.isReturnEdge = isReturnEdge;
+        }
+
+        /**
+         * Create a call graph "call" edge from the caller to the callee
+         *
+         * @param caller (Method, Context) for the caller
+         * @param callee (Method, Context) for the callee
+         * @return The newly created edge
+         */
+        public static CallGraphEdge createCallEdge(OrderedPair<IMethod, Context> caller,
+                                                   OrderedPair<IMethod, Context> callee) {
+            return new CallGraphEdge(caller, callee, false);
+        }
+
+        /**
+         * Create a call graph "return" edge from the callee to the caller
+         *
+         * @param caller (Method, Context) for the caller
+         * @param callee (Method, Context) for the callee
+         * @return The newly created edge
+         */
+        public static CallGraphEdge createReturnEdge(OrderedPair<IMethod, Context> caller,
+                                                     OrderedPair<IMethod, Context> callee) {
+            return new CallGraphEdge(caller, callee, true);
+        }
+
+        /**
+         * Get the source of the edge the callee for a return edge, caller for a call edge
+         *
+         * @return source of this edge
+         */
+        public OrderedPair<IMethod, Context> getSource() {
+            return isReturnEdge ? this.callee : this.caller;
+        }
+
+        /**
+         * Get the target of the edge the caller for a return edge, callee for a call edge
+         *
+         * @return target of this edge
+         */
+        public OrderedPair<IMethod, Context> getTarget() {
+            return isReturnEdge ? this.caller : this.callee;
+        }
+
+        /**
+         * Given a "return" edge from a callee to a caller, get the corresonding "call" edge from the caller to the
+         * callee.
+         *
+         * @param returnEdge return edge to get the "call" edge for
+         * @return the "call" edge
+         */
+        public static CallGraphEdge getCallForReturn(CallGraphEdge returnEdge) {
+            assert returnEdge.isReturnEdge;
+            return createCallEdge(returnEdge.caller, returnEdge.callee);
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + this.callee.hashCode();
+            result = prime * result + this.caller.hashCode();
+            result = prime * result + (this.isReturnEdge ? 1231 : 1237);
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            CallGraphEdge other = (CallGraphEdge) obj;
+            if (!this.callee.equals(other.callee)) {
+                return false;
+            }
+
+            if (!this.caller.equals(other.caller)) {
+                return false;
+            }
+            if (this.isReturnEdge != other.isReturnEdge) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            if (isReturnEdge) {
+                return PrettyPrinter.methodString(callee.fst()) + " in " + callee.snd() + " -R-> "
+                        + PrettyPrinter.methodString(caller.fst()) + " in " + caller.snd();
+            }
+            return PrettyPrinter.methodString(caller.fst()) + " in " + caller.snd() + " -C-> "
+                    + PrettyPrinter.methodString(callee.fst()) + " in " + callee.snd();
+        }
     }
 
     /**
      * Try to find a path from src to destination. relevantNodes contains all call graph nodes that might possibly
-     * contain such a path.
+     * contain such a path, but do not necessarily enter at the entry program point and leave from an exit on that path.
+     * The path could be through the middle of a relevant node due to a call or return program point.
      *
      * @param src
      * @param destination
@@ -784,22 +945,23 @@ public class ProgramPointReachability {
         addCallerDependency(query, currentCallGraphNode);
 
         // let's explore the callers
-        Set<OrderedPair<CallSiteProgramPoint, Context>> callers = g.getCallGraphReverseMap().get(currentCallGraphNode);
+        Set<ProgramPointReplica> callers = g.getCallSitesOf(currentCallGraphNode);
         if (callers == null) {
             // no callers
             return false;
         }
-        for (OrderedPair<CallSiteProgramPoint, Context> callerSite : callers) {
-            OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSite.fst().containingProcedure(),
-                                                                     callerSite.snd());
+        for (ProgramPointReplica callerSite : callers) {
+            CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
+            OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSite.getPP().getContainingProcedure(),
+                                                                     callerSite.getContext());
             if (relevantNodes.contains(caller)) {
                 // this is a relevant node, and we need to dig into it.
                 InterProgramPointReplica callerSiteReplica;
                 if (isExceptionExit) {
-                    callerSiteReplica = callerSite.fst().getExceptionExit().post().getReplica(callerSite.snd());
+                    callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());
                 }
                 else {
-                    callerSiteReplica = callerSite.fst().post().getReplica(callerSite.snd());
+                    callerSiteReplica = cspp.post().getReplica(callerSite.getContext());
                 }
                 if (inSameMethod) {
                     // let's delay it as long as possible, in case we find the destination here
@@ -851,20 +1013,14 @@ public class ProgramPointReachability {
                                Set<OrderedPair<IMethod, Context>> relevantNodes, boolean inSameMethod,
                                Deque<InterProgramPointReplica> delayed, InterProgramPointReplica destination,
                                IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden,
-                               Set<InterProgramPointReplica> visited,
-                               Deque<InterProgramPointReplica> q, Context currentContext) {
+                               Set<InterProgramPointReplica> visited, Deque<InterProgramPointReplica> q,
+                               Context currentContext) {
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
 
         // this is a method call! Register the dependency and use some cached results
         addCalleeDependency(query, pp.getReplica(ippr.getContext()));
 
-        OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>(pp, ippr.getContext());
-        Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
-        if (calleeSet == null) {
-            // no callees, so nothing to do
-            return false;
-        }
-
+        Set<OrderedPair<IMethod, Context>> calleeSet = g.getCalleesOf(pp.getReplica(ippr.getContext()));
         for (OrderedPair<IMethod, Context> callee : calleeSet) {
             MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
@@ -889,9 +1045,7 @@ public class ProgramPointReachability {
                     }
                 }
             }
-            else {
-                System.err.println("IRRELEVANT " + callee + " for " + query);
-            }
+
             // now use the summary results.
             addMethodDependency(query, callee);
             ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
@@ -1102,10 +1256,9 @@ public class ProgramPointReachability {
                     addCalleeDependency(m, context, pp.getReplica(context));
 
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
-                    OrderedPair<CallSiteProgramPoint, Context> caller = new OrderedPair<>(cspp, context);
 
-                    Set<OrderedPair<IMethod, Context>> calleeSet = g.getCallGraphMap().get(caller);
-                    if (calleeSet == null) {
+                    Set<OrderedPair<IMethod, Context>> calleeSet = g.getCalleesOf(pp.getReplica(context));
+                    if (calleeSet.isEmpty()) {
                         // no callees, so nothing to do
                         continue;
                     }
