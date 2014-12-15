@@ -2642,8 +2642,10 @@ public class PointsToGraph {
                         repMap.addPrint(rvr);
                         repMap.addPrint(to);
                         Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
-                        writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + sources
-                                + "\"];\n");
+                        if (!sources.isEmpty()) {
+                            writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + sources
+                                    + "\"];\n");
+                        }
                     }
                 }
             }
@@ -2664,8 +2666,11 @@ public class PointsToGraph {
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(fromIkr))) {
                         repMap.addPrint(fromIkr);
                         repMap.addPrint(to);
-                        writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName() + ","
-                            + ikrToPP.get(t) + "\"];\n");
+                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
+                        if (!sources.isEmpty()) {
+                            writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName()
+                                    + "," + sources + "\"];\n");
+                        }
                     }
                 }
             }
