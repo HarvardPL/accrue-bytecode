@@ -569,9 +569,17 @@ public class ProgramPointReachability {
         return relevant;
     }
 
+    /**
+     * Get the edges from cgNode, which includes any call sites within cgNode to callees, and also the return from
+     * cgNode to callers of cgNode.
+     *
+     * @param cgNode
+     * @param query
+     * @return
+     */
     private Set<CallGraphEdge> getOutGoingEdges(OrderedPair<IMethod, Context> cgNode, SubQuery query) {
         Set<CallGraphEdge> out = new LinkedHashSet<>();
-        for (ProgramPointReplica callSite : g.getCallSitesOf(cgNode)) {
+        for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
             this.addCalleeDependency(query, callSite);
             for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
                 out.add(CallGraphEdge.createCallEdge(cgNode, callee));
@@ -579,8 +587,10 @@ public class ProgramPointReachability {
         }
 
         this.addCallerDependency(query, cgNode);
-        for (OrderedPair<IMethod, Context> caller : g.getCallersOf(cgNode)) {
-            out.add(CallGraphEdge.createReturnEdge(caller, cgNode));
+        for (OrderedPair<CallSiteProgramPoint, Context> caller : g.getCallersOf(cgNode)) {
+            OrderedPair<IMethod, Context> callerCGNode = new OrderedPair<>(caller.fst().containingProcedure(),
+                                                                           caller.snd());
+            out.add(CallGraphEdge.createReturnEdge(callerCGNode, cgNode));
         }
         return out;
     }
@@ -945,23 +955,23 @@ public class ProgramPointReachability {
         addCallerDependency(query, currentCallGraphNode);
 
         // let's explore the callers
-        Set<ProgramPointReplica> callers = g.getCallSitesOf(currentCallGraphNode);
+        Set<OrderedPair<CallSiteProgramPoint, Context>> callers = g.getCallersOf(currentCallGraphNode);
         if (callers == null) {
             // no callers
             return false;
         }
-        for (ProgramPointReplica callerSite : callers) {
-            CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
-            OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSite.getPP().getContainingProcedure(),
-                                                                     callerSite.getContext());
+        for (OrderedPair<CallSiteProgramPoint, Context> callerSite : callers) {
+            CallSiteProgramPoint cspp = callerSite.fst();
+            OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSite.fst().getContainingProcedure(),
+                                                                     callerSite.snd());
             if (relevantNodes.contains(caller)) {
                 // this is a relevant node, and we need to dig into it.
                 InterProgramPointReplica callerSiteReplica;
                 if (isExceptionExit) {
-                    callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());
+                    callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.snd());
                 }
                 else {
-                    callerSiteReplica = cspp.post().getReplica(callerSite.getContext());
+                    callerSiteReplica = cspp.post().getReplica(callerSite.snd());
                 }
                 if (inSameMethod) {
                     // let's delay it as long as possible, in case we find the destination here

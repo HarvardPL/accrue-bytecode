@@ -87,7 +87,7 @@ public class StatementRegistrar {
     /**
      * Map from method to the CallSiteProgramPoints that are in that method.
      */
-    private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesForMethod;
+    private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesWithinMethod;
 
     /**
      * Program point for the normal exit of a class initialization method
@@ -210,7 +210,7 @@ public class StatementRegistrar {
                               boolean simplePrint) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
-        this.callSitesForMethod = AnalysisUtil.createConcurrentHashMap();
+        this.callSitesWithinMethod = AnalysisUtil.createConcurrentHashMap();
         this.programPointForClassInit = AnalysisUtil.createConcurrentHashMap();
         this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
@@ -367,10 +367,10 @@ public class StatementRegistrar {
                 if (stmt.programPoint() instanceof CallSiteProgramPoint) {
                     CallSiteProgramPoint pp = (CallSiteProgramPoint) stmt.programPoint();
                     assert !pp.isDiscarded();
-                    Set<CallSiteProgramPoint> scpps = this.callSitesForMethod.get(m);
+                    Set<CallSiteProgramPoint> scpps = this.callSitesWithinMethod.get(m);
                     if (scpps == null) {
                         scpps = AnalysisUtil.createConcurrentSet();
-                        Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(m, scpps);
+                        Set<CallSiteProgramPoint> existing = this.callSitesWithinMethod.put(m, scpps);
                         if (existing != null) {
                             // someone else got there first.
                             scpps = existing;
@@ -1777,10 +1777,10 @@ public class StatementRegistrar {
             CallSiteProgramPoint prev = this.programPointForClassInit.putIfAbsent(init, classInitPP);
             assert prev == null : "Registering duplicate clinit for "
                     + PrettyPrinter.typeString(init.getDeclaringClass()) + " maybe a race?";
-            Set<CallSiteProgramPoint> entryCallSites = callSitesForMethod.get(entryMethod);
+            Set<CallSiteProgramPoint> entryCallSites = callSitesWithinMethod.get(entryMethod);
             if (entryCallSites == null) {
                 entryCallSites = AnalysisUtil.createConcurrentSet();
-                Set<CallSiteProgramPoint> existing = this.callSitesForMethod.put(entryMethod, entryCallSites);
+                Set<CallSiteProgramPoint> existing = this.callSitesWithinMethod.put(entryMethod, entryCallSites);
                 if (existing != null) {
                     // someone else got there first.
                     entryCallSites = existing;
@@ -1980,10 +1980,10 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get program points for any call sites where the given method is a possible target
+     * Get program points for any call sites within the given method
      */
-    public Set<CallSiteProgramPoint> getCallSitesForMethod(IMethod m) {
-        Set<CallSiteProgramPoint> s = this.callSitesForMethod.get(m);
+    public Set<CallSiteProgramPoint> getCallSitesWithinMethod(IMethod m) {
+        Set<CallSiteProgramPoint> s = this.callSitesWithinMethod.get(m);
         if (s == null) {
             return Collections.emptySet();
         }

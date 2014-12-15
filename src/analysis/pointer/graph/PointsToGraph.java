@@ -2471,16 +2471,29 @@ public class PointsToGraph {
         return this.ppReach;
     }
 
-    public Set<ProgramPointReplica> getCallSitesOf(OrderedPair<IMethod, Context> caller) {
-        assert !caller.fst().isClinit() || caller.snd().equals(haf.initialContext()) : " Class inits such as, "
-                + PrettyPrinter.methodString(caller.fst()) + " should be analyzed in the initial context not "
-                + caller.snd();
+    /**
+     * Get the call sites within the given method.
+     * 
+     * @param caller
+     * @return
+     */
+    public Set<ProgramPointReplica> getCallSitesWithinMethod(OrderedPair<IMethod, Context> cgnode) {
+        assert !cgnode.fst().isClinit() || cgnode.snd().equals(haf.initialContext()) : " Class inits such as, "
+                + PrettyPrinter.methodString(cgnode.fst()) + " should be analyzed in the initial context not "
+                + cgnode.snd();
         Set<ProgramPointReplica> callSites = new LinkedHashSet<>();
-        for (CallSiteProgramPoint cs : this.registrar.getCallSitesForMethod(caller.fst())) {
-            callSites.add(cs.getReplica(caller.snd()));
+        for (CallSiteProgramPoint cs : this.registrar.getCallSitesWithinMethod(cgnode.fst())) {
+            callSites.add(cs.getReplica(cgnode.snd()));
         }
         return callSites;
     }
+
+    /**
+     * Get the methods that the callSite may call.
+     *
+     * @param callee
+     * @return
+     */
 
     public Set<OrderedPair<IMethod, Context>> getCalleesOf(ProgramPointReplica callSite) {
         OrderedPair<CallSiteProgramPoint, Context> callSiteNode = new OrderedPair<>((CallSiteProgramPoint) callSite.getPP(),
@@ -2493,15 +2506,18 @@ public class PointsToGraph {
 
     }
 
-    public Set<OrderedPair<IMethod, Context>> getCallersOf(OrderedPair<IMethod, Context> callee) {
-        Set<OrderedPair<IMethod, Context>> callers = new LinkedHashSet<>();
+    /**
+     * Get the call sites that call the callee.
+     *
+     * @param callee
+     * @return
+     */
+    public Set<OrderedPair<CallSiteProgramPoint, Context>> getCallersOf(OrderedPair<IMethod, Context> callee) {
         Set<OrderedPair<CallSiteProgramPoint, Context>> callerCallGraphNodes = this.callGraphReverseMap.get(callee);
         if (callerCallGraphNodes != null) {
-            for (OrderedPair<CallSiteProgramPoint, Context> cs : callerCallGraphNodes) {
-                callers.add(new OrderedPair<>(cs.fst().containingProcedure(), cs.snd()));
-            }
+            return callerCallGraphNodes;
         }
-        return callers;
+        return Collections.emptySet();
     }
 
     //    /**
