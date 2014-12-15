@@ -1194,30 +1194,12 @@ public class PointsToGraph {
     }
 
     /**
-     * Get call graph map
-     *
-     * @return call graph map
-     */
-    public ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> getCallGraphMap() {
-        return callGraphMap;
-    }
-
-    /**
      * Get all the class initializer that have been registered
      *
      * @return set of registered class initializers
      */
     public Set<IMethod> getClassInitializers() {
         return this.classInitializers;
-    }
-
-    /**
-     * Get call graph map
-     *
-     * @return reverse call graph map
-     */
-    public ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> getCallGraphReverseMap() {
-        return callGraphReverseMap;
     }
 
     /**
