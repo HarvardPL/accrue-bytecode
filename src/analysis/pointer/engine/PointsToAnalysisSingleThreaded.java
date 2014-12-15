@@ -361,6 +361,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
         g.constructionFinished();
         g.dumpPointsToGraphToFile("tests/pointsToGraph");
+        g.getCallGraph().dumpCallGraphToFile("tests/callGraph", false);
         return g;
     }
 

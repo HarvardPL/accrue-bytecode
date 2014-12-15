@@ -201,6 +201,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (!AccrueAnalysisMain.testMode) {
             registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
             g.dumpPointsToGraphToFile("tests/pointsToGraph");
+            g.getCallGraph().dumpCallGraphToFile("tests/callGraph", false);
             for (IMethod m : registrar.getRegisteredMethods()) {
                 if (m.toString().contains("main")) {
                     CFGWriter.writeToFile(m);
