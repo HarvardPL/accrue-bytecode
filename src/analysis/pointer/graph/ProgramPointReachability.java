@@ -1240,12 +1240,16 @@ public class ProgramPointReachability {
         Map<InterProgramPoint, KilledAndAlloced> results = new HashMap<>();
 
         WorkQueue<InterProgramPoint> q = new WorkQueue<>();
+        Set<InterProgramPoint> visited = new HashSet<>();
         MethodSummaryNodes summ = g.registrar.getMethodSummary(m);
         PostProgramPoint entryIPP = summ.getEntryPP().post();
         q.add(entryIPP);
         getOrCreate(results, entryIPP).setEmpty();
         while (!q.isEmpty()) {
             InterProgramPoint ipp = q.poll();
+            if (!visited.add(ipp)) {
+                continue;
+            }
             ProgramPoint pp = ipp.getPP();
             assert pp.containingProcedure().equals(m);
             KilledAndAlloced current = getOrCreate(results, ipp);
