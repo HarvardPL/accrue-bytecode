@@ -23,6 +23,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.pointer.graph.ProgramPointReachability.SubQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -971,6 +972,16 @@ public class ProgramPointReachabilityNew {
     }
 
 
+    private void recordCalleeResult(InterProgramPointReplica calleeEntryIPPR, ReachabilityResult res) {
+        // TODO Auto-generated method stub
+
+    }
+
+    private ReachabilityResult getCachedCalleeResults(InterProgramPointReplica calleeEntryIPPR) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
     /**
      * Exits that can be reached from the source node of a reachablity query
      */
@@ -1369,67 +1380,67 @@ public class ProgramPointReachabilityNew {
     private final Set<SubQuery> positiveCache = AnalysisUtil.createConcurrentSet();
     private final Set<SubQuery> negativeCache = AnalysisUtil.createConcurrentSet();
 
-    public static class SubQuery {
-        final InterProgramPointReplica source;
-        final InterProgramPointReplica destination;
-        final/*Set<PointsToGraphNode>*/IntSet noKill;
-        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
-        final Set<InterProgramPointReplica> forbidden;
-
-        SubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
-                 IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc, Set<InterProgramPointReplica> forbidden) {
-            this.source = source;
-            this.destination = destination;
-            this.noKill = noKill;
-            this.noAlloc = noAlloc;
-            this.forbidden = forbidden;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = destination.hashCode();
-            result = prime * result + source.hashCode();
-            result = prime * result + noAlloc.size();
-            result = prime * result + noKill.size();
-            result = prime * result + forbidden.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (!(obj instanceof SubQuery)) {
-                return false;
-            }
-            SubQuery other = (SubQuery) obj;
-            if (!source.equals(other.source)) {
-                return false;
-            }
-            if (!destination.equals(other.destination)) {
-                return false;
-            }
-            if (!noAlloc.sameValue(other.noAlloc)) {
-                return false;
-            }
-            if (!noKill.sameValue(other.noKill)) {
-                return false;
-            }
-            if (!forbidden.equals(other.forbidden)) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "SubQuery [" + source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc
-                    + ", forbidden=" + forbidden + "]";
-        }
-
-    }
+    //    public static class SubQuery {
+    //        final InterProgramPointReplica source;
+    //        final InterProgramPointReplica destination;
+    //        final/*Set<PointsToGraphNode>*/IntSet noKill;
+    //        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
+    //        final Set<InterProgramPointReplica> forbidden;
+    //
+    //        SubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+    //                 IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc, Set<InterProgramPointReplica> forbidden) {
+    //            this.source = source;
+    //            this.destination = destination;
+    //            this.noKill = noKill;
+    //            this.noAlloc = noAlloc;
+    //            this.forbidden = forbidden;
+    //        }
+    //
+    //        @Override
+    //        public int hashCode() {
+    //            final int prime = 31;
+    //            int result = destination.hashCode();
+    //            result = prime * result + source.hashCode();
+    //            result = prime * result + noAlloc.size();
+    //            result = prime * result + noKill.size();
+    //            result = prime * result + forbidden.hashCode();
+    //            return result;
+    //        }
+    //
+    //        @Override
+    //        public boolean equals(Object obj) {
+    //            if (this == obj) {
+    //                return true;
+    //            }
+    //            if (!(obj instanceof SubQuery)) {
+    //                return false;
+    //            }
+    //            SubQuery other = (SubQuery) obj;
+    //            if (!source.equals(other.source)) {
+    //                return false;
+    //            }
+    //            if (!destination.equals(other.destination)) {
+    //                return false;
+    //            }
+    //            if (!noAlloc.sameValue(other.noAlloc)) {
+    //                return false;
+    //            }
+    //            if (!noKill.sameValue(other.noKill)) {
+    //                return false;
+    //            }
+    //            if (!forbidden.equals(other.forbidden)) {
+    //                return false;
+    //            }
+    //            return true;
+    //        }
+    //
+    //        @Override
+    //        public String toString() {
+    //            return "SubQuery [" + source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc
+    //                    + ", forbidden=" + forbidden + "]";
+    //        }
+    //
+    //    }
 
     /* *****************************************************************************
      *
