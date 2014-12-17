@@ -841,7 +841,7 @@ public class ProgramPointReachability {
                     }
                     continue;
                 }
-                PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
+                PointsToStatement stmt = g.getRegistrar().getStmtAtPP(pp);
                 // not a call or a return, it's just a normal statement.
                 // does ipp kill this.node?
                 if (stmt != null && handlePossibleKill(stmt, currentContext, query, noKill, noAlloc)) {
@@ -1032,7 +1032,7 @@ public class ProgramPointReachability {
 
         Set<OrderedPair<IMethod, Context>> calleeSet = g.getCalleesOf(pp.getReplica(ippr.getContext()));
         for (OrderedPair<IMethod, Context> callee : calleeSet) {
-            MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
+            MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
             if (relevantNodes.contains(callee)) {
                 // this is a relevant node, and we need to dig into it.
@@ -1251,7 +1251,7 @@ public class ProgramPointReachability {
 
         WorkQueue<InterProgramPoint> q = new WorkQueue<>();
         Set<InterProgramPoint> visited = new HashSet<>();
-        MethodSummaryNodes summ = g.registrar.getMethodSummary(m);
+        MethodSummaryNodes summ = g.getRegistrar().getMethodSummary(m);
         PostProgramPoint entryIPP = summ.getEntryPP().post();
         q.add(entryIPP);
         getOrCreate(results, entryIPP).setEmpty();
@@ -1283,7 +1283,7 @@ public class ProgramPointReachability {
                     for (OrderedPair<IMethod, Context> callee : calleeSet) {
                         addMethodDependency(m, context, callee);
                         ReachabilityResult calleeResults = getReachabilityForMethod(callee.fst(), callee.snd());
-                        MethodSummaryNodes calleeSummary = g.registrar.getMethodSummary(callee.fst());
+                        MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
                         InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
                                                                                               calleeSummary.getEntryPP())
                                                                                       .post();
@@ -1311,7 +1311,7 @@ public class ProgramPointReachability {
                     continue;
                 }
                 else {
-                    PointsToStatement stmt = g.registrar.getStmtAtPP(pp);
+                    PointsToStatement stmt = g.getRegistrar().getStmtAtPP(pp);
                     // not a call or a return, it's just a normal statement.
                     // does ipp kill this.node?
                     if (stmt != null) {

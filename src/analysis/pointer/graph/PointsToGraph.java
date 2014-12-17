@@ -65,7 +65,7 @@ public class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
 
-    public final StatementRegistrar registrar;
+    private final StatementRegistrar registrar;
 
     public final ProgramPointReachability ppReach;
 
@@ -2473,7 +2473,7 @@ public class PointsToGraph {
 
     /**
      * Get the call sites within the given method.
-     * 
+     *
      * @param caller
      * @return
      */

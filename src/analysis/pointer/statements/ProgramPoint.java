@@ -374,6 +374,15 @@ public class ProgramPoint {
             return ipp.getPP().getContainingProcedure();
         }
 
+        /**
+         * Get the replica for the program point for which this is either the pre or post program point
+         *
+         * @return program point replica
+         */
+        public ProgramPointReplica getRegularProgramPointReplica() {
+            return ProgramPointReplica.create(getContext(), ipp.getPP());
+        }
+
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
