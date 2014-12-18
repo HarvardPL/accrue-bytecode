@@ -234,6 +234,9 @@ public class ProgramPointReachabilityNew {
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
                                  Set<InterProgramPointReplica> forbidden) {
+
+        PPReachDestinationQuery prq = new PPReachDestinationQuery(destination, noKill, noAlloc, forbidden);
+
         // try to solve it for each source.
         Set<InterProgramPointReplica> visited = new HashSet<>();
         for (InterProgramPointReplica src : sources) {
@@ -255,9 +258,10 @@ public class ProgramPointReachabilityNew {
                 }
                 continue;
             }
+
+
             // Now try a depth first search starting at the source
-            ReachabilityResult res = searchInRelevantNode(src, query, relevantNodes, visited, null);
-            if (res == ReachabilityResult.FOUND) {
+            if (prq.query(src, relevantNodes)) {
                 recordQueryResult(query, true);
                 return true;
             }
@@ -777,54 +781,6 @@ public class ProgramPointReachabilityNew {
     }
 
     /**
-     * Handle a "pre" program point that may kill the current path.
-     *
-     * @param stmt points-to graph statement for the current program point
-     * @param currentContext current context
-     * @param query query being executed
-     * @return whether the path was killed
-     */
-    private boolean handlePossibleKill(PointsToStatement stmt, Context currentContext, SubQuery query) {
-        OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
-        if (killed != null) {
-            if (!killed.fst()) {
-                // not enough info available yet.
-                //add a depedency since more information may change this search
-                addKillDependency(query, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
-                // for the moment, assume conservatively that this statement
-                // may kill a field we are interested in.
-                return true;
-            }
-            else if (killed.snd() != null && query.noKill.contains(g.lookupDictionary(killed.snd()))) {
-                // dang! we killed something we shouldn't. Prune the search.
-                // add a depedency in case this changes in the future.
-                addKillDependency(query, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
-                return true;
-            }
-            else if (killed.snd() == null) {
-                // we have enough information to know that this statement does not kill a node we care about
-                removeKillDependency(query, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
-            }
-            // we have enough information to determine whether this statement kills a field, and it does not
-            // kill anything we care about. So we can continue with the search.
-            assert killed.fst() && (killed.snd() == null || !query.noKill.contains(g.lookupDictionary(killed.snd())));
-        }
-
-        // is "to" allocated at this program point?
-        InstanceKeyRecency justAllocated = stmt.justAllocated(currentContext, g);
-        if (justAllocated != null) {
-            assert justAllocated.isRecent();
-            int justAllocatedKey = g.lookupDictionary(justAllocated);
-            if (g.isMostRecentObject(justAllocatedKey) && g.isTrackingMostRecentObject(justAllocatedKey)
-                    && query.noAlloc.contains(g.lookupDictionary(justAllocated))) {
-                // dang! we killed allocated we shouldn't. Prune the search.
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Handle a the exit from a method when the precise call-site program point of the caller is unknown, check whether
      * the destination is reachable from the exit (by checking all possible callers)
      *
@@ -1099,7 +1055,7 @@ public class ProgramPointReachabilityNew {
     /**
      * Exits that can be reached from the source node of a reachablity query
      */
-    private static enum ReachabilityResult {
+    static enum ReachabilityResult {
         /**
          * No exits are reachable
          */

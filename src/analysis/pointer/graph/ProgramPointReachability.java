@@ -1532,7 +1532,7 @@ public class ProgramPointReachability {
         s.add(query);
     }
 
-    private void addKillDependency(SubQuery query, ReferenceVariableReplica readDependencyForKillField) {
+    void addKillDependency(SubQuery query, ReferenceVariableReplica readDependencyForKillField) {
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1548,7 +1548,7 @@ public class ProgramPointReachability {
         s.add(query);
     }
 
-    private void removeKillDependency(SubQuery query, ReferenceVariableReplica readDependencyForKillField) {
+    void removeKillDependency(SubQuery query, ReferenceVariableReplica readDependencyForKillField) {
         if (readDependencyForKillField == null) {
             return;
         }
