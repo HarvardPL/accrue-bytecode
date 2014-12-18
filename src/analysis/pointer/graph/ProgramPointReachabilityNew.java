@@ -256,7 +256,7 @@ public class ProgramPointReachabilityNew {
                 continue;
             }
             // Now try a depth first search starting at the source
-            ReachabilityResult res = performSearchForRelevantNode(src, query, relevantNodes, visited, false);
+            ReachabilityResult res = searchInRelevantNode(src, query, relevantNodes, visited, null);
             if (res == ReachabilityResult.FOUND) {
                 recordQueryResult(query, true);
                 return true;
@@ -559,14 +559,15 @@ public class ProgramPointReachabilityNew {
      * @param relevantNodes set of call graph nodes that cannot be summarized and must be searched directly
      * @param visited set of program points we have already visited while computing the main query result
      * @param query The query that caused this search, used to track dependencies
-     * @param isFromKnownCallSite whether this search was triggered by a call-site program point
+     * @param methodEntryPP if this search was triggered by a call-site program point and began at the method entry then
+     *            this is the entry, otherwise it is nulle
      *
      * @return true if a path could be found, false if no path could be found
      */
-    private ReachabilityResult performSearchForRelevantNode(InterProgramPointReplica src, SubQuery query,
-                                                            Set<OrderedPair<IMethod, Context>> relevantNodes,
-                                                            Set<InterProgramPointReplica> visited,
-                                                            boolean isFromKnownCallSite) {
+    private ReachabilityResult searchInRelevantNode(InterProgramPointReplica src, SubQuery query,
+                                                    Set<OrderedPair<IMethod, Context>> relevantNodes,
+                                                    Set<InterProgramPointReplica> visited,
+                                                    InterProgramPointReplica methodEntryPP) {
         if (!visited.add(src)) {
             // we've already tried it...
             return ReachabilityResult.UNREACHABLE;
@@ -652,7 +653,7 @@ public class ProgramPointReachabilityNew {
                         delayed.add(ippr);
                     }
 
-                    ReachabilityResult res = handleCall(query, ippr, relevantNodes, visited);
+                    ReachabilityResult res = handleCall(query, ippr, relevantNodes, methodEntryPP);
                     if (res == ReachabilityResult.FOUND) {
                         return ReachabilityResult.FOUND;
                     }
@@ -673,17 +674,17 @@ public class ProgramPointReachabilityNew {
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
 
-                    // Record the exit
-                    if (pp.isNormalExitSummaryNode()) {
-                        reachableExits.join(ReachabilityResult.NORMAL_EXIT);
-                    }
-
-                    if (pp.isExceptionExitSummaryNode()) {
-                        reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
-                    }
-
-                    if (isFromKnownCallSite) {
+                    if (methodEntryPP != null) {
                         // This is from a known call-site, the return to the caller is handled at the call-site in "handleCall"
+
+                        // Record the exit
+                        if (pp.isNormalExitSummaryNode()) {
+                            reachableExits.join(ReachabilityResult.NORMAL_EXIT);
+                        }
+
+                        if (pp.isExceptionExitSummaryNode()) {
+                            reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
+                        }
                         continue;
                     }
 
@@ -729,12 +730,14 @@ public class ProgramPointReachabilityNew {
                 throw new IllegalArgumentException("Don't know about this kind of interprogrampoint");
             }
         } // end of normal queue
+
+        // Now search from the delayed nodes, these are call-sites and unknown-call-site method exits
         while (!delayed.isEmpty()) {
             InterProgramPointReplica source = delayed.poll();
             ProgramPoint pp = source.getInterPP().getPP();
             if (pp instanceof CallSiteProgramPoint) {
                 CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
-                ReachabilityResult res = handleCall(query, source, relevantNodes, visited);
+                ReachabilityResult res = handleCall(query, source, relevantNodes, methodEntryPP);
                 if (res == ReachabilityResult.FOUND) {
                     return ReachabilityResult.FOUND;
                 }
@@ -743,20 +746,19 @@ public class ProgramPointReachabilityNew {
                 if (res.containsNormalExit()) {
                     InterProgramPointReplica post = cspp.post().getReplica(currentContext);
                     // Search from the normal successor of the call-site pre program point
-                    res = performSearchForRelevantNode(post, query, relevantNodes, visited, isFromKnownCallSite);
+                    res = searchInRelevantNode(post, query, relevantNodes, visited, methodEntryPP);
                     reachableExits.join(res);
                 }
                 if (res.containsExceptionExit()) {
                     // Search from the exceptional successor of the call-site pre program point
                     InterProgramPointReplica post = cspp.getExceptionExit().post().getReplica(currentContext);
-                    res = performSearchForRelevantNode(post, query, relevantNodes, visited,
-
-                    isFromKnownCallSite);
+                    res = searchInRelevantNode(post, query, relevantNodes, visited, methodEntryPP);
                     reachableExits.join(res);
                 }
                 continue;
             }
             else if (pp.isExceptionExitSummaryNode() || pp.isNormalExitSummaryNode()) {
+                assert methodEntryPP == null;
                 boolean found = handleMethodExitToUnknownCallSite(query,
                                                                   currentCallGraphNode,
                                                                   relevantNodes,
@@ -767,18 +769,11 @@ public class ProgramPointReachabilityNew {
                 }
                 continue;
             }
-
-            ReachabilityResult res = performSearchForRelevantNode(source,
-                                                                  query,
-                                                                  relevantNodes,
-                                                                  visited,
-                                                                  isFromKnownCallSite);
-            if (res == ReachabilityResult.FOUND) {
-                return ReachabilityResult.FOUND;
-            }
+            assert false : "The only delayed program points should be call-sites or method exits. Was: " + source;
         }
         // we didn't find it
-        return ReachabilityResult.UNREACHABLE;
+        assert methodEntryPP != null || reachableExits == ReachabilityResult.UNREACHABLE : "Only known call-sites compute precise exits.";
+        return reachableExits;
     }
 
     /**
@@ -875,15 +870,13 @@ public class ProgramPointReachabilityNew {
                 }
 
                 // let's explore the caller now.
-                ReachabilityResult res = performSearchForRelevantNode(callerSiteReplica, query, relevantNodes, visited,
-
-                false);
+                ReachabilityResult res = searchInRelevantNode(callerSiteReplica, query, relevantNodes, visited, null);
                 if (res == ReachabilityResult.FOUND) {
                     // we found it!
                     return true;
                 }
                 // We may have found method exits, but those will also have an unknown call-site and will be
-                // handled by this method
+                // handled by this method (from "searchInRelevantNode")
             }
             else {
                 // not a relevant node, so no need to pursue it.
@@ -899,18 +892,12 @@ public class ProgramPointReachabilityNew {
      * @param query current query
      * @param ippr call site program point replica
      * @param relevantNodes relevant call graph nodes
-     * @param inSameMethod whether the source and destination are in the same method
-     * @param delayed queue for nodes for which processing has been delayed (paired with their call-sites)
-     * @param forbidden program points that act as "kill" nodes cutting off any path
-     * @param tasksToReprocess Queries that need to be reprocessed because something may have caused the results to
-     *            change
-     * @param q program point work queue
-     * @param currentContext context for the source program poinr
+     *
      * @return true if the destination program point was found
      */
     private ReachabilityResult handleCall(SubQuery query, InterProgramPointReplica ippr,
                                           Set<OrderedPair<IMethod, Context>> relevantNodes,
-                                          Set<InterProgramPointReplica> visited) {
+                                          InterProgramPointReplica callerEntry) {
         assert calleeQueryDependencies.get(ippr.getRegularProgramPointReplica()).contains(query) : "Missing dependency. Query: "
                 + query + " callSite: " + ippr;
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
@@ -924,23 +911,23 @@ public class ProgramPointReachabilityNew {
         for (OrderedPair<IMethod, Context> callee : calleeSet) {
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
+            ReachabilityResult res = ReachabilityResult.UNREACHABLE;
             if (relevantNodes.contains(callee)) {
                 // this is a relevant node, and we need to dig into it.
                 // check if we already have results for this callee
-                ReachabilityResult res = getCachedCalleeResults(calleeEntryIPPR);
-                if (res == null) {
-                    // search the callee
-                    res = performSearchForRelevantNode(calleeEntryIPPR, query, relevantNodes, visited, true);
-                    // Record the results for the callee
-                    recordCalleeResult(calleeEntryIPPR, res);
-                }
+                addCallerCalleeEntryPointDependency(query, calleeEntryIPPR, callerEntry);
+                res = getCalleeResults(calleeEntryIPPR, query, relevantNodes, callerEntry);
                 if (res == ReachabilityResult.FOUND) {
                     return ReachabilityResult.FOUND;
                 }
                 reachableExits.join(res);
             }
-            // If both exit types are not already accounted for then check this irrelevant node
-            else if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
+
+            // If both exit types are not already accounted for then get summary results for the method
+            if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
+                if (relevantNodes.contains(callee)) {
+                    addMethodEntryPointDependency(query, calleeEntryIPPR);
+                }
 
                 // the node was not relevant, use the summary results.
                 addMethodDependency(query, callee);
@@ -956,30 +943,157 @@ public class ProgramPointReachabilityNew {
 
                 if (normalRet.allows(query.noKill, query.noAlloc, g)) {
                     // we don't kill things we aren't meant to, not allocated things we aren't meant to!
-                    reachableExits.join(ReachabilityResult.NORMAL_EXIT);
+                    res.join(ReachabilityResult.NORMAL_EXIT);
                 }
                 if (exRet.allows(query.noKill, query.noAlloc, g)) {
                     // we don't kill things we aren't meant to, not allocated things we aren't meant to!
-                    reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
+                    res.join(ReachabilityResult.EXCEPTION_EXIT);
                 }
                 // otherwise, this means the callee kills a points-to graph node we are interseted in,
                 // or it allocates an instancekey we are interested in.
                 // Prune the search...
             }
-
+            recordCalleeResult(calleeEntryIPPR, query, res);
+            reachableExits.join(res);
         }
         return reachableExits;
     }
 
-
-    private void recordCalleeResult(InterProgramPointReplica calleeEntryIPPR, ReachabilityResult res) {
+    private void addCallerCalleeEntryPointDependency(SubQuery query, InterProgramPointReplica calleeEntryIPPR,
+                                                     InterProgramPointReplica callerEntry) {
         // TODO Auto-generated method stub
 
     }
 
-    private ReachabilityResult getCachedCalleeResults(InterProgramPointReplica calleeEntryIPPR) {
+    /**
+     * For each query a map from callee entry point to the entry points for callers whose results may change if that
+     * callee changes
+     */
+    private ConcurrentMap<SubQuery, ConcurrentMap<InterProgramPointReplica, Set<InterProgramPointReplica>>> calleeCallerDependencies = AnalysisUtil.createConcurrentHashMap();
+
+    /**
+     * Record that for the given query, if the results for the callee change then the results for the caller may change
+     * and must be recomputed
+     *
+     * @param query
+     * @param calleeEntryIPPR
+     * @param callerEntry
+     */
+    private void addCalleeCallerEntryPointDependency(SubQuery query,
+                                                     InterProgramPointReplica calleeEntryIPPR,
+                                                     InterProgramPointReplica callerEntry) {
+
+        ConcurrentMap<InterProgramPointReplica, Set<InterProgramPointReplica>> m = calleeCallerDependencies.get(query);
+        if (m == null) {
+            m = AnalysisUtil.createConcurrentHashMap();
+            ConcurrentMap<InterProgramPointReplica, Set<InterProgramPointReplica>> existing = calleeCallerDependencies.putIfAbsent(query, m);
+            if (existing != null) {
+                // Another thread beat us
+                m = existing;
+            }
+        }
+
+        Set<InterProgramPointReplica> s = m.get(calleeEntryIPPR);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<InterProgramPointReplica> existing = m.putIfAbsent(calleeEntryIPPR, s);
+            if (existing != null) {
+                // Another thread beat us
+                s = existing;
+            }
+        }
+
+        s.add(callerEntry);
+    }
+
+    /**
+     * Record that for the given query, if the method summary results a method then the results from the entry point
+     * need to be recomputed
+     *
+     * @param query
+     * @param calleeEntryIPPR
+     * @param callee
+     */
+    private void addMethodEntryPointDependency(SubQuery query, InterProgramPointReplica entryIPP) {
         // TODO Auto-generated method stub
-        return null;
+        XXX;
+    }
+
+    /**
+     * Record the reachability results for a given callee entry point
+     *
+     * @param calleeEntryIPPR entry summary program point replica
+     * @param query query being run
+     * @param relevantNodes nodes that cannot be summarized for this query
+     * @param res new results
+     */
+    private void recordCalleeResult(InterProgramPointReplica calleeEntryIPPR, SubQuery query, ReachabilityResult res) {
+        assert calleeEntryIPPR.getInterPP().getPP().isEntrySummaryNode();
+        ConcurrentMap<InterProgramPointReplica, ReachabilityResult> m = getCalleeCache(query);
+
+        ReachabilityResult existing = m.put(calleeEntryIPPR, res);
+        if (existing != null && existing != res) {
+            // results changed rerun the query with the updated cache
+
+            // XXX This seems really inefficient
+            requestRerunQuery(query);
+        }
+    }
+
+    /**
+     * Cache of results for callees, computed per query
+     */
+    private ConcurrentMap<SubQuery, ConcurrentMap<InterProgramPointReplica, ReachabilityResult>> calleeCache = AnalysisUtil.createConcurrentHashMap();
+
+    /**
+     * Get a map from entry program point to the exits reachable therefrom
+     *
+     * @param query query to get the cache for
+     * @return cache for the given query
+     */
+    private ConcurrentMap<InterProgramPointReplica, ReachabilityResult> getCalleeCache(SubQuery query) {
+        ConcurrentMap<InterProgramPointReplica, ReachabilityResult> m = calleeCache.get(query);
+        if (m == null) {
+            m = AnalysisUtil.createConcurrentHashMap();
+            ConcurrentMap<InterProgramPointReplica, ReachabilityResult> existing = calleeCache.putIfAbsent(query, m);
+            if (existing != null) {
+                m = existing;
+            }
+        }
+        return m;
+    }
+
+    /**
+     * Get the results indicating the exits reachable from the given callee entry point
+     *
+     * @param calleeEntryIPPR entry summary program point replica
+     * @param query query being run
+     * @param relevantNodes nodes that cannot be summarized for this query
+     *
+     * @return results describing the reachable exits from the callee entry point
+     */
+    private ReachabilityResult getCalleeResults(InterProgramPointReplica calleeEntryIPPR, SubQuery query,
+                                                Set<OrderedPair<IMethod, Context>> relevantNodes) {
+        assert calleeEntryIPPR.getInterPP().getPP().isEntrySummaryNode();
+        ConcurrentMap<InterProgramPointReplica, ReachabilityResult> m = getCalleeCache(query);
+
+        ReachabilityResult res = m.get(calleeEntryIPPR);
+        if (res != null) {
+            return res;
+        }
+
+        ReachabilityResult existing = m.putIfAbsent(calleeEntryIPPR, ReachabilityResult.UNREACHABLE);
+        if (existing != null) {
+            // Another thread beat us to it and is already computing the result
+            return existing;
+        }
+
+        // Search the callee
+        return searchInRelevantNode(calleeEntryIPPR,
+                                    query,
+                                    relevantNodes,
+                                    new LinkedHashSet<InterProgramPointReplica>(),
+                                    calleeEntryIPPR);
     }
 
     /**
