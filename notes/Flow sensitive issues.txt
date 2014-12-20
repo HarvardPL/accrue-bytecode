@@ -1,0 +1,30 @@
+Flow sensitive issues
+
+- Remove duplicates needs looking into
+
+- Reachability is used even after the ptg is finished (i.e. to get the points-to sets during the non-null analysis)
+
+- Need to make sure "TypeReference.isPrimitiveType" is being used correctly in the main branch RE: null is a primitive type (NonNullResults.isNonNull, NonNullDataFlow.call)
+
+- Add clinits for singleton allocation sites
+
+- Interval analysis
+
+- Cast removal analysis
+
+- Is computing relevant nodes multiple times more expensive than searching through irrelevant nodes for some sources?
+
+- Some of the dependencies seem to be per DestinationQuery, it may be worth storing them there
+
+
+TODO
+
+X 1. Outline
+X 2. ECOOP format
+3. Relevant nodes
+depth first search by edge
+- if the call edge is on the stack then a return edge prunes
+- use nodes for success (target or relevent)
+for correctness try all paths
+
+Fix data-flow framework to correctly analyze the static initializers before the main method (before fakeroot?)

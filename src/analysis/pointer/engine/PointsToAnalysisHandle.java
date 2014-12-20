@@ -2,10 +2,10 @@ package analysis.pointer.engine;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
-import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ProgramPointReachability.SubQuery;
+import analysis.pointer.graph.ProgramPointSubQuery;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 
 /**
  * This interface provides a mechanism to submit StmtAndContexts to the PointsToAnalysis.
@@ -20,13 +20,13 @@ public interface PointsToAnalysisHandle {
 
     /**
      * request that the PointsToAnalysis process the StmtAndContext with the given GraphDelta
-     * 
+     *
      */
     void submitStmtAndContext(StmtAndContext sac, GraphDelta delta);
 
     /**
      * Request the the PointsToAnalysis process the AddNonMostRecentOrigin.
-     * 
+     *
      * @param task
      */
     void submitAddNonMostRecentTask(AddNonMostRecentOrigin task);
@@ -45,7 +45,7 @@ public interface PointsToAnalysisHandle {
      *
      * @param task
      */
-    void submitReachabilityQuery(SubQuery mr);
+    void submitReachabilityQuery(ProgramPointSubQuery mr);
 
     /**
      * Get the points to graph.
@@ -60,5 +60,4 @@ public interface PointsToAnalysisHandle {
      * @param delta
      */
     void handleChanges(GraphDelta delta);
-
 }

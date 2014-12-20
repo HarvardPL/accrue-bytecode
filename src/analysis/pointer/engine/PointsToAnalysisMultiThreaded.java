@@ -17,11 +17,11 @@ import util.print.CFGWriter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
-import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ProgramPointReachability.SubQuery;
+import analysis.pointer.graph.ProgramPointSubQuery;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -531,7 +531,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public void submitReachabilityQuery(SubQuery sq) {
+        public void submitReachabilityQuery(ProgramPointSubQuery sq) {
             g.ppReach.processSubQuery(sq);
         }
 
