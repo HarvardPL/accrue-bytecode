@@ -247,7 +247,6 @@ public class StatementRegistrar {
 
         if (this.registeredMethods.add(m)) {
             // we need to register the method.
-
             IR ir = AnalysisUtil.getIR(m);
             if (ir == null) {
                 // Native method with no signature
@@ -262,10 +261,7 @@ public class StatementRegistrar {
             MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
 
             // Add edges from formal summary nodes to the local variables representing the method parameters
-            ProgramPoint lastFormalPP = this.registerFormalAssignments(ir,
-                                                                       this.rvFactory,
-                                                                       types,
-                                                                       pprint);
+            ProgramPoint lastFormalPP = this.registerFormalAssignments(ir, this.rvFactory, types, pprint);
 
             Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
             Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
@@ -409,10 +405,9 @@ public class StatementRegistrar {
      * @param insToPPSubGraph map from instruction to program point subgraph for that instruction
      * @param bbToEntryPP map from basic block to entry program point
      */
-    private void addPPEdgesForBasicBlock(ISSABasicBlock bb, MethodSummaryNodes methSumm,
-                                                SSACFG controlFlowGraph,
-                                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
-                                                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP) {
+    private void addPPEdgesForBasicBlock(ISSABasicBlock bb, MethodSummaryNodes methSumm, SSACFG controlFlowGraph,
+                                         Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
+                                         Map<ISSABasicBlock, ProgramPoint> bbToEntryPP) {
 
         ProgramPoint thisBBEntryPP = bbToEntryPP.get(bb);
         if (controlFlowGraph.getMethod().equals(entryMethod) && bb.isEntryBlock()) {
@@ -552,8 +547,8 @@ public class StatementRegistrar {
      * @param bb empty basic block
      */
     private static void addPPEdgesForEmptyBlock(SSACFG cfg, MethodSummaryNodes methSumm,
-                                         Map<ISSABasicBlock, ProgramPoint> bbToEntryPP, ProgramPoint thisBBEntryPP,
-                                         ISSABasicBlock bb) {
+                                                Map<ISSABasicBlock, ProgramPoint> bbToEntryPP,
+                                                ProgramPoint thisBBEntryPP, ISSABasicBlock bb) {
         assert !bb.iterator().hasNext();
         Collection<ISSABasicBlock> normalSuccs = cfg.getNormalSuccessors(bb);
         if (normalSuccs.isEmpty()) {
@@ -1244,8 +1239,7 @@ public class StatementRegistrar {
             int arg = i.getUse(j);
             TypeReference argType = types.getType(arg);
             assert !argType.isPrimitiveType() || argType.equals(TypeReference.Null) : "arg type: "
-                    + PrettyPrinter.typeString(argType) + " for phi type: "
-                    + PrettyPrinter.typeString(phiType);
+                    + PrettyPrinter.typeString(argType) + " for phi type: " + PrettyPrinter.typeString(phiType);
 
             ReferenceVariable x_i = rvFactory.getOrCreateLocal(arg, phiType, ir.getMethod(), pprint);
             uses.add(x_i);
@@ -1292,8 +1286,8 @@ public class StatementRegistrar {
     /**
      * throw v
      */
-    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir,
-                               ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
+    private void registerThrow(SSAThrowInstruction i, ISSABasicBlock bb, IR ir, ReferenceVariableFactory rvFactory,
+                               TypeRepository types, PrettyPrinter pprint,
                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
         TypeReference throwType = types.getType(i.getException());
         PPSubGraph subgraph = insToPPSubGraph.get(i);
@@ -1628,7 +1622,7 @@ public class StatementRegistrar {
 
             // We pretend that the allocation for this object occurs in the entry point of the entire program
             ProgramPoint pp = new ProgramPoint(getEntryPoint(), "EntryMethod-pp-" + klass);
-            addEntryMethodProgramPoint(pp);
+            addEntryMethodProgramPoint(pp, true);
             NewStatement stmt = stmtFactory.newForGeneratedObject(rv, klass, pp, PrettyPrinter.typeString(varType));
 
             this.addStatement(stmt);
@@ -1642,7 +1636,21 @@ public class StatementRegistrar {
      *
      * @param pp program point to add
      */
-    private void addEntryMethodProgramPoint(ProgramPoint pp) {
+    private void addEntryMethodProgramPoint(ProgramPoint pp, boolean putDirectlyAfterEntry) {
+        if (putDirectlyAfterEntry) {
+            // This pp needs to go right after the entry pp so put it there
+            ProgramPoint entryPP = getMethodSummary(this.entryMethod).getEntryPP();
+            pp.addSuccs(entryPP.succs());
+            entryPP.clearSuccs();
+            entryPP.addSucc(pp);
+            if (lastEntryMethodPP == null) {
+                // If this is the first entry-method pp added then record it, otherwise the last pp in the sequence after the
+                // entry-method entry PP doesn't change since this was added at the head of that list
+                lastEntryMethodPP = pp;
+            }
+            return;
+        }
+
         if (lastEntryMethodPP == null) {
             // This is the first entry method PP being added, add it after the method summary-entry PP
             lastEntryMethodPP = getMethodSummary(this.entryMethod).getEntryPP();
@@ -1798,27 +1806,8 @@ public class StatementRegistrar {
         }
 
         // Add the program points to the root method in the correct order
-
-
-        if (lastEntryMethodPP == null) {
-            // put the class inits right after the entry pp for the entry point
-            lastEntryMethodPP = getMethodSummary(getEntryPoint()).getEntryPP();
-        }
-        Set<ProgramPoint> succs = lastEntryMethodPP.succs();
-
-        // Add edge from the last class init PP seen to the first new one
-        lastEntryMethodPP.clearSuccs();
-        lastEntryMethodPP.addSucc(pps.getFirst());
-
-        // Add edges from the last new program point to the successors
-        lastEntryMethodPP = pps.getLast();
-        lastEntryMethodPP.addSuccs(succs);
-
-        if (pps.size() >= 2) {
-            for (int i = 0; i < pps.size() - 1; i++) {
-                // Add edges between the new program points
-                pps.get(i).addSucc(pps.get(i + 1));
-            }
+        for (ProgramPoint pp : pps) {
+            addEntryMethodProgramPoint(pp, false);
         }
     }
 
@@ -1917,8 +1906,8 @@ public class StatementRegistrar {
      *
      * @return the program point for the last assignment
      */
-    private ProgramPoint registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory,
-                                           TypeRepository types, PrettyPrinter pprint) {
+    private ProgramPoint registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory, TypeRepository types,
+                                                   PrettyPrinter pprint) {
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
         ProgramPoint current = methodSummary.getEntryPP();
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
