@@ -1467,6 +1467,7 @@ public class PointsToGraph {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 IClass type = PointsToGraph.this.concreteType(i);
+                assert type != null : "Null type in instance key: " + lookupInstanceKeyDictionary(i);
                 if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
