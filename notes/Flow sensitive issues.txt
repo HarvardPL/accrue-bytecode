@@ -16,6 +16,8 @@ Flow sensitive issues
 
 - Some of the dependencies seem to be per DestinationQuery, it may be worth storing them there
 
+- What do we do about primitive fields? It seems like these might need their own program points even though they don't affect the points-to analysis
+
 
 TODO
 
