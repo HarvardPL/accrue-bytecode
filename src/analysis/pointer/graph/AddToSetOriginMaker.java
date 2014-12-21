@@ -2,6 +2,7 @@ package analysis.pointer.graph;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToTask;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
 /**
@@ -31,7 +32,7 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
         return new AddToSetOrigin(n, this.src == null ? src : this.src, trg, ippr);
     }
 
-    public static class AddToSetOrigin implements ReachabilityQueryOrigin {
+    public static class AddToSetOrigin implements ReachabilityQueryOrigin, PointsToTask {
         private final/*PointsToGraphNode*/int n;
 
         private final/*PointsToGraphNode*/int src;
@@ -55,6 +56,7 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
             analysisHandle.submitAddToSetTask(this);
         }
 
+        @Override
         public void process(PointsToAnalysisHandle analysisHandle) {
             PointsToGraph g = analysisHandle.pointsToGraph();
             if (g.pointsTo(src, trg, ippr, this)) {

@@ -2,11 +2,12 @@ package analysis.pointer.graph;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToTask;
 
 /**
  * If it becomes the case that isAllocInScope(rvr, i), then we need to add nonMostRecentVersion(i) to n.
  */
-public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin {
+public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsToTask {
     private final/*PointsToGraphNode*/int n;
     private final ReferenceVariableReplica rvr;
     private final/*InstanceKeyRecency*/int i;
@@ -28,6 +29,7 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin {
         analysisHandle.submitAddNonMostRecentTask(this);
     }
 
+    @Override
     public void process(PointsToAnalysisHandle analysisHandle) {
         PointsToGraph g = analysisHandle.pointsToGraph();
 

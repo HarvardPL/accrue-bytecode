@@ -4,10 +4,11 @@ import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntHashMap;
@@ -17,11 +18,11 @@ import util.print.CFGWriter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -32,6 +33,8 @@ import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
+
+    private static final boolean DELAY_OTHER_TASKS = true;
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
@@ -258,12 +261,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     class ExecutorServiceCounter {
         public PointsToGraph g;
         public StatementRegistrar registrar;
-        private ExecutorService exec;
+        private ForkJoinPool exec;
 
         /**
          * The number of tasks currently to be executed
          */
-        private AtomicLong numTasks;
+        private AtomicLong numCurrentTasks;
 
         /*
          * The following fields are for statistics purposes
@@ -271,11 +274,22 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private AtomicLong totalTasksNoDelta;
         private AtomicLong totalTasksWithDelta;
 
-        public ExecutorServiceCounter(ExecutorService exec) {
+        /*
+         * Additional queues for other tasks that should have lower priority
+         * than StmtAndContexts.
+         */
+        private AtomicReference<Set<AddNonMostRecentOrigin>> pendingAddNonMostRecentOrigin;
+        private AtomicReference<Set<AddToSetOrigin>> pendingAddToSetOrigin;
+        private AtomicReference<Set<ProgramPointSubQuery>> pendingSubQuery;
+
+        public ExecutorServiceCounter(ForkJoinPool exec) {
             this.exec = exec;
-            this.numTasks = new AtomicLong(0);
+            this.numCurrentTasks = new AtomicLong(0);
             this.totalTasksNoDelta = new AtomicLong(0);
             this.totalTasksWithDelta = new AtomicLong(0);
+            this.pendingAddNonMostRecentOrigin = new AtomicReference(PointsToAnalysisMultiThreaded.makeConcurrentSet());
+            this.pendingAddToSetOrigin = new AtomicReference(PointsToAnalysisMultiThreaded.makeConcurrentSet());
+            this.pendingSubQuery = new AtomicReference(PointsToAnalysisMultiThreaded.makeConcurrentSet());
         }
 
 
@@ -304,19 +318,61 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             submitTask(sac, null);
         }
 
+
         public void submitTask(StmtAndContext sac, GraphDelta delta) {
-            this.numTasks.incrementAndGet();
+            this.numCurrentTasks.incrementAndGet();
             if (delta == null) {
                 this.totalTasksNoDelta.incrementAndGet();
             }
             else {
                 this.totalTasksWithDelta.incrementAndGet();
             }
-            exec.execute(new RunnableStmtAndContext(sac, delta));
+            exec.execute(new RunnablePointsToTask(new StmtAndContextTask(sac, delta)));
+        }
+
+        public void submitTask(ProgramPointSubQuery sq) {
+            this.pendingSubQuery.get().add(sq);
+        }
+
+        public void submitTask(AddNonMostRecentOrigin task) {
+            this.pendingAddNonMostRecentOrigin.get().add(task);
+        }
+
+
+        public void submitTask(AddToSetOrigin task) {
+            this.pendingAddToSetOrigin.get().add(task);
         }
 
         public void finishedTask() {
-            if (this.numTasks.decrementAndGet() == 0) {
+            int numCurrentTasks = (int) this.numCurrentTasks.decrementAndGet();
+            int numberAdded = 0;
+            int parallelism = exec.getParallelism();
+            if (numCurrentTasks + numberAdded < parallelism) {
+                // try adding some more tasks
+                Set<ProgramPointSubQuery> s = pendingSubQuery.getAndSet(PointsToAnalysisMultiThreaded.<ProgramPointSubQuery> makeConcurrentSet());
+                for (ProgramPointSubQuery sq : s) {
+                    exec.execute(new RunnablePointsToTask(new SubQueryTask(sq)));
+                    numberAdded++;
+                }
+            }
+            if (numCurrentTasks + numberAdded < parallelism) {
+                // try adding some more tasks
+                Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddNonMostRecentOrigin> makeConcurrentSet());
+                for (AddNonMostRecentOrigin t : s) {
+                    exec.execute(new RunnablePointsToTask(t));
+                    numberAdded++;
+                }
+            }
+            if (numCurrentTasks + numberAdded < parallelism) {
+                // try adding some more tasks
+                Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddToSetOrigin> makeConcurrentSet());
+                for (AddToSetOrigin t : s) {
+                    exec.execute(new RunnablePointsToTask(t));
+                    numberAdded++;
+                }
+            }
+            if (numCurrentTasks == 0 && numberAdded == 0) {
+                // we have finished!
                 // Notify anyone that was waiting.
                 synchronized (this) {
                     this.notifyAll();
@@ -325,11 +381,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public boolean containsPending() {
-            return numTasks.get() > 0;
+            return numCurrentTasks.get() > 0;
         }
 
         public long numRemainingTasks() {
-            return numTasks.get();
+            return numCurrentTasks.get();
         }
 
         public void waitUntilAllFinished() {
@@ -346,19 +402,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
-        public class RunnableStmtAndContext implements Runnable {
-            private final StmtAndContext sac;
-            private final GraphDelta delta;
+        public class RunnablePointsToTask implements Runnable {
+            final PointsToTask t;
 
-            public RunnableStmtAndContext(StmtAndContext stmtAndContext, GraphDelta delta) {
-                this.sac = stmtAndContext;
-                this.delta = delta;
+            RunnablePointsToTask(PointsToTask t) {
+                this.t = t;
             }
-
             @Override
             public void run() {
                 try {
-                    processSaC(sac, delta, ExecutorServiceCounter.this);
+                    t.process(PointsToAnalysisMultiThreaded.this.analysisHandle);
                     ExecutorServiceCounter.this.finishedTask();
                 }
                 catch (ConcurrentModificationException e) {
@@ -376,6 +429,37 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     Runtime.getRuntime().halt(0);
                 }
             }
+
+        }
+
+        public class StmtAndContextTask implements PointsToTask {
+            private final StmtAndContext sac;
+            private final GraphDelta delta;
+
+            public StmtAndContextTask(StmtAndContext stmtAndContext, GraphDelta delta) {
+                this.sac = stmtAndContext;
+                this.delta = delta;
+            }
+
+            @Override
+            public void process(PointsToAnalysisHandle analysisHandle) {
+                processSaC(sac, delta, ExecutorServiceCounter.this);
+            }
+
+        }
+
+        public class SubQueryTask implements PointsToTask {
+            private final ProgramPointSubQuery sq;
+
+            public SubQueryTask(ProgramPointSubQuery sq) {
+                this.sq = sq;
+            }
+
+            @Override
+            public void process(PointsToAnalysisHandle analysisHandle) {
+                analysisHandle.pointsToGraph().ppReach.processSubQuery(sq);
+            }
+
         }
     }
 
@@ -491,6 +575,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
+    public static <T> Set<T> makeConcurrentSet() {
+        return Collections.newSetFromMap(new ConcurrentHashMap<T, Boolean>());
+    }
+
     /**
      * Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.
      *
@@ -510,6 +598,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         void setPointsToGraph(PointsToGraph g) {
             this.g = g;
         }
+
         @Override
         public void submitStmtAndContext(StmtAndContext sac) {
             execService.submitTask(sac);
@@ -522,17 +611,32 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         @Override
         public void submitAddNonMostRecentTask(AddNonMostRecentOrigin task) {
-            task.process(this);
+            if (DELAY_OTHER_TASKS) {
+                execService.submitTask(task);
+            }
+            else {
+                task.process(analysisHandle);
+            }
         }
 
         @Override
         public void submitAddToSetTask(AddToSetOrigin task) {
-            task.process(this);
+            if (DELAY_OTHER_TASKS) {
+                execService.submitTask(task);
+            }
+            else {
+                task.process(analysisHandle);
+            }
         }
 
         @Override
         public void submitReachabilityQuery(ProgramPointSubQuery sq) {
-            g.ppReach.processSubQuery(sq);
+            if (DELAY_OTHER_TASKS) {
+                execService.submitTask(sq);
+            }
+            else {
+                g.ppReach.processSubQuery(sq);
+            }
         }
 
         @Override
