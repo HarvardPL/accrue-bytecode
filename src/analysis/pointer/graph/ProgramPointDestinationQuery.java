@@ -8,6 +8,7 @@ import java.util.Set;
 
 import util.OrderedPair;
 import util.WorkQueue;
+import util.print.PrettyPrinter;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.ProgramPointReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -28,9 +29,9 @@ import com.ibm.wala.util.intset.IntSet;
 /**
  * Class which manages several queries with the same destination, no kill set, no alloc set, and set of forbidden nodes
  */
-class ProgramPointDestinationQuery {
+public class ProgramPointDestinationQuery {
 
-    private static boolean DEBUG = false;
+    public static boolean DEBUG = false;
 
     /////////////////////
     //
@@ -212,13 +213,13 @@ class ProgramPointDestinationQuery {
             WorkItem wi = searchQ.poll();
             if (search(wi)) {
                 if (DEBUG) {
-                    System.err.println("\tFound destination for subquery " + this.currentSubQuery);
+                    System.err.println("FOUND DESTINATION for subquery " + this.currentSubQuery);
                 }
                 return true;
             }
         }
         if (DEBUG) {
-            System.err.println("\tDid not find destination for subquery " + this.currentSubQuery);
+            System.err.println("DID NOT FIND DESTINATION for subquery " + this.currentSubQuery);
         }
         return false;
     }
@@ -233,7 +234,10 @@ class ProgramPointDestinationQuery {
      */
     private boolean search(WorkItem wi) {
         if (DEBUG) {
-            System.err.println("\tSearching from " + wi);
+            System.err.println("\tSearching from " + wi + " in "
+                    + PrettyPrinter.methodString(wi.src.getContainingProcedure()) + " in " + wi.src.getContext());
+            System.err.println("\t\tto " + dest + " in " + PrettyPrinter.methodString(dest.getContainingProcedure())
+                    + " in " + dest.getContext());
         }
         InterProgramPointReplica src = wi.src;
         IMethod currentMethod = src.getContainingProcedure();
@@ -249,6 +253,7 @@ class ProgramPointDestinationQuery {
         WorkQueue<InterProgramPointReplica> delayedQ = new WorkQueue<>();
 
         Set<InterProgramPointReplica> visited = new HashSet<>();
+        Set<InterProgramPointReplica> alreadyDelayed = new HashSet<>();
 
         // Record the exits that are reachable within the method containing the source
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
@@ -257,10 +262,14 @@ class ProgramPointDestinationQuery {
         q.add(src);
         while (!q.isEmpty() || !delayedQ.isEmpty()) {
             onDelayed |= q.isEmpty();
+            if (DEBUG) {
+                System.err.print("\t\tFROM QUEUE isDelayed? " + q.isEmpty() + " anyDelayed? " + !delayedQ.isEmpty());
+            }
+
             // pull from the regular queue first
             InterProgramPointReplica ippr = q.isEmpty() ? delayedQ.poll() : q.poll();
             if (DEBUG) {
-                System.err.println("\t\tFROM QUEUE: " + ippr);
+                System.err.println(" " + ippr);
             }
             assert (ippr.getContainingProcedure().equals(currentMethod)) : "All nodes for a single search should be ";
             if (ippr.equals(this.dest)) {
@@ -279,6 +288,9 @@ class ProgramPointDestinationQuery {
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
 
+                    if (DEBUG) {
+                        System.err.println("\t\t\tCALL SITE: " + ippr);
+                    }
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
 
                     // Special handling for static class initializers
@@ -321,7 +333,10 @@ class ProgramPointDestinationQuery {
 
                     // This is a program point for a method call
                     if (inSameMethod && !onDelayed) {
-                        if (visited.add(ippr)) {
+                        if (DEBUG) {
+                            System.err.println("\t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
+                        }
+                        if (alreadyDelayed.add(ippr)) {
                             delayedQ.add(ippr);
                         }
                         continue;
@@ -347,24 +362,29 @@ class ProgramPointDestinationQuery {
                     continue;
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
-
+                    if (DEBUG) {
+                        System.err.println("\t\t\tEXIT: " + pp + " isFromCallSite? " + wi.isFromCallSite);
+                    }
                     if (wi.isFromCallSite) {
                         // This is from a known call-site, the return to the caller is handled at the call-site in "handleCall"
 
                         // Record the exit
                         if (pp.isNormalExitSummaryNode()) {
-                            reachableExits.join(ReachabilityResult.NORMAL_EXIT);
+                            reachableExits = reachableExits.join(ReachabilityResult.NORMAL_EXIT);
                         }
 
                         if (pp.isExceptionExitSummaryNode()) {
-                            reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
+                            reachableExits = reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
                         }
                         continue;
                     }
 
                     if (inSameMethod && !onDelayed) {
                         assert !wi.isFromCallSite;
-                        if (visited.add(ippr)) {
+                        if (DEBUG) {
+                            System.err.println("\t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
+                        }
+                        if (alreadyDelayed.add(ippr)) {
                             delayedQ.add(ippr);
                         }
                         continue;
@@ -384,15 +404,25 @@ class ProgramPointDestinationQuery {
                 // not a call or a return, it's just a normal statement.
                 // does ipp kill this.node?
                 if (stmt != null && handlePossibleKill(stmt, currentContext)) {
+                    if (DEBUG) {
+                        System.err.println("\t\t\tKILLED by: " + stmt);
+                    }
                     continue;
                 }
+
                 // Path was not killed add the post PP for the pre PP
                 InterProgramPointReplica post = pp.post().getReplica(currentContext);
+                if (DEBUG) {
+                    System.err.println("\t\t\tNOT KILLED adding post " + post);
+                }
                 if (visited.add(post)) {
                     q.add(post);
                 }
             } // end of "pre" program point handling
             else if (ipp instanceof PostProgramPoint) {
+                if (DEBUG) {
+                    System.err.println("\t\t\tPOST: " + ipp);
+                }
                 Set<ProgramPoint> ppSuccs = pp.succs();
                 for (ProgramPoint succ : ppSuccs) {
                     InterProgramPointReplica succIPPR = succ.pre().getReplica(currentContext);
@@ -408,6 +438,9 @@ class ProgramPointDestinationQuery {
 
         // we didn't find it
         // RECORD CALL RESULTS
+        if (DEBUG) {
+            System.err.println("\t FINISHED from " + wi + " " + reachableExits);
+        }
         recordResults(wi, reachableExits);
         return false;
 
@@ -422,12 +455,19 @@ class ProgramPointDestinationQuery {
      * @return the results of searching through all the possible callees
      */
     private ReachabilityResult handleCall(InterProgramPointReplica ippr, WorkItem trigger) {
+        if (DEBUG) {
+            System.err.println("\t\t\tHANDLING CALL " + ippr);
+        }
+
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
 
         // This is a method call! Register the dependency.
         ppr.addCalleeDependency(this.currentSubQuery, pp.getReplica(ippr.getContext()));
 
         Set<OrderedPair<IMethod, Context>> calleeSet = g.getCalleesOf(pp.getReplica(ippr.getContext()));
+        if (DEBUG && calleeSet.isEmpty()) {
+            System.err.println("\t\t\tNO CALLEES for " + pp);
+        }
 
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
@@ -441,7 +481,7 @@ class ProgramPointDestinationQuery {
                 if (res == ReachabilityResult.FOUND) {
                     return ReachabilityResult.FOUND;
                 }
-                reachableExits.join(res);
+                reachableExits = reachableExits.join(res);
             }
 
             // If both exit types are not already accounted for then get summary results for the irrelevent callee
@@ -456,19 +496,26 @@ class ProgramPointDestinationQuery {
                                                                  calleeSummary.getExceptionExitPP()
                                                                               .pre()
                                                                               .getReplica(callee.snd()));
-
+                if (DEBUG) {
+                    System.err.println("\t\t\t\tUSING SUMMARY for Normal: "
+                            + normalRet.allows(this.noKill, this.noAlloc, this.g) + " Ex: "
+                            + exRet.allows(this.noKill, this.noAlloc, this.g));
+                }
                 if (normalRet.allows(this.noKill, this.noAlloc, this.g)) {
                     // we don't kill things we aren't meant to, not allocated things we aren't meant to
                     //    on a path to the normal exit of the callee
-                    reachableExits.join(ReachabilityResult.NORMAL_EXIT);
+                    reachableExits = reachableExits.join(ReachabilityResult.NORMAL_EXIT);
                 }
 
                 if (exRet.allows(this.noKill, this.noAlloc, this.g)) {
                     // we don't kill things we aren't meant to, not allocated things we aren't meant to
                     //    on a path to the exceptional exit of the callee
-                    reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
+                    reachableExits = reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
                 }
             }
+        }
+        if (DEBUG) {
+            System.err.println("\t\t\t\tfinished " + ippr + " " + reachableExits);
         }
         return reachableExits;
     }
@@ -533,6 +580,9 @@ class ProgramPointDestinationQuery {
      */
     private boolean handleMethodExitToUnknownCallSite(OrderedPair<IMethod, Context> currentCallGraphNode,
                                                       boolean isExceptionExit, WorkItem src) {
+        if (DEBUG) {
+            System.err.println("\t\t\tHANDLING UNKNOWN EXIT " + currentCallGraphNode + " EX? " + isExceptionExit);
+        }
         // Register a dependency i.e., the query may need to be rerun if a new caller is added
         ppr.addCallerDependency(this.currentSubQuery, currentCallGraphNode);
 
