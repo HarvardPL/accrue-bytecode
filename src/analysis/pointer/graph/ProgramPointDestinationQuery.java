@@ -30,7 +30,13 @@ import com.ibm.wala.util.intset.IntSet;
  */
 class ProgramPointDestinationQuery {
 
-    // Global fields
+    private static boolean DEBUG = false;
+
+    /////////////////////
+    //
+    //  Fields maintained across subqueries
+    //
+    ////////////////////
     /**
      * program point to find
      */
@@ -56,7 +62,11 @@ class ProgramPointDestinationQuery {
      */
     private final ProgramPointReachability ppr;
 
-    // these are not global and are reset for each subquery
+    /////////////////////
+    //
+    //  These fields are reset for each subquery
+    //
+    ////////////////////
     /**
      * Set of call graph nodes that are relevent to the current subquery
      */
@@ -109,16 +119,66 @@ class ProgramPointDestinationQuery {
      * Work items stored in the global queue and used to search within a single method
      */
     private static class WorkItem {
+        /**
+         * Node to search from
+         */
         final InterProgramPointReplica src;
-        // If true then the source is the entry program point for a method that came from a known call-site,
-        //      from which the search will continue when an exit program point is found
-        // If false then when the search finds an exit program point it must continue from all possible call-sites
+        /**
+         * If true then the source is the entry program point for a method that came from a known call-site, from which
+         * the search will continue when an exit program point is found
+         * <p>
+         * If false then when the search finds an exit program point it must continue from all possible call-sites
+         */
         final boolean isFromCallSite;
 
+        /**
+         * Work queue item containing the source node of a search and whether the search was triggered from a known call
+         * site
+         *
+         * @param src node to begin the search from
+         * @param isFromCallSite whether the source is from a known call site (if so the source must be a method entry
+         *            program point)
+         */
         public WorkItem(InterProgramPointReplica src, boolean isFromCallSite) {
+            assert src != null;
             assert !isFromCallSite || src.getInterPP().getPP().isEntrySummaryNode();
             this.src = src;
             this.isFromCallSite = isFromCallSite;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + (this.isFromCallSite ? 1231 : 1237);
+            result = prime * result + this.src.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            WorkItem other = (WorkItem) obj;
+            if (this.isFromCallSite != other.isFromCallSite) {
+                return false;
+            }
+            if (!this.src.equals(other.src)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + src + ", " + isFromCallSite + ")";
         }
     }
 
@@ -131,6 +191,15 @@ class ProgramPointDestinationQuery {
      */
     public boolean executeSubQuery(InterProgramPointReplica src, Set<OrderedPair<IMethod, Context>> relevantNodes) {
         this.currentSubQuery = new ProgramPointSubQuery(src, this.dest, this.noKill, this.noAlloc, this.forbidden);
+
+        if (DEBUG) {
+            System.err.println("Executing subquery " + this.currentSubQuery);
+            System.err.println("Relevant call graph nodes: ");
+            for (OrderedPair<IMethod, Context> n : relevantNodes) {
+                System.err.println("\t" + n);
+            }
+        }
+
         this.relevantNodes = relevantNodes;
 
         // Reinitialize the per-query data structures
@@ -142,8 +211,14 @@ class ProgramPointDestinationQuery {
         while (!searchQ.isEmpty()) {
             WorkItem wi = searchQ.poll();
             if (search(wi)) {
+                if (DEBUG) {
+                    System.err.println("\tFound destination for subquery " + this.currentSubQuery);
+                }
                 return true;
             }
+        }
+        if (DEBUG) {
+            System.err.println("\tDid not find destination for subquery " + this.currentSubQuery);
         }
         return false;
     }
@@ -157,6 +232,9 @@ class ProgramPointDestinationQuery {
      * @return true if the destination was found
      */
     private boolean search(WorkItem wi) {
+        if (DEBUG) {
+            System.err.println("\tSearching from " + wi);
+        }
         InterProgramPointReplica src = wi.src;
         IMethod currentMethod = src.getContainingProcedure();
         Context currentContext = src.getContext();
@@ -181,6 +259,9 @@ class ProgramPointDestinationQuery {
             onDelayed |= q.isEmpty();
             // pull from the regular queue first
             InterProgramPointReplica ippr = q.isEmpty() ? delayedQ.poll() : q.poll();
+            if (DEBUG) {
+                System.err.println("\t\tFROM QUEUE: " + ippr);
+            }
             assert (ippr.getContainingProcedure().equals(currentMethod)) : "All nodes for a single search should be ";
             if (ippr.equals(this.dest)) {
                 // Found it!
@@ -501,8 +582,14 @@ class ProgramPointDestinationQuery {
      */
     private ReachabilityResult getResults(InterProgramPointReplica newSrc, boolean isKnownCallSite, WorkItem trigger) {
         WorkItem newWI = new WorkItem(newSrc, isKnownCallSite);
+        if (DEBUG) {
+            System.err.println("\t\tRequesting results for: " + newWI + " from " + trigger);
+        }
         ReachabilityResult res = resultCache.get(newWI);
         if (res != null) {
+            if (DEBUG) {
+                System.err.println("\t\t\tFOUND RESULTS: " + res);
+            }
             return res;
         }
 
@@ -512,6 +599,9 @@ class ProgramPointDestinationQuery {
         if (currentlyProcessing.contains(newWI)) {
             // add this work item to the queue for reprocessing and return the default value
             searchQ.add(newWI);
+            if (DEBUG) {
+                System.err.println("\t\t\tAlready Processing: " + ReachabilityResult.UNREACHABLE);
+            }
             return ReachabilityResult.UNREACHABLE;
         }
 
@@ -523,6 +613,9 @@ class ProgramPointDestinationQuery {
 
         // make sure to reprocess the trigger if the results for the requested search change
         addDependency(trigger, newWI);
+        if (DEBUG) {
+            System.err.println("\t\t\tNew results for: " + newWI + " " + resultCache.get(newWI));
+        }
 
         return resultCache.get(newWI);
     }
@@ -550,11 +643,19 @@ class ProgramPointDestinationQuery {
      */
     private void recordResults(WorkItem wi, ReachabilityResult res) {
         ReachabilityResult previous = resultCache.put(wi, res);
-        assert previous != null : "null results for " + wi;
-        if (previous != res && workItemDependencies.containsKey(wi)) {
+        if (previous != null && previous != res && workItemDependencies.containsKey(wi)) {
+            if (DEBUG) {
+                System.err.println("\t\tResults changed for: " + wi + " from " + previous + " to" + res);
+            }
             // result changed, add any dependencies back onto the queue
             Set<WorkItem> deps = workItemDependencies.get(wi);
+            if (DEBUG) {
+                System.err.println("\t\tadding dependencies back into queue");
+            }
             for (WorkItem dep : deps) {
+                if (DEBUG) {
+                    System.err.println("\t\t\tdep");
+                }
                 searchQ.add(dep);
             }
         }
