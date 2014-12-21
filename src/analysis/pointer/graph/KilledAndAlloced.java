@@ -15,29 +15,38 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
 /**
  * A KilledAndAlloced object is simply the pair of two sets, one set which records which PointsToGraphNodes have been
  * killed, and the other set records which InstanceKeys have been allocated.
- * 
+ *
  * KilledAndAlloced objects are used as program analysis facts. That is, when analyzing a method, we may record for each
  * program point pp in the method, which PointsToGraphNodes must have been killed on all path from the method entry to
  * pp, and which InstanceKeyRecency must have been newly allocated on all paths from the method entry to pp.
  */
 public class KilledAndAlloced {
-    /**
-     * We use a distinguished constant for unreachable program points. The null value for the killed and alloced sets
-     * represents the "universe" sets, e.g., if killed == null, then it means that all fields are killed on all paths to
-     * the program point.
-     */
-    static final KilledAndAlloced UNREACHABLE = new KilledAndAlloced(null, null, null);
+    //    /**
+    //     * We use a distinguished constant for unreachable program points. The null value for the killed and alloced sets
+    //     * represents the "universe" sets, e.g., if killed == null, then it means that all fields are killed on all paths to
+    //     * the program point.
+    //     */
+    //    static final KilledAndAlloced UNREACHABLE = new KilledAndAlloced(null, null, null);
 
     private/*Set<PointsToGraphNode>*/MutableIntSet killed;
     private/*Set<InstanceKeyRecency>*/MutableIntSet alloced;
     private Set<FieldReference> maybeKilledFields;
 
-    KilledAndAlloced(MutableIntSet killed, Set<FieldReference> maybeKilledFields, MutableIntSet alloced) {
+    private KilledAndAlloced(MutableIntSet killed, Set<FieldReference> maybeKilledFields, MutableIntSet alloced) {
         this.killed = killed;
         this.maybeKilledFields = maybeKilledFields;
         this.alloced = alloced;
         assert (killed == null && maybeKilledFields == null && alloced == null)
                 || (killed != null && maybeKilledFields != null && alloced != null);
+    }
+
+    /**
+     * Create a killed and alloced object where all nodes and fields are killed and all instance keys are alloced
+     * 
+     * @return new KilledAndAlloced where everything is killed or alloced
+     */
+    static KilledAndAlloced createUnreachable() {
+        return new KilledAndAlloced(null, null, null);
     }
 
     /**
@@ -49,7 +58,7 @@ public class KilledAndAlloced {
     public static KilledAndAlloced join(KilledAndAlloced a, KilledAndAlloced b) {
         if (a.killed == null || b.killed == null) {
             // represents everything!
-            return UNREACHABLE;
+            return a;
         }
         int killedSize = a.killed.size() + b.killed.size();
         MutableIntSet killed = killedSize == 0 ? EmptyIntSet.INSTANCE
@@ -79,7 +88,6 @@ public class KilledAndAlloced {
      * changed.
      */
     public boolean meet(KilledAndAlloced res) {
-        assert (this != UNREACHABLE) : "Can't update the UNREACHABLE constant";
         assert (killed == null && maybeKilledFields == null && alloced == null)
                 || (killed != null && maybeKilledFields != null && alloced != null);
         assert (res.killed == null && res.maybeKilledFields == null && res.alloced == null)
@@ -137,7 +145,9 @@ public class KilledAndAlloced {
      * constructor.
      */
     public void setEmpty() {
-        assert killed == null && maybeKilledFields == null && alloced == null;
+        assert killed == null;
+        assert maybeKilledFields == null;
+        assert alloced == null;
         this.killed = MutableSparseIntSet.createMutableSparseIntSet(1);
         this.maybeKilledFields = Collections.emptySet();
         this.alloced = MutableSparseIntSet.createMutableSparseIntSet(1);

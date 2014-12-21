@@ -97,7 +97,7 @@ public class ProgramPointReachability {
     private static KilledAndAlloced getOrCreate(Map<InterProgramPoint, KilledAndAlloced> results, InterProgramPoint ipp) {
         KilledAndAlloced res = results.get(ipp);
         if (res == null) {
-            res = KilledAndAlloced.UNREACHABLE;
+            res = KilledAndAlloced.createUnreachable();
             results.put(ipp, res);
         }
         return res;
@@ -619,11 +619,11 @@ public class ProgramPointReachability {
         public KilledAndAlloced getResult(InterProgramPointReplica source, InterProgramPointReplica target) {
             ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> s = m.get(source);
             if (s == null) {
-                return KilledAndAlloced.UNREACHABLE;
+                return KilledAndAlloced.createUnreachable();
             }
             KilledAndAlloced p = s.get(target);
             if (p == null) {
-                return KilledAndAlloced.UNREACHABLE;
+                return KilledAndAlloced.createUnreachable();
             }
             return p;
         }
@@ -733,13 +733,14 @@ public class ProgramPointReachability {
         // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
 
         Map<InterProgramPoint, KilledAndAlloced> results = new HashMap<>();
-
         WorkQueue<InterProgramPoint> q = new WorkQueue<>();
         Set<InterProgramPoint> visited = new HashSet<>();
+
         MethodSummaryNodes summ = g.getRegistrar().getMethodSummary(m);
         PostProgramPoint entryIPP = summ.getEntryPP().post();
         q.add(entryIPP);
         getOrCreate(results, entryIPP).setEmpty();
+
         while (!q.isEmpty()) {
             InterProgramPoint ipp = q.poll();
             if (!visited.add(ipp)) {
