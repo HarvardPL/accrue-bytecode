@@ -80,7 +80,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
-        System.err.println("Starting points to engine using " + this.haf + "(multithreaded)");
+        System.err.println("Starting points to engine using " + this.haf + "(multithreaded, "
+                + PointsToAnalysisMultiThreaded.numThreads() + " threads)");
         long startTime = System.currentTimeMillis();
 
 
@@ -351,10 +352,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void finishedTask() {
-            int numCurrentTasks = (int) this.numRemainingTasks.decrementAndGet();
+            // Don't decrement the number of remaining tasks until the end,
+            // to avoid a possible race where the exec service gets shutdown
+            // while there are still pending tasks that haven't been
+            // added to the service.
+
+            // Check if we should add any pending tasks.
+            int numRemainingTasks = (int) this.numRemainingTasks.get();
             int numberAdded = 0;
-            int parallelism = exec.getParallelism();
-            if (numCurrentTasks + numberAdded < parallelism) {
+            int bound = exec.getParallelism() + 2;
+            if (numRemainingTasks + numberAdded < bound) {
                 // try adding some more tasks
                 Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddToSetOrigin> makeConcurrentSet());
                 for (AddToSetOrigin t : s) {
@@ -364,7 +371,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     numberAdded++;
                 }
             }
-            if (numCurrentTasks + numberAdded < parallelism) {
+            if (numRemainingTasks + numberAdded < bound) {
                 // try adding some more tasks
                 Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddNonMostRecentOrigin> makeConcurrentSet());
                 for (AddNonMostRecentOrigin t : s) {
@@ -374,7 +381,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     numberAdded++;
                 }
             }
-            if (numCurrentTasks + numberAdded < parallelism) {
+            if (numRemainingTasks + numberAdded < bound) {
                 // try adding some more tasks
                 Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(PointsToAnalysisMultiThreaded.<ProgramPointSubQuery> makeConcurrentSet());
                 for (ProgramPointSubQuery sq : s) {
@@ -384,7 +391,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     numberAdded++;
                 }
             }
-            if (numCurrentTasks == 0 && numberAdded == 0) {
+
+            // Now that we have finished adding pending tasks,
+            // decrement the number of remaining tasks, and see if we are
+            // ready to shutdown.
+            numRemainingTasks = (int) this.numRemainingTasks.decrementAndGet();
+            if (numRemainingTasks == 0 && numberAdded == 0) {
                 // we have finished!
                 // Notify anyone that was waiting.
                 synchronized (this) {
