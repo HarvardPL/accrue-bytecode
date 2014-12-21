@@ -119,6 +119,7 @@ public class TypeFilter {
     }
 
     public boolean satisfies(IClass concreteType) {
+        assert concreteType != null;
         if (isType == null && isTypes == null || isType != null
                 && isAssignableFrom(isType, concreteType) || isTypes != null
                 && allAssignableFrom(isTypes, concreteType)) {
