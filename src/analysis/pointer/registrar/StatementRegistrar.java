@@ -262,7 +262,10 @@ public class StatementRegistrar {
             MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
 
             // Add edges from formal summary nodes to the local variables representing the method parameters
-            this.registerFormalAssignments(ir, methSumm.getEntryPP(), this.rvFactory, types, pprint);
+            ProgramPoint lastFormalPP = this.registerFormalAssignments(ir,
+                                                                       this.rvFactory,
+                                                                       types,
+                                                                       pprint);
 
             Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
             Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
@@ -286,7 +289,7 @@ public class StatementRegistrar {
                 bbToEntryPP.put(bb, pp);
 
                 if (ir.getControlFlowGraph().entry() == bb) {
-                    methSumm.getEntryPP().addSucc(pp);
+                    lastFormalPP.addSucc(pp);
                 }
             }
 
@@ -1903,9 +1906,21 @@ public class StatementRegistrar {
         return nextPP;
     }
 
-    private void registerFormalAssignments(IR ir, ProgramPoint pp, ReferenceVariableFactory rvFactory,
+    /**
+     * Create statments for assignments from the formal parameters of a method to the local variables inside that
+     * method.
+     *
+     * @param ir IR for containing procedure
+     * @param rvFactory factory for creating reference variables
+     * @param types repository for local variable types
+     * @param pprint pretty printer for the method
+     *
+     * @return the program point for the last assignment
+     */
+    private ProgramPoint registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory,
                                            TypeRepository types, PrettyPrinter pprint) {
         MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
+        ProgramPoint current = methodSummary.getEntryPP();
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
             int paramNum = ir.getParameter(i);
             TypeReference paramType = types.getType(paramNum);
@@ -1914,8 +1929,10 @@ public class StatementRegistrar {
                 continue;
             }
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pprint);
-            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), pp));
+            current = nextProgramPoint(current, new ProgramPoint(ir.getMethod(), param + " = formal" + "(" + i + ")"));
+            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), current));
         }
+        return current;
     }
 
     /**
