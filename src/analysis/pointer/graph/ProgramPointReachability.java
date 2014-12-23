@@ -49,6 +49,16 @@ public class ProgramPointReachability {
     private static ProgramPointReachability SINGLETON;
 
     /**
+     * Print debug info
+     */
+    public static boolean DEBUG;
+
+    /**
+     * Print more debug info
+     */
+    public static boolean DEBUG2;
+
+    /**
      * Keep a reference to the PointsToGraph for convenience.
      */
     private final PointsToGraph g;
@@ -687,10 +697,9 @@ public class ProgramPointReachability {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append("REACHABILITY RESULTS:");
             for (InterProgramPointReplica s : m.keySet()) {
                 for (InterProgramPointReplica t : m.get(s).keySet()) {
-                    sb.append("\n\t" + s + " -> " + t + "\n\t\t" + m.get(s).get(t));
+                    sb.append(s + " -> " + t + "\n\t" + m.get(s).get(t));
                 }
             }
             return sb.toString();
@@ -703,13 +712,13 @@ public class ProgramPointReachability {
      * Get the reachability results for a method.
      */
     MethodSummaryKillAndAlloc getReachabilityForMethod(IMethod m, Context context) {
-        if (ProgramPointDestinationQuery.DEBUG) {
-            System.err.println("GETTING METHOD " + PrettyPrinter.methodString(m) + " in " + context);
+        if (DEBUG) {
+            System.err.println("METHOD " + PrettyPrinter.methodString(m) + " in " + context);
         }
         OrderedPair<IMethod, Context> cgnode = new OrderedPair<>(m, context);
         MethodSummaryKillAndAlloc res = methodSummaryMemoization.get(cgnode);
         if (res != null) {
-            if (ProgramPointDestinationQuery.DEBUG) {
+            if (DEBUG) {
                 System.err.println("\tCACHED " + res);
             }
             return res;
@@ -719,16 +728,12 @@ public class ProgramPointReachability {
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.putIfAbsent(cgnode, res);
         if (existing != null) {
             // someone beat us to it, and is currently working on the results.
-            if (ProgramPointDestinationQuery.DEBUG) {
+            if (DEBUG) {
                 System.err.println("\tBEATEN " + existing);
             }
             return existing;
         }
-        if (ProgramPointDestinationQuery.DEBUG) {
-            System.err.println("\tCOMPUTING");
-        }
         MethodSummaryKillAndAlloc rr = computeReachabilityForMethod(m, context);
-        ProgramPointDestinationQuery.DEBUG = false;
         return rr;
     }
 
@@ -743,7 +748,7 @@ public class ProgramPointReachability {
 
     private MethodSummaryKillAndAlloc computeReachabilityForMethod(IMethod m, Context context) {
         // XXX at the moment we will just record from the start node.
-        if (ProgramPointDestinationQuery.DEBUG) {
+        if (DEBUG) {
             System.err.println("COMPUTING FOR " + PrettyPrinter.methodString(m) + " in " + context);
         }
 
@@ -763,8 +768,8 @@ public class ProgramPointReachability {
             if (!visited.add(ipp)) {
                 continue;
             }
-            if (ProgramPointDestinationQuery.DEBUG) {
-                System.err.println("\tFROM QUEUE " + ipp);
+            if (DEBUG) {
+                System.err.println("\tQ " + ipp);
             }
             ProgramPoint pp = ipp.getPP();
             assert pp.containingProcedure().equals(m);
@@ -780,7 +785,7 @@ public class ProgramPointReachability {
                     Set<OrderedPair<IMethod, Context>> calleeSet = g.getCalleesOf(pp.getReplica(context));
                     if (calleeSet.isEmpty()) {
                         // no callees, so nothing to do
-                        if (ProgramPointDestinationQuery.DEBUG) {
+                        if (DEBUG) {
                             System.err.println("\t\tno callees " + ipp);
                         }
                         continue;
@@ -817,7 +822,7 @@ public class ProgramPointReachability {
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // not much to do here. The results will be copied once the work queue finishes.
-                    if (ProgramPointDestinationQuery.DEBUG) {
+                    if (DEBUG2) {
                         System.err.println("\t\tEXIT " + pp);
                     }
                     continue;
@@ -830,7 +835,7 @@ public class ProgramPointReachability {
                         OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
                         if (killed != null) {
                             if (!killed.fst()) {
-                                if (ProgramPointDestinationQuery.DEBUG) {
+                                if (DEBUG2) {
                                     System.err.println("\t\tCould Kill "
                                             + stmt.getReadDependencyForKillField(context, g.getHaf()));
                                 }
@@ -842,7 +847,7 @@ public class ProgramPointReachability {
 
                             }
                             else if (killed.snd() != null && killed.snd() != null) {
-                                if (ProgramPointDestinationQuery.DEBUG) {
+                                if (DEBUG2) {
                                     System.err.println("\t\tDoes Kill "
                                             + stmt.getReadDependencyForKillField(context, g.getHaf()) + " "
                                             + g.lookupDictionary(killed.snd()));
@@ -867,7 +872,7 @@ public class ProgramPointReachability {
                             int/*InstanceKeyRecency*/justAllocatedKey = g.lookupDictionary(justAllocated);
                             if (g.isMostRecentObject(justAllocatedKey)
                                     && g.isTrackingMostRecentObject(justAllocatedKey)) {
-                                if (ProgramPointDestinationQuery.DEBUG) {
+                                if (DEBUG2) {
                                     System.err.println("\t\tDoes Alloc " + justAllocatedKey);
                                 }
                                 current.addAlloced(justAllocatedKey);
@@ -903,7 +908,7 @@ public class ProgramPointReachability {
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
         recordMethodReachability(m, context, rr);
-        if (ProgramPointDestinationQuery.DEBUG) {
+        if (DEBUG) {
             System.err.println("COMPUTED " + rr + " FOR " + PrettyPrinter.methodString(m) + " in " + context);
         }
         return rr;

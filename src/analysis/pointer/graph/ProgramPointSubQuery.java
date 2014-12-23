@@ -18,7 +18,7 @@ public class ProgramPointSubQuery {
 
     /**
      * Create a new sub query from source to destination
-     * 
+     *
      * @param source program point to search from
      * @param destination program point to find
      * @param noKill points-to graph nodes that must not be killed on a valid path from source to destination
@@ -74,7 +74,7 @@ public class ProgramPointSubQuery {
 
     @Override
     public String toString() {
-        return "SubQuery [" + source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc
-                + ", forbidden=" + forbidden + "]";
+        return source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc + ", forbidden="
+                + forbidden;
     }
 }

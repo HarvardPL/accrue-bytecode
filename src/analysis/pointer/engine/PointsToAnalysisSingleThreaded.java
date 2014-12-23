@@ -19,11 +19,11 @@ import util.intmap.SparseIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -50,15 +50,14 @@ import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
- * Single-threaded implementation of a points-to graph solver. Given a set of
- * constraints, {@link PointsToStatement}s, compute the fixed point.
+ * Single-threaded implementation of a points-to graph solver. Given a set of constraints, {@link PointsToStatement}s,
+ * compute the fixed point.
  */
 public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     /**
-     * An interesting dependency from node n to StmtAndContext sac exists when a
-     * modification to the pointstoset of n (i.e., if n changes to point to more
-     * things) requires reevaluation of sac. Many dependencies are just copy
+     * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
+     * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
     IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
@@ -90,7 +89,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
         return this.solveSmarter(onlineRegistrar, true);
     }
-
 
     Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue;
 
@@ -214,7 +212,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         };
 
-
         this.analysisHandle = new PointsToAnalysisHandleImpl(noDeltaQueue,
                                                              addToSetQueue,
                                                              addNonMostRecentQueue,
@@ -267,7 +264,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         if (addToSetQueue.isEmpty()) {
                             Iterator<ProgramPointSubQuery> iter = reachabilitySubQueryQueue.iterator();
                             ProgramPointSubQuery sq = iter.next();
-                            iter.remove();
+                            assert incrementCounter(sq);
+                            if (!reachabilitySubQueryQueue.remove(sq)) {
+                                throw new RuntimeException("Query should have been removed " + sq);
+                            }
                             g.ppReach.processSubQuery(sq);
                         }
                         else {
@@ -302,40 +302,30 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         long endTime = System.currentTimeMillis();
-        System.err.println("Processed " + this.numProcessed
-                           + " (statement, context) pairs"
-                           + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : ""));
+        System.err.println("Processed " + this.numProcessed + " (statement, context) pairs"
+                + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : ""));
         long totalTime = endTime - this.startTime;
         System.err.println("   Total time       : " + totalTime / 1000 + "s.");
-        System.err.println("   Registration time: " + this.registrationTime
-                           / 1000 + "s.");
-        System.err.println("   => Analysis time : "
-                + (totalTime - this.registrationTime) / 1000 + "s.");
-        System.err.println("   Topo sort time   : " + this.topoSortTime / 1000
-                           + "s.");
+        System.err.println("   Registration time: " + this.registrationTime / 1000 + "s.");
+        System.err.println("   => Analysis time : " + (totalTime - this.registrationTime) / 1000 + "s.");
+        System.err.println("   Topo sort time   : " + this.topoSortTime / 1000 + "s.");
         System.err.println("   => Analysis time - topo sort : "
-                + (totalTime - (this.registrationTime + this.topoSortTime))
-                / 1000 + "s.");
-        System.err.println("   Num no delta processed "
-                + this.numNoDeltaProcessed);
-        System.err.println("   Num with delta processed "
-                + (this.numProcessed - this.numNoDeltaProcessed));
-        System.err.println("   Cycles removed " + g.cycleRemovalCount()
-                           + " nodes");
+                + (totalTime - (this.registrationTime + this.topoSortTime)) / 1000 + "s.");
+        System.err.println("   Num no delta processed " + this.numNoDeltaProcessed);
+        System.err.println("   Num with delta processed " + (this.numProcessed - this.numNoDeltaProcessed));
+        System.err.println("   Cycles removed " + g.cycleRemovalCount() + " nodes");
 
         System.err.println("  counts: ");
         for (String key : this.counts.keySet()) {
             int counter = 0;
-            for (StmtAndContext sac: this.counts.get(key).keySet()) {
+            for (StmtAndContext sac : this.counts.get(key).keySet()) {
                 counter += this.counts.get(key).get(sac);
                 if (this.counts.get(key).get(sac) > 4000) {
-                    System.err.println("        -- "
-                            + this.counts.get(key).get(sac) + " : " + sac);
+                    System.err.println("        -- " + this.counts.get(key).get(sac) + " : " + sac);
                 }
             }
-            System.err.println("      " + key + " : " + counter
-                               + " sacs processed (" + this.counts.get(key).size()
-                               + " distinct sacs)");
+            System.err.println("      " + key + " : " + counter + " sacs processed (" + this.counts.get(key).size()
+                    + " distinct sacs)");
         }
         // Now do a histogram of the VirtualCalls
         {
@@ -354,8 +344,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         System.err.println("   Finding more cycles...");
         g.findCycles();
-        System.err.println("   Cycles now removed " + g.cycleRemovalCount()
-                           + " nodes");
+        System.err.println("   Cycles now removed " + g.cycleRemovalCount() + " nodes");
 
         //        this.processAllStatements(g, registrar);
         registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
@@ -363,6 +352,32 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         g.dumpPointsToGraphToFile("tests/pointsToGraph");
         g.getCallGraph().dumpCallGraphToFile("tests/callGraph", false);
         return g;
+    }
+
+    /**
+     * Number of times each query has been pulled from the queue
+     */
+    private final Map<ProgramPointSubQuery, Integer> queryCounts = new HashMap<>();
+
+    /**
+     * Increment the number of times the given query has been processed from the queue
+     *
+     * @param p query
+     * @return true if the counter was incremented. false if the threshold has been reached
+     */
+    private boolean incrementCounter(ProgramPointSubQuery p) {
+        Integer count = queryCounts.get(p);
+        if (count == null) {
+            count = 0;
+            queryCounts.put(p, count);
+        }
+        count++;
+        queryCounts.put(p, count);
+        if (count >= 100) {
+            System.err.println(p + " requested 100 times " + p.getClass());
+            return false;
+        }
+        return true;
     }
 
     int numProcessed = 0;
@@ -477,13 +492,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 for (Context c : g.getContexts(s.getMethod())) {
                     GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
-                        throw new RuntimeException("s returned null "
-                                + s.getClass() + " : " + s);
+                        throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
                     }
                     changed |= !d.isEmpty();
                     if (!d.isEmpty()) {
-                        System.err.println("uhoh Failed on " + s
-                                           + "\n    Delta is " + d);
+                        System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
                         failcount++;
                         if (failcount > 10) {
                             System.err.println("\nThere may be more failures, but exiting now...");
@@ -497,8 +510,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Get any (statement,context) pairs that depend on the given points-to
-     * graph node
+     * Get any (statement,context) pairs that depend on the given points-to graph node
      *
      * @param n node to get the dependencies for
      * @return set of dependencies
@@ -512,16 +524,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Add the (statement, context) pair as a dependency of the points-to graph
-     * node. This is an "interesting dependency", meaning that if the points to
-     * set of n is modified, then sac will need to be processed again.
+     * Add the (statement, context) pair as a dependency of the points-to graph node. This is an
+     * "interesting dependency", meaning that if the points to set of n is modified, then sac will need to be processed
+     * again.
      *
      * @param n node the statement depends on
      * @param sac statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    boolean addInterestingDependency(/*PointsToGraphNode*/int n,
-                                             StmtAndContext sac) {
+    boolean addInterestingDependency(/*PointsToGraphNode*/int n, StmtAndContext sac) {
         Set<StmtAndContext> s = this.interestingDepedencies.get(n);
         if (s == null) {
             s = new HashSet<>();
@@ -709,9 +720,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         @Override
         public void submitReachabilityQuery(ProgramPointSubQuery sq) {
             reachabilitySubQueryQueue.add(sq);
-
         }
-
 
     }
 

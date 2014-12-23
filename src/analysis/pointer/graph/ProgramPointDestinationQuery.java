@@ -31,7 +31,14 @@ import com.ibm.wala.util.intset.IntSet;
  */
 public class ProgramPointDestinationQuery {
 
-    public static boolean DEBUG = false;
+    /**
+     * Print debug info
+     */
+    public static boolean DEBUG = ProgramPointReachability.DEBUG;
+    /**
+     * Print more debug info
+     */
+    public static boolean DEBUG2 = ProgramPointReachability.DEBUG2;
 
     /////////////////////
     //
@@ -194,10 +201,10 @@ public class ProgramPointDestinationQuery {
         this.currentSubQuery = new ProgramPointSubQuery(src, this.dest, this.noKill, this.noAlloc, this.forbidden);
 
         if (DEBUG) {
-            System.err.println("Executing subquery " + this.currentSubQuery);
+            System.err.println("EXECUTING " + this.currentSubQuery);
             System.err.println("Relevant call graph nodes: ");
             for (OrderedPair<IMethod, Context> n : relevantNodes) {
-                System.err.println("\t" + n);
+                System.err.println("\t" + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
             }
         }
 
@@ -213,13 +220,13 @@ public class ProgramPointDestinationQuery {
             WorkItem wi = searchQ.poll();
             if (search(wi)) {
                 if (DEBUG) {
-                    System.err.println("FOUND DESTINATION for subquery " + this.currentSubQuery);
+                    System.err.println("FOUND DESTINATION " + this.currentSubQuery);
                 }
                 return true;
             }
         }
         if (DEBUG) {
-            System.err.println("DID NOT FIND DESTINATION for subquery " + this.currentSubQuery);
+            System.err.println("DID NOT FIND DEST " + this.currentSubQuery);
         }
         return false;
     }
@@ -262,14 +269,14 @@ public class ProgramPointDestinationQuery {
         q.add(src);
         while (!q.isEmpty() || !delayedQ.isEmpty()) {
             onDelayed |= q.isEmpty();
-            if (DEBUG) {
-                System.err.print("\t\tFROM QUEUE isDelayed? " + q.isEmpty() + " anyDelayed? " + !delayedQ.isEmpty());
-            }
+            boolean isDelayed = q.isEmpty();
+            boolean anyDelayed = !delayedQ.isEmpty();
 
             // pull from the regular queue first
             InterProgramPointReplica ippr = q.isEmpty() ? delayedQ.poll() : q.poll();
             if (DEBUG) {
-                System.err.println(" " + ippr);
+                System.err.println("\t\tQ " + ippr + " isDelayed? " + isDelayed + " anyDelayed? " + anyDelayed + " "
+                        + ippr.getInterPP().getClass());
             }
             assert (ippr.getContainingProcedure().equals(currentMethod)) : "All nodes for a single search should be ";
             if (ippr.equals(this.dest)) {
@@ -288,7 +295,7 @@ public class ProgramPointDestinationQuery {
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
 
-                    if (DEBUG) {
+                    if (DEBUG2) {
                         System.err.println("\t\t\tCALL SITE: " + ippr);
                     }
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
@@ -333,7 +340,7 @@ public class ProgramPointDestinationQuery {
 
                     // This is a program point for a method call
                     if (inSameMethod && !onDelayed) {
-                        if (DEBUG) {
+                        if (DEBUG2) {
                             System.err.println("\t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
                         }
                         if (alreadyDelayed.add(ippr)) {
@@ -362,7 +369,7 @@ public class ProgramPointDestinationQuery {
                     continue;
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
-                    if (DEBUG) {
+                    if (DEBUG2) {
                         System.err.println("\t\t\tEXIT: " + pp + " isFromCallSite? " + wi.isFromCallSite);
                     }
                     if (wi.isFromCallSite) {
@@ -381,7 +388,7 @@ public class ProgramPointDestinationQuery {
 
                     if (inSameMethod && !onDelayed) {
                         assert !wi.isFromCallSite;
-                        if (DEBUG) {
+                        if (DEBUG2) {
                             System.err.println("\t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
                         }
                         if (alreadyDelayed.add(ippr)) {
@@ -404,7 +411,7 @@ public class ProgramPointDestinationQuery {
                 // not a call or a return, it's just a normal statement.
                 // does ipp kill this.node?
                 if (stmt != null && handlePossibleKill(stmt, currentContext)) {
-                    if (DEBUG) {
+                    if (DEBUG2) {
                         System.err.println("\t\t\tKILLED by: " + stmt);
                     }
                     continue;
@@ -412,7 +419,7 @@ public class ProgramPointDestinationQuery {
 
                 // Path was not killed add the post PP for the pre PP
                 InterProgramPointReplica post = pp.post().getReplica(currentContext);
-                if (DEBUG) {
+                if (DEBUG2) {
                     System.err.println("\t\t\tNOT KILLED adding post " + post);
                 }
                 if (visited.add(post)) {
@@ -420,7 +427,7 @@ public class ProgramPointDestinationQuery {
                 }
             } // end of "pre" program point handling
             else if (ipp instanceof PostProgramPoint) {
-                if (DEBUG) {
+                if (DEBUG2) {
                     System.err.println("\t\t\tPOST: " + ipp);
                 }
                 Set<ProgramPoint> ppSuccs = pp.succs();
@@ -439,7 +446,7 @@ public class ProgramPointDestinationQuery {
         // we didn't find it
         // RECORD CALL RESULTS
         if (DEBUG) {
-            System.err.println("\t FINISHED from " + wi + " " + reachableExits);
+            System.err.println("\t" + reachableExits + " from " + wi);
         }
         recordResults(wi, reachableExits);
         return false;
@@ -455,7 +462,7 @@ public class ProgramPointDestinationQuery {
      * @return the results of searching through all the possible callees
      */
     private ReachabilityResult handleCall(InterProgramPointReplica ippr, WorkItem trigger) {
-        if (DEBUG) {
+        if (DEBUG2) {
             System.err.println("\t\t\tHANDLING CALL " + ippr);
         }
 
@@ -496,7 +503,7 @@ public class ProgramPointDestinationQuery {
                                                                  calleeSummary.getExceptionExitPP()
                                                                               .pre()
                                                                               .getReplica(callee.snd()));
-                if (DEBUG) {
+                if (DEBUG2) {
                     System.err.println("\t\t\t\tUSING SUMMARY for Normal: "
                             + normalRet.allows(this.noKill, this.noAlloc, this.g) + " Ex: "
                             + exRet.allows(this.noKill, this.noAlloc, this.g));
@@ -514,7 +521,7 @@ public class ProgramPointDestinationQuery {
                 }
             }
         }
-        if (DEBUG) {
+        if (DEBUG2) {
             System.err.println("\t\t\t\tfinished " + ippr + " " + reachableExits);
         }
         return reachableExits;
@@ -580,7 +587,7 @@ public class ProgramPointDestinationQuery {
      */
     private boolean handleMethodExitToUnknownCallSite(OrderedPair<IMethod, Context> currentCallGraphNode,
                                                       boolean isExceptionExit, WorkItem src) {
-        if (DEBUG) {
+        if (DEBUG2) {
             System.err.println("\t\t\tHANDLING UNKNOWN EXIT " + currentCallGraphNode + " EX? " + isExceptionExit);
         }
         // Register a dependency i.e., the query may need to be rerun if a new caller is added
@@ -632,12 +639,12 @@ public class ProgramPointDestinationQuery {
      */
     private ReachabilityResult getResults(InterProgramPointReplica newSrc, boolean isKnownCallSite, WorkItem trigger) {
         WorkItem newWI = new WorkItem(newSrc, isKnownCallSite);
-        if (DEBUG) {
+        if (DEBUG2) {
             System.err.println("\t\tRequesting results for: " + newWI + " from " + trigger);
         }
         ReachabilityResult res = resultCache.get(newWI);
         if (res != null) {
-            if (DEBUG) {
+            if (DEBUG2) {
                 System.err.println("\t\t\tFOUND RESULTS: " + res);
             }
             return res;
@@ -649,7 +656,7 @@ public class ProgramPointDestinationQuery {
         if (currentlyProcessing.contains(newWI)) {
             // add this work item to the queue for reprocessing and return the default value
             searchQ.add(newWI);
-            if (DEBUG) {
+            if (DEBUG2) {
                 System.err.println("\t\t\tAlready Processing: " + ReachabilityResult.UNREACHABLE);
             }
             return ReachabilityResult.UNREACHABLE;
@@ -663,7 +670,7 @@ public class ProgramPointDestinationQuery {
 
         // make sure to reprocess the trigger if the results for the requested search change
         addDependency(trigger, newWI);
-        if (DEBUG) {
+        if (DEBUG2) {
             System.err.println("\t\t\tNew results for: " + newWI + " " + resultCache.get(newWI));
         }
 
@@ -694,16 +701,16 @@ public class ProgramPointDestinationQuery {
     private void recordResults(WorkItem wi, ReachabilityResult res) {
         ReachabilityResult previous = resultCache.put(wi, res);
         if (previous != null && previous != res && workItemDependencies.containsKey(wi)) {
-            if (DEBUG) {
+            if (DEBUG2) {
                 System.err.println("\t\tResults changed for: " + wi + " from " + previous + " to" + res);
             }
             // result changed, add any dependencies back onto the queue
             Set<WorkItem> deps = workItemDependencies.get(wi);
-            if (DEBUG) {
+            if (DEBUG2) {
                 System.err.println("\t\tadding dependencies back into queue");
             }
             for (WorkItem dep : deps) {
-                if (DEBUG) {
+                if (DEBUG2) {
                     System.err.println("\t\t\tdep");
                 }
                 searchQ.add(dep);
