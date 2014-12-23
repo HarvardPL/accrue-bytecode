@@ -1467,8 +1467,9 @@ public class PointsToGraph {
             while (this.next < 0 && this.iter.hasNext()) {
                 int i = this.iter.next();
                 IClass type = PointsToGraph.this.concreteType(i);
-                assert type != null : "Null type in instance key: " + lookupInstanceKeyDictionary(i);
-                if (this.filter != null && this.filter.satisfies(type) || this.filters != null
+                assert type != null || isNullInstanceKey(i) : "Null type in instance key that is not the null instance key: "
+                        + lookupInstanceKeyDictionary(i);
+                if (type == null || this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
                 }
@@ -1943,6 +1944,8 @@ public class PointsToGraph {
                 forbidden.add(ms.getNormalExitPP().pre().getReplica(use.getContext()));
                 forbidden.add(ms.getExceptionExitPP().pre().getReplica(use.getContext()));
                 if (this.ppReach.reachable(localDef, allocSite.pre(), forbidden, origin)) {
+                    // Create a new set so that the original set is not modified inside cached/queued subqueries
+                    forbidden = new LinkedHashSet<>(forbidden);
                     forbidden.remove(use);
                     forbidden.add(rvr.localDef());
                     if (this.ppReach.reachable(allocSite.post(), use, forbidden, origin)) {
