@@ -1,11 +1,11 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import types.TypeRepository;
 import analysis.AnalysisUtil;
@@ -188,8 +188,7 @@ public class TypeFilter {
                 + ", notTypes=" + notTypes + "]";
     }
 
-    private static Map<Set<TypeFilter>, TypeFilter> cachedCompose =
-            new HashMap<>();
+    private static ConcurrentMap<Set<TypeFilter>, TypeFilter> cachedCompose = new ConcurrentHashMap<>();
 
     public static TypeFilter compose(TypeFilter f1, TypeFilter f2) {
         if (f1 == null) {
@@ -218,7 +217,7 @@ public class TypeFilter {
 //                System.err.println("\nGot " + c + "\n        " + f1
 //                        + "\n        " + f2);
 //            }
-            cachedCompose.put(key, c);
+            c = cachedCompose.putIfAbsent(key, c);
         }
         return c;
     }
@@ -282,8 +281,7 @@ public class TypeFilter {
         return create(AnalysisUtil.getClassHierarchy().lookupClass(isType), allowNullType);
     }
 
-    private static final Map<TypeFilterWrapper, TypeFilter> memoized =
-            new HashMap<>();
+    private static final ConcurrentMap<TypeFilterWrapper, TypeFilter> memoized = new ConcurrentHashMap<>();
 
     static {
         // make sure we memoize IMPOSSIBLE
@@ -299,7 +297,7 @@ public class TypeFilter {
                 // the filter won't admit any instanceKeys...
                 tf = IMPOSSIBLE;
             }
-            memoized.put(w, tf);
+            tf = memoized.putIfAbsent(w, tf);
         }
         return tf;
     }
@@ -378,6 +376,7 @@ public class TypeFilter {
                             * result
                             + (filter.notTypes == null
                                     ? 0 : filter.notTypes.hashCode());
+            result = prime * result + (filter.allowNullType ? 54 : 198);
             return result;
         }
 
@@ -415,6 +414,9 @@ public class TypeFilter {
                 }
             }
             else if (!filter.notTypes.equals(other.notTypes)) {
+                return false;
+            }
+            if (filter.allowNullType != other.allowNullType) {
                 return false;
             }
             return true;
