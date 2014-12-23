@@ -61,7 +61,7 @@ public class LocalToLocalStatement extends PointsToStatement {
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
         // don't need to use delta, as this just adds a subset edge
         if (filter) {
-            TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());
+            TypeFilter typeFilter = TypeFilter.create(left.getExpectedType(), true); // allow null types, since this is a cast-like expression.
             return g.copyFilteredEdges(r, typeFilter, l);
         }
         return g.copyEdges(r, pre, l, post);

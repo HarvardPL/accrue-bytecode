@@ -1469,7 +1469,7 @@ public class PointsToGraph {
                 IClass type = PointsToGraph.this.concreteType(i);
                 assert type != null || isNullInstanceKey(i) : "Null type in instance key that is not the null instance key: "
                         + lookupInstanceKeyDictionary(i);
-                if (type == null || this.filter != null && this.filter.satisfies(type) || this.filters != null
+                if (this.filter != null && this.filter.satisfies(type) || this.filters != null
                         && satisfiesAny(filters, type)) {
                     this.next = i;
                 }

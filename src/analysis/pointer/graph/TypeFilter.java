@@ -15,14 +15,14 @@ import com.ibm.wala.types.TypeReference;
 
 public class TypeFilter {
 
-    public static final TypeFilter IMPOSSIBLE =
-            new TypeFilter(AnalysisUtil.getErrorClass(),
-                           Collections.singleton(AnalysisUtil.getErrorClass())) {
-                @Override
-                public boolean satisfies(IClass concreteType) {
-                    return false;
-                }
-            };
+    public static final TypeFilter IMPOSSIBLE = new TypeFilter(AnalysisUtil.getErrorClass(),
+                                                               Collections.singleton(AnalysisUtil.getErrorClass()),
+                                                               false) {
+        @Override
+        public boolean satisfies(IClass concreteType) {
+            return false;
+        }
+    };
 
     /*
      * Only one of isType and isTypes should be non-null.
@@ -30,6 +30,7 @@ public class TypeFilter {
     public final IClass isType;
     public final Set<IClass> isTypes;
     public final Set<IClass> notTypes;
+    public final boolean allowNullType;
 
     /**
      * Create a filter which matches one type and does not match a set of types
@@ -40,7 +41,7 @@ public class TypeFilter {
      * @param notTypes
      *            types to filter out
      */
-    public TypeFilter(IClass isType, Set<IClass> notTypes) {
+    public TypeFilter(IClass isType, Set<IClass> notTypes, boolean allowNullType) {
         this.isType = isType;
         isTypes = null;
         this.notTypes = simplifyNotTypes(notTypes);
@@ -51,10 +52,10 @@ public class TypeFilter {
         if (AnalysisUtil.getObjectClass().equals(this.isType)) {
             throw new IllegalArgumentException();
         }
-
+        this.allowNullType = allowNullType;
     }
 
-    private TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes) {
+    private TypeFilter(Set<IClass> isTypes, Set<IClass> notTypes, boolean allowNullType) {
         if (isTypes.size() == 0) {
             isType = null;
             this.isTypes = null;
@@ -76,7 +77,7 @@ public class TypeFilter {
         if (AnalysisUtil.getObjectClass().equals(isType)) {
             throw new IllegalArgumentException();
         }
-
+        this.allowNullType = allowNullType;
     }
 
     private static Set<IClass> simplifyNotTypes(Set<IClass> notTypes) {
@@ -119,6 +120,10 @@ public class TypeFilter {
     }
 
     public boolean satisfies(IClass concreteType) {
+        if (concreteType == null) {
+            return allowNullType;
+        }
+
         assert concreteType != null;
         if (isType == null && isTypes == null || isType != null
                 && isAssignableFrom(isType, concreteType) || isTypes != null
@@ -239,42 +244,42 @@ public class TypeFilter {
             // XXX We should do a better job and make it a minimal set based on subtyping relations...
             isTypes.addAll(f1.isTypesAsSet());
             isTypes.addAll(f2.isTypesAsSet());
-            TypeFilter tf = TypeFilter.create(isTypes, notTypes);
+            TypeFilter tf = TypeFilter.create(isTypes, notTypes, f1.allowNullType && f2.allowNullType);
             return tf;
         }
         if (TypeRepository.isAssignableFrom(f1.isType, f2.isType)) {
-            return TypeFilter.create(f2.isType, notTypes);
+            return TypeFilter.create(f2.isType, notTypes, f1.allowNullType && f2.allowNullType);
         }
         if (TypeRepository.isAssignableFrom(f2.isType, f1.isType)) {
-            return TypeFilter.create(f1.isType, notTypes);
+            return TypeFilter.create(f1.isType, notTypes, f1.allowNullType && f2.allowNullType);
         }
         Set<IClass> isTypes = new LinkedHashSet<>();
         isTypes.add(f1.isType);
         isTypes.add(f2.isType);
-        return TypeFilter.create(isTypes, notTypes);
+        return TypeFilter.create(isTypes, notTypes, f1.allowNullType && f2.allowNullType);
 
     }
 
-    public static TypeFilter create(IClass isType, Set<IClass> notTypes) {
-        return memoize(new TypeFilter(isType, notTypes));
+    public static TypeFilter create(IClass isType, Set<IClass> notTypes, boolean allowNullType) {
+        return memoize(new TypeFilter(isType, notTypes, allowNullType));
     }
 
-    public static TypeFilter create(Set<IClass> isTypes, Set<IClass> notTypes) {
-        return memoize(new TypeFilter(isTypes, notTypes));
+    public static TypeFilter create(Set<IClass> isTypes, Set<IClass> notTypes, boolean allowNullType) {
+        return memoize(new TypeFilter(isTypes, notTypes, allowNullType));
     }
 
-    public static TypeFilter create(IClass isType) {
-        return create(isType, null);
+    public static TypeFilter create(IClass isType, boolean allowNullType) {
+        return create(isType, null, allowNullType);
     }
 
-    public static TypeFilter create(TypeReference isType, Set<IClass> notTypes) {
+    public static TypeFilter create(TypeReference isType, Set<IClass> notTypes, boolean allowNullType) {
         IClass isClass = AnalysisUtil.getClassHierarchy().lookupClass(isType);
         assert isClass != null;
-        return create(isClass, notTypes);
+        return create(isClass, notTypes, allowNullType);
     }
 
-    public static TypeFilter create(TypeReference isType) {
-        return create(AnalysisUtil.getClassHierarchy().lookupClass(isType));
+    public static TypeFilter create(TypeReference isType, boolean allowNullType) {
+        return create(AnalysisUtil.getClassHierarchy().lookupClass(isType), allowNullType);
     }
 
     private static final Map<TypeFilterWrapper, TypeFilter> memoized =

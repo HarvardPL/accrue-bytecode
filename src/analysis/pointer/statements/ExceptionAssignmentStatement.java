@@ -49,11 +49,11 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
                 this.filter = null;
             }
             else {
-                this.filter = TypeFilter.create((IClass) null, notType);
+                this.filter = TypeFilter.create((IClass) null, notType, false); // don't allow null type, as no null value is ever thrown.
             }
         }
         else {
-            this.filter = TypeFilter.create(caught.getExpectedType(), notType);
+            this.filter = TypeFilter.create(caught.getExpectedType(), notType, false); // don't allow null type, as no null value is ever thrown.
         }
 
     }
