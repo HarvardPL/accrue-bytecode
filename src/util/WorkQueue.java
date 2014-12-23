@@ -10,7 +10,7 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 /**
  * Work queue where duplicate elements are not added and containment checks are
  * fast.
- * 
+ *
  * @param <T>
  *            type of queue elements
  */
@@ -33,7 +33,7 @@ public class WorkQueue<T> {
 
     /**
      * Create a queue containing all the elements in the given collection
-     * 
+     *
      * @param c
      *            initial elements of the queue
      */
@@ -43,7 +43,7 @@ public class WorkQueue<T> {
 
     /**
      * Add n to the back of the queue if it is not already there
-     * 
+     *
      * @param n
      *            node to add
      * @return true if the node was not already in the queue
@@ -58,7 +58,7 @@ public class WorkQueue<T> {
 
     /**
      * Get and remove the next result from the queue
-     * 
+     *
      * @return the next result or null if the queue is empty
      */
     public T poll() {
@@ -66,13 +66,14 @@ public class WorkQueue<T> {
             return null;
         }
         T n = q.removeFirst();
-        qSet.remove(n);
+        boolean existed = qSet.remove(n);
+        assert existed : "Set did not contain element that was in the queue " + n;
         return n;
     }
 
     /**
      * Add a collection of nodes to the back of the queue.
-     * 
+     *
      * @param collection
      *            nodes to add
      * @return true if the queue changed as a result of this call
@@ -87,7 +88,7 @@ public class WorkQueue<T> {
 
     /**
      * Add a collection of nodes to the back of the queue.
-     * 
+     *
      * @param collection
      *            nodes to add
      * @return true if the queue changed as a result of this call
