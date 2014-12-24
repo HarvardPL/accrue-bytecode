@@ -2618,10 +2618,10 @@ public class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(rvr))) {
-                        repMap.addPrint(rvr);
-                        repMap.addPrint(to);
                         Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
                         if (!sources.isEmpty()) {
+                            repMap.addPrint(rvr);
+                            repMap.addPrint(to);
                             writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + sources
                                     + "\"];\n");
                         }
@@ -2643,10 +2643,10 @@ public class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(fromIkr))) {
-                        repMap.addPrint(fromIkr);
-                        repMap.addPrint(to);
                         Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
                         if (!sources.isEmpty()) {
+                            repMap.addPrint(fromIkr);
+                            repMap.addPrint(to);
                             writer.write("\t" + fromNode + " -> " + toNode + " [color=red,label=\"" + of.fieldName()
                                     + "," + sources + "\"];\n");
                         }
@@ -2679,7 +2679,7 @@ public class PointsToGraph {
                 }
             }
 
-            // print flow-insentsitive points-to relations for object field
+            // print flow-insensitive points-to relations for object field
             else {
                 assert from instanceof ObjectField : "Invalid PointsToGraphNode type.";
                 ObjectField of = (ObjectField) from;
