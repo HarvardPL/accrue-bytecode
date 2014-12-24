@@ -42,7 +42,7 @@ public class KilledAndAlloced {
 
     /**
      * Create a killed and alloced object where all nodes and fields are killed and all instance keys are alloced
-     * 
+     *
      * @return new KilledAndAlloced where everything is killed or alloced
      */
     static KilledAndAlloced createUnreachable() {
@@ -178,6 +178,18 @@ public class KilledAndAlloced {
             return true;
         }
         return false;
+    }
+
+    protected MutableIntSet getAlloced() {
+        return this.alloced;
+    }
+
+    protected MutableIntSet getKilled() {
+        return this.killed;
+    }
+
+    protected Set<FieldReference> getMaybeKilledFields() {
+        return this.maybeKilledFields;
     }
 
     @Override
