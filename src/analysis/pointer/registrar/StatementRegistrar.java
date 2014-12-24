@@ -116,7 +116,7 @@ public class StatementRegistrar {
      * If true then only one allocation will be made for each generated exception type. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for such exceptions.
      */
-    private final boolean useSingleAllocForGenEx;
+    final boolean useSingleAllocForGenEx;
     /**
      * If true then only one allocation will be made for each type of throwable. This will reduce the size of the
      * points-to graph (and speed up the points-to analysis), but result in a loss of precision for throwables.
@@ -181,6 +181,10 @@ public class StatementRegistrar {
      * Map from method and instruction in that method to the program point for that instruction
      */
     private final Map<SSAInstruction, ProgramPoint> insToPP = new LinkedHashMap<>();
+    /**
+     * Program points for the entry to catch instructions
+     */
+    private Set<ProgramPoint> catchEntries;
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -281,6 +285,7 @@ public class StatementRegistrar {
                         insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
                     }
                 }
+                // need to handle catch blocks here, getOrCreate...
                 ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
                 bbToEntryPP.put(bb, pp);
 
@@ -431,7 +436,8 @@ public class StatementRegistrar {
 
             if (insIter.hasNext()) {
                 // only the last instruction in a basic block is allowed to throw exceptions.
-                assert subgraph.exceptionExits().isEmpty();
+                assert subgraph.getThrownExceptionExits().isEmpty();
+                assert subgraph.getGeneratedExceptionExits().isEmpty();
             }
         }
         assert prev != null;
@@ -445,10 +451,7 @@ public class StatementRegistrar {
                                            methSumm);
         }
 
-        addPPEdgesForExceptions(controlFlowGraph.getExceptionalSuccessors(bb),
-                                prev.exceptionExits(),
-                                bbToEntryPP,
-                                methSumm);
+        addPPEdgesForExceptions(prev, bbToEntryPP, methSumm);
     }
 
     /**
@@ -474,46 +477,43 @@ public class StatementRegistrar {
     }
 
     /**
-     * Add edges to the program point graph for a thrown exception
+     * Add edges to the program point graph for all exceptions thrown by a given instruction
      *
-     * @param exceptionalSuccessors successor basic blocks on exception edges
-     * @param exceptionExits program points for each type of exception that can be thrown
-     * @param bbToEntryPP map from basic block to entry program point
-     * @param methSumm method summary nodes for the basic block throwning the exceptions
+     * @param instructionGraph the program point subgraph for the instruction
+     * @param bbToEntryPP method summary nodes for the basic block throwning the exceptions
+     * @param methSumm
      */
-    private static void addPPEdgesForExceptions(List<ISSABasicBlock> exceptionalSuccessors,
-                                                Map<TypeReference, ProgramPoint> exceptionExits,
+    private static void addPPEdgesForExceptions(PPSubGraph instructionGraph,
                                                 Map<ISSABasicBlock, ProgramPoint> bbToEntryPP,
                                                 MethodSummaryNodes methSumm) {
-        for (TypeReference exType : exceptionExits.keySet()) {
-            IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
-            assert thrownClass != null;
 
-            boolean definitelyCaught = false;
+        // Loop through all the exceptions in the subgraph and add edges to each of the successor basic blocks
 
-            for (ISSABasicBlock succBB : exceptionalSuccessors) {
-                Iterator<TypeReference> caughtTypes = succBB.getCaughtExceptionTypes();
-                while (caughtTypes.hasNext()) {
-                    IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtTypes.next());
-                    assert caughtClass != null;
-
-                    definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
-                    boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
-
-                    if (maybeCaught || definitelyCaught) {
-                        // the catch block might catch the thrown exception.
-                        exceptionExits.get(exType).addSucc(bbToEntryPP.get(succBB));
-                        if (definitelyCaught) {
-                            break;
-                        }
-                    }
-
+        Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> thrownEx = instructionGraph.getThrownExceptionExits();
+        for (TypeReference exType : thrownEx.keySet()) {
+            for (ISSABasicBlock succ : thrownEx.get(exType).keySet()) {
+                // Add an edge from the exception PP to the entry of the catch block
+                ProgramPoint exPP = thrownEx.get(exType).get(succ);
+                if (succ.isExitBlock()) {
+                    exPP.addSucc(methSumm.getExceptionExitPP());
+                }
+                else {
+                    exPP.addSucc(bbToEntryPP.get(succ));
                 }
             }
+        }
 
-            if (!definitelyCaught) {
-                // there wasn't a catch block that caught the exception.
-                exceptionExits.get(exType).addSucc(methSumm.getExceptionExitPP());
+        Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> genEx = instructionGraph.getGeneratedExceptionExits();
+        for (TypeReference exType : genEx.keySet()) {
+            for (ISSABasicBlock succ : genEx.get(exType).keySet()) {
+                // Add an edge from the exception PP to the entry of the catch block
+                ProgramPoint exPP = genEx.get(exType).get(succ);
+                if (succ.isExitBlock()) {
+                    exPP.addSucc(methSumm.getExceptionExitPP());
+                }
+                else {
+                    exPP.addSucc(bbToEntryPP.get(succ));
+                }
             }
         }
     }
@@ -617,6 +617,10 @@ public class StatementRegistrar {
             }
             if (callExceptions.contains(pp)) {
                 // don't remove program points for exceptions at call-sites
+                continue;
+            }
+            if (catchEntries.contains(pp)) {
+                // do not remove the program point for an entry to a catch block (these are the "def" site for the formal)
                 continue;
             }
             if (pp instanceof CallSiteProgramPoint) {
@@ -784,7 +788,7 @@ public class StatementRegistrar {
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
 
             // Create program points for any exceptions thrown by the callee
-            ProgramPoint exception = addCallExceptionProgramPoint(subgraph);
+            ProgramPoint exception = subgraph.getCallSiteException();
             callExceptions.add(exception);
 
             CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exception);
@@ -836,45 +840,6 @@ public class StatementRegistrar {
         case UNARY_NEG_OP: // primitive op
             break;
         }
-    }
-
-    /**
-     * Add exception program point for a method call (in the caller)
-     *
-     * @param subgraph program point subgraph (may be modified)
-     * @return exception exit program point
-     */
-    private static ProgramPoint addCallExceptionProgramPoint(PPSubGraph subgraph) {
-        ProgramPoint throwPP;
-        if (subgraph.exceptionExits().containsKey(TypeReference.JavaLangThrowable)) {
-            throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangThrowable);
-        }
-        else {
-            throwPP = subgraph.addThrowException(TypeReference.JavaLangThrowable);
-            assert throwPP != null;
-        }
-        return throwPP;
-        // TODO disguish different types of thrown exceptions
-        //        ProgramPoint throwPP;
-        //        for (TypeReference t : exceptionTypes) {
-        //            if (t.equals(TypeReference.JavaLangNullPointerException)
-        //                    && subgraph.exceptionExits.keySet().contains(TypeReference.JavaLangNullPointerException)) {
-        //                // A program point was already added for the generated exception
-        //                continue;
-        //            }
-        //            throwPP = subgraph.addThrowException(t);
-        //            exceptions.put(t, throwPP);
-        //            assert throwPP != null;
-        //        }
-        //        // Also add in a program point for RunTimeException and Error
-        //        throwPP = subgraph.addThrowException(TypeReference.JavaLangRuntimeException);
-        //        exceptions.put(TypeReference.JavaLangRuntimeException, throwPP);
-        //        assert throwPP != null;
-        //        throwPP = subgraph.addThrowException(TypeReference.JavaLangError);
-        //        exceptions.put(TypeReference.JavaLangError, throwPP);
-        //        assert throwPP != null;
-        //
-        //        return exceptions;
     }
 
     /**
@@ -1067,14 +1032,16 @@ public class StatementRegistrar {
 
         TypeReference exType = types.getType(i.getException());
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
-        this.registerThrownException(bb,
+        this.registerThrownException(insToPPSubGraph.get(i),
+                                     bb,
                                      ir,
-                                     pp.getExceptionExit(),
                                      exception,
                                      rvFactory,
                                      types,
                                      pprint,
-                                     insToPPSubGraph);
+                                     insToPPSubGraph,
+                                     false,
+                                     true);
 
         // //////////// Resolve methods add statements ////////////
 
@@ -1291,18 +1258,10 @@ public class StatementRegistrar {
                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
         TypeReference throwType = types.getType(i.getException());
         PPSubGraph subgraph = insToPPSubGraph.get(i);
-        ProgramPoint throwPP;
-        if (subgraph.exceptionExits().containsKey(throwType)) {
-            // This is an explicit throw of an NPE, but we already added NPE so do nothing
-            assert throwType.equals(TypeReference.JavaLangNullPointerException);
-            throwPP = subgraph.exceptionExits().get(TypeReference.JavaLangNullPointerException);
-        }
-        else {
-            throwPP = subgraph.addThrowException(throwType);
-        }
+
         subgraph.setCanExitNormally(false);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getException(), throwType, ir.getMethod(), pprint);
-        this.registerThrownException(bb, ir, throwPP, v, rvFactory, types, pprint, insToPPSubGraph);
+        this.registerThrownException(subgraph, bb, ir, v, rvFactory, types, pprint, insToPPSubGraph, false, false);
     }
 
     /**
@@ -1573,32 +1532,24 @@ public class StatementRegistrar {
      * Add points-to statements for any generated exceptions thrown by the given instruction
      */
     @SuppressWarnings("unused")
-    private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir,
-                                                          PPSubGraph subgraph, ReferenceVariableFactory rvFactory,
-                                                          TypeRepository types, PrettyPrinter pprint,
+    private final void findAndRegisterGeneratedExceptions(SSAInstruction i, ISSABasicBlock bb, IR ir, PPSubGraph g,
+                                                          ReferenceVariableFactory rvFactory, TypeRepository types,
+                                                          PrettyPrinter pprint,
                                                           Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
                                                           MethodSummaryNodes methSumm) {
         for (TypeReference exType : PreciseExceptionResults.implicitExceptions(i)) {
             ReferenceVariable ex;
-            boolean useSingleAlloc = useSingleAllocForGenEx;
-            if (useSingleAlloc) {
+            if (useSingleAllocForGenEx) {
                 ex = getOrCreateSingleton(exType);
-                ProgramPoint throwPP = subgraph.addThrowException(exType);
-                assert throwPP != null;
-                this.registerThrownException(bb, ir, throwPP, ex, rvFactory, types, pprint, insToPPSubGraph);
+                this.registerThrownException(g, bb, ir, ex, rvFactory, types, pprint, insToPPSubGraph, true, false);
             }
             else {
                 ex = rvFactory.createImplicitExceptionNode(exType, bb.getNumber(), ir.getMethod());
 
                 IClass exClass = AnalysisUtil.getClassHierarchy().lookupClass(exType);
                 assert exClass != null : "No class found for " + PrettyPrinter.typeString(exType);
-
-                OrderedPair<ProgramPoint, ProgramPoint> pps = subgraph.addGenAndThrowException(exType);
-                if (pps != null) {
-                    this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, pps.fst()));
-                    this.registerThrownException(bb, ir, pps.snd(), ex, rvFactory, types, pprint, insToPPSubGraph);
-                }
-
+                this.registerThrownException(g, bb, ir, ex, rvFactory, types, pprint, insToPPSubGraph, true, false);
+                this.addStatement(stmtFactory.newForGeneratedException(ex, exClass, g.getGenExAllocation(exType)));
             }
         }
     }
@@ -1668,16 +1619,21 @@ public class StatementRegistrar {
      * Add an assignment from the a thrown exception to any catch block or exit block exception that exception could
      * reach
      *
+     * @param subgraph program point subgraph for the instruction that throws this exception
      * @param bb Basic block containing the instruction that throws the exception
      * @param ir code containing the instruction that throws
-     * @param pp Program point of the instruction that throws
      * @param thrown reference variable representing the value of the exception
+     * @param rvFactory factory used to create new reference variables
      * @param types type information about local variables
-     * @param pp pretty printer for the appropriate method
+     * @param pprint pretty printer for the appropriate method
+     * @param insToPPSubGraph map from instruction to program point subgraph
+     * @param isGenerated whether the exception was generated by the JVM (e.g. NullPointerException)
+     * @param isCalleeThrow whether the exception is at a call site and represents an exception thrown by the callee
      */
-    private final void registerThrownException(ISSABasicBlock bb, IR ir, ProgramPoint pp, ReferenceVariable thrown,
+    private final void registerThrownException(PPSubGraph subgraph, ISSABasicBlock bb, IR ir, ReferenceVariable thrown,
                                                ReferenceVariableFactory rvFactory, TypeRepository types,
-                                               PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
+                                               PrettyPrinter pprint, Map<SSAInstruction, PPSubGraph> insToPPSubGraph,
+                                               boolean isGenerated, boolean isCalleeThrow) {
         IClass thrownClass = AnalysisUtil.getClassHierarchy().lookupClass(thrown.getExpectedType());
         assert thrownClass != null;
 
@@ -1715,9 +1671,9 @@ public class StatementRegistrar {
                         catchSG = new PPSubGraph(ir.getMethod(), catchIns, pprint);
                         insToPPSubGraph.put(catchIns, catchSG);
                     }
-                    if (caught.localDef() == null) {
-                        caught.setLocalDef(pp);
-                    }
+                    catchEntries.add(catchSG.entry());
+                    caught.setLocalDef(catchSG.entry());
+                    ProgramPoint pp = subgraph.addException(succ, thrown.getExpectedType(), isGenerated, isCalleeThrow);
                     this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
                 }
 
@@ -1734,6 +1690,7 @@ public class StatementRegistrar {
                 // do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
+                ProgramPoint pp = subgraph.addException(succ, thrown.getExpectedType(), isGenerated, isCalleeThrow);
                 this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
             }
         }
@@ -2095,13 +2052,25 @@ public class StatementRegistrar {
          */
         private ProgramPoint preNormExit;
         /**
-         * Program points for exceptional exit, one for each exception type
+         * Program points for exceptional exit, one for each exception type and successor block the type can reach
          */
-        private Map<TypeReference, ProgramPoint> exceptionExits;
+        private final Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> thrownExceptions;
+        /**
+         * Program points for generated exception (generated) allocation sites
+         */
+        private final Map<TypeReference, ProgramPoint> genExAllocations;
+        /**
+         * Program points for generated exception throw sites
+         */
+        private final Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> generatedExceptions;
         /**
          * True if the instruction can exit normally, false if not (for a "throw" instruction)
          */
         private boolean canExitNormally;
+        /**
+         * Program point that represents exceptional exit from a callSite
+         */
+        private ProgramPoint callSiteException;
 
         /**
          * Create a new program point subgraph with a single node
@@ -2114,7 +2083,9 @@ public class StatementRegistrar {
             this.entry = new ProgramPoint(containingProcedure, "i-entry " + pprint.instructionString(i));
             this.normExit = this.entry;
             this.preNormExit = null;
-            this.exceptionExits = new HashMap<>();
+            this.thrownExceptions = new HashMap<>();
+            this.genExAllocations = new HashMap<>();
+            this.generatedExceptions = new HashMap<>();
             this.canExitNormally = true;
         }
 
@@ -2147,58 +2118,98 @@ public class StatementRegistrar {
         }
 
         /**
-         * Program points for exceptional exit, one for each exception type
+         * Program points for exceptional exit, one for each (succ basic block, exception type) pair
          */
-        Map<TypeReference, ProgramPoint> exceptionExits() {
-            return this.exceptionExits;
+        Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> getThrownExceptionExits() {
+            return this.thrownExceptions;
+        }
+
+        /**
+         * Program points for exceptional exit via generated exception, one for each (succ basic block, exception type)
+         * pair
+         */
+        Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> getGeneratedExceptionExits() {
+            return this.generatedExceptions;
+        }
+
+        /**
+         * Get the allocation site for a generated exceptions
+         *
+         * @param type type of the exception
+         * @return program point for the allocation site of the generated exception of the given type
+         */
+        public ProgramPoint getGenExAllocation(TypeReference type) {
+            assert this.genExAllocations.containsKey(type) : "No allocation site for gen-ex " + type;
+            return this.genExAllocations.get(type);
+        }
+
+        public ProgramPoint getCallSiteException() {
+            if (this.callSiteException == null) {
+                this.callSiteException = new ProgramPoint(this.entry.containingProcedure(), "(callee-exception-exit)");
+            }
+            return this.callSiteException;
         }
 
         /**
          * Add a program point that throws an exception.
          *
+         * @param successor catch (or exit) basic block the exception is exiting to
          * @param exType type of exception being added
-         * @return the exception exit (i.e. the program point that throws the exception)
-         */
-        ProgramPoint addThrowException(TypeReference exType) {
-            if (this.entry == this.normExit) {
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(inst-norm-exit)");
-                this.entry.addSucc(this.normExit);
-                this.preNormExit = this.entry;
-            }
-            if (exceptionExits.containsKey(exType)) {
-                assert false : "Exception exits already contains key " + exType;
-                return null;
-            }
-            ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), "throw "
-                    + PrettyPrinter.typeString(exType));
-            exceptionExits.put(exType, pp);
-            this.entry.addSucc(pp);
-            return pp;
-        }
-
-        /**
-         * Add a program point that generates an exception and a program point that throws it.
+         * @param isGenerated whether this exception is a JVM generated runtime exception (e.g. NullPointerException)
          *
-         * @param exType type of exception being added
          * @return the exception exit (i.e. the program point that throws the exception)
          */
-        OrderedPair<ProgramPoint, ProgramPoint> addGenAndThrowException(TypeReference exType) {
+        ProgramPoint addException(ISSABasicBlock successor, TypeReference exType, boolean isGenerated,
+                                  boolean isCalleeThrow) {
+            assert successor.isCatchBlock() || successor.isExitBlock();
+            assert !isGenerated || !isCalleeThrow;
             if (this.entry == this.normExit) {
                 this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(inst-norm-exit)");
                 this.entry.addSucc(this.normExit);
                 this.preNormExit = this.entry;
             }
-            if (exceptionExits.containsKey(exType)) {
-                assert false : "Exception exits already contains key";
-                return null;
+
+            ProgramPoint pred;
+            Map<TypeReference, Map<ISSABasicBlock, ProgramPoint>> map;
+            if (isGenerated) {
+                if (!useSingleAllocForGenEx) {
+                    assert !genExAllocations.containsKey(exType) : "existing generation site for " + exType;
+                    // Create an allocation site for the generated exception
+                    ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
+                    this.entry.addSucc(genPP);
+                    pred = genPP;
+                }
+                else {
+                    pred = this.entry;
+                }
+                map = generatedExceptions;
             }
-            ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
-            ProgramPoint throwPP = new ProgramPoint(this.entry.containingProcedure(), "(throw-ex) "
-                    + PrettyPrinter.typeString(exType));
-            this.entry.addSucc(genPP);
-            genPP.addSucc(throwPP);
-            exceptionExits.put(exType, throwPP);
-            return new OrderedPair<>(genPP, throwPP);
+            else if (isCalleeThrow) {
+                assert callSiteException != null;
+                pred = this.callSiteException;
+                map = thrownExceptions;
+            }
+            else {
+                // This is not a generated exception so put the exception exit right after the entry pp
+                pred = this.entry;
+                map = thrownExceptions;
+            }
+
+            assert map.get(exType) == null || !map.get(exType).containsKey(successor.getNumber()) : "Dupe exception PP "
+                    + exType + " -> BB" + successor.getNumber() + " gen?" + isGenerated;
+
+            String name = isGenerated ? "gen-" : "" + "throw " + PrettyPrinter.typeString(exType) + " -> BB"
+                    + successor.getNumber();
+            ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), name);
+            Map<ISSABasicBlock, ProgramPoint> m = map.get(exType);
+            if (m == null) {
+                m = new HashMap<>();
+                map.put(exType, m);
+            }
+            m.put(successor, pp);
+
+            pred.addSucc(pp);
+            return pp;
         }
 
         /**
