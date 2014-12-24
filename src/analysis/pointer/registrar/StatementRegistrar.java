@@ -2031,8 +2031,7 @@ public class StatementRegistrar {
         for (MethodSummaryNodes methSum : methods.values()) {
 
             if (simplePrint) {
-                if (methSum.toString().contains("main") || methSum.toString().contains("clinit")
-                        || methSum.toString().contains("fake") || methSum.toString().contains("Object")) {
+                if (!methSum.toString().contains("Exception")) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
                 }
                 continue;

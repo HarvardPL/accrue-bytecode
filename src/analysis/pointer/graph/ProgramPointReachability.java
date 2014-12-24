@@ -654,7 +654,11 @@ public class ProgramPointReachability {
             }
         }
 
-        private ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
+        Set<InterProgramPointReplica> getAllSources() {
+            return this.m.keySet();
+        }
+
+        ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
             ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> tm = this.m.get(s);
             if (tm == null) {
                 tm = AnalysisUtil.createConcurrentHashMap();
@@ -719,7 +723,16 @@ public class ProgramPointReachability {
         MethodSummaryKillAndAlloc res = methodSummaryMemoization.get(cgnode);
         if (res != null) {
             if (DEBUG) {
-                System.err.println("\tCACHED " + res);
+                System.err.println("\tCACHED");
+                for (InterProgramPointReplica src : res.getAllSources()) {
+                    for (InterProgramPointReplica target : res.getTargetMap(src).keySet()) {
+                        System.err.println("\t\t" + src + " -> " + target + " " + res.getTargetMap(src).get(target));
+                        IntIterator iter = res.getTargetMap(src).get(target).getAlloced().intIterator();
+                        while (iter.hasNext()) {
+                            System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                        }
+                    }
+                }
             }
             return res;
         }
@@ -729,11 +742,34 @@ public class ProgramPointReachability {
         if (existing != null) {
             // someone beat us to it, and is currently working on the results.
             if (DEBUG) {
-                System.err.println("\tBEATEN " + existing);
+                System.err.println("\tBEATEN");
+                for (InterProgramPointReplica src : existing.getAllSources()) {
+                    for (InterProgramPointReplica target : existing.getTargetMap(src).keySet()) {
+                        System.err.println("\t\t" + src + " -> " + target + " "
+                                + existing.getTargetMap(src).get(target));
+                        IntIterator iter = existing.getTargetMap(src).get(target).getAlloced().intIterator();
+                        while (iter.hasNext()) {
+                            System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                        }
+                    }
+                }
             }
             return existing;
         }
+
         MethodSummaryKillAndAlloc rr = computeReachabilityForMethod(m, context);
+        if (DEBUG) {
+            System.err.println("\tCOMPUTED " + PrettyPrinter.methodString(m) + " in " + context);
+            for (InterProgramPointReplica src : rr.getAllSources()) {
+                for (InterProgramPointReplica target : rr.getTargetMap(src).keySet()) {
+                    System.err.println("\t\t" + src + " -> " + target + " " + rr.getTargetMap(src).get(target));
+                    IntIterator iter = rr.getTargetMap(src).get(target).getAlloced().intIterator();
+                    while (iter.hasNext()) {
+                        System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                    }
+                }
+            }
+        }
         return rr;
     }
 
@@ -908,9 +944,6 @@ public class ProgramPointReachability {
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
         recordMethodReachability(m, context, rr);
-        if (DEBUG) {
-            System.err.println("COMPUTED " + rr + " FOR " + PrettyPrinter.methodString(m) + " in " + context);
-        }
         return rr;
     }
 

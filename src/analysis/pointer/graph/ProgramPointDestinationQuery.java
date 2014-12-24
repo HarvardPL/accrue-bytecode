@@ -24,6 +24,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.CancelException;
+import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 
 /**
@@ -201,7 +202,19 @@ public class ProgramPointDestinationQuery {
         this.currentSubQuery = new ProgramPointSubQuery(src, this.dest, this.noKill, this.noAlloc, this.forbidden);
 
         if (DEBUG) {
-            System.err.println("EXECUTING " + this.currentSubQuery);
+            System.err.println("\nEXECUTING " + this.currentSubQuery);
+            IntIterator iter = this.noAlloc.intIterator();
+            System.err.println("NO ALLOC: ");
+            while (iter.hasNext()) {
+                int i = iter.next();
+                System.err.println("\t" + i + " " + g.lookupInstanceKeyDictionary(i));
+            }
+            System.err.println("NO KILL: ");
+            iter = this.noKill.intIterator();
+            while (iter.hasNext()) {
+                int i = iter.next();
+                System.err.println("\t" + i + " " + g.lookupPointsToGraphNodeDictionary(i));
+            }
             System.err.println("Relevant call graph nodes: ");
             for (OrderedPair<IMethod, Context> n : relevantNodes) {
                 System.err.println("\t" + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
@@ -220,13 +233,17 @@ public class ProgramPointDestinationQuery {
             WorkItem wi = searchQ.poll();
             if (search(wi)) {
                 if (DEBUG) {
-                    System.err.println("FOUND DESTINATION " + this.currentSubQuery);
+                    System.err.println("FOUND DESTINATION " + this.currentSubQuery + "\n");
+                }
+                if (dest.toString().contains("100") && src.toString().contains("92")) {
+                    DEBUG = false;
+                    ProgramPointReachability.DEBUG = false;
                 }
                 return true;
             }
         }
         if (DEBUG) {
-            System.err.println("DID NOT FIND DEST " + this.currentSubQuery);
+            System.err.println("DID NOT FIND DEST " + this.currentSubQuery + "\n");
         }
         return false;
     }
@@ -462,7 +479,7 @@ public class ProgramPointDestinationQuery {
      * @return the results of searching through all the possible callees
      */
     private ReachabilityResult handleCall(InterProgramPointReplica ippr, WorkItem trigger) {
-        if (DEBUG2) {
+        if (DEBUG) {
             System.err.println("\t\t\tHANDLING CALL " + ippr);
         }
 
@@ -503,8 +520,8 @@ public class ProgramPointDestinationQuery {
                                                                  calleeSummary.getExceptionExitPP()
                                                                               .pre()
                                                                               .getReplica(callee.snd()));
-                if (DEBUG2) {
-                    System.err.println("\t\t\t\tUSING SUMMARY for Normal: "
+                if (DEBUG) {
+                    System.err.println("\t\t\t\tUSING SUMMARY  Normal: "
                             + normalRet.allows(this.noKill, this.noAlloc, this.g) + " Ex: "
                             + exRet.allows(this.noKill, this.noAlloc, this.g));
                 }

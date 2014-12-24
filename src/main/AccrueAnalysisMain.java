@@ -146,7 +146,9 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            simplePrint);
+                                            simplePrint,
+                                            outputDir,
+                                            fileName);
             g = results.fst();
             g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
@@ -197,7 +199,9 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            simplePrint);
+                                            simplePrint,
+                                            outputDir,
+                                            fileName);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -215,7 +219,9 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            simplePrint);
+                                            simplePrint,
+                                            outputDir,
+                                            fileName);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -234,7 +240,9 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            simplePrint);
+                                            simplePrint,
+                                            outputDir,
+                                            fileName);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -251,7 +259,9 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            simplePrint);
+                                            simplePrint,
+                                            outputDir,
+                                            fileName);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -286,7 +296,9 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
-                                            simplePrint);
+                                            simplePrint,
+                                            outputDir,
+                                            fileName);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -430,7 +442,9 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings,
                                                                                             boolean useSingleAllocForImmutableWrappers,
-                                                                                            boolean simplePrint) {
+                                                                                            boolean simplePrint,
+                                                                                            String outputDir,
+                                                                                            String mainCFGFileName) {
         PointsToAnalysis analysis;
         if (singleThreaded) {
             analysis = new PointsToAnalysisSingleThreaded(haf);
@@ -480,6 +494,10 @@ public class AccrueAnalysisMain {
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).lines2 + " lines of code analyzed.");
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");
         }
+
+        Entrypoint entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
+        IR ir = AnalysisUtil.getIR(entry.getMethod());
+        printSingleCFG(ir, outputDir + "/" + mainCFGFileName + "_main");
 
         ReferenceVariableCache rvCache = registrar.getRvCache();
         return new OrderedPair<>(g, rvCache);
@@ -710,7 +728,9 @@ public class AccrueAnalysisMain {
                                                                                            useSingleAllocForPrimitiveArrays,
                                                                                            useSingleAllocForStrings,
                                                                                            useSingleAllocForImmutableWrappers,
-                                                                                           simplePrint);
+                                                                                           simplePrint,
+                                                                                           outputDir,
+                                                                                           entryPoint);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {
