@@ -18,6 +18,10 @@ Flow sensitive issues
 
 - What do we do about primitive fields? It seems like these might need their own program points even though they don't affect the points-to analysis
 
+- Is computing relevant nodes multiple times more expensive than searching through irrelevant nodes for some sources?
+
+XXX Need to be object sensitive 
+
 
 TODO
 
