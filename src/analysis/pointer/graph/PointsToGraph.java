@@ -1871,7 +1871,6 @@ public class PointsToGraph {
         assert !isFlowSensitivePointsToGraphNode(target);
         target = this.getRepresentative(target);
 
-
         if (!srcIter.hasNext()) {
             // nothing in there, return an empty set.
             return EmptyIntSet.INSTANCE;
@@ -2524,47 +2523,6 @@ public class PointsToGraph {
         return Collections.emptySet();
     }
 
-    //    /**
-    //     * Represents the subset of set defined as {i | i \in set and there exists an ippr in pps such that i \in
-    //     * PointsToFS(n, ippr)}
-    //     */
-    //    public class PointsToIntersectIntSet extends AbstractIntSet implements IntSet {
-    //        final IntSet set;
-    //        final/*PointsToGraphNode*/int n;
-    //        final ExplicitProgramPointSet pps;
-    //        final ReachabilityQueryOriginMaker originMaker;
-    //
-    //        public PointsToIntersectIntSet(IntSet set, /*PointsToGraphNode*/int n, ExplicitProgramPointSet pps,
-    //                                       ReachabilityQueryOriginMaker originMaker) {
-    //            this.set = set;
-    //            this.n = n;
-    //            this.pps = pps;
-    //            this.originMaker = originMaker;
-    //        }
-    //
-    //        @Override
-    //        public boolean contains(int i) {
-    //            if (!set.contains(i)) {
-    //                return false;
-    //            }
-    //            ProgramPointSetClosure ppc = PointsToGraph.this.pointsToSetFS(n).get(i);
-    //            if (ppc == null || ppc.isEmpty()) {
-    //                return false;
-    //            }
-    //            for (InterProgramPointReplica x : pps) {
-    //                if (ppc.contains(x, PointsToGraph.this, originator)) {
-    //                    return true;
-    //                }
-    //            }
-    //            return false;
-    //        }
-    //
-    //        @Override
-    //        public IntIterator intIterator() {
-    //            return new PointsToIntersectIntIterator(set.intIterator(), n, pps, originator);
-    //        }
-    //    }
-
     public class PointsToIntersectIntIterator implements IntIterator {
         final IntIterator iter;
         final/*PointsToGraphNode*/int n;
@@ -2636,13 +2594,14 @@ public class PointsToGraph {
     }
 
     public Writer dumpPointsToGraph(Writer writer) throws IOException {
-        double spread = 1.0;
+        double spread = 2.0;
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                 + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
 
         DotNodesRepMap repMap = new DotNodesRepMap();
 
         IntIterator fromIter = pointsToFS.keyIterator();
+        writer.write("// EDGES\n");
         while (fromIter.hasNext()) {
             int f = fromIter.next();
             PointsToGraphNode from = lookupPointsToGraphNodeDictionary(f);
@@ -2670,7 +2629,7 @@ public class PointsToGraph {
                 }
             }
 
-            // print flow-sentsitive points-to relations for object field
+            // print flow-sensitive points-to relations for object field
             else {
                 assert from instanceof ObjectField : "Invalid PointsToGraphNode type.";
                 ObjectField of = (ObjectField) from;
@@ -2743,24 +2702,23 @@ public class PointsToGraph {
             }
         }
 
+        writer.write("\n// NODES\n");
         repMap.writeNodes(writer);
 
         writer.write("};\n");
         return writer;
     }
 
-    @SuppressWarnings("static-method")
     private boolean shouldPrint(InstanceKeyRecency ikr) {
-        String s = ikr.toString();
-        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive")
-                && !s.contains("CASE_INSENSITIVE");
+        return isNullInstanceKey(ikr) || !ikr.getConcreteType().toString().contains("Exception")
+                && !ikr.toString().contains("allocated at void com.ibm.wala.FakeRootClass")
+                && !ikr.toString().contains("allocated at void java.lang.String.<clinit>");
     }
 
-    @SuppressWarnings("static-method")
-    private boolean shouldPrint(ReferenceVariableReplica rvr) {
-        String s = rvr.toString();
-        return !s.contains("Exception") && !s.contains("fakeRootMethod") && !s.contains("CaseInsensitive")
-                && !s.contains("CASE_INSENSITIVE");
+    private static boolean shouldPrint(ReferenceVariableReplica rvr) {
+        String s = rvr.getExpectedType().toString();
+        return !s.contains("Exception") && !rvr.toString().contains("java.lang.String.CASE_INSENSITIVE_ORDER")
+                && !rvr.toString().contains("java.lang.String.serialPersistentFields");
     }
 
     protected static String escape(String s) {
@@ -2768,17 +2726,14 @@ public class PointsToGraph {
     }
 
     private class DotNodesRepMap {
-        // map from ikr to node number in dot file
+        // map from ikr to string in dot file
         final Map<InstanceKeyRecency, String> ikrToDotNode;
-        int ikrCount = 0;
-        // map from rvr to node number in dot file
+        // map from rvr to string in dot file
         final Map<ReferenceVariableReplica, String> rvrToDotNode;
         // set of ikr that should be printed
         final Set<InstanceKeyRecency> printIkr;
         // set of rvr that should be printed
         final Set<ReferenceVariableReplica> printRvr;
-
-        int rvrCount = 0;
 
         public DotNodesRepMap() {
             ikrToDotNode = new HashMap<>();
@@ -2787,43 +2742,52 @@ public class PointsToGraph {
             printRvr = new HashSet<>();
         }
 
-        // get node number from rvr, put if not presence
+        /**
+         * get String from rvr, put if not present
+         *
+         * @param rvr
+         * @return
+         */
         public String getRepOrPutIfAbsent(ReferenceVariableReplica rvr) {
             String s = rvrToDotNode.get(rvr);
             if (s == null) {
-                s = "rvr" + rvrCount;
-                rvrCount++;
+                s = "\"" + escape(rvr.toString()) + "\"";
                 rvrToDotNode.put(rvr, s);
             }
             return s;
         }
 
-        // get node number from ikr, put if not presence
+        /**
+         * get String from ikr, put if not presence
+         *
+         * @param ikr
+         * @return
+         */
         public String getRepOrPutIfAbsent(InstanceKeyRecency ikr) {
             String s = ikrToDotNode.get(ikr);
             if (s == null) {
-                s = "ikr" + ikrCount;
-                ikrCount++;
+                s = "\"" + escape(ikr.toString()) + "\"";
                 ikrToDotNode.put(ikr, s);
             }
             return s;
         }
 
-        // print all nodes with labels and colors
+        /**
+         * print all nodes with labels and colors
+         *
+         * @param writer
+         * @throws IOException
+         */
         public void writeNodes(Writer writer) throws IOException {
             for (ReferenceVariableReplica rvr : printRvr) {
                 String color = rvr.isFlowSensitive() ? "red" : "blue";
-                writer.write("\t" + rvrToDotNode.get(rvr) + "[color=" + color + ", label=\"RVR("
-                        + lookupDictionary(rvr) + "): "
-                        + escape(rvr.toString())
-                        + "\"];\n");
+                writer.write("\t" + rvrToDotNode.get(rvr) + " [color=" + color + "];\n");
             }
 
             for (InstanceKeyRecency ikr : printIkr) {
                 String color = ikr.isRecent() ? "red" : "blue";
-                writer.write("\t" + ikrToDotNode.get(ikr) + "[fontcolor=white, style=filled, fillcolor=" + color
-                        + ", label=\"IKR(" + lookupDictionary(ikr) + "): "
-                        + escape(ikr.toStringWithoutRecency()) + "\"];\n");
+                writer.write("\t" + ikrToDotNode.get(ikr) + " [fontcolor=white, style=filled, fillcolor=" + color
+                        + "];\n");
             }
         }
 
