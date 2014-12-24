@@ -220,7 +220,7 @@ public final class AccrueAnalysisOptions {
      * Heap abstraction factory definition
      */
     @Parameter(names = { "-haf", "-heapAbstractionFactory" }, validateWith = AccrueAnalysisOptions.HafValidator.class, description = "The HeapAbstractionFactory class defining how analysis contexts are created.")
-    private String hafString = "full";
+    private String hafString = "InstanceInitFullObjSensitive x type(2,1)";
     /**
      * {@link HeapAbstractionFactory} defining how analysis contexts are created
      */
