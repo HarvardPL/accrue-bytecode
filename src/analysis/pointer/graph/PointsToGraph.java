@@ -2726,20 +2726,34 @@ public class PointsToGraph {
     }
 
     private class DotNodesRepMap {
-        // map from ikr to string in dot file
+        /**
+         * map from ikr to string in dot file
+         */
         final Map<InstanceKeyRecency, String> ikrToDotNode;
-        // map from rvr to string in dot file
+        /**
+         * map from rvr to string in dot file
+         */
         final Map<ReferenceVariableReplica, String> rvrToDotNode;
-        // set of ikr that should be printed
+        /**
+         * set of ikr that should be printed
+         */
         final Set<InstanceKeyRecency> printIkr;
-        // set of rvr that should be printed
+        /**
+         * set of rvr that should be printed
+         */
         final Set<ReferenceVariableReplica> printRvr;
+
+        /**
+         * Number of times a string appears in either of the maps
+         */
+        final Map<String, Integer> counts;
 
         public DotNodesRepMap() {
             ikrToDotNode = new HashMap<>();
             rvrToDotNode = new HashMap<>();
             printIkr = new HashSet<>();
             printRvr = new HashSet<>();
+            counts = new HashMap<>();
         }
 
         /**
@@ -2752,6 +2766,15 @@ public class PointsToGraph {
             String s = rvrToDotNode.get(rvr);
             if (s == null) {
                 s = "\"" + escape(rvr.toString()) + "\"";
+                Integer count = counts.get(s);
+                if (count == null) {
+                    counts.put(s, 0);
+                }
+                else {
+                    counts.put(s, ++count);
+                    s = "\"" + escape(rvr.toString()) + " (" + count + ")\"";
+                }
+
                 rvrToDotNode.put(rvr, s);
             }
             return s;
