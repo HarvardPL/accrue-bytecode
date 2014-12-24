@@ -86,8 +86,8 @@ public class AnalysisUtil {
      * Class for value field of java.lang.String
      */
     private static IClass stringValueClass;
-    public static IClass privilegedActionClass;
-    public static IClass privilegedExceptionActionClass;
+    private static IClass privilegedActionClass;
+    private static IClass privilegedExceptionActionClass;
 
     private static String outputDirectory;
     private static AnalysisScope scope;
