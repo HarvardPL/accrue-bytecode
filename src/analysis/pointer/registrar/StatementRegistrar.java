@@ -41,6 +41,7 @@ import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.StatementFactory;
 
+import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
@@ -184,7 +185,7 @@ public class StatementRegistrar {
     /**
      * Program points for the entry to catch instructions
      */
-    private Set<ProgramPoint> catchEntries;
+    private final Set<ProgramPoint> catchEntries = new HashSet<>();
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -788,7 +789,7 @@ public class StatementRegistrar {
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
 
             // Create program points for any exceptions thrown by the callee
-            ProgramPoint exception = subgraph.getCallSiteException();
+            ProgramPoint exception = subgraph.getCallSiteException(invocation.getCallSite());
             callExceptions.add(exception);
 
             CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exception);
@@ -1030,8 +1031,9 @@ public class StatementRegistrar {
 
         // //////////// Exceptions ////////////
 
-        TypeReference exType = types.getType(i.getException());
+        TypeReference exType = TypeReference.JavaLangThrowable;
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
+        // XXX make sure that the exception edge gets added
         this.registerThrownException(insToPPSubGraph.get(i),
                                      bb,
                                      ir,
@@ -1985,10 +1987,13 @@ public class StatementRegistrar {
 
         Set<ProgramPoint> visited = new HashSet<>();
 
-        for (MethodSummaryNodes methSum : methods.values()) {
-
+        for (IMethod m : methods.keySet()) {
+            MethodSummaryNodes methSum = methods.get(m);
             if (simplePrint) {
-                if (!methSum.toString().contains("Exception")) {
+                if (!m.getDeclaringClass().toString().contains("Exception")
+                        && !m.getDeclaringClass().toString().contains("CaseInsensitiveComparator")
+                        && !(m.getDeclaringClass().toString().contains("String") && m.isClinit())
+                        && !(m.getDeclaringClass().toString().contains("Object") && m.isInit())) {
                     writeSucc(methSum.getEntryPP(), writer, visited);
                 }
                 continue;
@@ -2143,9 +2148,12 @@ public class StatementRegistrar {
             return this.genExAllocations.get(type);
         }
 
-        public ProgramPoint getCallSiteException() {
+        public ProgramPoint getCallSiteException(CallSiteReference callSiteReference) {
             if (this.callSiteException == null) {
-                this.callSiteException = new ProgramPoint(this.entry.containingProcedure(), "(callee-exception-exit)");
+                String name = PrettyPrinter.methodString(callSiteReference.getDeclaredTarget()) + "@"
+                        + callSiteReference.getProgramCounter();
+                this.callSiteException = new ProgramPoint(this.entry.containingProcedure(), "(callee-exception-exit) "
+                        + name);
             }
             return this.callSiteException;
         }
@@ -2175,7 +2183,9 @@ public class StatementRegistrar {
                 if (!useSingleAllocForGenEx) {
                     assert !genExAllocations.containsKey(exType) : "existing generation site for " + exType;
                     // Create an allocation site for the generated exception
-                    ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex)");
+                    ProgramPoint genPP = new ProgramPoint(this.entry.containingProcedure(), "(gen-ex) "
+                            + PrettyPrinter.typeString(exType));
+                    genExAllocations.put(exType, genPP);
                     this.entry.addSucc(genPP);
                     pred = genPP;
                 }
@@ -2186,6 +2196,7 @@ public class StatementRegistrar {
             }
             else if (isCalleeThrow) {
                 assert callSiteException != null;
+                this.entry.addSucc(this.callSiteException);
                 pred = this.callSiteException;
                 map = thrownExceptions;
             }
@@ -2198,7 +2209,7 @@ public class StatementRegistrar {
             assert map.get(exType) == null || !map.get(exType).containsKey(successor.getNumber()) : "Dupe exception PP "
                     + exType + " -> BB" + successor.getNumber() + " gen?" + isGenerated;
 
-            String name = isGenerated ? "gen-" : "" + "throw " + PrettyPrinter.typeString(exType) + " -> BB"
+            String name = (isGenerated ? "(gen) " : "") + "throw " + PrettyPrinter.typeString(exType) + " -> BB"
                     + successor.getNumber();
             ProgramPoint pp = new ProgramPoint(this.entry.containingProcedure(), name);
             Map<ISSABasicBlock, ProgramPoint> m = map.get(exType);

@@ -20,17 +20,8 @@ Flow sensitive issues
 
 - Is computing relevant nodes multiple times more expensive than searching through irrelevant nodes for some sources?
 
-XXX Need to be object sensitive 
+- Need to make sure we never use the type inference results for exceptions thrown by callees, seems like it is always NPE for non-static and Throwable for static calls
 
+- Do we want to special case Object.<init> in the pp reachability stuff. It never does anything and is always the same.
 
-TODO
-
-X 1. Outline
-X 2. ECOOP format
-3. Relevant nodes
-depth first search by edge
-- if the call edge is on the stack then a return edge prunes
-- use nodes for success (target or relevent)
-for correctness try all paths
-
-Fix data-flow framework to correctly analyze the static initializers before the main method (before fakeroot?)
+XXX Fix data-flow framework to correctly analyze the static initializers before the main method (before fakeroot?)
