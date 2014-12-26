@@ -203,7 +203,10 @@ public class TypeFilter {
 //                System.err.println("\nGot " + c + "\n        " + f1
 //                        + "\n        " + f2);
 //            }
-            c = cachedCompose.putIfAbsent(key, c);
+            TypeFilter existing = cachedCompose.putIfAbsent(key, c);
+            if (existing != null) {
+                c = existing;
+            }
         }
         return c;
     }
@@ -282,7 +285,10 @@ public class TypeFilter {
                 // the filter won't admit any instanceKeys...
                 tf = IMPOSSIBLE;
             }
-            tf = memoized.putIfAbsent(w, tf);
+            TypeFilter existing = memoized.putIfAbsent(w, tf);
+            if (existing != null) {
+                tf = existing;
+            }
         }
         return tf;
     }
