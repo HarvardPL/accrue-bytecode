@@ -358,45 +358,47 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // added to the service.
 
             // Check if we should add any pending tasks.
-            int numRemainingTasks = (int) this.numRemainingTasks.get();
-            int numberAdded = 0;
-            int bound = exec.getParallelism() + 2;
-            if (numRemainingTasks + numberAdded < bound) {
+            int bound = (int) (exec.getParallelism() * 1.5);
+            if (this.numRemainingTasks.get() < bound) {
                 // try adding some more tasks
-                Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddToSetOrigin> makeConcurrentSet());
-                for (AddToSetOrigin t : s) {
-                    this.numRemainingTasks.incrementAndGet();
-                    this.totalAddToSetTasks.incrementAndGet();
-                    exec.execute(new RunnablePointsToTask(t));
-                    numberAdded++;
-                }
-            }
-            if (numRemainingTasks + numberAdded < bound) {
-                // try adding some more tasks
-                Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddNonMostRecentOrigin> makeConcurrentSet());
-                for (AddNonMostRecentOrigin t : s) {
-                    this.numRemainingTasks.incrementAndGet();
-                    this.totalAddNonMostRecentOriginTasks.incrementAndGet();
-                    exec.execute(new RunnablePointsToTask(t));
-                    numberAdded++;
-                }
-            }
-            if (numRemainingTasks + numberAdded < bound) {
-                // try adding some more tasks
-                Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(PointsToAnalysisMultiThreaded.<ProgramPointSubQuery> makeConcurrentSet());
-                for (ProgramPointSubQuery sq : s) {
-                    this.numRemainingTasks.incrementAndGet();
-                    this.totalPPSubQueryTasks.incrementAndGet();
-                    exec.execute(new RunnablePointsToTask(new PPSubQueryTask(sq)));
-                    numberAdded++;
-                }
-            }
 
+                {
+                    Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddToSetOrigin> makeConcurrentSet());
+                    for (AddToSetOrigin t : s) {
+                        this.numRemainingTasks.incrementAndGet();
+                        this.totalAddToSetTasks.incrementAndGet();
+                        exec.execute(new RunnablePointsToTask(t));
+                    }
+                }
+                if (this.numRemainingTasks.get()  < bound) {
+                    // try adding some more tasks
+                    {
+                        Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddNonMostRecentOrigin> makeConcurrentSet());
+                        for (AddNonMostRecentOrigin t : s) {
+                            this.numRemainingTasks.incrementAndGet();
+                            this.totalAddNonMostRecentOriginTasks.incrementAndGet();
+                            exec.execute(new RunnablePointsToTask(t));
+                        }
+                    }
+                    if (this.numRemainingTasks.get() < bound) {
+                        // try adding some more tasks
+                        {
+                            Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(PointsToAnalysisMultiThreaded.<ProgramPointSubQuery> makeConcurrentSet());
+
+                            for (ProgramPointSubQuery sq : s) {
+                                this.numRemainingTasks.incrementAndGet();
+                                this.totalPPSubQueryTasks.incrementAndGet();
+                                exec.execute(new RunnablePointsToTask(new PPSubQueryTask(sq)));
+                            }
+                        }
+                    }
+                }
+            }
             // Now that we have finished adding pending tasks,
             // decrement the number of remaining tasks, and see if we are
             // ready to shutdown.
-            numRemainingTasks = (int) this.numRemainingTasks.decrementAndGet();
-            if (numRemainingTasks == 0 && numberAdded == 0) {
+            if (this.numRemainingTasks.decrementAndGet() == 0) {
+                // this was the last task.
                 // we have finished!
                 // Notify anyone that was waiting.
                 synchronized (this) {
