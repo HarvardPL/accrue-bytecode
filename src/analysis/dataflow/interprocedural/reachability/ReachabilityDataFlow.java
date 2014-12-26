@@ -1,5 +1,6 @@
 package analysis.dataflow.interprocedural.reachability;
 
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -98,6 +99,33 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
     }
 
     @Override
+    protected Map<ISSABasicBlock, ReachabilityAbsVal> flowUnreachableBlock(Set<ReachabilityAbsVal> inItems,
+                                                                             ISSABasicBlock current,
+                                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> g) {
+        // The only unreachable blocks are blocks with no predecessors
+        assert getNumPreds(current, g) == 0;
+        if (current.isEntryBlock()) {
+            // Input blocks are handled elsewhere
+            return null;
+        }
+
+        if (outputLevel >= 1) {
+            System.err.println("WARNING: unreachable BB " + current + " in "
+                    + PrettyPrinter.methodString(g.getMethod()));
+        }
+
+        // If these blocks are not the input block then they are unnecessary catch blocks
+        assert current.isCatchBlock();
+        Map<ISSABasicBlock, ReachabilityAbsVal> out = new LinkedHashMap<>();
+        Iterator<ISSABasicBlock> succs = getSuccs(current, g);
+        while (succs.hasNext()) {
+            // all successors are unreachable since this block is never reached
+            out.put(succs.next(), ReachabilityAbsVal.UNREACHABLE);
+        }
+        return out;
+    }
+
+    @Override
     protected Map<ISSABasicBlock, ReachabilityAbsVal> flow(Set<ReachabilityAbsVal> inItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         Map<ISSABasicBlock, ReachabilityAbsVal> out = super.flow(inItems, cfg, current);
@@ -134,13 +162,13 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
         for (ISSABasicBlock bb : getNormalSuccs(justProcessed, cfg)) {
             if (outItems.get(bb) == null) {
-                throw new RuntimeException("Missing fact on normal edge.");
+                throw new RuntimeException("Missing fact on normal edge from " + justProcessed + " to " + bb);
             }
         }
 
         for (ISSABasicBlock bb : getExceptionalSuccs(justProcessed, cfg)) {
             if (outItems.get(bb) == null) {
-                throw new RuntimeException("Missing fact on exception edge.");
+                throw new RuntimeException("Missing fact on exception edge from " + justProcessed + " to " + bb);
             }
         }
 
@@ -152,10 +180,10 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
         Set<OrderedPair<ISSABasicBlock, ISSABasicBlock>> unreachable = new LinkedHashSet<>();
         for (ISSABasicBlock source : ir.getControlFlowGraph()) {
             if (getAnalysisRecord(source) == null) {
-                // source is unreachable from the entry, it is an unneccessary catch block
-                assert ir.getControlFlowGraph().getPredNodeCount(source) == 0;
+                // source is unreachable from the entry, it is an unneccessary catch block with no predecessors
                 System.err.println("WARNING: null record for " + source + " in "
                         + PrettyPrinter.methodString(ir.getMethod()));
+                assert ir.getControlFlowGraph().getPredNodeCount(source) == 0;
                 assert source.isCatchBlock();
                 continue;
             }

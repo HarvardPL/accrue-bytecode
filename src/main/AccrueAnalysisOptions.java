@@ -172,6 +172,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("pointsto")) {
                 return;
             }
+            if (value.equals("pointsto2")) {
+                return;
+            }
             if (value.equals("maincfg")) {
                 return;
             }

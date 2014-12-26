@@ -46,13 +46,19 @@ import analysis.string.StringVariableFactory.StringVariable;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.ipa.callgraph.AnalysisOptions.ReflectionOptions;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
+import com.ibm.wala.ipa.callgraph.impl.Util;
+import com.ibm.wala.ipa.callgraph.propagation.ReceiverTypeContextSelector;
+import com.ibm.wala.ipa.callgraph.propagation.SSAPropagationCallGraphBuilder;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
 import com.ibm.wala.properties.WalaProperties;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.TypeReference;
+import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.WalaException;
 
 /**
@@ -125,6 +131,11 @@ public class AccrueAnalysisMain {
         ReferenceVariableCache rvCache;
         switch (analysisName) {
         case "pointsto":
+            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            System.err.println("STARTING WALA POINTER ANALYSIS");
+            runWalaPointerAnalysis(haf, singleGenEx, singleThrowable, singlePrimArray, singleString, singleWrappers);
+            break;
+        case "pointsto2":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
@@ -461,8 +472,102 @@ public class AccrueAnalysisMain {
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");
         }
 
-        ReferenceVariableCache rvCache = registrar.getAllLocals();
+        ReferenceVariableCache rvCache = registrar.getRvCache();
         return new OrderedPair<>(g, rvCache);
+    }
+
+    @SuppressWarnings("unused")
+    private static void runWalaPointerAnalysis(final HeapAbstractionFactory haf,
+                                               boolean useSingleAllocForGenEx,
+                                               boolean useSingleAllocForThrowable,
+                                               boolean useSingleAllocForPrimitiveArrays,
+                                               boolean useSingleAllocForStrings,
+                                               boolean useSingleAllocForImmutableWrappers) {
+        AnalysisUtil.getOptions().setReflectionOptions(ReflectionOptions.NONE);
+        //        SSAPropagationCallGraphBuilder builder = Util.makeZeroCFABuilder(AnalysisUtil.getOptions(),
+        //                                                                         AnalysisUtil.getCache(),
+        //                                                                         AnalysisUtil.getClassHierarchy(),
+        //                                                                         AnalysisUtil.getScope());
+        SSAPropagationCallGraphBuilder builder = Util.makeZeroOneCFABuilder(AnalysisUtil.getOptions(),
+                                                                            AnalysisUtil.getCache(),
+                                                                            AnalysisUtil.getClassHierarchy(),
+                                                                            AnalysisUtil.getScope(),
+                                                                            new ReceiverTypeContextSelector(),
+                                                                            null);
+
+        //        com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory haf2 = new com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory() {
+        //
+        //            @Override
+        //            public String toString() {
+        //                return haf.toString();
+        //            }
+        //
+        //            @Override
+        //            public InstanceKey record(AllocSiteNode allocationSite, Context context) {
+        //                analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode asn = new analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode(allocationSite.toString(),
+        //                                                                                                                                                        allocationSite.getAllocatedClass(),
+        //                                                                                                                                                        allocationSite.getAllocatingMethod(),
+        //                                                                                                                                                        allocationSite.getProgramCounter(),
+        //                                                                                                                                                        allocationSite.isStringLiteral(),
+        //                                                                                                                                                        allocationSite.getLineNumber()) {
+        //                    @Override
+        //                    public boolean equals(Object obj) {
+        //                        if (!(obj instanceof analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode)) {
+        //                            return false;
+        //                        }
+        //                        analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode other = (analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode) obj;
+        //                        return this.getAllocatedClass().equals(other.getAllocatedClass())
+        //                                && this.getAllocatingMethod().equals(other.getAllocatingMethod())
+        //                                && this.getProgramCounter() == other.getProgramCounter()
+        //                                && this.isStringLiteral() == other.isStringLiteral()
+        //                                && this.getLineNumber() == other.getLineNumber();
+        //                    }
+        //
+        //                    @Override
+        //                    public int hashCode() {
+        //                        return this.getAllocatedClass().hashCode() + this.getAllocatingMethod().hashCode()
+        //                                + this.getProgramCounter() + (this.isStringLiteral() ? 1 : 0) + this.getLineNumber();
+        //                    }
+        //
+        //                };
+        //
+        //                return haf.record(asn, context);
+        //            }
+        //
+        //            @Override
+        //            public Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+        //                analysis.pointer.statements.CallSiteLabel csl = new analysis.pointer.statements.CallSiteLabel(callSite.getCaller(),
+        //                                                                                                              callSite.getReference());
+        //                return haf.merge(csl, receiver, callerContext);
+        //            }
+        //
+        //            @Override
+        //            public Context initialContext() {
+        //                return haf.initialContext();
+        //            }
+        //        };
+        //        MultiThreadedCallGraphBuilder builder = new MultiThreadedCallGraphBuilder(AnalysisUtil.getOptions(),
+        //                                                                                  AnalysisUtil.getCache(),
+        //                                                                                  AnalysisUtil.getClassHierarchy(),
+        //                                                                                  AnalysisUtil.getScope(),
+        //                                                                                  haf2,
+        //                                                                                  useSingleAllocForGenEx,
+        //                                                                                  useSingleAllocForThrowable,
+        //                                                                                  useSingleAllocForPrimitiveArrays,
+        //                                                                                  useSingleAllocForStrings,
+        //                                                                                  useSingleAllocForImmutableWrappers);
+
+        try {
+            long start = System.currentTimeMillis();
+            CallGraph cg = builder.makeCallGraph(AnalysisUtil.getOptions(), null);
+            System.err.println("FINISHED: " + (System.currentTimeMillis() - start));
+            System.err.println("\t" + cg.getNumberOfNodes() + " call graph nodes");
+        }
+        catch (IllegalArgumentException | CancelException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 
     /**

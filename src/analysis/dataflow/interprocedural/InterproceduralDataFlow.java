@@ -149,9 +149,11 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
 
         System.err.println("FINISHED: " + getAnalysisName() + " it took " + (time / 1000.0) + "s");
-        System.gc();
-        System.err.println("Memory used so far: "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("Memory used so far: "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+        }
     }
 
     protected abstract String getAnalysisName();

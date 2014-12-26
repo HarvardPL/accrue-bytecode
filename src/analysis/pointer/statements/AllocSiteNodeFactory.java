@@ -70,12 +70,12 @@ public class AllocSiteNodeFactory {
     /**
      * Represents an allocation site in the code
      */
-    public static final class AllocSiteNode {
+    public static class AllocSiteNode {
 
         /**
          * Method where allocation occurs in
          */
-        private final IMethod allocatingMethod;
+        protected final IMethod allocatingMethod;
         /**
          * Allocated class
          */
@@ -87,7 +87,7 @@ public class AllocSiteNodeFactory {
         /**
          * program counter at the allocation site (-1 for generated allocations e.g. generated exceptions)
          */
-        private final int programCounter;
+        protected final int programCounter;
 
         /**
          * Is this allocation a string literal then this is the literal value?
@@ -124,7 +124,7 @@ public class AllocSiteNodeFactory {
          * @param isStringLiteral true if this allocation is for a string literal
          * @param lineNumber line number from source code if one can be found, -1 otherwise
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod, int programCounter,
+        public AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod, int programCounter,
                               boolean isStringLiteral, int lineNumber) {
             assert debugString != null;
             assert allocatingMethod != null;
@@ -176,6 +176,14 @@ public class AllocSiteNodeFactory {
 
         public int getLineNumber() {
             return lineNumber;
+        }
+
+        public IMethod getAllocatingMethod() {
+            return allocatingMethod;
+        }
+
+        public int getProgramCounter() {
+            return programCounter;
         }
     }
 }

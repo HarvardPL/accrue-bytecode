@@ -163,7 +163,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
-        if (AccrueAnalysisMain.testMode) {
+        if (!AccrueAnalysisMain.testMode) {
             IntMap<MutableIntSet> graph = g.getPointsToGraph();
             IntIterator nodes = graph.keyIterator();
             long totalEdges = 0;
@@ -171,23 +171,25 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 MutableIntSet s = graph.get(nodes.next());
                 totalEdges += s.size();
             }
-            System.out.println("   Num graph edges        : " + totalEdges);
-        }
-        //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
-        System.gc();
-        System.err.println("   Memory utilization     : "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
-        System.err.println("\n\n");
+            System.err.println("   Num graph edges        : " + totalEdges);
 
+            //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
+            System.gc();
+            System.err.println("   Memory utilization     : "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.err.println("\n\n");
+        }
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
         }
         g.constructionFinished();
-        System.gc();
-        System.err.println("   Memory post compression: "
-                + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
-        System.err.println("\n\n");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("   Memory post compression: "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.err.println("\n\n");
+        }
 
         return g;
     }

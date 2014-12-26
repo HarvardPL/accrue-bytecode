@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import main.AccrueAnalysisMain;
 import signatures.Signatures;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -89,6 +90,7 @@ public class AnalysisUtil {
     public static IClass privilegedExceptionActionClass;
 
     private static String outputDirectory;
+    private static AnalysisScope scope;
 
     /**
      * File describing classes that should be ignored by all analyses, even the WALA class loader
@@ -161,7 +163,7 @@ public class AnalysisUtil {
         AnalysisUtil.cache = new AnalysisCache();
 
 
-        AnalysisScope scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
+        AnalysisUtil.scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
                                                                 EXCLUSIONS_FILE,
                                                                 AnalysisUtil.class.getClassLoader());
         System.err.println("CLASSPATH=" + classPath);
@@ -172,9 +174,11 @@ public class AnalysisUtil {
         AnalysisUtil.cha = ClassHierarchy.make(scope);
         System.err.println(AnalysisUtil.cha.getNumberOfClasses() + " classes loaded. It took "
                 + (System.currentTimeMillis() - start) + "ms");
-        System.gc();
-        System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
-                + "MB");
+        if (!AccrueAnalysisMain.testMode) {
+            System.gc();
+            System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
+                    + "MB");
+        }
 
         Iterable<Entrypoint> entrypoints;
         if (entryPoint == null) {
@@ -401,6 +405,10 @@ public class AnalysisUtil {
      */
     public static String getOutputDirectory() {
         return outputDirectory;
+    }
+
+    public static AnalysisScope getScope() {
+        return scope;
     }
 
 }
