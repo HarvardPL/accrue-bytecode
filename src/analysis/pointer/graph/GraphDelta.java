@@ -64,8 +64,14 @@ public class GraphDelta {
     }
 
     protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
+        if (!PointsToGraph.USE_CYCLE_COLLAPSING) {
+            throw new UnsupportedOperationException("We do not currently support cycle collapsing");
+        }
         MutableIntSet old = delta.remove(n);
-        assert old == null || old.isSubset(delta.get(rep));
+        if (old != null) {
+            addAllToSet(rep, old);
+        }
+        assert old == null || (delta.get(rep) != null && old.isSubset(delta.get(rep)));
     }
 
     /**

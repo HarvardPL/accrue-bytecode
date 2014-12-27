@@ -48,7 +48,7 @@ import com.ibm.wala.util.intset.SparseIntSet;
  * Graph mapping local variables (in a particular context) and fields to
  * abstract heap locations (representing zero or more actual heap locations)
  */
-public class PointsToGraph {
+public final class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
 
@@ -74,7 +74,7 @@ public class PointsToGraph {
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    ConcurrentIntMap<IClass> concreteTypeDictionary = null;//PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<IClass> concreteTypeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -97,7 +97,8 @@ public class PointsToGraph {
     *
     * Moreover, since cycles may be collapsed, we use the map representative to
     * record the "representative" node for nodes that have been collapsed. Note
-    * that we maintain the invariants:
+    * that we maintain the invariants (up to race conditions; i.e., a thread may
+    * observe these invariants broken, but they will shortly be fixed.)
     *   - if a \in domain(representative) then a \not\in domain(pointsTo)
     *   - if a \in domain(representative) then a \not\in domain(isUnfilteredSubsetOf)
     *   - if a \in domain(representative) then a \not\in domain(isFilteredSubsetOf)
@@ -125,8 +126,15 @@ public class PointsToGraph {
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
      * cycles) and which node now represents them.
      */
-    private final ConcurrentIntMap<Integer> representative = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<Integer> representative = USE_CYCLE_COLLAPSING
+            ? PointsToAnalysisMultiThreaded.<Integer> makeConcurrentIntMap() : null;
 
+    /**
+     * This flag controls whether we try to use cycle collapsing. NOTE: Cycle collapsing is an experimental feature that
+     * is not yet correct. There are a number of concurrency issues. It will work in a single threaded setting, but not
+     * concurrently.
+     */
+    static final boolean USE_CYCLE_COLLAPSING = false;
 
     /* ***************************************************************************
     *
@@ -173,10 +181,6 @@ public class PointsToGraph {
      */
     private boolean graphFinished = false;
 
-    private int outputLevel = 0;
-
-    public static boolean DEBUG = false;
-
     public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
         this.depRecorder = depRecorder;
 
@@ -211,12 +215,31 @@ public class PointsToGraph {
 
 
 
+    /**
+     * What is the immediate representative of n? If n is its own representative (i.e., either n is not in a cycle, or n
+     * has not been collapsed to another node in a cycle), then this method returns null.
+     *
+     * @param n
+     * @return
+     */
     /*PointsToGraphNode*/Integer getImmediateRepresentative(/*PointsToGraphNode*/int n) {
+        if (!USE_CYCLE_COLLAPSING) {
+            return null;
+        }
         return this.representative.get(n);
     }
 
-    public/*PointsToGraphNode*/int getRepresentative(/*PointsToGraphNode*/int n) {
-        // XXX Steve: Should this be used for something? int orig = n;
+    /**
+     * What is the representative of n? If n is its own representative (i.e., either n is not in a cycle, or n has not
+     * been collapsed to another node in a cycle), then this method returns n.
+     *
+     * @param n
+     * @return
+     */
+    private/*PointsToGraphNode*/int getRepresentative(/*PointsToGraphNode*/int n) {
+        if (!USE_CYCLE_COLLAPSING) {
+            return n;
+        }
         int rep;
         Integer x = n;
         do {
@@ -224,6 +247,19 @@ public class PointsToGraph {
             x = this.representative.get(x);
         } while (x != null);
         return rep;
+    }
+
+    /**
+     * Has n been collapsed? i.e., it is part of a cycle, and the representative of the cycle is a node other than n.
+     *
+     * @param n
+     * @return
+     */
+    public boolean isCollapsedNode(/*PointsToGraphNode*/int n) {
+        if (!USE_CYCLE_COLLAPSING) {
+            return false;
+        }
+        return this.representative.containsKey(n);
     }
 
     /**
@@ -277,27 +313,32 @@ public class PointsToGraph {
                                  new IntStack(),
                                  new Stack<Set<TypeFilter>>(),
                                  toCollapse);
-            // XXX maybe enable later.
-            //collapseCycles(toCollapse, delta);
+            collapseCycles(toCollapse, delta);
         }
         return delta;
     }
 
-    @SuppressWarnings("unused")
+    /**
+     * Collapse a cycle, i.e., choose a representative, and collapse all the nodes to point to that representative.
+     *
+     * @param toCollapse
+     * @param delta
+     */
     private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
-        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
+        if (!USE_CYCLE_COLLAPSING) {
+            return;
+        }
         IntIterator iter = toCollapse.keyIterator();
         while (iter.hasNext()) {
             int rep = iter.next();
-            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
             IntIterator collapseIter = toCollapse.get(rep).intIterator();
+            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
             while (collapseIter.hasNext()) {
                 int n = collapseIter.next();
-                if (collapsed.contains(n)) {
-                    // we have already collapsed n with something. let's skip it.
+                if (n == rep) {
+                    // no need to collapse this.
                     continue;
                 }
-                collapsed.add(n);
                 this.collapseNodes(n, rep);
                 delta.collapseNodes(n, rep);
             }
@@ -398,8 +439,7 @@ public class PointsToGraph {
                              new IntStack(),
                              new Stack<Set<TypeFilter>>(),
                              toCollapse);
-        //XXX maybe enable later.
-        //collapseCycles(toCollapse, changed);
+        collapseCycles(toCollapse, changed);
 
     }
 
@@ -407,28 +447,43 @@ public class PointsToGraph {
                                   MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                   Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
-        if (currentlyAdding.contains(target)) {
-            // we detected a cycle!
-            int foundAt = -1;
-            boolean hasMeaningfulFilter = false;
-            for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
-                if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
-                    foundAt = i;
+        if (USE_CYCLE_COLLAPSING) {
+            if (currentlyAdding.contains(target)) {
+                // we detected a cycle!
+                int foundAt = -1;
+                boolean hasMeaningfulFilter = false;
+                for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
+                    if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
+                        foundAt = i;
+                    }
+                    hasMeaningfulFilter |= filterStack.get(i) != null;
                 }
-                hasMeaningfulFilter |= filterStack.get(i) != null;
+                if (!hasMeaningfulFilter) {
+                    // we can collapse some nodes together!
+                    // Choose the lowest numbered element of the cycle as the representative,
+                    // so that if another thread is also trying to collapse this cycle,
+                    // they will agree on the representative.
+                    int representative = target;
+                    MutableIntSet toCollapseSet = MutableSparseIntSet.makeEmpty();
+                    for (int i = foundAt + 1; i < filterStack.size(); i++) {
+                        int n = currentlyAddingStack.get(i);
+                        toCollapseSet.add(n);
+                        if (n < representative) {
+                            representative = n;
+                        }
+                    }
+
+                    // Put the toCollapseSet in the toCollapse map, for the representative.
+                    MutableIntSet existingCollapseSet = toCollapse.get(representative);
+                    if (existingCollapseSet == null) {
+                        toCollapse.put(representative, toCollapseSet);
+                    }
+                    else {
+                        existingCollapseSet.addAll(toCollapseSet);
+                    }
+                }
+                assert !changed.addAllToSet(target, setToAdd) : "Shouldn't be anything left to add by this point";
             }
-            if (!hasMeaningfulFilter) {
-                // we can collapse some nodes together!
-                MutableIntSet toCollapseSet = toCollapse.get(target);
-                if (toCollapseSet == null) {
-                    toCollapseSet = MutableSparseIntSet.makeEmpty();
-                    toCollapse.put(target, toCollapseSet);
-                }
-                for (int i = foundAt + 1; i < filterStack.size(); i++) {
-                    toCollapseSet.add(currentlyAddingStack.get(i));
-                }
-            }
-            assert !changed.addAllToSet(target, setToAdd) : "Shouldn't be anything left to add by this point";
         }
 
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
@@ -436,7 +491,6 @@ public class PointsToGraph {
             return;
         }
         this.pointsToSet(target).addAll(setToAdd);
-
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -447,7 +501,7 @@ public class PointsToGraph {
         IntIterator iter = unfilteredSupersets == null ? EmptyIntIterator.instance()
                 : unfilteredSupersets.intIterator();
         while (iter.hasNext()) {
-            int m = iter.next();
+            int m = this.getRepresentative(iter.next());
             propagateDifference(changed,
                                 m,
                                 null,
@@ -459,7 +513,7 @@ public class PointsToGraph {
         }
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
-            int m = iter.next();
+            int m = this.getRepresentative(iter.next());
             @SuppressWarnings("null")
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
             // it is possible that the filter set is empty, due to race conditions.
@@ -586,10 +640,6 @@ public class PointsToGraph {
      * @param calleeContext context
      */
     private void recordReachableContext(IMethod callee, Context calleeContext) {
-        if (this.outputLevel >= 1) {
-            System.err.println("RECORDING: " + callee + " in " + calleeContext
-                               + " hc " + calleeContext);
-        }
         Set<Context> s = this.reachableContexts.get(callee);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
@@ -738,36 +788,58 @@ public class PointsToGraph {
      * @param rep
      */
     void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
+        if (!USE_CYCLE_COLLAPSING) {
+            throw new UnsupportedOperationException("We do not currently support cycle collapsing");
+        }
         assert n != rep : "Can't collapse a node with itself";
         // it is possible that since n and rep were registered, one or both of them were already merged.
         n = this.getRepresentative(n);
         rep = this.getRepresentative(rep);
+
 
         if (n == rep) {
             // they have already been merged.
             return;
         }
 
+        if (n < rep) {
+            // swap the representative and n, since we always collapse to the lower number.
+            int temp = rep;
+            rep = n;
+            n = temp;
+        }
+
+        assert rep < n : "Should always collapse to the lowest number node";
+
+        // The following protocol is wrong. It is not thread safe, and there
+        // are a number of possible races.
+
         // Notify the dependency recorder
         depRecorder.startCollapseNode(n, rep);
 
         // update the subset relations.
-        this.isUnfilteredSubsetOf.replace(n, rep);
-        this.isFilteredSubsetOf.replace(n, rep);
+        this.isUnfilteredSubsetOf.duplicate(n, rep);
+        this.isFilteredSubsetOf.duplicate(n, rep);
 
-        this.representative.put(n, rep);
+        Integer existingRep = this.representative.putIfAbsent(n, rep);
+        assert existingRep == null; // This is broken in concurrent settings. We need some other protocol
+
+        // update the points to sets, so that
+        // n now points to the rep set.
+        MutableIntSet repSet = pointsToSet(rep);
+        MutableIntSet oldN = this.pointsTo.put(n, repSet);
+        if (oldN != null) {
+            repSet.addAll(oldN);
+        }
+
+        // remove the subset relations
+        this.isUnfilteredSubsetOf.removeEdgesTo(n);
+        this.isFilteredSubsetOf.removeEdgesTo(n);
+
         depRecorder.finishCollapseNode(n, rep);
-
-        // update the points to sets.
-        this.pointsTo.remove(n);
-
     }
 
-    public void setOutputLevel(int outputLevel) {
-        this.outputLevel = outputLevel;
-    }
-
-    public int clinitCount = 0;
+    public AtomicInteger clinitCount = new AtomicInteger(0);
 
     /**
      * Add class initialization methods
@@ -787,7 +859,7 @@ public class PointsToGraph {
                 // new initializer
                 cgChanged = true;
                 this.recordReachableContext(clinit, initialContext);
-                this.clinitCount++;
+                this.clinitCount.incrementAndGet();
             }
             else {
                 // Already added an initializer and thus must have added initializers for super classes. These are all
@@ -813,7 +885,7 @@ public class PointsToGraph {
         boolean changed = this.entryPoints.add(newEntryPoint);
         if (changed) {
             this.recordReachableContext(newEntryPoint, this.haf.initialContext());
-            this.clinitCount++;
+            this.clinitCount.incrementAndGet();
         }
         return changed;
     }
@@ -1183,40 +1255,54 @@ public class PointsToGraph {
     }
 
     public int cycleRemovalCount() {
+        if (!USE_CYCLE_COLLAPSING) {
+            return 0;
+        }
         return this.representative.size();
     }
 
+    /**
+     * Find cycles in the superset relation of the pointstograph nodes, and collapse them. Note that this method is not
+     * thread safe.
+     */
     public void findCycles() {
-        IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
-
-        MutableIntSet visited = MutableSparseIntSet.makeEmpty();
-        IntIterator iter = this.isUnfilteredSubsetOf.domain();
-        while (iter.hasNext()) {
-            int n = iter.next();
-            this.findCycles(n, visited, MutableSparseIntSet.makeEmpty(), new IntStack(), toCollapse);
+        if (!USE_CYCLE_COLLAPSING) {
+            return;
         }
-
-        MutableIntSet collapsed = MutableSparseIntSet.makeEmpty();
-        IntIterator repIter = toCollapse.keyIterator();
-        while (repIter.hasNext()) {
-            int rep = repIter.next();
-            rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
-            IntIterator nIter = toCollapse.get(rep).intIterator();
-            while (nIter.hasNext()) {
-                int n = nIter.next();
-                if (collapsed.contains(n)) {
-                    // we have already collapsed n with something. let's skip it.
-                    continue;
-                }
-                collapsed.add(n);
-                this.collapseNodes(n, rep);
+        boolean someCollapsed;
+        do {
+            someCollapsed = false;
+            IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
+            MutableIntSet visited = MutableSparseIntSet.makeEmpty();
+            IntIterator iter = this.isUnfilteredSubsetOf.domain();
+            while (iter.hasNext()) {
+                int n = iter.next();
+                this.findCycles(n, visited, MutableSparseIntSet.makeEmpty(), new IntStack(), toCollapse);
             }
-        }
+
+            IntIterator repIter = toCollapse.keyIterator();
+            while (repIter.hasNext()) {
+                int rep = repIter.next();
+                IntIterator nIter = toCollapse.get(rep).intIterator();
+                rep = this.getRepresentative(rep); // it is possible that rep was already collapsed to something else. So we get the representative of it to shortcut things.
+                while (nIter.hasNext()) {
+                    int n = this.getRepresentative(nIter.next());
+                    if (n == rep) {
+                        continue;
+                    }
+                    someCollapsed = true;
+                    this.collapseNodes(n, rep);
+                }
+            }
+        } while (someCollapsed);
 
     }
 
     private void findCycles(/*PointsToGraphNode*/int n, MutableIntSet visited, MutableIntSet currentlyVisiting,
                             IntStack currentlyVisitingStack, IntMap<MutableIntSet> toCollapse) {
+        if (!USE_CYCLE_COLLAPSING) {
+            throw new UnsupportedOperationException("We do not currently support collapsing cycles.");
+        }
         if (currentlyVisiting.contains(n)) {
             // we detected a cycle!
             int foundAt = -1;
@@ -1227,13 +1313,21 @@ public class PointsToGraph {
                 }
             }
             // we can collapse some nodes together!
-            MutableIntSet toCollapseSet = toCollapse.get(n);
-            if (toCollapseSet == null) {
-                toCollapseSet = MutableSparseIntSet.makeEmpty();
-                toCollapse.put(n, toCollapseSet);
-            }
+            MutableIntSet toCollapseSet = MutableSparseIntSet.makeEmpty();
+            int rep = n;
             for (int i = foundAt + 1; i < currentlyVisitingStack.size(); i++) {
                 toCollapseSet.add(currentlyVisitingStack.get(i));
+                if (n < rep) {
+                    rep = n;
+                }
+            }
+
+            MutableIntSet existingCollapseSet = toCollapse.get(rep);
+            if (existingCollapseSet == null) {
+                toCollapse.put(rep, toCollapseSet);
+            }
+            else {
+                existingCollapseSet.addAll(toCollapseSet);
             }
             return;
         }
@@ -1291,15 +1385,15 @@ public class PointsToGraph {
             pointsTo.put(key, newMS);
         }
 
-        this.pointsTo = compact(this.pointsTo);
-        this.instanceKeyDictionary = compact(this.instanceKeyDictionary);
-        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
+        this.pointsTo = compact(this.pointsTo, "pointsTo");
+        this.instanceKeyDictionary = compact(this.instanceKeyDictionary, "instanceKeyDictionary");
+        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary, "reverseGraphNodeDictionary");
     }
 
     /**
      * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
      */
-    private static <V> ConcurrentIntMap<V> compact(ConcurrentIntMap<V> m) {
+    private static <V> ConcurrentIntMap<V> compact(ConcurrentIntMap<V> m, String debugName) {
         DenseIntMap<V> newMap = new DenseIntMap<>(Math.max(m.max() + 1, 0));
         IntIterator keyIterator = m.keyIterator();
         while (keyIterator.hasNext()) {
@@ -1308,7 +1402,8 @@ public class PointsToGraph {
         }
         float util = newMap.utilization();
         int length = Math.round(newMap.size() / util);
-        System.err.println("   Utilization of DenseIntMap: " + String.format("%.3f", util) + " (approx "
+        System.err.println("   Utilization of DenseIntMap for " + debugName + ": " + String.format("%.3f", util)
+                + " (approx "
                 + (length - newMap.size()) + " empty slots out of " + length + ")");
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
@@ -1316,7 +1411,7 @@ public class PointsToGraph {
     /**
      * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
      */
-    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
+    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m, String debugName) {
         if (m.isEmpty()) {
             return new ReadOnlyConcurrentMap<>(Collections.<K, V> emptyMap());
         }

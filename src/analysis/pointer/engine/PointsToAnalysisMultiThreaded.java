@@ -2,7 +2,6 @@ package analysis.pointer.engine;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
-import java.util.ConcurrentModificationException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -25,6 +24,7 @@ import analysis.pointer.statements.PointsToStatement;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
@@ -163,12 +163,18 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
+        System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
         if (!AccrueAnalysisMain.testMode) {
             IntMap<MutableIntSet> graph = g.getPointsToGraph();
             IntIterator nodes = graph.keyIterator();
             long totalEdges = 0;
             while (nodes.hasNext()) {
-                MutableIntSet s = graph.get(nodes.next());
+                int n = nodes.next();
+                if (g.isCollapsedNode(n)) {
+                    // don't double count this node
+                    continue;
+                }
+                IntSet s = graph.get(n);
                 totalEdges += s.size();
             }
             System.err.println("   Num graph edges        : " + totalEdges);
@@ -182,6 +188,22 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
+            g.findCycles();
+            System.err.println("   New num nodes collapsed    : " + g.cycleRemovalCount());
+            long totalEdges = 0;
+            IntMap<MutableIntSet> graph = g.getPointsToGraph();
+            IntIterator nodes = graph.keyIterator();
+            while (nodes.hasNext()) {
+                int n = nodes.next();
+                if (g.isCollapsedNode(n)) {
+                    // don't double count this node
+                    continue;
+                }
+                IntSet s = graph.get(n);
+                totalEdges += s.size();
+            }
+            System.err.println("   New num graph edges        : " + totalEdges);
+
         }
         g.constructionFinished();
         if (!AccrueAnalysisMain.testMode) {
@@ -320,8 +342,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     processSaC(sac, delta, ExecutorServiceCounter.this);
                     ExecutorServiceCounter.this.finishedTask();
                 }
-                catch (ConcurrentModificationException e) {
-                    System.err.println("ConcurrentModificationException!!!");
+                catch (Throwable e) {
                     e.printStackTrace();
                     System.exit(0);
                     // No seriously DIE!
