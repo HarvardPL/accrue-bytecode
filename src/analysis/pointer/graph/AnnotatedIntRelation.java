@@ -90,47 +90,6 @@ public abstract class AnnotatedIntRelation<T> {
         return getOrCreateMap(n, false);
     }
 
-    //    /**
-    //     * Replace n with rep. That is, update the relation R to R' so that if (n, a, t) \in R then (rep, a, t') \in R'
-    //     * where t \subseteq t' and if (a,n,t)\in R then (a, rep,t') \in R' where t \subseteq t'.
-    //     *
-    //     * Note that this operation will not add reflexive edges.
-    //     *
-    //     * @param n
-    //     * @param rep
-    //     */
-    //    public void replace(int n, int rep) {
-    //        // for every (n, b, T), add T to (rep, b)
-    //        // and remove (n,b) and (b.n)
-    //        ConcurrentIntMap<Set<T>> nForward = forward(n);
-    //        IntIterator ii = nForward.keyIterator();
-    //        while (ii.hasNext()) {
-    //            int b = ii.next();
-    //            Set<T> annotations = nForward.get(b);
-    //
-    //            if (rep != b) {
-    //                this.addAll(rep, b, annotations);
-    //            }
-    //            Set<T> bBackward = this.getOrCreateSet(b, false, rep);
-    //            bBackward.remove(n);
-    //        }
-    //        forwardReln.remove(n);
-    //
-    //
-    //        // for every (a, n, T), att T to (a, rep)
-    //        ConcurrentIntMap<Set<T>> nBackward = backward(n);
-    //        ii = nBackward.keyIterator();
-    //        while (ii.hasNext()) {
-    //            int a = ii.next();
-    //            Set<T> annotations = nBackward.get(a);
-    //            if (rep != a) {
-    //                this.addAll(rep, a, annotations);
-    //            }
-    //            Set<T> aForward = this.getOrCreateSet(a, true, rep);
-    //            aForward.remove(n);
-    //        }
-    //        backReln.remove(n);
-    //    }
 
     /**
      * Return the domain, i.e., the set {a | (a,b) \in R }

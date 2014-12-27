@@ -312,7 +312,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 + (totalTime - (this.registrationTime + this.topoSortTime)) / 1000 + "s.");
         System.err.println("   Num no delta processed " + this.numNoDeltaProcessed);
         System.err.println("   Num with delta processed " + (this.numProcessed - this.numNoDeltaProcessed));
-        System.err.println("   Cycles removed " + g.cycleRemovalCount() + " nodes");
 
         System.err.println("  counts: ");
         for (String key : this.counts.keySet()) {
@@ -341,9 +340,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 System.err.println("No virtual calls in this application");
             }
         }
-        System.err.println("   Finding more cycles...");
-        g.findCycles();
-        System.err.println("   Cycles now removed " + g.cycleRemovalCount() + " nodes");
 
         //        this.processAllStatements(g, registrar);
         registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
@@ -437,12 +433,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
             Set<ProgramPointSubQuery> reachabilitySubQueryQueueSet = new HashSet<>(reachabilitySubQueryQueue);
             System.err.println("PROCESSED: " + this.numProcessed + " in " + (currTime - this.startTime) / 1000
-                    + "s; number of source node " + g.numPointsToGraphNodes() + "; cycles removed "
-                    + g.cycleRemovalCount() + " nodes ; queue=" + currentQueue.size() + " nextQueue="
-                    + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size() + " addNonMostRecentQueue="
-                    + addNonMostRecentQueue.size() + " addToSetQueue=" + addToSetQueue.size()
-                    + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size() + " of which "
-                    + reachabilitySubQueryQueueSet.size() + " are unique ("
+                    + "s; number of source node " + g.numPointsToGraphNodes() + "; queue=" + currentQueue.size()
+                    + " nextQueue=" + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size()
+                    + " addNonMostRecentQueue=" + addNonMostRecentQueue.size() + " addToSetQueue="
+                    + addToSetQueue.size() + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size()
+                    + " of which " + reachabilitySubQueryQueueSet.size() + " are unique ("
                     + (this.numProcessed - this.lastNumProcessed) + " in " + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
             this.lastNumProcessed = this.numProcessed;

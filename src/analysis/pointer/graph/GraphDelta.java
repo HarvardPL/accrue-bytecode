@@ -126,7 +126,7 @@ public class GraphDelta {
     private IntMap<ProgramPointSetClosure> getOrCreateFSMap(/*PointsToGraphNode*/int src) {
         IntMap<ProgramPointSetClosure> s = deltaFS.get(src);
         if (s == null) {
-            s = new SparseIntMap();
+            s = new SparseIntMap<>();
             deltaFS.put(src, s);
         }
         return s;
@@ -182,29 +182,6 @@ public class GraphDelta {
         return set instanceof FilteredIntSet
                 ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
     }
-
-    //    protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
-    //        MutableIntSet oldFI = deltaFI.remove(n);
-    //        assert oldFI == null || oldFI.isSubset(deltaFI.get(rep));
-    //        IntMap<ProgramPointSetClosure> oldFS = deltaFS.remove(n);
-    //        assert (oldFS == null || containsAll(deltaFS.get(rep), oldFS));
-    //    }
-
-    //    private boolean containsAll(IntMap<ProgramPointSetClosure> superset, IntMap<ProgramPointSetClosure> subset) {
-    //        IntIterator iter = subset.keyIterator();
-    //        while (iter.hasNext()) {
-    //            int key = iter.next();
-    //            if (superset.containsKey(key)) {
-    //                if (!superset.get(key).containsAll(subset.get(key), g)) {
-    //                    return false;
-    //                }
-    //            }
-    //            else {
-    //                return false;
-    //            }
-    //        }
-    //        return true;
-    //    }
 
 
     /**
@@ -300,8 +277,7 @@ public class GraphDelta {
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, InterProgramPointReplica ippr,
                                            StmtAndContext originator) {
 
-        Integer node;
-        ArrayList<IntIterator> iterators = new ArrayList<>(10);
+        ArrayList<IntIterator> iterators = new ArrayList<>(3);
 
         if (g.isFlowSensitivePointsToGraphNode(n)) {
             if (!deltaAllocationSites.isEmpty()) {
@@ -328,27 +304,18 @@ public class GraphDelta {
         // we need to look in delta for all the possible representatives that n has been known by.
         // This is because this GraphDelta may have been created sometime
         // before n got collapsed.
-        node = n;
-        do {
-            MutableIntSet s = deltaFI.get(node);
-            if (s != null) {
-                iterators.add(s.intIterator());
-            }
-            node = g.getImmediateRepresentative(node);
-        } while (node != null);
+        MutableIntSet s = deltaFI.get(n);
+        if (s != null) {
+            iterators.add(s.intIterator());
+        }
+        IntMap<ProgramPointSetClosure> sfs = deltaFS.get(n);
 
-
-        node = n;
-        do {
-            IntMap<ProgramPointSetClosure> s = deltaFS.get(node);
-            if (s != null) {
-                iterators.add(new ProgramPointIntIterator(s,
-                                                          ippr,
-                                                          g,
-                                                          new StmtAndContextReachabilityOriginator(originator)));
-            }
-            node = g.getImmediateRepresentative(node);
-        } while (node != null);
+        if (sfs != null) {
+            iterators.add(new ProgramPointIntIterator(sfs,
+                                                      ippr,
+                                                      g,
+                                                      new StmtAndContextReachabilityOriginator(originator)));
+        }
 
         if (iterators.isEmpty()) {
             return EmptyIntIterator.instance();

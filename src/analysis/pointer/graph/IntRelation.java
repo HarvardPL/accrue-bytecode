@@ -62,42 +62,6 @@ public class IntRelation {
     }
 
     /**
-     * Replace n with rep. That is, update the relation R to R' so that if (n, a) \in R then (rep, a) \in R' and (a, n)
-     * \in R then (a, rep) \in R'.
-     *
-     * Note that this operation will not add reflexive edges.
-     *
-     * @param n
-     * @param rep
-     */
-    public void replace(int n, int rep) {
-        // for every (n, b), replace it with (rep, b)
-        IntIterator ii = forward(n).intIterator();
-        while (ii.hasNext()) {
-            int b = ii.next();
-            if (rep != b) {
-                this.add(rep, b);
-            }
-            MutableIntSet bBackward = this.getOrCreateSet(b, false);
-            bBackward.remove(n);
-        }
-        forwardReln.remove(n);
-
-
-        // for every (a, n), replace it with (a, rep)
-        ii = backward(n).intIterator();
-        while (ii.hasNext()) {
-            int a = ii.next();
-            if (rep != a) {
-                this.add(a, rep);
-            }
-            MutableIntSet aForward = this.getOrCreateSet(a, true);
-            aForward.remove(n);
-        }
-        backReln.remove(n);
-    }
-
-    /**
      * Return the domain, i.e., the set {a | (a,b) \in R }
      */
     public IntIterator domain() {
