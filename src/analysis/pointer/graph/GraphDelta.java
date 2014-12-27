@@ -27,7 +27,7 @@ import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
  * operation made to a PointsToGraph, and also to allow more efficient processing of statements, which can focus just on
  * the changes to the graph since last time they were processed.
  */
-public class GraphDelta {
+public final class GraphDelta {
     private final PointsToGraph g;
 
     /**

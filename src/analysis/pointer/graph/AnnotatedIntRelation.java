@@ -105,7 +105,7 @@ public abstract class AnnotatedIntRelation<T> {
         return this.backReln.keyIterator();
     }
 
-    public static class SetAnnotatedIntRelation<T> extends AnnotatedIntRelation<Set<T>> {
+    public static final class SetAnnotatedIntRelation<T> extends AnnotatedIntRelation<Set<T>> {
 
         @Override
         protected Set<T> createInitialAnnotation() {

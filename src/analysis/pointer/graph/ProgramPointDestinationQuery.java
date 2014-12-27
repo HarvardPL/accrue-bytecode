@@ -30,7 +30,7 @@ import com.ibm.wala.util.intset.IntSet;
 /**
  * Class which manages several queries with the same destination, no kill set, no alloc set, and set of forbidden nodes
  */
-public class ProgramPointDestinationQuery {
+public final class ProgramPointDestinationQuery {
 
     /**
      * Print debug info

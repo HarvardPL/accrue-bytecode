@@ -9,7 +9,7 @@ import com.ibm.wala.util.intset.IntSet;
 /**
  * Description of a single source program point reachability query.
  */
-public class ProgramPointSubQuery {
+public final class ProgramPointSubQuery {
     final InterProgramPointReplica source;
     final InterProgramPointReplica destination;
     final/*Set<PointsToGraphNode>*/IntSet noKill;

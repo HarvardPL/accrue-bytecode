@@ -21,7 +21,7 @@ import com.ibm.wala.util.intset.SparseIntSet;
  * that kills the node.
  *
  */
-public class ProgramPointSetClosure {
+public final class ProgramPointSetClosure {
     /**
      * This is the set of program points that were added. Implicitly, all program points that are reachable from a
      * source, without killing the node, are also in the set.

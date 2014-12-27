@@ -11,7 +11,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
 /**
  * Representation of a relation on ints.
  */
-public class IntRelation {
+public final class IntRelation {
     private final ConcurrentIntMap<MutableIntSet> forwardReln = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     private final ConcurrentIntMap<MutableIntSet> backReln = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
 

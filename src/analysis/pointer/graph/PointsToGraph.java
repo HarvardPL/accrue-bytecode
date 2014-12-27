@@ -61,7 +61,7 @@ import com.ibm.wala.util.intset.SparseIntSet;
  * Graph mapping local variables (in a particular context) and fields to abstract heap locations (representing zero or
  * more actual heap locations)
  */
-public class PointsToGraph {
+public final class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
 

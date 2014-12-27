@@ -42,7 +42,7 @@ import com.ibm.wala.util.intset.IntSet;
  * This class answers questions about what programs are reachable from what other program points, and caches answers
  * smartly.
  */
-public class ProgramPointReachability {
+public final class ProgramPointReachability {
     /**
      * Singleton instance of this class
      */
