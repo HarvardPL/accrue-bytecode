@@ -5,7 +5,7 @@ public class VCall2 {
     public static void main(String[] args) {
         VCall2 v = new VCall2(); // a1
         Object o = v.foo();
-        // "this" in method foo() --> a1
+        // "this" in method foo() --> most-recent a1
         // o --> most-recent a2
     }
 
