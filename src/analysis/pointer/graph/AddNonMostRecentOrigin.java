@@ -5,7 +5,8 @@ import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToTask;
 
 /**
- * If it becomes the case that isAllocInScope(rvr, i), then we need to add nonMostRecentVersion(i) to n.
+ * For a flow-insensitive reference variable replica rvr with local scope, if an allocation to i comes in the scope of
+ * rvr, then then we need to add nonMostRecentVersion(i) to n.
  */
 public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsToTask {
     private final/*PointsToGraphNode*/int n;
@@ -17,6 +18,8 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsTo
         this.n = n;
         this.rvr = rvr;
         this.i = i;
+        assert rvr.hasLocalScope();
+
     }
 
     @Override
@@ -38,8 +41,8 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsTo
 
         if (g.isAllocInScope(rvr, i, null)) {
             GraphDelta changes = g.addEdge(g.lookupPointsToGraphNodeDictionary(n),
-                                g.lookupInstanceKeyDictionary(g.nonMostRecentVersion(i)),
-                                null);
+                                           g.lookupInstanceKeyDictionary(g.nonMostRecentVersion(i)),
+                                           null);
             analysisHandle.handleChanges(changes);
         }
     }
