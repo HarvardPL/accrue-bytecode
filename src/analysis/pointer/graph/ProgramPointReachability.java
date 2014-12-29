@@ -938,8 +938,8 @@ public final class ProgramPointReachability {
      * path from source to destination that does not kill any object in noKill, nor does it allocate any object in
      * noAlloc.
      */
-    private final Set<ProgramPointSubQuery> positiveCache = AnalysisUtil.createConcurrentSet();
-    private final Set<ProgramPointSubQuery> negativeCache = AnalysisUtil.createConcurrentSet();
+    private Set<ProgramPointSubQuery> positiveCache = AnalysisUtil.createConcurrentSet();
+    private Set<ProgramPointSubQuery> negativeCache = AnalysisUtil.createConcurrentSet();
 
     /* *****************************************************************************
      *
@@ -1286,5 +1286,11 @@ public final class ProgramPointReachability {
 
     public void processSubQuery(ProgramPointSubQuery sq) {
         this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden);
+    }
+
+    public void clearCaches() {
+        System.err.println("Clearing reachability cache.");
+        positiveCache = AnalysisUtil.createConcurrentSet();
+        negativeCache = AnalysisUtil.createConcurrentSet();
     }
 }

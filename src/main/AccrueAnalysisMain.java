@@ -90,7 +90,7 @@ public class AccrueAnalysisMain {
 
         if (options.isParanoidPointerAnalysis()) {
             // Double check the results after running the multi-threaded pointer analysis
-            PointsToAnalysisMultiThreaded.setParanoidMode(true);
+            PointsToAnalysis.paranoidMode = true;
         }
 
         String entryPoint = options.getEntryPoint();
