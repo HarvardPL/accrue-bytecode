@@ -12,25 +12,43 @@ public class Load2 {
 
         while (l == null) {
             // l --> null || most-recent a1
-            // staticfield --> non-most-recent a1
-            //            pointsToNull(l);
-            //            mostRecent(l);
-            //            pointsToNull(staticfield);
-            pointsTo(staticfield);
+            // staticfield --> null || non-most-recent a1
+            pointsToNull(l);
+            mostRecent(l);
+            pointsToNull(staticfield);
+            nonMostRecent(staticfield);
+
             staticfield = l;
-            pointsTo(staticfield);
+
+            // Strong update to staticfield
+            // l --> null || most-recent a1
+            // staticfield --> null || most-recent a1
+            pointsToNull(l);
+            mostRecent(l);
+            pointsToNull(staticfield);
+            mostRecent(staticfield);
+
             l = new Load2(); // a1
-            pointsTo(staticfield);
-            // staticfield --> non-most-recent a1
-            // nonMostRecent(staticfield);
+
+            // l --> null || most-recent a1
+            // staticfield --> null || non-most-recent a1
+            mostRecent(l);
+            pointsToNull(staticfield);
+            nonMostRecent(staticfield);
         }
 
         Object o = staticfield.f;
-        // o --> non-most-recent a2
+        // o --> non-most-recent a2 || most-recent a3
         nonMostRecent(o);
+        mostRecent(o);
         Object o2 = l.f;
         // o2 --> most-recent a2
-        // mostRecent(o2);
+        mostRecent(o2);
+
+    }
+
+    private static void foo() {
+        // TODO Auto-generated method stub
 
     }
 
