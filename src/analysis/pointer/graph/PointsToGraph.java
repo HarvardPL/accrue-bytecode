@@ -700,13 +700,16 @@ public final class PointsToGraph {
                 assert !mIsFlowSensitive;
                 // For all p \in ppSet, we want pointsToFS(target, p) \subset pointsToFI(m).
                 // So we will add the intersection of setToAdd and \bigcup { pointsToFS(target, p) | p \in ppSet}
+                // Note that if setToAdd contains the most recent version of an instance key, then we may have implicitly
+                // added the non-most-recent version of the instance key to pointsToFS(target, p), so the PointsToIntersectIntIterator
+                // needs to account for that, which we do by using the IncludeNonMostRecentIntIterator
                 filterStack.push(null);
 
                 ReachabilityQueryOriginMaker originMaker = new AddToSetOriginMaker(m, this);//if i now gets added, then we need to add it to m.
 
                 propagateDifferenceToFlowInsensitive(changed,
                                                      m,
-                                                     new PointsToIntersectIntIterator(setToAdd.intIterator(),
+                                                     new PointsToIntersectIntIterator(new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
                                                                                       target,
                                                                                       noFilterPPSet,
                                                                                       originMaker),
@@ -2310,6 +2313,10 @@ public final class PointsToGraph {
         return Collections.emptySet();
     }
 
+    /**
+     * An int iterator that returns the ints that are both part of the underlying IntIterator iter, and are also in the
+     * set pointsToFS(n, pp) for some program point pp in pps.
+     */
     public class PointsToIntersectIntIterator implements IntIterator {
         final IntIterator iter;
         final/*PointsToGraphNode*/int n;
@@ -2359,14 +2366,52 @@ public final class PointsToGraph {
     }
 
     /**
+     * An int iterator that returns the ints that in the underlyiing IntIterator iter, and also the non-mostrecent
+     * version of any int returned by iter.
+     */
+    public class IncludeNonMostRecentIntIterator implements IntIterator {
+        final IntIterator iter;
+        private int next = -1;
+
+        public IncludeNonMostRecentIntIterator(IntIterator iter) {
+            this.iter = iter;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (next < 0 && iter.hasNext()) {
+                next = iter.next();
+            }
+            return next >= 0;
+        }
+
+        @Override
+        public int next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            assert next >= 0;
+            int temp = next;
+            if (isMostRecentObject(temp)) {
+                next = nonMostRecentVersion(temp);
+            }
+            else {
+                next = -1;
+            }
+            return temp;
+        }
+
+    }
+
+    /**
      * Write points-to-graph representation to file.
-     *
+     * 
      * For rvr nodes, Red: tracking flow-sensitive --> outgoing edges are red with program points, Blue: not tracking
      * flow-sensitive --> outgoing edges are blue without annotations
-     *
+     * 
      * For ikr nodes, Red: most-recent object --> outgoing edges are red with field name and program points, Blue:
      * non-most-recent object --> outgoing edges are blue with field name
-     *
+     * 
      */
     public void dumpPointsToGraphToFile(String filename) {
         String file = filename;

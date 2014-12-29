@@ -40,6 +40,7 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
         private final InterProgramPointReplica ippr;
 
         public AddToSetOrigin(int n, int src, int trg, InterProgramPointReplica ippr) {
+            assert src >= 0;
             this.n = n;
             this.src = src;
             this.trg = trg;
@@ -58,15 +59,14 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
 
         @Override
         public void process(PointsToAnalysisHandle analysisHandle) {
+            // if src starts to point to trg at ippr, then add an edge from n to trg.
             PointsToGraph g = analysisHandle.pointsToGraph();
             if (g.pointsTo(src, trg, ippr, this)) {
-                if (!g.pointsTo(n, trg, null, this)) {
-                    // add edge!
-                    GraphDelta delta = g.addEdge(g.lookupPointsToGraphNodeDictionary(n),
-                                                 g.lookupInstanceKeyDictionary(trg),
-                                                 null);
-                    analysisHandle.handleChanges(delta);
-                }
+                // add edge!
+                GraphDelta delta = g.addEdge(g.lookupPointsToGraphNodeDictionary(n),
+                                             g.lookupInstanceKeyDictionary(trg),
+                                             null);
+                analysisHandle.handleChanges(delta);
             }
         }
 
