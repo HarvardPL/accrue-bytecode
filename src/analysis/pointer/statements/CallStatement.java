@@ -38,7 +38,7 @@ public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     * 
+     *
      * @param callerPP Method call site
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
      * @param actuals Actual arguments to the call
@@ -76,7 +76,13 @@ public abstract class CallStatement extends PointsToStatement {
         g.addCall(programPoint(), callerContext, callee, calleeContext);
 
         InterProgramPointReplica pre = InterProgramPointReplica.create(callerContext, this.programPoint().pre());
-        InterProgramPointReplica post = InterProgramPointReplica.create(callerContext, this.programPoint().post());
+        InterProgramPointReplica normalPost = InterProgramPointReplica.create(callerContext, this.programPoint()
+                                                                                                 .getNormalExit()
+                                                                                                 .post());
+        InterProgramPointReplica exceptionPost = InterProgramPointReplica.create(callerContext, this.programPoint()
+                                                                                                    .getExceptionExit()
+                                                                                                    .post());
+
         InterProgramPointReplica entry = InterProgramPointReplica.create(calleeContext, calleeSummary.getEntryPP()
                                                                                                      .post());
         InterProgramPointReplica normalExit = InterProgramPointReplica.create(calleeContext,
@@ -100,7 +106,7 @@ public abstract class CallStatement extends PointsToStatement {
             assert checkTypes(resultRep, calleeReturn);
 
             // The assignee can point to anything the return summary node in the callee can point to
-            GraphDelta retChange = g.copyEdges(calleeReturn, normalExit, resultRep, post);
+            GraphDelta retChange = g.copyEdges(calleeReturn, normalExit, resultRep, normalPost);
             changed = changed.combine(retChange);
         }
 
@@ -150,7 +156,7 @@ public abstract class CallStatement extends PointsToStatement {
                                                                          haf);
 
         // The exception in the caller can point to anything the summary node in the callee can point to
-        GraphDelta exChange = g.copyEdges(calleeEx, exceptionExit, callerEx, post);
+        GraphDelta exChange = g.copyEdges(calleeEx, exceptionExit, callerEx, exceptionPost);
         changed = changed.combine(exChange);
 
         return changed;

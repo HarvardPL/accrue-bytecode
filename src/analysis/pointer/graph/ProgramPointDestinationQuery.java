@@ -235,10 +235,6 @@ public final class ProgramPointDestinationQuery {
                 if (DEBUG) {
                     System.err.println("FOUND DESTINATION " + this.currentSubQuery + "\n");
                 }
-                if (dest.toString().contains("100") && src.toString().contains("92")) {
-                    DEBUG = false;
-                    ProgramPointReachability.DEBUG = false;
-                }
                 return true;
             }
         }
@@ -372,7 +368,7 @@ public final class ProgramPointDestinationQuery {
                     }
                     // We just analyzed a call, add the post for the caller if we found any exits
                     if (res.containsNormalExit()) {
-                        InterProgramPointReplica post = cspp.post().getReplica(currentContext);
+                        InterProgramPointReplica post = cspp.getNormalExit().post().getReplica(currentContext);
                         if (visited.add(post)) {
                             q.add(post);
                         }
@@ -429,7 +425,7 @@ public final class ProgramPointDestinationQuery {
                 // does ipp kill this.node?
                 if (stmt != null && handlePossibleKill(stmt, currentContext)) {
                     if (DEBUG2) {
-                        System.err.println("\t\t\tKILLED by: " + stmt);
+                        System.err.println("\t\t\tKILLED by: " + stmt + " type: " + stmt.getClass());
                     }
                     continue;
                 }
@@ -437,7 +433,7 @@ public final class ProgramPointDestinationQuery {
                 // Path was not killed add the post PP for the pre PP
                 InterProgramPointReplica post = pp.post().getReplica(currentContext);
                 if (DEBUG2) {
-                    System.err.println("\t\t\tNOT KILLED adding post " + post);
+                    System.err.println("\t\t\tNOT KILLED  by " + stmt + " adding post " + post);
                 }
                 if (visited.add(post)) {
                     q.add(post);
@@ -560,6 +556,9 @@ public final class ProgramPointDestinationQuery {
                                       stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
                 // for the moment, assume conservatively that this statement
                 // may kill a field we are interested in.
+                if (DEBUG2) {
+                    System.err.println("\t\t\tKILL: " + killed);
+                }
                 return true;
             }
             else if (killed.snd() != null && noKill.contains(g.lookupDictionary(killed.snd()))) {
@@ -567,6 +566,9 @@ public final class ProgramPointDestinationQuery {
                 // add a depedency in case this changes in the future.
                 ppr.addKillDependency(this.currentSubQuery,
                                       stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                if (DEBUG2) {
+                    System.err.println("\t\t\tKILL: " + killed);
+                }
                 return true;
             }
             else if (killed.snd() == null) {
@@ -584,9 +586,18 @@ public final class ProgramPointDestinationQuery {
         if (justAllocated != null) {
             assert justAllocated.isRecent();
             int justAllocatedKey = g.lookupDictionary(justAllocated);
+            if (DEBUG2) {
+                System.err.println("\t\t\t" + g.lookupDictionary(justAllocated) + " ### " + justAllocated);
+                System.err.println("\t\t\t\tMOST RECENT? " + g.isMostRecentObject(justAllocatedKey));
+                System.err.println("\t\t\t\tTRACKING?    " + g.isTrackingMostRecentObject(justAllocatedKey));
+                System.err.println("\t\t\t\tnoAlloc CON? " + noAlloc.contains(g.lookupDictionary(justAllocated)));
+            }
             if (g.isMostRecentObject(justAllocatedKey) && g.isTrackingMostRecentObject(justAllocatedKey)
                     && noAlloc.contains(g.lookupDictionary(justAllocated))) {
                 // dang! we killed allocated we shouldn't. Prune the search.
+                if (DEBUG2) {
+                    System.err.println("\t\t\tALLOC: " + justAllocated);
+                }
                 return true;
             }
         }
@@ -627,7 +638,7 @@ public final class ProgramPointDestinationQuery {
                     callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.snd());
                 }
                 else {
-                    callerSiteReplica = cspp.post().getReplica(callerSite.snd());
+                    callerSiteReplica = cspp.getNormalExit().post().getReplica(callerSite.snd());
                 }
 
                 // let's explore the caller now.

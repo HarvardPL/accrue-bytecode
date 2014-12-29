@@ -262,7 +262,7 @@ public final class PointsToGraph {
 
         this.haf = haf;
 
-        this.ppReach = ProgramPointReachability.getOrCreate(this, analysisHandle);
+        this.ppReach = new ProgramPointReachability(this, analysisHandle);
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
 

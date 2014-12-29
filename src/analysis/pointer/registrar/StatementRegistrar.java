@@ -22,14 +22,12 @@ import java.util.concurrent.ConcurrentMap;
 import signatures.Signatures;
 import types.TypeRepository;
 import util.InstructionType;
-import util.OrderedPair;
 import util.WorkQueue;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
-import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
@@ -270,8 +268,8 @@ public class StatementRegistrar {
 
             Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
             Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
-            // Exceptions thrown at call sites
-            Set<ProgramPoint> callExceptions = new HashSet<>();
+            // Normal exits and exceptions thrown at call sites
+            Set<ProgramPoint> callExits = new HashSet<>();
 
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
@@ -280,10 +278,13 @@ public class StatementRegistrar {
                         System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
                                 + " in " + m);
                     }
-                    handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExceptions);
+                    handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExits);
                     if (ppToStmtMap.containsKey(insToPPSubGraph.get(ins).normalExit())) {
                         // Record the pp for this instruction
                         insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
+                    }
+                    else if (ins instanceof SSAInvokeInstruction) {
+                        insToPP.put(ins, insToPPSubGraph.get(ins).entry());
                     }
                 }
                 // need to handle catch blocks here, getOrCreate...
@@ -334,19 +335,26 @@ public class StatementRegistrar {
             }
 
             // clean up graph
-            cleanUpProgramPoints(methSumm, callExceptions);
+            cleanUpProgramPoints(methSumm, callExits);
 
             // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
-            int oldSize = oldStatements.size();
-            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            Set<PointsToStatement> newStatements = duplicateResults.fst();
-            replacedVariableMap.put(m, duplicateResults.snd());
-            int newSize = newStatements.size();
 
-            removedStmts += (oldSize - newSize);
-            this.statementsForMethod.put(m, newStatements);
-            this.size += (newSize - oldSize);
+
+            // XXX AAJ - I'm not sure this is valid anymore, some of these statements need to be treated flow-sensitively
+            //            int oldSize = oldStatements.size();
+            //            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            //            Set<PointsToStatement> newStatements = duplicateResults.fst();
+            //            replacedVariableMap.put(m, duplicateResults.snd());
+            //            int newSize = newStatements.size();
+            //
+            //            removedStmts += (oldSize - newSize);
+            //            this.statementsForMethod.put(m, newStatements);
+            //            this.size += (newSize - oldSize);
+
+            // XXX Don't replace anything for now
+            replacedVariableMap.put(m, new VariableIndex());
+            Set<PointsToStatement> newStatements = oldStatements;
 
             if (PointsToAnalysis.outputLevel >= 1) {
                 System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
@@ -712,12 +720,11 @@ public class StatementRegistrar {
      * @param printer pretty printer
      * @param methSumm method summary reference variables for the method containing the instruction
      * @param types repository for local variable type information
-     * @param callExceptions program points for exceptions at call-sites (may be modified)
+     * @param callExits program points for normal exit and exceptions at call-sites (may be modified)
      */
     protected void handleInstruction(SSAInstruction i, IR ir, ISSABasicBlock bb,
                                      Map<SSAInstruction, PPSubGraph> insToPPSubGraph, TypeRepository types,
-                                     PrettyPrinter printer, MethodSummaryNodes methSumm,
-                                     Set<ProgramPoint> callExceptions) {
+                                     PrettyPrinter printer, MethodSummaryNodes methSumm, Set<ProgramPoint> callExits) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         assert !insToPPSubGraph.containsKey(i) || i instanceof SSAGetCaughtExceptionInstruction;
@@ -745,8 +752,9 @@ public class StatementRegistrar {
             assert inits != null;
             if (!inits.isEmpty()) {
 
-                // XXX Steve I think this is what we want since this is the location of the
-                // class initialization _statement_ not the class initializer itself
+                // this is the location of the class initialization _statement_ not the class initializer itself
+                // So this triggers the processing of a new clinit, but is not the call site for the clinit
+                // (which is in the root method)
                 ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit " + PrettyPrinter.typeString(reqInit));
                 this.registerClassInitializers(i, clinitPP, inits);
 
@@ -787,14 +795,7 @@ public class StatementRegistrar {
         case INVOKE_VIRTUAL:
             // procedure calls, instance initializers
             SSAInvokeInstruction invocation = (SSAInvokeInstruction) i;
-
-            // Create program points for any exceptions thrown by the callee
-            ProgramPoint exception = subgraph.getCallSiteException(invocation.getCallSite());
-            callExceptions.add(exception);
-
-            CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), invocation.getCallSite(), exception);
-            subgraph.replaceNormalExitWithCallSitePP(cspp);
-            this.registerInvoke(invocation, bb, ir, cspp, this.rvFactory, types, printer, insToPPSubGraph);
+            this.registerInvoke(invocation, bb, ir, this.rvFactory, types, printer, insToPPSubGraph, callExits);
             return;
         case LOAD_METADATA:
             // Reflection
@@ -979,9 +980,9 @@ public class StatementRegistrar {
     /**
      * A virtual, static, special, or interface invocation
      */
-    private void registerInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir, CallSiteProgramPoint pp,
-                                ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint,
-                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph) {
+    private void registerInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir, ReferenceVariableFactory rvFactory,
+                                TypeRepository types, PrettyPrinter pprint,
+                                Map<SSAInstruction, PPSubGraph> insToPPSubGraph, Set<ProgramPoint> callExits) {
         assert i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1;
 
         // //////////// Result ////////////
@@ -1031,9 +1032,14 @@ public class StatementRegistrar {
 
         // //////////// Exceptions ////////////
 
+        PPSubGraph sg = insToPPSubGraph.get(i);
+        ProgramPoint exPP = sg.getCallSiteException(i.getCallSite());
+        callExits.add(exPP);
+
         TypeReference exType = TypeReference.JavaLangThrowable;
         ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(), exType, ir.getMethod(), pprint);
-        // XXX make sure that the exception edge gets added
+
+
         this.registerThrownException(insToPPSubGraph.get(i),
                                      bb,
                                      ir,
@@ -1045,6 +1051,11 @@ public class StatementRegistrar {
                                      false,
                                      true);
 
+        // Create program point for the call site
+        CallSiteProgramPoint cspp = new CallSiteProgramPoint(ir.getMethod(), i.getCallSite(), exPP, sg.normalExit());
+        sg.replaceEntryWithCallSitePP(cspp);
+        callExits.add(sg.normalExit());
+
         // //////////// Resolve methods add statements ////////////
 
         if (i.isStatic()) {
@@ -1055,7 +1066,7 @@ public class StatementRegistrar {
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
-            this.addStatement(stmtFactory.staticCall(pp, resolvedCallee, result, actuals, exception, calleeSummary));
+            this.addStatement(stmtFactory.staticCall(cspp, resolvedCallee, result, actuals, exception, calleeSummary));
         }
         else if (i.isSpecial()) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
@@ -1066,7 +1077,7 @@ public class StatementRegistrar {
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
             MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
-            this.addStatement(stmtFactory.specialCall(pp,
+            this.addStatement(stmtFactory.specialCall(cspp,
                                                       resolvedCallee,
                                                       result,
                                                       receiver,
@@ -1080,7 +1091,7 @@ public class StatementRegistrar {
                 // Sometimes the receiver is a null constant
                 return;
             }
-            this.addStatement(stmtFactory.virtualCall(pp,
+            this.addStatement(stmtFactory.virtualCall(cspp,
                                                       i.getDeclaredTarget(),
                                                       result,
                                                       receiver,
@@ -2042,7 +2053,7 @@ public class StatementRegistrar {
     /**
      * Program point graph for a particular instruction
      */
-    public class PPSubGraph {
+    private class PPSubGraph {
 
         /**
          * Entry program point
@@ -2172,7 +2183,14 @@ public class StatementRegistrar {
             assert successor.isCatchBlock() || successor.isExitBlock();
             assert !isGenerated || !isCalleeThrow;
             if (this.entry == this.normExit) {
-                this.normExit = new ProgramPoint(this.entry.containingProcedure(), "(inst-norm-exit)");
+                String name;
+                if (isCalleeThrow) {
+                    name = "(callee-normal-exit)";
+                }
+                else {
+                    name = "(inst-norm-exit)";
+                }
+                this.normExit = new ProgramPoint(this.entry.containingProcedure(), name);
                 this.entry.addSucc(this.normExit);
                 this.preNormExit = this.entry;
             }
@@ -2248,16 +2266,12 @@ public class StatementRegistrar {
         /**
          * Replace the normal exit node for an invoke instruction with a CallSiteProgramPoint
          */
-        void replaceNormalExitWithCallSitePP(CallSiteProgramPoint cspp) {
-            if (this.entry == this.normExit) {
-                assert this.preNormExit == null;
-                this.entry = cspp;
-                this.normExit = cspp;
-                return;
-            }
-            this.preNormExit.removeSucc(this.normExit);
-            this.preNormExit.addSucc(cspp);
-            this.normExit = cspp;
+        void replaceEntryWithCallSitePP(CallSiteProgramPoint cspp) {
+            assert (this.entry != this.normExit) : "Should be an exception PP at this point.";
+
+            Set<ProgramPoint> succs = this.entry.succs();
+            this.entry = cspp;
+            this.entry.addSuccs(succs);
         }
 
         /**

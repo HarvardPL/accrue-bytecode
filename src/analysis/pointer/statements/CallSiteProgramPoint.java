@@ -18,6 +18,7 @@ public class CallSiteProgramPoint extends ProgramPoint {
     private final ProgramPoint exceptionExit;
     private final boolean isClinit;
     private final IMethod clinit;
+    private final ProgramPoint normalExit;
 
     /**
      * Create a program point for the normal exit from a method call, in the caller
@@ -26,13 +27,15 @@ public class CallSiteProgramPoint extends ProgramPoint {
      * @param callSite call site
      * @param exceptionExit program point for exceptional exit the caller
      */
-    public CallSiteProgramPoint(IMethod caller, CallSiteReference callSite, ProgramPoint exceptionExit) {
+    public CallSiteProgramPoint(IMethod caller, CallSiteReference callSite, ProgramPoint exceptionExit,
+                                ProgramPoint normalExit) {
         super(caller, PrettyPrinter.methodString(callSite.getDeclaredTarget()) + " from "
                 + PrettyPrinter.methodString(caller) + "@"
                 + callSite.getProgramCounter());
         this.callSite = callSite;
         this.caller = caller;
         this.exceptionExit = exceptionExit;
+        this.normalExit = normalExit;
         this.isClinit = false;
         this.clinit = null;
     }
@@ -42,6 +45,7 @@ public class CallSiteProgramPoint extends ProgramPoint {
         this.isClinit = true;
         this.callSite = null;
         this.exceptionExit = exceptionExit;
+        this.normalExit = this;
         this.clinit = clinit;
         this.caller = caller;
     }
@@ -144,5 +148,14 @@ public class CallSiteProgramPoint extends ProgramPoint {
         //
         //        assert pp != null : "Invalid exception type " + t;
         return exceptionExit;
+    }
+
+    /**
+     * Get the program point for normal exit of this call in the caller
+     *
+     * @return Program point in the caller
+     */
+    public ProgramPoint getNormalExit() {
+        return normalExit;
     }
 }

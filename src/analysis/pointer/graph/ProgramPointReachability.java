@@ -44,11 +44,6 @@ import com.ibm.wala.util.intset.IntSet;
  */
 public final class ProgramPointReachability {
     /**
-     * Singleton instance of this class
-     */
-    private static ProgramPointReachability SINGLETON;
-
-    /**
      * Print debug info
      */
     public static boolean DEBUG;
@@ -69,27 +64,12 @@ public final class ProgramPointReachability {
     private final PointsToAnalysisHandle analysisHandle;
 
     /**
-     * Get the singleton {@link ProgramPointReachability} instance (create if necessary)
-     *
-     * @param g points-to graph
-     * @param analysisHandle handle to the points-to analysis
-     * @return
-     */
-    public static ProgramPointReachability getOrCreate(PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
-        if (SINGLETON == null) {
-            SINGLETON = new ProgramPointReachability(g, analysisHandle);
-        }
-        assert g == SINGLETON.g && analysisHandle == SINGLETON.analysisHandle;
-        return SINGLETON;
-    }
-
-    /**
      * Create a new reachability query engine
      *
      * @param g points to graph
      * @param analysisHandle interface for submitting jobs to the pointer analysis
      */
-    private ProgramPointReachability(PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
+    ProgramPointReachability(PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
@@ -289,7 +269,6 @@ public final class ProgramPointReachability {
                 }
                 continue;
             }
-
 
             // Now try a search starting at the source
             if (prq.executeSubQuery(src, relevantNodes)) {
@@ -827,7 +806,7 @@ public final class ProgramPointReachability {
                         continue;
                     }
 
-                    KilledAndAlloced postNormal = getOrCreate(results, pp.post());
+                    KilledAndAlloced postNormal = getOrCreate(results, cspp.getNormalExit().post());
                     KilledAndAlloced postEx = getOrCreate(results, cspp.getExceptionExit().post());
 
                     for (OrderedPair<IMethod, Context> callee : calleeSet) {
@@ -853,7 +832,7 @@ public final class ProgramPointReachability {
 
                     }
                     // Add the successor program points to the queue
-                    q.add(pp.post());
+                    q.add(cspp.getNormalExit().post());
                     q.add(cspp.getExceptionExit().post());
                 }
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
