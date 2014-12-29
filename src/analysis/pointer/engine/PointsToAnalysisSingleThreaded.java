@@ -489,7 +489,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    System.err.println("\t" + s);
                     GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null " + s.getClass() + " : " + s);

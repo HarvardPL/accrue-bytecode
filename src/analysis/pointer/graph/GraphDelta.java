@@ -283,7 +283,6 @@ public final class GraphDelta {
             if (!deltaAllocationSites.isEmpty()) {
                 IntIterator deltaAllocationSitesAware = new ProgramPointIntIterator(g.pointsToSetFS(n),
                                                                                     ippr,
-                                                                                    g,
                                                                                     new StmtAndContextReachabilityOriginator(originator),
                                                                                     this.deltaAllocationSites);
 
@@ -313,7 +312,6 @@ public final class GraphDelta {
         if (sfs != null) {
             iterators.add(new ProgramPointIntIterator(sfs,
                                                       ippr,
-                                                      g,
                                                       new StmtAndContextReachabilityOriginator(originator)));
         }
 

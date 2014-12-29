@@ -102,7 +102,7 @@ public final class ProgramPointReachability {
      */
     public boolean reachable(ProgramPointSetClosure ppsc, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, ReachabilityQueryOrigin origin) {
-        return reachableImpl(ppsc.getSources(this.g, origin),
+        return reachableImpl(ppsc.getSources(origin),
                              destination,
                              noKill,
                              noAlloc,

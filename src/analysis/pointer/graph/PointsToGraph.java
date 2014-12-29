@@ -889,7 +889,7 @@ public final class PointsToGraph {
             if (ppsc == null) {
                 return false;
             }
-            return ppsc.contains(ippr, this, originator);
+            return ppsc.contains(ippr, originator);
         }
         // from is not flow sensitive
         MutableIntSet s = this.pointsToFI.get(from);
@@ -918,7 +918,6 @@ public final class PointsToGraph {
         if (isFlowSensitivePointsToGraphNode(n)) {
             return new ProgramPointIntIterator(pointsToFS.get(n),
                                                ippr,
-                                               this,
                                                new StmtAndContextReachabilityOriginator(originator));
         }
         return this.pointsToSetFI(n).intIterator();
@@ -1410,28 +1409,25 @@ public final class PointsToGraph {
         private final IntIterator iter;
         private final IntMap<ProgramPointSetClosure> ppmap;
         private final InterProgramPointReplica ippr;
-        private final PointsToGraph g;
         private final ReachabilityQueryOriginMaker originMaker;
         private final IntMap<Set<ProgramPointReplica>> newAllocationSites;
         private int next = -1;
 
-        ProgramPointIntIterator(IntMap<ProgramPointSetClosure> ppmap, InterProgramPointReplica ippr, PointsToGraph g,
+        ProgramPointIntIterator(IntMap<ProgramPointSetClosure> ppmap, InterProgramPointReplica ippr,
                                 ReachabilityQueryOriginMaker originMaker) {
             this.iter = ppmap == null ? EmptyIntIterator.instance() : ppmap.keyIterator();
             this.ppmap = ppmap;
             this.ippr = ippr;
-            this.g = g;
             this.originMaker = originMaker;
             this.newAllocationSites = null;
         }
 
-        ProgramPointIntIterator(IntMap<ProgramPointSetClosure> ppmap, InterProgramPointReplica ippr, PointsToGraph g,
+        ProgramPointIntIterator(IntMap<ProgramPointSetClosure> ppmap, InterProgramPointReplica ippr,
                                 ReachabilityQueryOriginMaker originMaker,
                                 IntMap<Set<ProgramPointReplica>> newAllocationSites) {
             this.iter = ppmap == null ? EmptyIntIterator.instance() : ppmap.keyIterator();
             this.ppmap = ppmap;
             this.ippr = ippr;
-            this.g = g;
             this.originMaker = originMaker;
             this.newAllocationSites = newAllocationSites.isEmpty() ? null : newAllocationSites;
         }
@@ -1444,7 +1440,6 @@ public final class PointsToGraph {
                 ProgramPointSetClosure pps;
                 if (ippr == null
                         || ((pps = ppmap.get(i)) != null && pps.contains(ippr,
-                                                                         g,
                                                                          originMaker.makeOrigin(-1, i, ippr),
                                                                          newAllocationSites))) {
                     this.next = i;
@@ -1709,9 +1704,9 @@ public final class PointsToGraph {
         }
         else {
             assert sourceIsFlowSensitive;
-            srcIter = new ProgramPointIntIterator(pointsToFS.get(source), ippr, this, new AddToSetOriginMaker(target,
-                                                                                                              this,
-                                                                                                              source));
+            srcIter = new ProgramPointIntIterator(pointsToFS.get(source), ippr, new AddToSetOriginMaker(target,
+                                                                                                        this,
+                                                                                                        source));
         }
         if (targetIsFlowSensitive) {
             return getDifferenceFlowSensitive(srcIter, target, ExplicitProgramPointSet.singleton(ippr));
@@ -1734,7 +1729,7 @@ public final class PointsToGraph {
      * @return
      */
     private IntSet getDifferenceFlowInsensitive(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
-                                                /*PointsToGraphNode*/int target) {
+    /*PointsToGraphNode*/int target) {
         assert !isFlowSensitivePointsToGraphNode(target);
 
         if (!srcIter.hasNext()) {
@@ -1857,7 +1852,7 @@ public final class PointsToGraph {
         while (srcIter.hasNext()) {
             int i = srcIter.next();
             ProgramPointSetClosure pps = m.get(i);
-            if (pps == null || !pps.containsAll(addAtPoints, this, null)) {
+            if (pps == null || !pps.containsAll(addAtPoints, null)) {
                 // Note that we don't need to pass an origin to pps.containsAll, since we don't care if a reachability query goes from false to true,
                 // since it won't cause us to do any additional work, it would just mean that we wouldn't have added i to the set.
 
@@ -1913,10 +1908,6 @@ public final class PointsToGraph {
                 // someone beat us to it!
                 s = ex;
             }
-        }
-        if (lookupPointsToGraphNodeDictionary(n).toString().contains("test.flowsenspointer.Load2.staticfield")) {
-            System.err.println("GETTING PTS for " + n + "  " + lookupPointsToGraphNodeDictionary(n));
-            System.err.println(s);
         }
         return s;
     }
@@ -2003,7 +1994,6 @@ public final class PointsToGraph {
         return p.addAll(toAdd);
     }
 
-
     public void constructionFinished() {
         this.graphFinished = true;
 
@@ -2017,7 +2007,6 @@ public final class PointsToGraph {
         this.reachableContexts = null;
         this.classInitializers = null;
         this.entryPoints = null;
-
 
         // make more compact, read-only versions of the sets.
         IntIterator keyIterator = pointsToFI.keyIterator();
@@ -2343,7 +2332,7 @@ public final class PointsToGraph {
                     continue;
                 }
                 for (InterProgramPointReplica x : pps) {
-                    if (ppc.contains(x, PointsToGraph.this, originMaker.makeOrigin(n, i, x))) {
+                    if (ppc.contains(x, originMaker.makeOrigin(n, i, x))) {
                         next = i;
                         break;
                     }
@@ -2405,13 +2394,13 @@ public final class PointsToGraph {
 
     /**
      * Write points-to-graph representation to file.
-     * 
+     *
      * For rvr nodes, Red: tracking flow-sensitive --> outgoing edges are red with program points, Blue: not tracking
      * flow-sensitive --> outgoing edges are blue without annotations
-     * 
+     *
      * For ikr nodes, Red: most-recent object --> outgoing edges are red with field name and program points, Blue:
      * non-most-recent object --> outgoing edges are blue with field name
-     * 
+     *
      */
     public void dumpPointsToGraphToFile(String filename) {
         String file = filename;
@@ -2450,7 +2439,7 @@ public final class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(rvr))) {
-                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
+                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(null);
                         if (!sources.isEmpty()) {
                             repMap.addPrint(rvr);
                             repMap.addPrint(to);
@@ -2475,7 +2464,7 @@ public final class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(fromIkr))) {
-                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(this, null);
+                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(null);
                         if (!sources.isEmpty()) {
                             repMap.addPrint(fromIkr);
                             repMap.addPrint(to);
@@ -2528,7 +2517,7 @@ public final class PointsToGraph {
                         repMap.addPrint(fromIkr);
                         repMap.addPrint(to);
                         writer.write("\t" + fromNode + " -> " + toNode + " [color=blue,label=\"" + of.fieldName()
-                            + "\"];\n");
+                                + "\"];\n");
                     }
                 }
             }

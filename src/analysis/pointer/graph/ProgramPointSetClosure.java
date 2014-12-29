@@ -47,17 +47,12 @@ public final class ProgramPointSetClosure {
         assert from >= 0 && to >= 0;
 
         this.fromBase = g.baseNodeForPointsToGraphNode(from);
-        if (g.lookupPointsToGraphNodeDictionary(from).toString().contains("test.flowsenspointer.Load2.staticfield")
-                && !g.isNullInstanceKey(to)) {
-            DEBUG = true;
-            System.err.println("XXX CLOSURE");
+        if (DEBUG) {
+            System.err.println("NEW CLOSURE");
             System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
             System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
             System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("\tNO ALLOC " + noAlloc(g));
-            if (!g.isMostRecentObject(to)) {
-                Thread.dumpStack();
-            }
+            System.err.println("\tNO ALLOC " + noAlloc());
         }
         assert (fromBase == -1 || g.isMostRecentObject(fromBase)) : "If we have a fromBase, it should be a most recent object, since these are the only ones we track flow sensitively.";
     }
@@ -82,16 +77,16 @@ public final class ProgramPointSetClosure {
     /**
      * Does this set contain of the program points ippr?
      */
-    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, ReachabilityQueryOrigin originator) {
-        boolean b = g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(g), originator);
+    public boolean contains(InterProgramPointReplica ippr, ReachabilityQueryOrigin originator) {
+        boolean b = g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(), originator);
         if (DEBUG) {
             System.err.println("CONTAINS? " + ippr);
             System.err.println("\t" + b);
             System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
             System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
             System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("\tNO ALLOC " + noAlloc(g));
-            System.err.println("\tSOURCES " + getSources(g, null));
+            System.err.println("\tNO ALLOC " + noAlloc());
+            System.err.println("\tSOURCES " + getSources(null));
         }
         return b;
     }
@@ -100,21 +95,20 @@ public final class ProgramPointSetClosure {
      * Does this set contain of the program points ippr? Pays attention to the newAllocationSites, much like a
      * GraphDelta.
      */
-    public boolean contains(InterProgramPointReplica ippr, PointsToGraph g, ReachabilityQueryOrigin origin,
+    public boolean contains(InterProgramPointReplica ippr, ReachabilityQueryOrigin origin,
                             IntMap<Set<ProgramPointReplica>> newAllocationSites) {
 
         boolean b;
         if (newAllocationSites != null && g.isTrackingMostRecentObject(to) && !g.isMostRecentObject(to)) {
             // we only want the points to information that is a result of the new allocation sites.
-            b = g.programPointReachability()
-                    .reachable(convertToPost(newAllocationSites.get(g.mostRecentVersion(to))),
-                               ippr,
-                               this.noKill(),
-                               this.noAlloc(g),
-                               origin);
+            b = g.programPointReachability().reachable(convertToPost(newAllocationSites.get(g.mostRecentVersion(to))),
+                                                       ippr,
+                                                       this.noKill(),
+                                                       this.noAlloc(),
+                                                       origin);
         }
         else {
-            b = g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(g), origin);
+            b = g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(), origin);
         }
         if (DEBUG) {
             System.err.println("CONTAINS? " + ippr);
@@ -122,9 +116,9 @@ public final class ProgramPointSetClosure {
             System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
             System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
             System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("\tNO ALLOC " + noAlloc(g));
+            System.err.println("\tNO ALLOC " + noAlloc());
             System.err.println("\tNEW ALLOC " + newAllocationSites);
-            System.err.println("\tSOURCES " + getSources(g, null));
+            System.err.println("\tSOURCES " + getSources(null));
         }
         return b;
     }
@@ -139,7 +133,7 @@ public final class ProgramPointSetClosure {
         return s;
     }
 
-    private IntSet noAlloc(PointsToGraph g) {
+    private IntSet noAlloc() {
         if (g.isMostRecentObject(this.to)) {
             // "to" will be in the set!
             if (this.fromBase >= 0) {
@@ -171,15 +165,15 @@ public final class ProgramPointSetClosure {
      *
      * @return
      */
-    Collection<InterProgramPointReplica> getSources(PointsToGraph g, ReachabilityQueryOrigin originator) {
+    Collection<InterProgramPointReplica> getSources(ReachabilityQueryOrigin originator) {
         if (DEBUG) {
-            System.err.println("GETTING SOURCES " + !g.isMostRecentObject(this.to) + " "
+            System.err.println("GETTING SOURCES most recent? " + g.isMostRecentObject(this.to) + " tracking? "
                     + g.isTrackingMostRecentObject(this.to));
             if (!g.isMostRecentObject(this.to)) {
                 System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
                 System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
                 System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-                System.err.println("\tNO ALLOC " + noAlloc(g));
+                System.err.println("\tNO ALLOC " + noAlloc());
             }
         }
         // XXX turn this into an iterator, so that we lazily look at these allocation sites.
@@ -190,7 +184,7 @@ public final class ProgramPointSetClosure {
                 System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
                 System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
                 System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-                System.err.println("\tNO ALLOC " + noAlloc(g));
+                System.err.println("\tNO ALLOC " + noAlloc());
                 System.err.println("\t\tADDED " + this.sources);
             }
             // we need to add allocation sites of the to object, where from pointed to
@@ -211,7 +205,7 @@ public final class ProgramPointSetClosure {
                     System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
                     System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
                     System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-                    System.err.println("\tNO ALLOC " + noAlloc(g));
+                    System.err.println("\tNO ALLOC " + noAlloc());
                     System.err.println("\t\t\t\tFOUND " + allocPP);
                 }
                 if (g.pointsTo(this.from, mostRecentVersion, allocPP.pre(), originator)) {
@@ -228,7 +222,7 @@ public final class ProgramPointSetClosure {
                 System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
                 System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
                 System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-                System.err.println("\tNO ALLOC " + noAlloc(g));
+                System.err.println("\tNO ALLOC " + noAlloc());
                 System.err.println("\t\tSOURCES " + s);
             }
             return s;
@@ -237,15 +231,15 @@ public final class ProgramPointSetClosure {
             System.err.println("\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
             System.err.println("\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
             System.err.println("\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("\tNO ALLOC " + noAlloc(g));
+            System.err.println("\tNO ALLOC " + noAlloc());
             System.err.println("\t\tSOURCES " + this.sources);
         }
         return this.sources;
     }
 
-    public boolean containsAll(ExplicitProgramPointSet pps, PointsToGraph g, ReachabilityQueryOrigin originator) {
+    public boolean containsAll(ExplicitProgramPointSet pps, ReachabilityQueryOrigin originator) {
         for (InterProgramPointReplica ippr : pps) {
-            if (!this.contains(ippr, g, originator)) {
+            if (!this.contains(ippr, originator)) {
                 return false;
             }
         }
@@ -260,7 +254,7 @@ public final class ProgramPointSetClosure {
     public String toString() {
         StringBuilder s = new StringBuilder();
         s.append("{");
-        for (InterProgramPointReplica ippr : this.getSources(g, null)) {
+        for (InterProgramPointReplica ippr : this.getSources(null)) {
             s.append(ippr + ",");
         }
         s.append("}");
