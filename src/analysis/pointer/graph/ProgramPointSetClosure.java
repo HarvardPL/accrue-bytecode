@@ -243,10 +243,6 @@ public final class ProgramPointSetClosure {
         return this.sources;
     }
 
-    public boolean isEmpty() {
-        return sources.isEmpty();
-    }
-
     public boolean containsAll(ExplicitProgramPointSet pps, PointsToGraph g, ReachabilityQueryOrigin originator) {
         for (InterProgramPointReplica ippr : pps) {
             if (!this.contains(ippr, g, originator)) {

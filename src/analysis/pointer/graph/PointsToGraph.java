@@ -2329,7 +2329,7 @@ public final class PointsToGraph {
             while (next < 0 && iter.hasNext()) {
                 int i = iter.next();
                 ProgramPointSetClosure ppc = PointsToGraph.this.pointsToSetFS(n).get(i);
-                if (ppc == null || ppc.isEmpty()) {
+                if (ppc == null) {
                     // nope
                     continue;
                 }
