@@ -68,6 +68,7 @@
 	<target name="test">
 		<junit fork="yes" forkMode="perTest" printsummary="on">
 		        <formatter type="plain" usefile="false" /> <!-- to screen -->
+			<formatter type="plain" usefile="true" /> <!-- to file -->
 			<test name="test.flowsenspointer.TestFlowSensitivePointer"/>
 			<assertions>
 			  <enable/>
