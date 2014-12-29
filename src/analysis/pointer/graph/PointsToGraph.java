@@ -639,7 +639,7 @@ public final class PointsToGraph {
             filterStack.push(null);
             propagateDifferenceToFlowInsensitive(changed,
                                                  m,
-                                                 new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
+                                                 setToAdd.intIterator(),
                                                  currentlyAdding,
                                                  currentlyAddingStack,
                                                  filterStack,
@@ -662,7 +662,7 @@ public final class PointsToGraph {
                 filterStack.push(filterSet);
                 propagateDifferenceToFlowInsensitive(changed,
                                                      m,
-                                                     new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
+                                                     setToAdd.intIterator(),
                                                      currentlyAdding,
                                                      currentlyAddingStack,
                                                      filterStack,
@@ -1934,13 +1934,12 @@ public final class PointsToGraph {
             assert !isFlowSensitivePointsToGraphNode(n);
             assert ppsToAdd == null;
             MutableIntSet s = pointsToSetFI(n);
-            boolean nIsObjectField = baseNodeForPointsToGraphNode(n) >= 0;
             boolean changed = false;
             IntIterator iter = set.intIterator();
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (isMostRecentObject(next) && nIsObjectField) { // XXX TODO: I don't understand why we restrict to object fields; make some of the code in the conditional dead. What's going on?
+                if (isMostRecentObject(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, may also need to point to
                     // the non-most recent version.
