@@ -341,7 +341,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        //        this.processAllStatements(g, registrar);
+        if (paranoidMode) {
+            System.err.println("########################");
+            g.ppReach.clearCaches();
+            this.processAllStatements(g, registrar);
+            System.err.println("CHECKED statements.");
+            System.err.println("########################");
+        }
         registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
         g.constructionFinished();
         g.dumpPointsToGraphToFile("tests/pointsToGraph");
@@ -475,7 +481,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param registrar points-to statement registrar
      * @return true if the points-to graph changed
      */
-    @SuppressWarnings("unused")
     private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
@@ -484,6 +489,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
+                    System.err.println("\t" + s);
                     GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null " + s.getClass() + " : " + s);

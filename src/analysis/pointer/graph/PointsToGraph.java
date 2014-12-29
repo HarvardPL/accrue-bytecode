@@ -31,6 +31,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.DependencyRecorder;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
@@ -462,7 +463,8 @@ public final class PointsToGraph {
             if (isFlowSensSubsetOf.addAnnotation(s,
                                                  t,
                                                  new OrderedPair<ExplicitProgramPointSet, ExplicitProgramPointSet>(ExplicitProgramPointSet.singleton(ippr),
-                                                                                                                   null))) {
+                                                                                                                   null))
+                    || PointsToAnalysis.paranoidMode) {
                 // this is a new subset relation!
                 computeDeltaForAddedSubsetRelation(changed,
                                                    s,

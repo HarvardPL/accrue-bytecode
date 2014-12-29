@@ -53,12 +53,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private PointsToAnalysisHandleImpl analysisHandle;
 
-    /**
-     * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
-     * are no changes.
-     */
-    private static boolean paranoidMode = false;
-
     static int numThreads() {
         //return 1;
         return Runtime.getRuntime().availableProcessors();
@@ -605,15 +599,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     public static <T> Set<T> makeConcurrentSet() {
         return Collections.newSetFromMap(new ConcurrentHashMap<T, Boolean>());
-    }
-
-    /**
-     * Set the analysis to reprocess all statements (single-threaded) after running the multi-threaded analysis.
-     *
-     * @param reprocessAllStatements if true then reprocess all statements after reaching a fixed point
-     */
-    public static void setParanoidMode(boolean reprocessAllStatements) {
-        paranoidMode = reprocessAllStatements;
     }
 
     public class PointsToAnalysisHandleImpl implements PointsToAnalysisHandle {

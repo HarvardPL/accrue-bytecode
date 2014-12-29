@@ -28,6 +28,10 @@ public abstract class PointsToAnalysis {
      * reference variables and allocation nodes more verbose.
      */
     public static int outputLevel = 0;
+    /**
+     * Flag for debugging the analysis by rerunning all the statements and looking for inconsistencies
+     */
+    public static boolean paranoidMode;
 
 
     /**
