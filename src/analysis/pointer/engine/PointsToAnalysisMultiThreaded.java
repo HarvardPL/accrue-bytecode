@@ -4,7 +4,6 @@ import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -192,7 +191,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
+            System.err.println("########################");
+            g.ppReach.clearCaches();
             this.processAllStatements(g, registrar);
+            System.err.println("CHECKED all statements.");
+            System.err.println("########################");
         }
 
         g.constructionFinished();
@@ -289,9 +292,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             this.totalAddToSetTasks = new AtomicLong(0);
             this.totalPPSubQueryTasks = new AtomicLong(0);
 
-            this.pendingAddNonMostRecentOrigin = new AtomicReference(PointsToAnalysisMultiThreaded.makeConcurrentSet());
-            this.pendingAddToSetOrigin = new AtomicReference(PointsToAnalysisMultiThreaded.makeConcurrentSet());
-            this.pendingPPSubQuery = new AtomicReference(PointsToAnalysisMultiThreaded.makeConcurrentSet());
+            this.pendingAddNonMostRecentOrigin = new AtomicReference<>(AnalysisUtil.<AddNonMostRecentOrigin> createConcurrentSet());
+            this.pendingAddToSetOrigin = new AtomicReference<>(AnalysisUtil.<AddToSetOrigin> createConcurrentSet());
+            this.pendingPPSubQuery = new AtomicReference<>(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
         }
 
 
@@ -357,7 +360,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 // try adding some more tasks
 
                 {
-                    Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddToSetOrigin> makeConcurrentSet());
+                    Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(AnalysisUtil.<AddToSetOrigin> createConcurrentSet());
                     for (AddToSetOrigin t : s) {
                         this.numRemainingTasks.incrementAndGet();
                         this.totalAddToSetTasks.incrementAndGet();
@@ -367,7 +370,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 if (this.numRemainingTasks.get()  < bound) {
                     // try adding some more tasks
                     {
-                        Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(PointsToAnalysisMultiThreaded.<AddNonMostRecentOrigin> makeConcurrentSet());
+                        Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(AnalysisUtil.<AddNonMostRecentOrigin> createConcurrentSet());
                         for (AddNonMostRecentOrigin t : s) {
                             this.numRemainingTasks.incrementAndGet();
                             this.totalAddNonMostRecentOriginTasks.incrementAndGet();
@@ -377,7 +380,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     if (this.numRemainingTasks.get() < bound) {
                         // try adding some more tasks
                         {
-                            Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(PointsToAnalysisMultiThreaded.<ProgramPointSubQuery> makeConcurrentSet());
+                            Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
 
                             for (ProgramPointSubQuery sq : s) {
                                 this.numRemainingTasks.incrementAndGet();
@@ -430,6 +433,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             RunnablePointsToTask(PointsToTask t) {
                 this.t = t;
             }
+
+            @SuppressWarnings("synthetic-access")
             @Override
             public void run() {
                 try {
@@ -595,10 +600,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
         return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
-    }
-
-    public static <T> Set<T> makeConcurrentSet() {
-        return Collections.newSetFromMap(new ConcurrentHashMap<T, Boolean>());
     }
 
     public class PointsToAnalysisHandleImpl implements PointsToAnalysisHandle {

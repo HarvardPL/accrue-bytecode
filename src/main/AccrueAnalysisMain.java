@@ -87,10 +87,16 @@ public class AccrueAnalysisMain {
             // Print out the numerical variable names in addition to the names from the source code
             PrettyPrinter.setUseDebugVariableNames(true);
         }
+        else {
+            PrettyPrinter.setUseDebugVariableNames(false);
+        }
 
         if (options.isParanoidPointerAnalysis()) {
             // Double check the results after running the multi-threaded pointer analysis
             PointsToAnalysis.paranoidMode = true;
+        }
+        else {
+            PointsToAnalysis.paranoidMode = false;
         }
 
         String entryPoint = options.getEntryPoint();

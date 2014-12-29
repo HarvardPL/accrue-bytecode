@@ -13,9 +13,10 @@ public interface ReachabilityQueryOrigin extends AllocationDepender {
 
     /**
      * The StmtAndContext for this origin, if any.
-     * 
+     *
      * @return
      */
+    @Override
     StmtAndContext getStmtAndContext();
 
 }
