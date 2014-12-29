@@ -7,16 +7,39 @@ public class Load {
     public static void main(String[] args) {
 
         Load s = new Load(); // a2
-        @SuppressWarnings("unused")
+        // (most-recent a2).f --> most-recent a1
+        mostRecent(s);
+        mostRecent(s.f);
+
         Object o = s.f;
         // o --> most-recent a1
         // (most-recent a2).f --> most-recent a1
+        mostRecent(o);
+        mostRecent(s);
+        mostRecent(s.f);
 
         Load s2 = new Load(); // a3
-        // o --> non-most-recent a1
-        // (most-recent a2).f --> non-most-recent a1
+        // o still points to the most-recent since we are able to distinguish the two calls to Load.<init>
+        // o --> most-recent a1
+        // (most-recent a2).f --> most-recent a1
+        mostRecent(o);
+        mostRecent(s);
+        mostRecent(s.f);
+
         Object o2 = s2.f;
         // o2 --> most-recent a1
+        // (most-recent a3).f --> most-recent a1
+        mostRecent(o2);
+        mostRecent(s2);
+        mostRecent(s2.f);
+
+    }
+
+    public static void mostRecent(Object o) {
+
+    }
+
+    public static void nonMostRecent(Object o) {
 
     }
 }

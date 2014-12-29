@@ -66,6 +66,7 @@ import com.ibm.wala.util.WalaException;
 public class AccrueAnalysisMain {
 
     public static boolean testMode;
+    public static PointsToGraph graph;
 
     /**
      * Run one of the selected tests
@@ -166,6 +167,7 @@ public class AccrueAnalysisMain {
                 numNodes++;
             }
             System.err.println(numNodes + " CGNodes");
+            graph = g;
             break;
         case "maincfg":
             AnalysisUtil.init(classPath, entryPoint, outputDir);

@@ -103,7 +103,26 @@ public class AnalysisUtil {
     /**
      * Signatures
      */
-    public static final Signatures signatures = new Signatures();
+    private static Signatures signatures;
+
+    public static final void TEST_resetAllStaticFields() {
+        cache = null;
+        options = null;
+        cha = null;
+        fakeRoot = null;
+        stringClass = null;
+        objectClass = null;
+        throwableClass = null;
+        errorClass = null;
+        cloneableInterface = null;
+        serializableInterface = null;
+        stringValueClass = null;
+        privilegedActionClass = null;
+        privilegedExceptionActionClass = null;
+        outputDirectory = null;
+        scope = null;
+        signatures = null;
+    }
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -158,6 +177,7 @@ public class AnalysisUtil {
      */
     public static void init(String classPath, String entryPoint, String outputDirectory) throws IOException,
                                                                                         ClassHierarchyException {
+        AnalysisUtil.signatures = new Signatures();
 
         AnalysisUtil.outputDirectory = outputDirectory;
         AnalysisUtil.cache = new AnalysisCache();
