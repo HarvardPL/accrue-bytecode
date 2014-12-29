@@ -449,7 +449,7 @@ public final class PointsToGraph {
         // source is a subset of target, target is a superset of source.
         if (!source.isFlowSensitive() && !target.isFlowSensitive()) {
             // neither source nor target is flow sensitive, so let's ignore ippr
-            if (isUnfilteredSubsetOf.add(s, t)) {
+            if (isUnfilteredSubsetOf.add(s, t) || PointsToAnalysis.paranoidMode) {
                 computeDeltaForAddedSubsetRelation(changed, s, false, null, null, t, false, null);
             }
         }
@@ -639,7 +639,7 @@ public final class PointsToGraph {
             filterStack.push(null);
             propagateDifferenceToFlowInsensitive(changed,
                                                  m,
-                                                 setToAdd.intIterator(),
+                                                 new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
                                                  currentlyAdding,
                                                  currentlyAddingStack,
                                                  filterStack,
@@ -653,8 +653,7 @@ public final class PointsToGraph {
         while (iter.hasNext()) {
             int m = iter.next();
             assert !isFlowSensitivePointsToGraphNode(m);
-
-            @SuppressWarnings("null")
+            assert filteredSupersets != null;
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
             // it is possible that the filter set is empty, due to race conditions.
             // No trouble, we will just ignore it, and pretend we got in there before
@@ -663,7 +662,7 @@ public final class PointsToGraph {
                 filterStack.push(filterSet);
                 propagateDifferenceToFlowInsensitive(changed,
                                                      m,
-                                                     setToAdd.intIterator(),
+                                                     new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
                                                      currentlyAdding,
                                                      currentlyAddingStack,
                                                      filterStack,
@@ -750,7 +749,7 @@ public final class PointsToGraph {
 
                 ReachabilityQueryOriginMaker originMaker = new AddToSetOriginMaker(m, this);//if i now gets added, then we need to add it to m.
 
-                IntIterator filteredIntIterator = new ChangeRecentInstanceKeyIterator(new PointsToIntersectIntIterator(setToAdd.intIterator(),
+                IntIterator filteredIntIterator = new ChangeRecentInstanceKeyIterator(new PointsToIntersectIntIterator(new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
                                                                                                                        target,
                                                                                                                        filterPPSet,
                                                                                                                        originMaker),
