@@ -38,7 +38,7 @@ public class Load2 {
         }
 
         Object o = staticfield.f;
-        // o --> non-most-recent a2 || most-recent a3
+        // o --> non-most-recent a2 || most-recent a2
         nonMostRecent(o);
         mostRecent(o);
         Object o2 = l.f;
