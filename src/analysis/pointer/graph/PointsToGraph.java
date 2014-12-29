@@ -1909,6 +1909,10 @@ public final class PointsToGraph {
                 s = ex;
             }
         }
+        if (lookupPointsToGraphNodeDictionary(n).toString().contains("test.flowsenspointer.Load2.staticfield")) {
+            System.err.println("GETTING PTS for " + n + "  " + lookupPointsToGraphNodeDictionary(n));
+            System.err.println(s);
+        }
         return s;
     }
 
