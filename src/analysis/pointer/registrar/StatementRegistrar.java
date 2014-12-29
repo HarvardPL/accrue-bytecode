@@ -2012,15 +2012,17 @@ public class StatementRegistrar {
 
             writeSucc(methSum.getEntryPP(), writer, visited);
         }
-        for (MethodSummaryNodes methSum : methods.values()) {
-            if (!visited.contains(methSum.getEntryPP())) {
-                System.err.println("MISSING " + methSum.getEntryPP());
-            }
-            if (!visited.contains(methSum.getExceptionExitPP())) {
-                System.err.println("MISSING " + methSum.getExceptionExitPP());
-            }
-            if (!visited.contains(methSum.getNormalExitPP())) {
-                System.err.println("MISSING " + methSum.getNormalExitPP());
+        if (PointsToAnalysis.outputLevel > 1) {
+            for (MethodSummaryNodes methSum : methods.values()) {
+                if (!visited.contains(methSum.getEntryPP())) {
+                    System.err.println("MISSING " + methSum.getEntryPP());
+                }
+                if (!visited.contains(methSum.getExceptionExitPP())) {
+                    System.err.println("MISSING " + methSum.getExceptionExitPP());
+                }
+                if (!visited.contains(methSum.getNormalExitPP())) {
+                    System.err.println("MISSING " + methSum.getNormalExitPP());
+                }
             }
         }
 
