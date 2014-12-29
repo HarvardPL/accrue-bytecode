@@ -17,27 +17,20 @@ public class Load2 {
             //            mostRecent(l);
             //            pointsToNull(staticfield);
             pointsTo(staticfield);
-            pointsTo(l);
             staticfield = l;
-            pointsTo(l);
             pointsTo(staticfield);
             l = new Load2(); // a1
             pointsTo(staticfield);
-            pointsTo(l);
             // staticfield --> non-most-recent a1
-            nonMostRecent(staticfield);
+            // nonMostRecent(staticfield);
         }
-        pointsTo(staticfield);
 
-        //        mostRecent(l);
         Object o = staticfield.f;
         // o --> non-most-recent a2
-        pointsTo(staticfield);
-        pointsTo(o);
         nonMostRecent(o);
         Object o2 = l.f;
         // o2 --> most-recent a2
-        mostRecent(o2);
+        // mostRecent(o2);
 
     }
 
