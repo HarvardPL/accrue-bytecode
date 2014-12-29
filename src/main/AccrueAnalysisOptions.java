@@ -296,7 +296,7 @@ public final class AccrueAnalysisOptions {
     }
 
     public String getEntryPoint() {
-        if (analyisName == null) {
+        if (entryPoint == null) {
             throw new ParameterException("Must specify an entry point.");
         }
         return entryPoint;
