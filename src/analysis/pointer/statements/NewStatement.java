@@ -123,7 +123,7 @@ public class NewStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return result + " = " + alloc;
+        return result + " = new " + alloc;
     }
 
     @Override
