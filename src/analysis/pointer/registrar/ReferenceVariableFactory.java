@@ -135,7 +135,7 @@ public class ReferenceVariableFactory {
     @SuppressWarnings("synthetic-access")
     protected ReferenceVariable createImplicitExceptionNode(TypeReference type,
             int basicBlockID, IMethod method) {
-        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false, false, false);
+        ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type), type, false, false, false, true);
         // These should only be created once assert that this is true
         ReferenceVariable prev = implicitThrows.put(new ImplicitThrowKey(type, basicBlockID, method), rv);
         assert prev == null;
