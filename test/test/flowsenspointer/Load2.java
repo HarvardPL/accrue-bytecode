@@ -10,7 +10,8 @@ public class Load2 {
 
         Load2 l = null;
 
-        while (l == null) {
+        int x = 5;
+        while (x > 0) {
             // l --> null || most-recent a1
             // staticfield --> null || non-most-recent a1
             pointsToNull(l);
@@ -35,6 +36,8 @@ public class Load2 {
             mostRecent(l);
             pointsToNull(staticfield);
             nonMostRecent(staticfield);
+            
+            x--;
         }
 
         Object o = staticfield.f;
@@ -44,11 +47,6 @@ public class Load2 {
         Object o2 = l.f;
         // o2 --> most-recent a2
         mostRecent(o2);
-
-    }
-
-    private static void foo() {
-        // TODO Auto-generated method stub
 
     }
 
