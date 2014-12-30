@@ -29,7 +29,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
-     *
+     * 
      * @param thrown reference variable for the exception being thrown
      * @param caught reference variable for the caught exception (or summary for the method exit)
      * @param notType types that the exception being caught cannot have since those types must have been caught by
@@ -46,14 +46,17 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         this.caught = caught;
         if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {
             if (notType.isEmpty()) {
+                // no need for a filter if the type is Throwable
                 this.filter = null;
             }
             else {
-                this.filter = TypeFilter.create((IClass) null, notType, false); // don't allow null type, as no null value is ever thrown.
+                // don't allow null type, as no null value is ever thrown.
+                this.filter = TypeFilter.create((IClass) null, notType, false);
             }
         }
         else {
-            this.filter = TypeFilter.create(caught.getExpectedType(), notType, false); // don't allow null type, as no null value is ever thrown.
+            // don't allow null type, as no null value is ever thrown.
+            this.filter = TypeFilter.create(caught.getExpectedType(), notType, false);
         }
 
     }
@@ -116,7 +119,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     /**
      * Get the exception being assigned to (either the catch formal or the procedure exit exception summary)
-     *
+     * 
      * @return variable for exception being assigned to
      */
     public ReferenceVariable getCaughtException() {
