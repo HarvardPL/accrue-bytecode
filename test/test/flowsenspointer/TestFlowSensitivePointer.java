@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import junit.framework.AssertionFailedError;
 import junit.framework.TestCase;
 import main.AccrueAnalysisMain;
 
@@ -101,6 +102,7 @@ public class TestFlowSensitivePointer extends TestCase {
         className = className.replaceAll("/", ".");
         String[] args = new String[] { "-testMode", "-n", "pointsto2", "-singleThreaded", "-simplePrint", "-e",
                 className, "-out", "tests", "-paranoidPointerAnalysis" };
+        AnalysisUtil.TEST_resetAllStaticFields();
         AccrueAnalysisMain.main(args);
         return AccrueAnalysisMain.graph;
     }
@@ -108,6 +110,7 @@ public class TestFlowSensitivePointer extends TestCase {
     private static PointsToGraph generatePointsToGraphMultiThreaded(String className) throws ClassHierarchyException,
                                                                                      IOException, JSONException {
         String[] args = new String[] { "-testMode", "-n", "pointsto2", "-e", className };
+        AnalysisUtil.TEST_resetAllStaticFields();
         AccrueAnalysisMain.main(args);
         return AccrueAnalysisMain.graph;
     }
@@ -200,68 +203,76 @@ public class TestFlowSensitivePointer extends TestCase {
     }
 
     private static void pointsTo(PointsToGraph g, String className) {
-        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> pt = findArg(className, POINTS_TO, g);
-        assertFalse("No arguments found for " + POINTS_TO + " when testing " + className, pt.isEmpty());
+        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> pt;
+        try {
+            pt = findArg(className, POINTS_TO, g);
+        }
+        catch (AssertionFailedError e) {
+            System.err.println("TEST: No points-to sets requested.");
+            return;
+        }
         for (OrderedPair<ReferenceVariableReplica, InterProgramPointReplica> p : pt) {
             Iterator<? extends InstanceKey> iter = g.pointsToIterator(p.fst(), p.snd());
-            System.err.println("$$$ POINTS TO");
-            System.err.println("$$$   Node: " + p.fst());
-            System.err.println("$$$   PP:   " + p.snd());
-            System.err.println("$$$   Points-to set:  ");
+            System.err.println("TEST: POINTS TO");
+            System.err.println("TEST:   Node: " + p.fst());
+            System.err.println("TEST:   PP:   " + p.snd());
+            System.err.println("TEST:   Points-to set:  ");
             if (!iter.hasNext()) {
-                System.err.println("$$$     EMPTY");
+                System.err.println("TEST:   EMPTY");
             }
             while (iter.hasNext()) {
                 InstanceKeyRecency ik = (InstanceKeyRecency) iter.next();
-                System.err.println("$$$     " + ik);
+                System.err.println("TEST:      " + ik);
             }
         }
     }
 
     public static void testLoad() throws ClassHierarchyException, IOException, JSONException {
-        AnalysisUtil.TEST_resetAllStaticFields();
         String className = "test/flowsenspointer/Load";
-        System.err.println("\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("%%\t" + className + " single threaded");
-        System.err.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        System.err.println("TEST: %%%\t" + className + " single threaded");
+        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
         PointsToGraph g = generatePointsToGraphSingleThreaded(className);
+        pointsTo(g, className);
         findMostRecent(g, className);
-        // All are most recent for this test
-        // findNonMostRecent(g, className);
+        // All are most recent and none are null for this test
+        //        findNonMostRecent(g, className);
+        //        findPointsToNull(g, className);
     }
 
     public static void testLoadMT() throws ClassHierarchyException, IOException, JSONException {
-        AnalysisUtil.TEST_resetAllStaticFields();
         String className = "test/flowsenspointer/Load";
-        System.err.println("\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("%%\t" + className + " multi threaded");
-        System.err.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        System.err.println("TEST: %%%\t" + className + " multi threaded");
+        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
         PointsToGraph g = generatePointsToGraphMultiThreaded(className);
+        pointsTo(g, className);
         findMostRecent(g, className);
-        // All are most recent for this test
-        // findNonMostRecent(g, className);
+        // All are most recent and none are null for this test
+        //        findNonMostRecent(g, className);
+        //        findPointsToNull(g, className);
     }
 
     public static void testLoad2() throws ClassHierarchyException, IOException, JSONException {
-        AnalysisUtil.TEST_resetAllStaticFields();
         String className = "test/flowsenspointer/Load2";
-        System.err.println("\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("%%\t" + className + " single threaded");
-        System.err.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        System.err.println("TEST: %%%\t" + className + " single threaded");
+        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
         PointsToGraph g = generatePointsToGraphSingleThreaded(className);
+        pointsTo(g, className);
         findMostRecent(g, className);
         findNonMostRecent(g, className);
         findPointsToNull(g, className);
     }
 
     public static void testLoad2MT() throws ClassHierarchyException, IOException, JSONException {
-        AnalysisUtil.TEST_resetAllStaticFields();
         String className = "test/flowsenspointer/Load2";
-        System.err.println("\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("%%\t" + className + " multi threaded");
-        System.err.println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        System.err.println("TEST: %%%\t" + className + " multi threaded");
+        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
 
         PointsToGraph g = generatePointsToGraphMultiThreaded(className);
+        pointsTo(g, className);
         findMostRecent(g, className);
         findNonMostRecent(g, className);
         findPointsToNull(g, className);
