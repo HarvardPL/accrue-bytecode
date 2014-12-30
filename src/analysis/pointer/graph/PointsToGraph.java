@@ -632,13 +632,7 @@ public final class PointsToGraph {
             return;
         }
 
-        IntSet added = this.addAllToSet(target, targetIsFlowSensitive, targetPoints, setToAdd).snd();
-        if (added != null) {
-            MutableIntSet newSetToAdd = MutableSparseIntSet.createMutableSparseIntSet(setToAdd.size() + added.size());
-            newSetToAdd.addAll(setToAdd);
-            newSetToAdd.addAll(added);
-            setToAdd = newSetToAdd;
-        }
+        setToAdd = this.addAllToSet(target, targetIsFlowSensitive, targetPoints, setToAdd);
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -656,13 +650,16 @@ public final class PointsToGraph {
             assert !isFlowSensitivePointsToGraphNode(m);
 
             filterStack.push(null);
-            propagateDifferenceToFlowInsensitive(changed,
-                                                 m,
-                                                 setToAdd.intIterator(),
-                                                 currentlyAdding,
-                                                 currentlyAddingStack,
-                                                 filterStack,
-                                                 programPointStack);
+            addToSetAndSupersets(changed,
+                                 m,
+                                 false,
+                                 null,
+                                 setToAdd,
+                                 currentlyAdding,
+                                 currentlyAddingStack,
+                                 filterStack,
+                                 programPointStack);
+
             filterStack.pop();
         }
 
@@ -679,13 +676,16 @@ public final class PointsToGraph {
             // the relation between target and m was created.
             if (!filterSet.isEmpty()) {
                 filterStack.push(filterSet);
-                propagateDifferenceToFlowInsensitive(changed,
-                                                     m,
-                                                     setToAdd.intIterator(),
-                                                     currentlyAdding,
-                                                     currentlyAddingStack,
-                                                     filterStack,
-                                                     programPointStack);
+                addToSetAndSupersets(changed,
+                                     m,
+                                     false,
+                                     null,
+                                     setToAdd,
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     programPointStack);
+
                 filterStack.pop();
 
             }
@@ -725,16 +725,28 @@ public final class PointsToGraph {
 
                 ReachabilityQueryOriginMaker originMaker = new AddToSetOriginMaker(m, this);//if i now gets added, then we need to add it to m.
 
-                propagateDifferenceToFlowInsensitive(changed,
-                                                     m,
-                                                     new PointsToIntersectIntIterator(new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
-                                                                                      target,
-                                                                                      noFilterPPSet,
-                                                                                      originMaker),
-                                                     currentlyAdding,
-                                                     currentlyAddingStack,
-                                                     filterStack,
-                                                     programPointStack);
+                // The set to add to m needs to possibly include any non-most-recent versions of the most-recent instance keys
+                // added to target.
+                MutableIntSet modifiedSetToAdd = MutableSparseIntSet.makeEmpty();
+                {
+                    IntIterator modSetToAddIter = new PointsToIntersectIntIterator(new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
+                                                                                   target,
+                                                                                   noFilterPPSet,
+                                                                                   originMaker);
+                    while (modSetToAddIter.hasNext()) {
+                        modifiedSetToAdd.add(modSetToAddIter.next());
+                    }
+                }
+                addToSetAndSupersets(changed,
+                                     m,
+                                     false,
+                                     null,
+                                     modifiedSetToAdd,
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     programPointStack);
+
                 filterStack.pop();
 
             }
@@ -745,14 +757,16 @@ public final class PointsToGraph {
                 assert filterPPSet == null || filterPPSet.isEmpty();
                 assert mIsFlowSensitive;
                 filterStack.push(null);
-                propagateDifferenceToFlowSensitive(changed,
-                                                   m,
-                                                   noFilterPPSet,
-                                                   setToAdd,
-                                                   currentlyAdding,
-                                                   currentlyAddingStack,
-                                                   filterStack,
-                                                   programPointStack);
+
+                addToSetAndSupersets(changed,
+                                     m,
+                                     mIsFlowSensitive,
+                                     noFilterPPSet,
+                                     setToAdd,
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     programPointStack);
                 filterStack.pop();
             }
             if (filterPPSet != null && !filterPPSet.isEmpty()) {
@@ -766,107 +780,37 @@ public final class PointsToGraph {
                 assert isFlowSensitivePointsToGraphNode(target) : "base node for target is not flow sensitive:"
                         + lookupPointsToGraphNodeDictionary(baseNodeForPointsToGraphNode(target));
 
-                ReachabilityQueryOriginMaker originMaker = new AddToSetOriginMaker(m, this);//if i now gets added, then we need to add it to m.
-
-                IntIterator filteredIntIterator = new ChangeRecentInstanceKeyIterator(new PointsToIntersectIntIterator(new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
-                                                                                                                       target,
-                                                                                                                       filterPPSet,
-                                                                                                                       originMaker),
-                                                                                      baseNodeForPointsToGraphNode(target),
-                                                                                      this);
                 filterStack.push(null);
-                propagateDifferenceToFlowInsensitive(changed,
-                                                     m,
-                                                     filteredIntIterator,
-                                                     currentlyAdding,
-                                                     currentlyAddingStack,
-                                                     filterStack,
-                                                     programPointStack);
+                // The set to add to m needs to possibly include any non-most-recent versions of the most-recent instance keys
+                // added to target.
+                MutableIntSet modifiedSetToAdd = MutableSparseIntSet.makeEmpty();
+                {
+                    ReachabilityQueryOriginMaker originMaker = new AddToSetOriginMaker(m, this);//if i now gets added, then we need to add it to m.
+
+                    IntIterator filteredIntIterator = new ChangeRecentInstanceKeyIterator(new PointsToIntersectIntIterator(new IncludeNonMostRecentIntIterator(setToAdd.intIterator()),
+                                                                                                                           target,
+                                                                                                                           filterPPSet,
+                                                                                                                           originMaker),
+                                                                                          baseNodeForPointsToGraphNode(target),
+                                                                                          this);
+                    while (filteredIntIterator.hasNext()) {
+                        modifiedSetToAdd.add(filteredIntIterator.next());
+                    }
+                }
+                addToSetAndSupersets(changed,
+                                     m,
+                                     mIsFlowSensitive,
+                                     null,
+                                     modifiedSetToAdd,
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     programPointStack);
                 filterStack.pop();
             }
         }
         currentlyAdding.remove(target);
         currentlyAddingStack.pop();
-    }
-
-    /**
-     * Add the setToAdd to the points to set of target. If target is not flow sensitive, then setToAdd is added to
-     * PointsToFI(target). Otherwise, if target is flow sensitive, then targetPointsToAdd should be non-null, and
-     * setToAdd will be added to PointsToFS(target, ippr) for each ippr in targetPointsToAdd.
-     *
-     * This method will then propagate the set using the supersets relation.
-     *
-     * @param changed
-     * @param target
-     * @param targetIsFlowSensitive
-     * @param targetPointsToAdd
-     * @param setToAdd
-     * @param currentlyAdding
-     * @param currentlyAddingStack
-     * @param filterStack
-     * @param programPointStack
-     * @param originator
-     */
-    private void propagateDifferenceToFlowInsensitive(GraphDelta changed, /*PointsToGraphNode*/int target,
-    /*Iterator<InstanceKeyRecency>*/IntIterator setToAdd, MutableIntSet currentlyAdding,
-                                                      IntStack currentlyAddingStack,
-                                                      Stack<Set<TypeFilter>> filterStack,
-                                                      Stack<ExplicitProgramPointSet> programPointStack) {
-
-        // First, let's handle the noFilterTargetPoints.
-        //     we want setToAdd is added to PointsToFI(target)
-        IntSet diff = this.getDifferenceFlowInsensitive(setToAdd, target);
-        addToSetAndSupersets(changed,
-                             target,
-                             false,
-                             null,
-                             diff,
-                             currentlyAdding,
-                             currentlyAddingStack,
-                             filterStack,
-                             programPointStack);
-    }
-
-    /**
-     * Add the setToAdd to the points to set of target. If target is not flow sensitive, then setToAdd is added to
-     * PointsToFI(target). Otherwise, if target is flow sensitive, then targetPointsToAdd should be non-null, and
-     * setToAdd will be added to PointsToFS(target, ippr) for each ippr in targetPointsToAdd.
-     *
-     * This method will then propagate the set using the supersets relation.
-     *
-     * @param changed
-     * @param target
-     * @param targetIsFlowSensitive
-     * @param targetPointsToAdd
-     * @param setToAdd
-     * @param currentlyAdding
-     * @param currentlyAddingStack
-     * @param filterStack
-     * @param programPointStack
-     * @param originator
-     */
-    private void propagateDifferenceToFlowSensitive(GraphDelta changed, /*PointsToGraphNode*/int target,
-                                                    ExplicitProgramPointSet targetPointsToAdd,
-                                                    /*Set<InstanceKeyRecency>*/IntSet setToAdd,
-                                                    MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
-                                                    Stack<Set<TypeFilter>> filterStack,
-                                                    Stack<ExplicitProgramPointSet> programPointStack) {
-
-        assert isFlowSensitivePointsToGraphNode(target);
-        assert targetPointsToAdd != null;
-        // First, let's handle the noFilterTargetPoints.
-        // If targetIsFlowSensitive then
-        //     for each ippr \in noFilterTargetPoints, we want setToAdd is added to PointsToFS(target, ippr)
-        IntSet diff = this.getDifferenceFlowSensitive(setToAdd.intIterator(), target, targetPointsToAdd);
-        addToSetAndSupersets(changed,
-                             target,
-                             true,
-                             targetPointsToAdd,
-                             diff,
-                             currentlyAdding,
-                             currentlyAddingStack,
-                             filterStack,
-                             programPointStack);
     }
 
     /**
@@ -1727,7 +1671,7 @@ public final class PointsToGraph {
                                                                                                         source));
         }
         if (targetIsFlowSensitive) {
-            return getDifferenceFlowSensitive(srcIter, target, ExplicitProgramPointSet.singleton(ippr));
+            return getDifferenceFlowSensitive(srcIter, target, ippr);
         }
         return getDifferenceFlowInsensitive(srcIter, target);
     }
@@ -1738,12 +1682,6 @@ public final class PointsToGraph {
      * @param srcIter Iterator over the InstanceKeyRecencys that we want to check whether they are in the points to set
      *            of target.
      * @param target The PointsToGraphNode for the set
-     * @param targetIsFlowSensitive Is target flow sensitive?
-     * @param addAtPoints If the target is flow sensitive, then we are interested in adding, for each ippr \in
-     *            addAtPoints, the set srcIter to PointsToFS(target, ippr). If target is not flow sensitive then this
-     *            argument is ignored.
-     * @param filterBaseNodeOfField
-     * @param originator
      * @return
      */
     private IntSet getDifferenceFlowInsensitive(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
@@ -1763,28 +1701,6 @@ public final class PointsToGraph {
             int i = srcIter.next();
             if (!targetSet.contains(i)) {
                 s.add(i);
-            }
-            if (isMostRecentObject(i)) {
-                if (!targetSet.contains(nonMostRecentVersion(i))) {
-                    // target is a flow-insensitive pointstographnode, so if it
-                    // points to the most recent version, it may also need to point to
-                    // the non-most recent version.
-                    boolean needsNonMostRecent = true;
-                    PointsToGraphNode tn = lookupPointsToGraphNodeDictionary(target);
-                    if (tn instanceof ReferenceVariableReplica) {
-                        ReferenceVariableReplica rvr = (ReferenceVariableReplica) tn;
-                        if (rvr.hasInstantaneousScope()) {
-                            needsNonMostRecent = false;
-                        }
-                        else if (rvr.hasLocalScope()) {
-                            // rvr has a local scope, and we can possible be more precise.
-                            needsNonMostRecent = isAllocInScope(rvr, i, new AddNonMostRecentOrigin(target, rvr, i));
-                        }
-                    }
-                    if (needsNonMostRecent) {
-                        s.add(nonMostRecentVersion(i));
-                    }
-                }
             }
         }
         return s;
@@ -1840,23 +1756,18 @@ public final class PointsToGraph {
 
     /**
      * Compute the difference between the set implied by srcIter and the set pointed to by target. here.
-     *
+     * 
      * @param srcIter Iterator over the InstanceKeyRecencys that we want to check whether they are in the points to set
      *            of target.
      * @param target The PointsToGraphNode for the set
-     * @param targetIsFlowSensitive Is target flow sensitive?
-     * @param addAtPoints If the target is flow sensitive, then we are interested in adding, for each ippr \in
-     *            addAtPoints, the set srcIter to PointsToFS(target, ippr). If target is not flow sensitive then this
-     *            argument is ignored.
-     * @param filterBaseNodeOfField
-     * @param originator
+     * @param ippr we are interested in adding the set srcIter to PointsToFS(target, ippr).
      * @return
      */
     private IntSet getDifferenceFlowSensitive(/*Iterator<InstanceKeyRecency>*/IntIterator srcIter,
-    /*PointsToGraphNode*/int target, ExplicitProgramPointSet addAtPoints) {
+    /*PointsToGraphNode*/int target, InterProgramPointReplica ippr) {
         assert isFlowSensitivePointsToGraphNode(target);
 
-        assert addAtPoints != null && !addAtPoints.isEmpty() : "If the target is flow sensitive, then we should have at least one program point to consider.";
+        assert ippr != null;
 
         if (!srcIter.hasNext()) {
             // nothing in there, return an empty set.
@@ -1870,7 +1781,7 @@ public final class PointsToGraph {
         while (srcIter.hasNext()) {
             int i = srcIter.next();
             ProgramPointSetClosure pps = m.get(i);
-            if (pps == null || !pps.containsAll(addAtPoints, null)) {
+            if (pps == null || !pps.contains(ippr, null)) {
                 // Note that we don't need to pass an origin to pps.containsAll, since we don't care if a reachability query goes from false to true,
                 // since it won't cause us to do any additional work, it would just mean that we wouldn't have added i to the set.
 
@@ -1942,23 +1853,25 @@ public final class PointsToGraph {
      * @param set
      * @return
      */
-    protected OrderedPair<Boolean, MutableIntSet> addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
+    protected IntSet addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
                                                        ExplicitProgramPointSet ppsToAdd,
                                                        /*Set<InstanceKeyRecency>*/IntSet set) {
         if (set.isEmpty()) {
-            return new OrderedPair<>(false, null);
+            return set;
         }
+
+        MutableIntSet added = MutableSparseIntSet.makeEmpty();
 
         if (!nIsFlowSensitive) {
             assert !isFlowSensitivePointsToGraphNode(n);
             assert ppsToAdd == null;
             MutableIntSet s = pointsToSetFI(n);
-            MutableIntSet ret = MutableSparseIntSet.createMutableSparseIntSet(2);
-            boolean changed = false;
             IntIterator iter = set.intIterator();
             while (iter.hasNext()) {
                 int next = iter.next();
-                changed |= s.add(next);
+                if (s.add(next)) {
+                    added.add(next);
+                }
                 if (isMostRecentObject(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, may also need to point to
@@ -1977,29 +1890,29 @@ public final class PointsToGraph {
                     }
                     if (needsNonMostRecent) {
                         if (s.add(nonMostRecentVersion(next))) {
-                            changed = true;
-                            ret.add(nonMostRecentVersion(next));
+                            added.add(nonMostRecentVersion(next));
                         }
                     }
                 }
             }
-            return new OrderedPair<>(changed, ret);
+            return added;
         }
         // flow sensitive!
         assert ppsToAdd != null;
-        boolean changed = false;
         ConcurrentIntMap<ProgramPointSetClosure> m = pointsToSetFS(n);
         IntIterator iter = set.intIterator();
         while (iter.hasNext()) {
             int to = iter.next();
-            changed |= addProgramPoints(m, n, to, ppsToAdd);
+            if (addProgramPoints(m, n, to, ppsToAdd)) {
+                added.add(to);
+            }
             // If we are adding an edge to the most recent version of a node,
             // make sure that the ConcurrentIntMap contains a ProgramPointSetClosure for the not-most recent version.
             if (this.isMostRecentObject(to) && this.isTrackingMostRecentObject(to)) {
-                changed |= addProgramPoints(m, n, this.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
+                addProgramPoints(m, n, this.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
             }
         }
-        return new OrderedPair<>(changed, null);
+        return added;
     }
 
     private boolean addProgramPoints(ConcurrentIntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from,
