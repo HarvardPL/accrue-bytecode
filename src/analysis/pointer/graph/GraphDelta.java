@@ -77,13 +77,12 @@ public final class GraphDelta {
             assert !g.isFlowSensitivePointsToGraphNode(n);
 
             MutableIntSet s = getOrCreateFISet(n, setSizeBestGuess(set));
-            boolean nIsObjectField = g.baseNodeForPointsToGraphNode(n) >= 0;
             boolean changed = false;
             IntIterator iter = set.intIterator();
             while (iter.hasNext()) {
                 int next = iter.next();
                 changed |= s.add(next);
-                if (g.isMostRecentObject(next) && nIsObjectField) { // XXX TODO: I don't understand why we restrict to object fields; make some of the code in the conditional dead. What's going on?
+                if (g.isMostRecentObject(next)) {
                     // n is a flow-insensitive pointstographnode, so if it
                     // points to the most resent version, may also need to point to
                     // the non-most recent version.
@@ -231,9 +230,13 @@ public final class GraphDelta {
         while (iter.hasNext()) {
             int i = iter.next();
             MutableIntSet s = deltaFI.get(i);
-            sb.append(i);
-            sb.append(":");
-            sb.append(s);
+            sb.append("\n" + g.lookupPointsToGraphNodeDictionary(i));
+            sb.append(" --> ");
+            IntIterator iter2 = s.intIterator();
+            while (iter2.hasNext()) {
+                int ik = iter2.next();
+                sb.append("\n\t" + g.lookupInstanceKeyDictionary(ik));
+            }
             if (iter.hasNext()) {
                 sb.append(" ");
             }
@@ -263,7 +266,7 @@ public final class GraphDelta {
             size += s.size();
         }
 
-        sb.append(" (size" + size + ")]");
+        sb.append("\n(size " + size + ")]");
         return sb.toString();
     }
 
