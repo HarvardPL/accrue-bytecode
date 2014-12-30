@@ -539,7 +539,7 @@ public final class PointsToGraph {
         }
 
         GraphDelta changed = new GraphDelta(this);
-        if (isFilteredSubsetOf.add(s, t, filter)) {
+        if (isFilteredSubsetOf.add(s, t, filter) || PointsToAnalysis.paranoidMode) {
             computeDeltaForAddedSubsetRelation(changed, s, false, filter, null, t, false, null);
         }
         return changed;
