@@ -254,6 +254,8 @@ public final class PointsToGraph {
      */
     private boolean graphFinished = false;
 
+    private boolean DEBUG;
+
     public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf,
                          DependencyRecorder depRecorder, PointsToAnalysisHandle analysisHandle) {
         assert analysisHandle != null;
@@ -613,13 +615,30 @@ public final class PointsToGraph {
                                       IntStack currentlyAddingStack, Stack<Set<TypeFilter>> filterStack,
                                       Stack<ExplicitProgramPointSet> programPointStack) {
 
+        if (DEBUG) {
+            System.err.println("\n%%%%%%%%%%%%%%%%%%%%%%");
+            System.err.println(lookupPointsToGraphNodeDictionary(target) + " --> ");
+            IntIterator iter2 = setToAdd.intIterator();
+            while (iter2.hasNext()) {
+                System.err.println("\t" + lookupInstanceKeyDictionary(iter2.next()));
+            }
+            System.err.println("%%%%%%%%%%%%%%%%%%%%%%\n");
+        }
+
         assert !targetIsFlowSensitive ? (targetPoints == null || targetPoints.isEmpty()) : true : "If target is not flow sensitive then targetPoints must be null";
 
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
         if (!changed.addAllToSet(target, targetIsFlowSensitive, targetPoints, setToAdd)) {
             return;
         }
-        this.addAllToSet(target, targetIsFlowSensitive, targetPoints, setToAdd);
+
+        IntSet added = this.addAllToSet(target, targetIsFlowSensitive, targetPoints, setToAdd).snd();
+        if (added != null) {
+            MutableIntSet newSetToAdd = MutableSparseIntSet.createMutableSparseIntSet(setToAdd.size() + added.size());
+            newSetToAdd.addAll(setToAdd);
+            newSetToAdd.addAll(added);
+            setToAdd = newSetToAdd;
+        }
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -1923,17 +1942,18 @@ public final class PointsToGraph {
      * @param set
      * @return
      */
-    protected boolean addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
-                                  ExplicitProgramPointSet ppsToAdd,
-                                  /*Set<InstanceKeyRecency>*/IntSet set) {
+    protected OrderedPair<Boolean, MutableIntSet> addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
+                                                       ExplicitProgramPointSet ppsToAdd,
+                                                       /*Set<InstanceKeyRecency>*/IntSet set) {
         if (set.isEmpty()) {
-            return false;
+            return new OrderedPair<>(false, null);
         }
 
         if (!nIsFlowSensitive) {
             assert !isFlowSensitivePointsToGraphNode(n);
             assert ppsToAdd == null;
             MutableIntSet s = pointsToSetFI(n);
+            MutableIntSet ret = MutableSparseIntSet.createMutableSparseIntSet(2);
             boolean changed = false;
             IntIterator iter = set.intIterator();
             while (iter.hasNext()) {
@@ -1956,11 +1976,14 @@ public final class PointsToGraph {
                         }
                     }
                     if (needsNonMostRecent) {
-                        changed |= s.add(nonMostRecentVersion(next));
+                        if (s.add(nonMostRecentVersion(next))) {
+                            changed = true;
+                            ret.add(nonMostRecentVersion(next));
+                        }
                     }
                 }
             }
-            return changed;
+            return new OrderedPair<>(changed, ret);
         }
         // flow sensitive!
         assert ppsToAdd != null;
@@ -1973,10 +1996,10 @@ public final class PointsToGraph {
             // If we are adding an edge to the most recent version of a node,
             // make sure that the ConcurrentIntMap contains a ProgramPointSetClosure for the not-most recent version.
             if (this.isMostRecentObject(to) && this.isTrackingMostRecentObject(to)) {
-                addProgramPoints(m, n, this.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
+                changed |= addProgramPoints(m, n, this.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
             }
         }
-        return changed;
+        return new OrderedPair<>(changed, null);
     }
 
     private boolean addProgramPoints(ConcurrentIntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from,
