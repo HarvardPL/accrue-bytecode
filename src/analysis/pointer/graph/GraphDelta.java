@@ -224,7 +224,7 @@ public final class GraphDelta {
     public String toString() {
         int size = 0;
         StringBuffer sb = new StringBuffer();
-        sb.append("GraphDelta [");
+        sb.append("FLOW INSENSITIVE [");
 
         IntIterator iter = deltaFI.keyIterator();
         while (iter.hasNext()) {
@@ -237,36 +237,26 @@ public final class GraphDelta {
                 int ik = iter2.next();
                 sb.append("\n\t" + g.lookupInstanceKeyDictionary(ik));
             }
-            if (iter.hasNext()) {
-                sb.append(" ");
-            }
             size += s.size();
         }
+        sb.append("\n]");
+        sb.append("\nFLOW SENSITIVE [");
         iter = deltaFS.keyIterator();
-        if (iter.hasNext() && size > 0) {
-            sb.append(" ");
-        }
         while (iter.hasNext()) {
             int i = iter.next();
             IntMap<ProgramPointSetClosure> s = deltaFS.get(i);
             PointsToGraphNode n = g.lookupPointsToGraphNodeDictionary(i);
-            if (n instanceof ReferenceVariableReplica) {
-                sb.append("(" + i + ")");
-            }
-            else {
-                ObjectField of = (ObjectField) n;
-                sb.append("(" + g.lookupDictionary(of.receiver()) + ")");
-            }
-            sb.append(n);
-            sb.append(":");
-            sb.append(s);
-            if (iter.hasNext()) {
-                sb.append(" ");
+            sb.append("\n" + n + " --> ");
+            IntIterator iter2 = s.keyIterator();
+            while (iter2.hasNext()) {
+                int ik = iter2.next();
+                sb.append("\n\t" + g.lookupInstanceKeyDictionary(ik));
+                sb.append("\n\t\t" + s.get(ik));
             }
             size += s.size();
         }
 
-        sb.append("\n(size " + size + ")]");
+        sb.append("\n]\n\t(size " + size + ")");
         return sb.toString();
     }
 
