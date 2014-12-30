@@ -495,7 +495,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     }
                     changed |= !d.isEmpty();
                     if (!d.isEmpty()) {
-                        System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
+                        System.err.println("\nuhoh Failed on " + s + "\nDELTA: " + d);
+
                         failcount++;
                         if (failcount > 10) {
                             System.err.println("\nThere may be more failures, but exiting now...");
