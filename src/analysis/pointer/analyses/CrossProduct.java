@@ -2,6 +2,8 @@ package analysis.pointer.analyses;
 
 import java.util.Iterator;
 
+import analysis.pointer.analyses.CrossProduct.CrossProductContext;
+import analysis.pointer.analyses.CrossProduct.CrossProductInstanceKey;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
@@ -18,41 +20,43 @@ import com.ibm.wala.util.collections.Pair;
 /**
  * Analysis with contexts that are the cross product of those from two child analyses
  */
-public class CrossProduct extends HeapAbstractionFactory {
+public class CrossProduct<C1 extends Context, C2 extends Context, IK1 extends InstanceKey, IK2 extends InstanceKey>
+        extends HeapAbstractionFactory<CrossProductInstanceKey<IK1, IK2>, CrossProductContext<C1, C2>> {
 
-    private final HeapAbstractionFactory haf1;
-    private final HeapAbstractionFactory haf2;
-    private final CrossProductContext initial;
+    private final HeapAbstractionFactory<IK1, C1> haf1;
+    private final HeapAbstractionFactory<IK2, C2> haf2;
+    private final CrossProductContext<C1, C2> initial;
 
-    public CrossProduct(HeapAbstractionFactory haf1, HeapAbstractionFactory haf2) {
+    public CrossProduct(HeapAbstractionFactory<IK1, C1> haf1, HeapAbstractionFactory<IK2, C2> haf2) {
         this.haf1 = haf1;
         this.haf2 = haf2;
-        this.initial = memoize(new CrossProductContext(haf1.initialContext(), haf2.initialContext()),
+        this.initial = memoize(new CrossProductContext<>(haf1.initialContext(), haf2.initialContext()),
                                         haf1.initialContext(), haf2.initialContext());
     }
 
     @Override
-    public CrossProductInstanceKey record(AllocSiteNode allocationSite, Context context) {
-        InstanceKey ik1 = haf1.record(allocationSite, ((CrossProductContext) context).c1);
-        InstanceKey ik2 = haf2.record(allocationSite, ((CrossProductContext) context).c2);
-        return memoize(new CrossProductInstanceKey(ik1, ik2), ik1, ik2);
+    public CrossProductInstanceKey<IK1, IK2> record(AllocSiteNode allocationSite, CrossProductContext<C1, C2> context) {
+        IK1 ik1 = haf1.record(allocationSite, context.c1);
+        IK2 ik2 = haf2.record(allocationSite, context.c2);
+        return memoize(new CrossProductInstanceKey<>(ik1, ik2), ik1, ik2);
     }
 
     @Override
-    public CrossProductContext merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        InstanceKey r1 = null;
-        InstanceKey r2 = null;
+    public CrossProductContext<C1, C2> merge(CallSiteLabel callSite, CrossProductInstanceKey<IK1, IK2> receiver,
+                                             CrossProductContext<C1, C2> callerContext) {
+        IK1 r1 = null;
+        IK2 r2 = null;
         if (receiver != null) {
-            r1 = ((CrossProductInstanceKey) receiver).ik1;
-            r2 = ((CrossProductInstanceKey) receiver).ik2;
+            r1 = receiver.ik1;
+            r2 = receiver.ik2;
         }
-        Context c1 = haf1.merge(callSite, r1, ((CrossProductContext) callerContext).c1);
-        Context c2 = haf2.merge(callSite, r2, ((CrossProductContext) callerContext).c2);
-        return memoize(new CrossProductContext(c1, c2), c1, c2);
+        C1 c1 = haf1.merge(callSite, r1, callerContext.c1);
+        C2 c2 = haf2.merge(callSite, r2, callerContext.c2);
+        return memoize(new CrossProductContext<>(c1, c2), c1, c2);
     }
 
     @Override
-    public CrossProductContext initialContext() {
+    public CrossProductContext<C1, C2> initialContext() {
         return initial;
     }
 
@@ -64,12 +68,13 @@ public class CrossProduct extends HeapAbstractionFactory {
     /**
      * Instance key derived from two child instance keys
      */
-    private class CrossProductInstanceKey implements InstanceKey {
+    protected static class CrossProductInstanceKey<IK1 extends InstanceKey, IK2 extends InstanceKey> implements
+            InstanceKey {
 
-        protected final InstanceKey ik1;
-        protected final InstanceKey ik2;
+        protected final IK1 ik1;
+        protected final IK2 ik2;
 
-        public CrossProductInstanceKey(InstanceKey ik1, InstanceKey ik2) {
+        public CrossProductInstanceKey(IK1 ik1, IK2 ik2) {
             this.ik1 = ik1;
             this.ik2 = ik2;
         }
@@ -94,12 +99,12 @@ public class CrossProduct extends HeapAbstractionFactory {
     /**
      * Context derived from two child contexts
      */
-    private class CrossProductContext implements Context {
+    protected static class CrossProductContext<C1 extends Context, C2 extends Context> implements Context {
 
-        protected final Context c1;
-        protected final Context c2;
+        protected final C1 c1;
+        protected final C2 c2;
 
-        public CrossProductContext(Context c1, Context c2) {
+        public CrossProductContext(C1 c1, C2 c2) {
             this.c1 = c1;
             this.c2 = c2;
         }

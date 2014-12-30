@@ -3,13 +3,11 @@ package analysis.pointer.analyses;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-
 /**
  * Analysis where the contexts are based on procedure call sites
  */
-public class CallSiteSensitive extends HeapAbstractionFactory {
+public class CallSiteSensitive extends
+        HeapAbstractionFactory<AllocationName<ContextStack<CallSiteLabel>>, ContextStack<CallSiteLabel>> {
 
     /**
      * Default depth of call sites to keep track of
@@ -31,7 +29,7 @@ public class CallSiteSensitive extends HeapAbstractionFactory {
     /**
      * Create a call site sensitive heap abstraction factory with the given depth, i.e. up to depth call sites are
      * tracked
-     * 
+     *
      * @param sensitivity
      *            depth of the call site stack
      */
@@ -50,14 +48,17 @@ public class CallSiteSensitive extends HeapAbstractionFactory {
 
     @SuppressWarnings("unchecked")
     @Override
-    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite, Context context) {
-        return AllocationName.create((ContextStack<CallSiteLabel>) context, allocationSite);
+    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite,
+                                                              ContextStack<CallSiteLabel> context) {
+        return AllocationName.create(context, allocationSite);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        return ((ContextStack<CallSiteLabel>) callerContext).push(callSite, sensitivity);
+    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite,
+                                             AllocationName<ContextStack<CallSiteLabel>> receiver,
+                                             ContextStack<CallSiteLabel> callerContext) {
+        return callerContext.push(callSite, sensitivity);
     }
 
     @Override

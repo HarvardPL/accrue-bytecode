@@ -1,12 +1,12 @@
 package analysis.pointer.analyses;
 
+import analysis.pointer.analyses.FullObjSensitive.AllocationNameContext;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.ContextItem;
 import com.ibm.wala.ipa.callgraph.ContextKey;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * A full object sensitive analysis, as described in "Pick Your Contexts Well: Understanding Object-Sensitivity" by
@@ -16,7 +16,8 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
  * It is recommended that one combine this with another abstraction to recover precision for static calls (e.g.
  * StaticCallStiteSensitive)
  */
-public class FullObjSensitive extends HeapAbstractionFactory {
+public class FullObjSensitive extends
+        HeapAbstractionFactory<AllocationName<ContextStack<AllocSiteNode>>, AllocationNameContext> {
 
     /**
      * Object sensitivity parameter
@@ -45,25 +46,22 @@ public class FullObjSensitive extends HeapAbstractionFactory {
         this(DEFAULT_DEPTH);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public AllocationNameContext merge(CallSiteLabel callSite,
-            InstanceKey receiver, Context callerContext) {
+                                             AllocationName<ContextStack<AllocSiteNode>> receiver,
+                                             AllocationNameContext callerContext) {
         if (callSite.isStatic()) {
             // this is a static method call return the caller's context
-            return (AllocationNameContext) callerContext;
+            return callerContext;
         }
 
-        AllocationName<ContextStack<AllocSiteNode>> rec =
-                (AllocationName<ContextStack<AllocSiteNode>>) receiver;
-        return AllocationNameContext.create(rec);
+        return AllocationNameContext.create(receiver);
     }
 
     @Override
-    public AllocationName<ContextStack<AllocSiteNode>> record(
-            AllocSiteNode allocationSite, Context context) {
-        AllocationNameContext c = (AllocationNameContext) context;
-        AllocationName<ContextStack<AllocSiteNode>> an = c.allocationName();
+    public AllocationName<ContextStack<AllocSiteNode>> record(AllocSiteNode allocationSite,
+                                                              AllocationNameContext context) {
+        AllocationName<ContextStack<AllocSiteNode>> an = context.allocationName();
         ContextStack<AllocSiteNode> stack;
         if (an == null) {
             stack = ContextStack.emptyStack();

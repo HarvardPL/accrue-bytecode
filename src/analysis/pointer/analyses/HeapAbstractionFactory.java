@@ -21,7 +21,7 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
  * <p>
  * Subclasses of this class must be thread safe, as different threads may call methods of this class concurrently.
  */
-public abstract class HeapAbstractionFactory {
+public abstract class HeapAbstractionFactory<IK extends InstanceKey, C extends Context> {
 
     /**
      * Create a new abstract object created at a particular allocation site in a particular code context. The results of
@@ -34,7 +34,7 @@ public abstract class HeapAbstractionFactory {
      *
      * @return Abstract heap object (heap context)
      */
-    public abstract InstanceKey record(AllocSiteNode allocationSite, Context context);
+    public abstract IK record(AllocSiteNode allocationSite, C context);
 
     /**
      * Create a new code context for a new callee. The results of this call must be memoized and two equivalent contexts
@@ -48,12 +48,12 @@ public abstract class HeapAbstractionFactory {
      *            Code context in the method caller
      * @return code context for the callee
      */
-    public abstract Context merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext);
+    public abstract C merge(CallSiteLabel callSite, IK receiver, C callerContext);
 
     /**
      * Return the initial Context, i.e., to analyze the root method.
      */
-    public abstract Context initialContext();
+    public abstract C initialContext();
 
     @Override
     public abstract String toString();

@@ -1,12 +1,11 @@
 package analysis.pointer.analyses;
 
 import util.print.PrettyPrinter;
+import analysis.pointer.analyses.TypeSensitive.ClassWrapper;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * A Type Sensitive pointer analysis (nType+mH), as described in
@@ -16,7 +15,8 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
  * it is recommended that one combine this with another abstraction to recover precision for static calls (e.g.
  * StaticCallStiteSensitive)
  */
-public class TypeSensitive extends HeapAbstractionFactory {
+public class TypeSensitive extends
+        HeapAbstractionFactory<AllocationName<ContextStack<ClassWrapper>>, ContextStack<ClassWrapper>> {
 
     /**
      * Number of elements to record for Calling Contexts
@@ -58,23 +58,24 @@ public class TypeSensitive extends HeapAbstractionFactory {
         this(DEFAULT_TYPE_DEPTH, DEFAULT_HEAP_DEPTH);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<ClassWrapper> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<ClassWrapper> merge(CallSiteLabel callSite,
+                                            AllocationName<ContextStack<ClassWrapper>> receiver,
+                                            ContextStack<ClassWrapper> callerContext) {
         if (callSite.isStatic()) {
             // this is a static method call. Return the caller's
             // context.
-            return (ContextStack<ClassWrapper>) callerContext;
+            return callerContext;
         }
 
-        AllocationName<ContextStack<ClassWrapper>> rec = (AllocationName<ContextStack<ClassWrapper>>) receiver;
+        AllocationName<ContextStack<ClassWrapper>> rec = receiver;
         return rec.getContext().push(new ClassWrapper(rec.getAllocationSite().getAllocatingClass()), n);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public AllocationName<ContextStack<ClassWrapper>> record(AllocSiteNode allocationSite, Context context) {
-        ContextStack<ClassWrapper> allocationContext = ((ContextStack<ClassWrapper>) context).truncate(m);
+    public AllocationName<ContextStack<ClassWrapper>> record(AllocSiteNode allocationSite,
+                                                             ContextStack<ClassWrapper> context) {
+        ContextStack<ClassWrapper> allocationContext = context.truncate(m);
         return AllocationName.create(allocationContext, allocationSite);
     }
 
