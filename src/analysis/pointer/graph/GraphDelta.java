@@ -21,7 +21,7 @@ import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
  * operation made to a PointsToGraph, and also to allow more efficient processing of statements, which can focus just on
  * the changes to the graph since last time they were processed.
  */
-public class GraphDelta {
+public final class GraphDelta {
     private final PointsToGraph g;
     /**
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
@@ -37,13 +37,7 @@ public class GraphDelta {
     }
 
 
-    protected boolean addAllToSet(/*PointsToGraphNode*/int n, IntSet set) {
-        if (set.isEmpty()) {
-            return false;
-        }
-        return getOrCreateSet(n, setSizeBestGuess(set)).addAll(set);
-    }
-    private MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
+    MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
             Integer initialSize) {
         MutableIntSet s = delta.get(src);
         if (s == null) {
@@ -69,7 +63,7 @@ public class GraphDelta {
         }
         MutableIntSet old = delta.remove(n);
         if (old != null) {
-            addAllToSet(rep, old);
+            getOrCreateSet(rep, setSizeBestGuess(old)).addAll(old);
         }
         assert old == null || (delta.get(rep) != null && old.isSubset(delta.get(rep)));
     }
@@ -164,5 +158,6 @@ public class GraphDelta {
     public IntIterator domainIterator() {
         return delta.keyIterator();
     }
+
 
 }

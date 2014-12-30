@@ -308,7 +308,8 @@ public final class PointsToGraph {
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
             addToSetAndSupersets(delta,
                                  n,
-                                 SparseIntSet.singleton(h),
+                                 SparseIntSet.singleton(h).intIterator(),
+                                 1,
                                  MutableSparseIntSet.makeEmpty(),
                                  new IntStack(),
                                  new Stack<Set<TypeFilter>>(),
@@ -427,14 +428,15 @@ public final class PointsToGraph {
      */
     private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/
                                           int target) {
-        // go through the points to set of source, and add anything that target doesn't already point to.
-        IntSet diff = this.getDifference(source, filter, target);
+
+        IntSet s = this.pointsToSet(source);
 
         // Now take care of all the supersets of target...
         IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
         addToSetAndSupersets(changed,
                              target,
-                             diff,
+                             filter == null ? s.intIterator() : new FilteredIterator(s.intIterator(), filter),
+                             s.size(),
                              MutableSparseIntSet.makeEmpty(),
                              new IntStack(),
                              new Stack<Set<TypeFilter>>(),
@@ -443,7 +445,8 @@ public final class PointsToGraph {
 
     }
 
-    private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, IntSet setToAdd,
+    private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, IntIterator toAdd,
+                                      int toAddSizeGuess,
                                   MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                   Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
@@ -482,15 +485,24 @@ public final class PointsToGraph {
                         existingCollapseSet.addAll(toCollapseSet);
                     }
                 }
-                assert !changed.addAllToSet(target, setToAdd) : "Shouldn't be anything left to add by this point";
             }
         }
 
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
-        if (!changed.addAllToSet(target, setToAdd)) {
+        MutableIntSet deltaSet = changed.getOrCreateSet(target, toAddSizeGuess);
+        MutableIntSet graphSet = this.pointsToSet(target);
+        MutableIntSet added = MutableSparseIntSet.makeEmpty();
+
+        while (toAdd.hasNext()) {
+            int next = toAdd.next();
+            if (deltaSet.add(next) && graphSet.add(next)) {
+                added.add(next);
+            }
+        }
+        if (added.isEmpty()) {
+            // we didn't add anything.
             return;
         }
-        this.pointsToSet(target).addAll(setToAdd);
 
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
@@ -500,17 +512,21 @@ public final class PointsToGraph {
         IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
         IntIterator iter = unfilteredSupersets == null ? EmptyIntIterator.instance()
                 : unfilteredSupersets.intIterator();
+        filterStack.push(null);
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
-            propagateDifference(changed,
-                                m,
-                                null,
-                                setToAdd,
-                                currentlyAdding,
-                                currentlyAddingStack,
-                                filterStack,
-                                toCollapse);
+
+            addToSetAndSupersets(changed,
+                                 m,
+                                 added.intIterator(),
+                                 added.size(),
+                                 currentlyAdding,
+                                 currentlyAddingStack,
+                                 filterStack,
+                                 toCollapse);
+
         }
+        filterStack.pop();
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
@@ -520,14 +536,16 @@ public final class PointsToGraph {
             // No trouble, we will just ignore it, and pretend we got in there before
             // the relation between target and m was created.
             if (!filterSet.isEmpty()) {
-                propagateDifference(changed,
-                                    m,
-                                    filterSet,
-                                    setToAdd,
-                                    currentlyAdding,
-                                    currentlyAddingStack,
-                                    filterStack,
-                                    toCollapse);
+                filterStack.push(filterSet);
+                addToSetAndSupersets(changed,
+                                     m,
+                                     new FilteredIterator(added.intIterator(), filterSet),
+                                     added.size(),
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     toCollapse);
+                filterStack.pop();
             }
         }
         currentlyAdding.remove(target);
@@ -535,23 +553,9 @@ public final class PointsToGraph {
 
     }
 
-    private void propagateDifference(GraphDelta changed, /*PointsToGraphNode*/int target, Set<TypeFilter> filters,
-                                     IntSet setToAdd, MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
-                                     Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
-        IntSet filteredSet = filters == null ? setToAdd : new FilteredIntSet(setToAdd, filters);
-
-        // The set of elements that will be added to the superset.
-        IntSet diff = this.getDifference(filteredSet, target);
-
-        filterStack.push(filters);
-        addToSetAndSupersets(changed, target, diff, currentlyAdding, currentlyAddingStack, filterStack, toCollapse);
-        filterStack.pop();
-    }
-
     /**
-     * Provide an interatory for the things that n points to. Note that we may
-     * not return a set, i.e., some InstanceKeys may be returned multiple times.
-     * XXX we may change this in the future...
+     * Provide an iterator for the things that n points to. Note that we may not return a set, i.e., some InstanceKeys
+     * may be returned multiple times.
      *
      * @param n
      * @return
@@ -1170,64 +1174,6 @@ public final class PointsToGraph {
             throw new UnsupportedOperationException();
         }
 
-    }
-
-    /**
-     * Return the set of InstanceKeys that are in source (and satisfy filter)
-     * but are not in target.
-     *
-     * @param source
-     * @param filter
-     * @param target
-     * @return
-     */
-    IntSet getDifference(/*PointsToGraphNode*/int source, TypeFilter filter,
-    /*PointsToGraphNode*/int target) {
-        source = this.getRepresentative(source);
-
-        IntSet s = this.pointsToSet(source);
-        IntIterator srcIter;
-        if (filter == null) {
-            srcIter = s.intIterator();
-        }
-        else {
-            srcIter = new FilteredIterator(s.intIterator(), filter);
-        }
-        return this.getDifference(srcIter, target);
-
-    }
-
-    private IntSet getDifference(IntIterator srcIter, /*PointsToGraphNode*/int target) {
-        target = this.getRepresentative(target);
-
-        if (!srcIter.hasNext()) {
-            // nothing in there, return an empty set.
-            return EmptyIntSet.INSTANCE;
-        }
-
-        MutableIntSet s = MutableSparseIntSet.makeEmpty();
-
-        IntSet targetSet = this.pointsToSet(target);
-
-        while (srcIter.hasNext()) {
-            int i = srcIter.next();
-            if (!targetSet.contains(i)) {
-                s.add(i);
-            }
-        }
-        return s;
-
-    }
-
-    /**
-     * Return whatever is in set which is not in the points to set of target.
-     *
-     * @param set
-     * @param target
-     * @return
-     */
-    public IntSet getDifference(IntSet set, /*PointsToGraphNode*/int target) {
-        return this.getDifference(set.intIterator(), target);
     }
 
     public int numPointsToGraphNodes() {
