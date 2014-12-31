@@ -551,22 +551,22 @@ public final class PointsToGraph {
 
     /**
      * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta, and recurses.
-     *
+     * 
      * If ippr is not null it means either: pointsToFS(source, ippr) \subseteq pointsToFI(target) (if source is flow
      * sensitive) or pointsToFI(source) \subseteq pointsToFS(target, ippr) (if target is flow sensitive)
-     *
+     * 
      * @param changed
      * @param source
      * @param sourceIsFlowSensitive
      * @param filter
-     * @param filterInstanceKey
+     * @param changeRecentInstanceKey
      * @param target
      * @param targetIsFlowSensitive
      * @param ippr
      */
     private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source,
                                                     boolean sourceIsFlowSensitive, TypeFilter filter,
-                                                    /*InstanceKey*/Integer filterInstanceKey,
+                                                    /*InstanceKey*/Integer changeRecentInstanceKey,
                                                     /*PointsToGraphNode*/
                                                     int target, boolean targetIsFlowSensitive,
                                                     InterProgramPointReplica ippr) {
@@ -574,13 +574,13 @@ public final class PointsToGraph {
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || filter == null : "If either is flow sensitive then filter must be null";
         assert !(sourceIsFlowSensitive || targetIsFlowSensitive) || ippr != null : "If either is flow sensitive then ippr must be non null";
 
-        assert filterInstanceKey != null ? (filterInstanceKey >= 0 && isMostRecentObject(filterInstanceKey)) : true;
-        assert filterInstanceKey != null
-                ? (filterInstanceKey == baseNodeForPointsToGraphNode(source) && sourceIsFlowSensitive) : true;
+        assert changeRecentInstanceKey != null
+                ? (changeRecentInstanceKey >= 0 && isMostRecentObject(changeRecentInstanceKey)) : true;
+        assert changeRecentInstanceKey != null
+                ? (changeRecentInstanceKey == baseNodeForPointsToGraphNode(source) && sourceIsFlowSensitive) : true;
 
         assert source >= 0 && target >= 0;
 
-        // XXX!@! we are not using ikrecent. Should we be?
         IntIterator srcIter;
         int srcSize;
         if (ippr == null || !sourceIsFlowSensitive) {
@@ -601,6 +601,9 @@ public final class PointsToGraph {
             srcIter = new ProgramPointIntIterator(m, ippr, new AddToSetOriginMaker(target,
                                                                                    this,
                                                                                    source));
+            if (changeRecentInstanceKey != null) {
+                srcIter = new ChangeRecentInstanceKeyIterator(srcIter, changeRecentInstanceKey, this);
+            }
         }
 
         // Now take care of all the supersets of target...
