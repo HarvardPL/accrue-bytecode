@@ -43,40 +43,41 @@ import analysis.pointer.statements.StaticFieldToLocalStatement;
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.shrikeBT.IInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
- * Single-threaded implementation of a points-to graph solver. Given a set of
- * constraints, {@link PointsToStatement}s, compute the fixed point.
+ * Single-threaded implementation of a points-to graph solver. Given a set of constraints, {@link PointsToStatement<IK,
+ * C>}s, compute the fixed point.
  */
-public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
+public class PointsToAnalysisSingleThreaded<IK extends InstanceKey, C extends Context> extends PointsToAnalysis<IK, C> {
 
     /**
-     * An interesting dependency from node n to StmtAndContext sac exists when a
+     * An interesting dependency from node n to StmtAndContext<IK, C> sac exists when a
      * modification to the pointstoset of n (i.e., if n changes to point to more
      * things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
+    private IntMap<Set<StmtAndContext<IK, C>>> interestingDepedencies = new SparseIntMap<>();
 
     /**
      * New pointer analysis engine
      *
      * @param haf Abstraction factory for this points-to analysis
      */
-    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
+    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory<IK, C> haf) {
         super(haf);
     }
 
     @Override
-    public PointsToGraph solve(StatementRegistrar registrar) {
+    public PointsToGraph<IK, C> solve(StatementRegistrar<IK, C> registrar) {
         return this.solveSmarter(registrar, false);
     }
 
     @Override
-    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
+    public PointsToGraph<IK, C> solveAndRegister(StatementRegistrar<IK, C> onlineRegistrar) {
         onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
         return this.solveSmarter(onlineRegistrar, true);
     }
@@ -89,8 +90,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @return Points-to graph
      */
     @Deprecated
-    public PointsToGraph solveSimple(StatementRegistrar registrar) {
-        PointsToGraph g = new PointsToGraph(registrar, this.haf, null);
+    public PointsToGraph<IK, C> solveSimple(StatementRegistrar<IK, C> registrar) {
+        PointsToGraph<IK, C> g = new PointsToGraph<>(registrar, this.haf, null);
 
         boolean changed = true;
         int count = 0;
@@ -121,30 +122,30 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            registrar will already be populated
      * @return Points-to graph
      */
-    public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
+    public PointsToGraph<IK, C> solveSmarter(final StatementRegistrar<IK, C> registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf);
         this.startTime = System.currentTimeMillis();
         this.nextMilestone = this.startTime - 1;
 
-        Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
-        //Queue<StmtAndContext> noDeltaQueue = new SCCSortQueue();
-        final Queue<StmtAndContext> noDeltaQueue = new PartitionedQueue();
-        //        Queue<StmtAndContext> noDeltaQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>>());
+        Queue<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>> nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>>());
+        //Queue<StmtAndContext<IK, C>> noDeltaQueue = new SCCSortQueue();
+        final Queue<StmtAndContext<IK, C>> noDeltaQueue = new PartitionedQueue<>();
+        //        Queue<StmtAndContext<IK, C>> noDeltaQueue = Collections.asLifoQueue(new ArrayDeque<StmtAndContext<IK, C>>());
 
-        DependencyRecorder depRecorder = new DependencyRecorder() {
+        DependencyRecorder<IK, C> depRecorder = new DependencyRecorder<IK, C>() {
 
             @Override
-            public void recordRead(int n, StmtAndContext sac) {
+            public void recordRead(int n, StmtAndContext<IK, C> sac) {
                 PointsToAnalysisSingleThreaded.this.addInterestingDependency(n, sac);
             }
 
             @Override
             public void startCollapseNode(int n, int rep) {
                 // add the new dependencies.
-                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
+                Set<StmtAndContext<IK, C>> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
                 if (deps != null) {
-                    for (StmtAndContext depSac : deps) {
+                    for (StmtAndContext<IK, C> depSac : deps) {
                         PointsToAnalysisSingleThreaded.this.addInterestingDependency(rep, depSac);
                     }
                 }
@@ -153,14 +154,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             @Override
             public void finishCollapseNode(int n, int rep) {
                 // remove the old dependency.
-                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
+                Set<StmtAndContext<IK, C>> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
                 if (deps != null) {
                     PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
                 }
             }
 
             @Override
-            public void recordNewContext(IMethod callee, Context calleeContext) {
+            public void recordNewContext(IMethod callee, C calleeContext) {
                 if (registerOnline) {
                     // Add statements for the given method to the registrar
                     long start = System.currentTimeMillis();
@@ -171,8 +172,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
                 updateLineCounter(callee);
 
-                for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
-                    StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
+                for (PointsToStatement<IK, C> stmt : registrar.getStatementsForMethod(callee)) {
+                    StmtAndContext<IK, C> newSaC = new StmtAndContext<>(stmt, calleeContext);
                     noDeltaQueue.add(newSaC);
                 }
             }
@@ -218,25 +219,25 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         };
 
-        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder);
+        PointsToGraph<IK, C> g = new PointsToGraph<>(registrar, this.haf, depRecorder);
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
-            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
-                for (Context c : g.getContexts(s.getMethod())) {
-                    StmtAndContext sac = new StmtAndContext(s, c);
+            for (PointsToStatement<IK, C> s : registrar.getStatementsForMethod(m)) {
+                for (C c : g.getContexts(s.getMethod())) {
+                    StmtAndContext<IK, C> sac = new StmtAndContext<>(s, c);
                     noDeltaQueue.add(sac);
                 }
             }
         }
 
         if (registerOnline) {
-            StatementListener stmtListener = new StatementListener() {
+            StatementListener<IK, C> stmtListener = new StatementListener<IK, C>() {
 
                 @Override
-                public void newStatement(PointsToStatement stmt) {
+                public void newStatement(PointsToStatement<IK, C> stmt) {
                     if (stmt.getMethod().equals(registrar.getEntryPoint())) {
                         // it's a new special instruction. Let's make sure it gets evaluated.
-                        noDeltaQueue.add(new StmtAndContext(stmt, haf.initialContext()));
+                        noDeltaQueue.add(new StmtAndContext<>(stmt, haf.initialContext()));
                     }
 
                 }
@@ -246,21 +247,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         this.lastTime = this.startTime;
-        Set<StmtAndContext> visited = new HashSet<>();
+        Set<StmtAndContext<IK, C>> visited = new HashSet<>();
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()) {
             if (currentQueue.isEmpty()) {
-                Queue<OrderedPair<StmtAndContext, GraphDelta>> t = nextQueue;
+                Queue<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>> t = nextQueue;
                 nextQueue = currentQueue;
                 currentQueue = t;
             }
-            StmtAndContext sac;
-            GraphDelta delta;
+            StmtAndContext<IK, C> sac;
+            GraphDelta<IK, C> delta;
             if (currentQueue.isEmpty()) {
                 sac = noDeltaQueue.poll();
                 delta = null;
             }
             else {
-                OrderedPair<StmtAndContext, GraphDelta> sacd = currentQueue.poll();
+                OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>> sacd = currentQueue.poll();
                 sac = sacd.fst();
                 delta = sacd.snd();
             }
@@ -292,7 +293,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("  counts: ");
         for (String key : this.counts.keySet()) {
             int counter = 0;
-            for (StmtAndContext sac: this.counts.get(key).keySet()) {
+            for (StmtAndContext<IK, C> sac: this.counts.get(key).keySet()) {
                 counter += this.counts.get(key).get(sac);
                 if (this.counts.get(key).get(sac) > 4000) {
                     System.err.println("        -- "
@@ -306,7 +307,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         // Now do a histogram of the VirtualCalls
         {
 
-            Map<StmtAndContext, Integer> virtCalls = this.counts.get("VirtualCallStatement");
+            Map<StmtAndContext<IK, C>, Integer> virtCalls = this.counts.get("VirtualCallStatement");
             Histogram h = new Histogram();
             if (virtCalls != null) {
                 for (Integer vals : virtCalls.values()) {
@@ -338,11 +339,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     long nextMilestone;
     long lastTime;
     long startTime;
-    Map<String, Map<StmtAndContext, Integer>> counts = new HashMap<>();
+    Map<String, Map<StmtAndContext<IK, C>, Integer>> counts = new HashMap<>();
 
-    private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
-                            Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue,
-                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue, Queue<StmtAndContext> noDeltaQueue) {
+    private void processSaC(StmtAndContext<IK, C> sac, GraphDelta<IK, C> delta, PointsToGraph<IK, C> g,
+                            StatementRegistrar<IK, C> registrar,
+                            Queue<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>> currentQueue,
+                            Queue<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>> nextQueue, Queue<StmtAndContext<IK, C>> noDeltaQueue) {
         // Do some accounting for debugging/informational purposes.
         this.numProcessed++;
         if (delta == null) {
@@ -350,7 +352,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
         else {
             String c = sac.stmt.getClass().getSimpleName();
-            Map<StmtAndContext, Integer> stmtcnt = this.counts.get(c);
+            Map<StmtAndContext<IK, C>, Integer> stmtcnt = this.counts.get(c);
             if (stmtcnt == null) {
                 stmtcnt = new HashMap<>();
                 this.counts.put(c, stmtcnt);
@@ -363,13 +365,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             stmtcnt.put(sac, cnt);
         }
 
-        PointsToStatement s = sac.stmt;
-        Context c = sac.context;
+        PointsToStatement<IK, C> s = sac.stmt;
+        C c = sac.context;
 
         if (outputLevel >= 3) {
             System.err.println("\tPROCESSING: " + sac);
         }
-        GraphDelta changed = s.process(c, this.haf, g, delta, registrar, sac);
+        GraphDelta<IK, C> changed = s.process(c, this.haf, g, delta, registrar, sac);
 
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
@@ -398,14 +400,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
     }
 
-    private void handleChanges(Queue<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta changes) {
+    private void handleChanges(Queue<OrderedPair<StmtAndContext<IK, C>, GraphDelta<IK, C>>> queue, GraphDelta<IK, C> changes) {
         if (changes.isEmpty()) {
             return;
         }
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
-            for (StmtAndContext sac : this.getInterestingDependencies(n)) {
+            for (StmtAndContext<IK, C> sac : this.getInterestingDependencies(n)) {
                 queue.add(new OrderedPair<>(sac, changes));
             }
         }
@@ -419,16 +421,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param registrar points-to statement registrar
      * @return true if the points-to graph changed
      */
-    private boolean processAllStatements(PointsToGraph g,
-                                         StatementRegistrar registrar) {
+    private boolean processAllStatements(PointsToGraph<IK, C> g,
+ StatementRegistrar<IK, C> registrar) {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
                 + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
-            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
-                for (Context c : g.getContexts(s.getMethod())) {
-                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
+            for (PointsToStatement<IK, C> s : registrar.getStatementsForMethod(m)) {
+                for (C c : g.getContexts(s.getMethod())) {
+                    GraphDelta<IK, C> d = s.process(c, this.haf, g, null, registrar, new StmtAndContext<>(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null "
                                 + s.getClass() + " : " + s);
@@ -456,8 +458,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param n node to get the dependencies for
      * @return set of dependencies
      */
-    private Set<StmtAndContext> getInterestingDependencies(/*PointsToGraphNode*/int n) {
-        Set<StmtAndContext> sacs = this.interestingDepedencies.get(n);
+    private Set<StmtAndContext<IK, C>> getInterestingDependencies(/*PointsToGraph<IK, C>Node*/int n) {
+        Set<StmtAndContext<IK, C>> sacs = this.interestingDepedencies.get(n);
         if (sacs == null) {
             return Collections.emptySet();
         }
@@ -473,9 +475,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param sac statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    boolean addInterestingDependency(/*PointsToGraphNode*/int n,
-                                             StmtAndContext sac) {
-        Set<StmtAndContext> s = this.interestingDepedencies.get(n);
+    boolean addInterestingDependency(/*PointsToGraph<IK, C>Node*/int n,
+                                             StmtAndContext<IK, C> sac) {
+        Set<StmtAndContext<IK, C>> s = this.interestingDepedencies.get(n);
         if (s == null) {
             s = new HashSet<>();
             this.interestingDepedencies.put(n, s);
@@ -488,21 +490,21 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     /**
      *
      */
-    class SCCSortQueue extends AbstractQueue<StmtAndContext> {
+    class SCCSortQueue extends AbstractQueue<StmtAndContext<IK, C>> {
         //MutableIntSet current;
-        PriorityQueue<StmtAndContext> current;
-        Set<StmtAndContext> next = new HashSet<>();
-        Map<Object, Set<StmtAndContext>> readDependencies = new HashMap<>();
+        PriorityQueue<StmtAndContext<IK, C>> current;
+        Set<StmtAndContext<IK, C>> next = new HashSet<>();
+        Map<Object, Set<StmtAndContext<IK, C>>> readDependencies = new HashMap<>();
 
-        Map<StmtAndContext, Integer> indexMap = new HashMap<>();
+        Map<StmtAndContext<IK, C>, Integer> indexMap = new HashMap<>();
 
-        //ArrayList<StmtAndContext> indexReverseMap = new ArrayList<>();
+        //ArrayList<StmtAndContext<IK, C>> indexReverseMap = new ArrayList<>();
 
         SCCSortQueue() {
-            Comparator<StmtAndContext> cmp = new Comparator<StmtAndContext>() {
+            Comparator<StmtAndContext<IK, C>> cmp = new Comparator<StmtAndContext<IK, C>>() {
 
                 @Override
-                public int compare(StmtAndContext o1, StmtAndContext o2) {
+                public int compare(StmtAndContext<IK, C> o1, StmtAndContext<IK, C> o2) {
                     int i1 = indexMap.get(o1);
                     int i2 = indexMap.get(o2);
                     if (i1 < i2) {
@@ -518,7 +520,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             this.current = new PriorityQueue<>(10000, cmp);
         }
         @Override
-        public boolean offer(StmtAndContext sac) {
+        public boolean offer(StmtAndContext<IK, C> sac) {
             if (indexMap.containsKey(sac)) {
                 //                current.add(indexMap.get(sac));
                 current.add(sac);
@@ -527,7 +529,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 this.next.add(sac);
                 // register it
                 for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                    Set<StmtAndContext> set = this.readDependencies.get(read);
+                    Set<StmtAndContext<IK, C>> set = this.readDependencies.get(read);
                     if (set == null) {
                         set = new HashSet<>();
                         this.readDependencies.put(read, set);
@@ -539,7 +541,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public StmtAndContext poll() {
+        public StmtAndContext<IK, C> poll() {
             if (this.current.isEmpty()/* || this.next.size() > 2500*/) {
                 this.sccSortNextIntoCurrent();
             }
@@ -549,8 +551,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             return current.poll();
         }
 
-        Set<StmtAndContext> visitingSet;
-        Stack<StmtAndContext> visiting;
+        Set<StmtAndContext<IK, C>> visitingSet;
+        Stack<StmtAndContext<IK, C>> visiting;
 
 
         /*
@@ -574,7 +576,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             //            this.indexReverseMap.clear();
             this.visitingSet = new HashSet<>();
             this.visiting = new Stack<>();
-            for (StmtAndContext sac : this.next) {
+            for (StmtAndContext<IK, C> sac : this.next) {
                 if (!this.indexMap.containsKey(sac)) {
                     this.visit(sac);
                 }
@@ -591,7 +593,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         int index;
 
-        private int visit(StmtAndContext sac) {
+        private int visit(StmtAndContext<IK, C> sac) {
             int sacIndex = this.index;
             int sacLowLink = this.index;
             this.index++;
@@ -602,7 +604,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             this.visitingSet.add(sac);
             this.visiting.push(sac);
 
-            for (StmtAndContext w : this.children(sac)) {
+            for (StmtAndContext<IK, C> w : this.children(sac)) {
                 Integer childIndex = this.indexMap.get(w);
                 if (childIndex == null) {
                     // successor child has not yet been visited. Recurse
@@ -619,7 +621,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             // If sac is a root node, pop the stack and generate an SCC
             if (sacIndex == sacLowLink) {
                 // new strongly connected component!
-                StmtAndContext w;
+                StmtAndContext<IK, C> w;
                 do {
                     w = this.visiting.pop();
                     this.visitingSet.remove(w);
@@ -633,12 +635,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             return sacLowLink;
         }
 
-        private Collection<StmtAndContext> children(StmtAndContext sac) {
-            // The children of sac are the StmtAndContexts that read a variable
+        private Collection<StmtAndContext<IK, C>> children(StmtAndContext<IK, C> sac) {
+            // The children of sac are the StmtAndContext<IK, C>s that read a variable
             // that sac writes.
-            HashSet<StmtAndContext> set = new HashSet<>();
+            HashSet<StmtAndContext<IK, C>> set = new HashSet<>();
             for (Object written : sac.getWriteDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                Set<StmtAndContext> v = this.readDependencies.get(written);
+                Set<StmtAndContext<IK, C>> v = this.readDependencies.get(written);
                 if (v != null) {
                     set.addAll(v);
                 }
@@ -647,12 +649,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public StmtAndContext peek() {
+        public StmtAndContext<IK, C> peek() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Iterator<StmtAndContext> iterator() {
+        public Iterator<StmtAndContext<IK, C>> iterator() {
             throw new UnsupportedOperationException();
         }
 
@@ -667,24 +669,25 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
     }
 
-    static class PartitionedQueue extends AbstractQueue<StmtAndContext> {
-        Queue<StmtAndContext> base =
+    static class PartitionedQueue<IK extends InstanceKey, C extends Context> extends
+            AbstractQueue<StmtAndContext<IK, C>> {
+        Queue<StmtAndContext<IK, C>> base =
         //new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> localAssigns =
+        Collections.asLifoQueue(new ArrayDeque<StmtAndContext<IK, C>>());
+        Queue<StmtAndContext<IK, C>> localAssigns =
         //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> fieldReads =
+        Collections.asLifoQueue(new ArrayDeque<StmtAndContext<IK, C>>());
+        Queue<StmtAndContext<IK, C>> fieldReads =
         //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> fieldWrites =
+        Collections.asLifoQueue(new ArrayDeque<StmtAndContext<IK, C>>());
+        Queue<StmtAndContext<IK, C>> fieldWrites =
         //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> calls =
+        Collections.asLifoQueue(new ArrayDeque<StmtAndContext<IK, C>>());
+        Queue<StmtAndContext<IK, C>> calls =
         //        new LinkedList<>();
-        Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Collections.asLifoQueue(new ArrayDeque<StmtAndContext<IK, C>>());
 
-        ArrayList<Queue<StmtAndContext>> ordered = new ArrayList<>();
+        ArrayList<Queue<StmtAndContext<IK, C>>> ordered = new ArrayList<>();
 
         {
             ordered.add(localAssigns);
@@ -695,8 +698,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public boolean offer(StmtAndContext sac) {
-            PointsToStatement stmt = sac.stmt;
+        public boolean offer(StmtAndContext<IK, C> sac) {
+            PointsToStatement<IK, C> stmt = sac.stmt;
             if (stmt instanceof NewStatement) {
                 return base.offer(sac);
             }
@@ -718,8 +721,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public StmtAndContext poll() {
-            for (Queue<StmtAndContext> q : ordered) {
+        public StmtAndContext<IK, C> poll() {
+            for (Queue<StmtAndContext<IK, C>> q : ordered) {
                 if (!q.isEmpty()) {
                     return q.poll();
                 }
@@ -728,19 +731,19 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public StmtAndContext peek() {
+        public StmtAndContext<IK, C> peek() {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public Iterator<StmtAndContext> iterator() {
+        public Iterator<StmtAndContext<IK, C>> iterator() {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public int size() {
             int size = 0;
-            for (Queue<StmtAndContext> q : ordered) {
+            for (Queue<StmtAndContext<IK, C>> q : ordered) {
                 size += q.size();
             }
             return size;
@@ -749,7 +752,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         @Override
         public boolean isEmpty() {
             for (int i = ordered.size() - 1; i >= 0; i--) {
-                Queue<StmtAndContext> q = ordered.get(i);
+                Queue<StmtAndContext<IK, C>> q = ordered.get(i);
                 if (!q.isEmpty()) {
                     return false;
                 }

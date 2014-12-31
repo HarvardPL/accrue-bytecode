@@ -23,7 +23,7 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 /**
  * Statement for a special invoke statement.
  */
-public class SpecialCallStatement extends CallStatement {
+public class SpecialCallStatement<IK extends InstanceKey, C extends Context> extends CallStatement<IK, C> {
 
     /**
      * Method being called
@@ -41,27 +41,19 @@ public class SpecialCallStatement extends CallStatement {
     /**
      * Points-to statement for a special method invocation.
      *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param callee
-     *            Method being called
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param receiver
-     *            Receiver of the call
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node representing the exception thrown by the callee and implicit exceptions
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * @param callSite Method call site
+     * @param caller caller method
+     * @param callee Method being called
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param receiver Receiver of the call
+     * @param actuals Actual arguments to the call
+     * @param exception Node representing the exception thrown by the callee and implicit exceptions
+     * @param calleeSummary summary nodes for formals and exits of the callee
      */
-    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller,
-                                   IMethod callee, ReferenceVariable result,
-                                   ReferenceVariable receiver, List<ReferenceVariable> actuals,
-                                   ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
+    protected SpecialCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee,
+                                   ReferenceVariable result, ReferenceVariable receiver,
+                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
+                                   MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
         this.callee = callee;
         this.receiver = receiver;
@@ -69,27 +61,19 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica receiverRep =
- new ReferenceVariableReplica(context, this.receiver, haf);
-        GraphDelta changed = new GraphDelta(g);
+    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK, C> haf, PointsToGraph<IK, C> g,
+                                     GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar,
+                                     StmtAndContext<IK, C> originator) {
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
+        GraphDelta<IK, C> changed = new GraphDelta<>(g);
 
-        Iterator<InstanceKey> iter =
-                delta == null
- ? g.pointsToIterator(receiverRep, originator)
-                        : delta.pointsToIterator(receiverRep);
-                while (iter.hasNext()) {
-                    InstanceKey recHeapCtxt = iter.next();
-                    changed =
-                            changed.combine(this.processCall(context,
-                                                             recHeapCtxt,
-                                                             this.callee,
-                                                             g,
-                                                             haf,
-                                                             this.calleeSummary));
-                }
-                return changed;
+        Iterator<IK> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
+                : delta.pointsToIterator(receiverRep);
+        while (iter.hasNext()) {
+            IK recHeapCtxt = iter.next();
+            changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
+        }
+        return changed;
 
     }
 
@@ -148,9 +132,8 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> uses = new ArrayList<>(this.getActuals()
-                .size() + 3);
+    public Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
+        List<Object> uses = new ArrayList<>(this.getActuals().size() + 3);
         uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
         for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
@@ -166,7 +149,7 @@ public class SpecialCallStatement extends CallStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
         List<Object> defs = new ArrayList<>(3);
 
         if (this.getResult() != null) {

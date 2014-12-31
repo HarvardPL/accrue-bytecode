@@ -30,7 +30,7 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Points-to statement for a call to a virtual method (either a class or interface method).
  */
-public class VirtualCallStatement extends CallStatement {
+public class VirtualCallStatement<IK extends InstanceKey, C extends Context> extends CallStatement<IK, C> {
 
     /**
      * Called method
@@ -69,17 +69,18 @@ public class VirtualCallStatement extends CallStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK, C> haf, PointsToGraph<IK, C> g,
+                                     GraphDelta<IK, C> delta,
+                                     StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta<IK, C> changed = new GraphDelta<>(g);
 
-        Iterator<InstanceKey> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
+        Iterator<IK> iter = delta == null ? g.pointsToIterator(receiverRep, originator)
                 : delta.pointsToIterator(receiverRep);
 
         while (iter.hasNext()) {
-            InstanceKey recHeapContext = iter.next();
+            IK recHeapContext = iter.next();
 
             // find the callee.
             // The receiver is recHeapContext, and we want to find a method that matches selector
@@ -181,7 +182,7 @@ public class VirtualCallStatement extends CallStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
         List<Object> uses = new ArrayList<>(this.getActuals().size() + 2);
         uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
         for (ReferenceVariable use : this.getActuals()) {
@@ -198,7 +199,7 @@ public class VirtualCallStatement extends CallStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
         List<Object> defs = new ArrayList<>(3);
 
         if (this.getResult() != null) {

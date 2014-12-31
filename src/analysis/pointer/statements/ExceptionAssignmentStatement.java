@@ -21,9 +21,10 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.TypeReference;
 
-public class ExceptionAssignmentStatement extends PointsToStatement {
+public class ExceptionAssignmentStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
 
     private ReferenceVariable thrown;
     private final ReferenceVariable caught;
@@ -72,8 +73,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK,C> haf,
+                                     PointsToGraph<IK,C> g, GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught, haf);
         PointsToGraphNode r;
         if (this.thrown.isSingleton()) {
@@ -135,8 +136,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-                                             HeapAbstractionFactory haf) {
+    public Collection<?> getReadDependencies(C ctxt,
+                                             HeapAbstractionFactory<IK,C> haf) {
         ReferenceVariableReplica r;
         if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
@@ -150,8 +151,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-                                              HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(C ctxt,
+                                              HeapAbstractionFactory<IK,C> haf) {
         ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, this.caught, haf);
         if (this.isToMethodSummaryVariable && !this.getMethod().isStatic()) {
             List<Object> defs = new ArrayList<>(3);

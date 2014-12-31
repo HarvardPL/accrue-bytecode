@@ -21,7 +21,7 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 /**
  * Points-to graph statement for a "new" statement, e.g. Object o = new Object()
  */
-public class NewStatement extends PointsToStatement {
+public class NewStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
 
     /**
      * Points-to graph node for the assignee of the new
@@ -65,9 +65,9 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        InstanceKey newHeapContext = haf.record(alloc, context);
+    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK,C> haf,
+                                     PointsToGraph<IK,C> g, GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
+        IK newHeapContext = haf.record(alloc, context);
         assert newHeapContext != null;
 
         ReferenceVariableReplica r = new ReferenceVariableReplica(context, result, haf);
@@ -95,14 +95,14 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public Collection<?> getReadDependencies(C ctxt,
+            HeapAbstractionFactory<IK,C> haf) {
         return Collections.emptySet();
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(C ctxt,
+            HeapAbstractionFactory<IK,C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
     }
 }

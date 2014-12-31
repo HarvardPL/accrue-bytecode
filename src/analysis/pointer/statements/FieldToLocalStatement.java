@@ -24,7 +24,7 @@ import com.ibm.wala.types.FieldReference;
 /**
  * Points-to statement for an Access a field and assign the result to a local. l = o.f
  */
-public class FieldToLocalStatement extends PointsToStatement {
+public class FieldToLocalStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
 
     /**
      * Field being accessed
@@ -42,17 +42,12 @@ public class FieldToLocalStatement extends PointsToStatement {
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
      *
-     * @param l
-     *            points-to graph node for local assigned into
-     * @param o
-     *            points-to graph node for receiver of field access
-     * @param f
-     *            field accessed
-     * @param m
-     *            method the statement was created for
+     * @param l points-to graph node for local assigned into
+     * @param o points-to graph node for receiver of field access
+     * @param f field accessed
+     * @param m method the statement was created for
      */
-    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o,
-                                    FieldReference f, IMethod m) {
+    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o, FieldReference f, IMethod m) {
         super(m);
         this.declaredField = f;
         this.receiver = o;
@@ -65,21 +60,22 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK, C> haf, PointsToGraph<IK, C> g,
+                                     GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar,
+                                     StmtAndContext<IK, C> originator) {
         PointsToGraphNode left = new ReferenceVariableReplica(context, this.assignee, haf);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
 
-        GraphDelta changed = new GraphDelta(g);
+        GraphDelta<IK, C> changed = new GraphDelta<>(g);
 
         if (delta == null) {
             // let's do the normal processing
-            for (Iterator<InstanceKey> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
-                InstanceKey recHeapContext = iter.next();
+            for (Iterator<IK> iter = g.pointsToIterator(rec, originator); iter.hasNext();) {
+                IK recHeapContext = iter.next();
                 ObjectField f = new ObjectField(recHeapContext, this.declaredField);
 
-                //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
-                GraphDelta d1 = g.copyEdges(f, left);
+                //GraphDelta<IK, C> d1 = g.copyFilteredEdges(f, filter, left);
+                GraphDelta<IK, C> d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
             }
         }
@@ -87,13 +83,12 @@ public class FieldToLocalStatement extends PointsToStatement {
             // we have a delta. Let's be smart about how we use it.
             // Statement is v = o.f. First check if o points to anything new. If it does now point to some new abstract
             // object k, add everything that k.f points to to v's set.
-            for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
-                InstanceKey recHeapContext = iter.next();
-                ObjectField f =
-                        new ObjectField(recHeapContext,
-                                        this.declaredField.getName().toString(),
-                                        this.declaredField.getFieldType());
-                GraphDelta d1 = g.copyEdges(f, left);
+            for (Iterator<IK> iter = delta.pointsToIterator(rec); iter.hasNext();) {
+                IK recHeapContext = iter.next();
+                ObjectField f = new ObjectField(recHeapContext,
+                                                this.declaredField.getName().toString(),
+                                                this.declaredField.getFieldType());
+                GraphDelta<IK, C> d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
             }
 
@@ -129,9 +124,8 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
+    public Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
+        ReferenceVariableReplica rec = new ReferenceVariableReplica(ctxt, this.receiver, haf);
 
         List<Object> uses = new ArrayList<>(2);
         uses.add(rec);
@@ -142,7 +136,7 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, this.assignee, haf));
     }
 }

@@ -8,6 +8,7 @@ import util.intmap.SparseIntMap;
 import util.intset.IntSetUnion;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
+import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.collections.EmptyIntIterator;
 import com.ibm.wala.util.intset.IntIterator;
@@ -21,19 +22,19 @@ import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
  * operation made to a PointsToGraph, and also to allow more efficient processing of statements, which can focus just on
  * the changes to the graph since last time they were processed.
  */
-public final class GraphDelta {
-    private final PointsToGraph g;
+public final class GraphDelta<IK extends InstanceKey, C extends Context> {
+    private final PointsToGraph<IK, C> g;
     /**
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints)
      */
     private final IntMap<MutableIntSet> delta;
 
-    public GraphDelta(PointsToGraph g) {
+    public GraphDelta(PointsToGraph<IK, C> g) {
         this.g = g;
         // Map doesn't need to be thread safe, since when it is being modified it is thread local
         // and when it is shared, it is read only.
-        this.delta = new SparseIntMap<MutableIntSet>();
+        this.delta = new SparseIntMap<>();
     }
 
 
@@ -54,7 +55,7 @@ public final class GraphDelta {
 
     private static int setSizeBestGuess(IntSet set) {
         return set instanceof FilteredIntSet
-                ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
+ ? ((FilteredIntSet) set).underlyingSetSize() : set.size();
     }
 
     protected void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
@@ -74,7 +75,7 @@ public final class GraphDelta {
      * @param d
      * @return
      */
-    public GraphDelta combine(GraphDelta d) {
+    public GraphDelta<IK, C> combine(GraphDelta<IK, C> d) {
         if (d != null) {
             IntIterator keys = d.delta.keyIterator();
             while (keys.hasNext()) {
@@ -109,7 +110,7 @@ public final class GraphDelta {
         return sb.toString();
     }
 
-    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode node) {
+    public Iterator<IK> pointsToIterator(PointsToGraphNode node) {
         int n = g.lookupDictionary(node);
         assert n >= 0;
         return g.new IntToInstanceKeyIterator(pointsToIntIterator(n));

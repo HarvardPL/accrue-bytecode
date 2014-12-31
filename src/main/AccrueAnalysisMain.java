@@ -458,8 +458,8 @@ public class AccrueAnalysisMain {
 
         System.err.println("Registered statements: " + registrar.size());
         if (outputLevel >= 2) {
-            for (IMethod m : registrar.getRegisteredMethods()) {
-                for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+            for (IMethod m : (Set<IMethod>) registrar.getRegisteredMethods()) {
+                for (PointsToStatement s : (Set<PointsToStatement>) registrar.getStatementsForMethod(m)) {
                     System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
                 }
             }
