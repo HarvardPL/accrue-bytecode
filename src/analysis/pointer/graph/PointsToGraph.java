@@ -680,7 +680,7 @@ public final class PointsToGraph {
                                      m,
                                      false,
                                      null,
-                                     setToAdd,
+                                     new FilteredIntSet(setToAdd, filterSet),
                                      currentlyAdding,
                                      currentlyAddingStack,
                                      filterStack,
@@ -1756,7 +1756,7 @@ public final class PointsToGraph {
 
     /**
      * Compute the difference between the set implied by srcIter and the set pointed to by target. here.
-     * 
+     *
      * @param srcIter Iterator over the InstanceKeyRecencys that we want to check whether they are in the points to set
      *            of target.
      * @param target The PointsToGraphNode for the set
