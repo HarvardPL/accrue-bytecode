@@ -489,13 +489,17 @@ public final class PointsToGraph {
         }
 
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
-        MutableIntSet deltaSet = changed.getOrCreateSet(target, toAddSizeGuess);
+        MutableIntSet deltaSet = null;
         MutableIntSet graphSet = this.pointsToSet(target);
         MutableIntSet added = MutableSparseIntSet.makeEmpty();
 
         while (toAdd.hasNext()) {
             int next = toAdd.next();
-            if (deltaSet.add(next) && graphSet.add(next)) {
+            if (graphSet.add(next)) {
+                if (deltaSet == null) {
+                    deltaSet = changed.getOrCreateSet(target, toAddSizeGuess);
+                }
+                deltaSet.add(next);
                 added.add(next);
             }
         }
