@@ -4,10 +4,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Factory for creating representations of memory allocations
@@ -67,6 +69,14 @@ public class AllocSiteNodeFactory {
         return n;
     }
 
+    public static ReflectiveAllocSiteNode createReflective(String debugString, IClass reflectedString,
+                                                           IMethod allocatingMethod,
+ ReferenceVariable result) {
+        ReflectiveAllocSiteNode n = new ReflectiveAllocSiteNode(debugString, reflectedString, allocatingMethod);
+        assert result == null || nodeMap.put(result, n) == null;
+        return n;
+    }
+
     /**
      * Represents an allocation site in the code
      */
@@ -108,7 +118,7 @@ public class AllocSiteNodeFactory {
          * @param allocatingMethod method where allocation occurs
          * @param isStringLiteral true if this allocation is for a string literal
          */
-        private AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod,
+        protected AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod,
                               boolean isStringLiteral) {
             this(debugString, allocatedClass, allocatingMethod, -1, isStringLiteral, -1);
         }
@@ -184,6 +194,22 @@ public class AllocSiteNodeFactory {
 
         public int getProgramCounter() {
             return programCounter;
+        }
+    }
+
+    public static class ReflectiveAllocSiteNode extends AllocSiteNode {
+        private IClass reflectedClass;
+
+        ReflectiveAllocSiteNode(String debugString, IClass reflectedClass, IMethod allocatingMethod) {
+            super(debugString,
+                  AnalysisUtil.getClassHierarchy().lookupClass(TypeReference.JavaLangClass),
+                  allocatingMethod,
+                  false);
+            this.reflectedClass = reflectedClass;
+        }
+
+        public IClass getReflectedClass() {
+            return this.reflectedClass;
         }
     }
 }

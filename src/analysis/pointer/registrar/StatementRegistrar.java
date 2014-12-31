@@ -507,6 +507,39 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
 
     }
 
+    static final MethodReference JavaLangObjectGetClass = MethodReference.findOrCreate(TypeReference.JavaLangObject,
+                                                                                       Atom.findOrCreateUnicodeAtom("getClass"),
+                                                                                       Descriptor.findOrCreateUTF8(Language.JAVA,
+                                                                                                                   "()Ljava/lang/Class;"));
+
+    private static boolean isReflectiveMethodInvocation(SSAInvokeInstruction i) {
+        MethodReference targetMethod = i.getCallSite().getDeclaredTarget();
+        return targetMethod.equals(MethodReference.JavaLangClassNewInstance)
+                || targetMethod.equals(MethodReference.JavaLangClassForName)
+                || targetMethod.equals(JavaLangObjectGetClass);
+    }
+
+    private void registerReflectiveInvoke(SSAInvokeInstruction i, ISSABasicBlock bb, IR ir,
+                                          ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pp,
+                                          ReferenceVariable result, List<ReferenceVariable> actuals,
+                                          ReferenceVariable receiver) {
+        MethodReference targetMethod = i.getCallSite().getDeclaredTarget();
+        if (targetMethod.equals(MethodReference.JavaLangClassNewInstance)) {
+            // CODE: x = c.newInstance()
+            // so this should be a new allocation site and x is a reference variable that should point to a new object from this allocation point
+            // XXX: This is horrible, casting is bad
+            this.addStatement((PointsToStatement<IK, C>) stmtFactory.newInstance(result, receiver, ir.getMethod()));
+        }
+        else if (targetMethod.equals(MethodReference.JavaLangClassForName)) {
+            assert actuals.size() == 1; // TODO: there is also a three argument version
+            this.addStatement(stmtFactory.stringToClass(result, actuals.get(1), ir.getMethod()));
+        }
+        else if (targetMethod.equals(JavaLangObjectGetClass)) {
+            this.addStatement(stmtFactory.objectToClass(result, receiver, ir.getMethod()));
+        }
+        return;
+    }
+
     /**
      * A virtual, static, special, or interface invocation
      *
@@ -559,6 +592,13 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
                         + PrettyPrinter.methodString(i.getDeclaredTarget()) + " caller: "
                         + PrettyPrinter.methodString(ir.getMethod()));
             }
+        }
+
+        // //////////// Branch Away to handle Reflective Methods ////////////
+
+        if (isReflectiveMethodInvocation(i)) {
+            registerReflectiveInvoke(i, bb, ir, rvFactory, types, pp, result, actuals, receiver);
+            return;
         }
 
         // //////////// Exceptions ////////////
@@ -756,10 +796,31 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
     /**
      * Load-metadata is used for reflective operations
      */
-    @SuppressWarnings("unused")
     private void registerReflection(SSALoadMetadataInstruction i, IR ir, ReferenceVariableFactory rvFactory,
                                     TypeRepository types, PrettyPrinter pp) {
-        // TODO statement registrar not handling reflection yet
+        i.getDef();
+
+        // a representation of the meta data (if type==java.lang.Class,
+        // then its a reference to the class object being manipulated)
+        i.getToken();
+
+        // for `loadClass' this is equal to TypeReference.JavaLangClass
+        // I'm not sure what other operations are represented as.
+        // in general, this is the TypeReference which getToken is an "element of"
+        i.getType();
+
+        // if this is true then we're doing a `loadClass' operation
+        if (i.getType().equals(TypeReference.JavaLangClass)) {
+            TypeReference reflectedType = (TypeReference) i.getToken();
+            IClass reflectedClass = AnalysisUtil.getClassHierarchy().lookupClass(reflectedType);
+            assert reflectedClass != null : "No class found for " + PrettyPrinter.typeString(reflectedType);
+
+        }
+
+        //        ir;
+        //        rvFactory;
+        //        types;
+        //        pp;
     }
 
     /**

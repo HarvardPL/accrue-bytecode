@@ -573,6 +573,31 @@ public class StatementFactory<IK extends InstanceKey, C extends Context> {
         return s;
     }
 
+    public NewInstanceStatement<C> newInstance(ReferenceVariable result, ReferenceVariable receiver, IMethod m) {
+        assert result != null;
+        assert receiver != null;
+        NewInstanceStatement<C> s = new NewInstanceStatement<>(m, result, receiver);
+        // TODO: This is totally wrong, but I'm not sure what to do...
+        assert map.put(new StatementKey(m, result, receiver), (PointsToStatement<IK, C>) s) == null;
+        return s;
+    }
+
+    public StringToClassStatement<IK, C> stringToClass(ReferenceVariable result, ReferenceVariable string, IMethod m) {
+        assert result != null;
+        assert string != null;
+        StringToClassStatement<IK, C> s = new StringToClassStatement<>(m, result, string);
+        assert map.put(new StatementKey(m, result, string), s) == null;
+        return s;
+    }
+
+    public ObjectToClassStatement<IK, C> objectToClass(ReferenceVariable result, ReferenceVariable receiver, IMethod m) {
+        assert result != null;
+        assert receiver != null;
+        ObjectToClassStatement<IK, C> s = new ObjectToClassStatement<>(m, result, receiver);
+        assert map.put(new StatementKey(m, result, receiver), s) == null;
+        return s;
+    }
+
     /**
      * Duplication checking map key. Two different PointsToStatement objects should never have the same StatementKey
      */
