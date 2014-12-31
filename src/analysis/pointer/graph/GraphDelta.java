@@ -58,71 +58,7 @@ public final class GraphDelta {
     }
 
 
-    /**
-     * Add some points to info to a pointstographnode.
-     *
-     * @param n
-     * @param set
-     * @return
-     */
-    protected boolean addAllToSet(/*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
-                                  ExplicitProgramPointSet ppsToAdd,
-                                  IntSet set) {
-        if (set.isEmpty()) {
-            return false;
-        }
-
-        if (!nIsFlowSensitive) {
-            // flow insensitive!
-            assert !g.isFlowSensitivePointsToGraphNode(n);
-
-            MutableIntSet s = getOrCreateFISet(n, setSizeBestGuess(set));
-            boolean changed = false;
-            IntIterator iter = set.intIterator();
-            while (iter.hasNext()) {
-                int next = iter.next();
-                changed |= s.add(next);
-                if (g.isMostRecentObject(next)) {
-                    // n is a flow-insensitive pointstographnode, so if it
-                    // points to the most resent version, may also need to point to
-                    // the non-most recent version.
-                    boolean needsNonMostRecent = true;
-                    PointsToGraphNode tn = g.lookupPointsToGraphNodeDictionary(n);
-                    if (tn instanceof ReferenceVariableReplica) {
-                        ReferenceVariableReplica rvr = (ReferenceVariableReplica) tn;
-                        if (rvr.hasInstantaneousScope()) {
-                            needsNonMostRecent = false;
-                        }
-                        else if (rvr.hasLocalScope()) {
-                            // rvr has a local scope, and we can possible be more precise.
-                            needsNonMostRecent = g.isAllocInScope(rvr, next, new AddNonMostRecentOrigin(n, rvr, next));
-                        }
-                    }
-                    if (needsNonMostRecent) {
-                        changed |= s.add(g.nonMostRecentVersion(next));
-                    }
-                }
-            }
-            return changed;
-        }
-        // flow sensitive
-        // int fromBase = this.g.baseNodeForPointsToGraphNode(n);
-        boolean changed = false;
-        IntMap<ProgramPointSetClosure> m = getOrCreateFSMap(n);
-        IntIterator iter = set.intIterator();
-        while (iter.hasNext()) {
-            int to = iter.next();
-            changed |= addProgramPoints(m, n, to, ppsToAdd);
-
-            if (g.isMostRecentObject(to) && g.isTrackingMostRecentObject(to)) {
-                addProgramPoints(m, n, g.nonMostRecentVersion(to), ExplicitProgramPointSet.EMPTY_SET);
-            }
-
-        }
-        return changed;
-    }
-
-    private IntMap<ProgramPointSetClosure> getOrCreateFSMap(/*PointsToGraphNode*/int src) {
+    IntMap<ProgramPointSetClosure> getOrCreateFSMap(/*PointsToGraphNode*/int src) {
         IntMap<ProgramPointSetClosure> s = deltaFS.get(src);
         if (s == null) {
             s = new SparseIntMap<>();
@@ -131,7 +67,7 @@ public final class GraphDelta {
         return s;
     }
 
-    private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from, /*PointsToGraphNode*/
+    boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from, /*PointsToGraphNode*/
                                             int to,
                                             ExplicitProgramPointSet toAdd) {
         ProgramPointSetClosure p = m.get(to);
@@ -143,8 +79,7 @@ public final class GraphDelta {
     }
 
     private boolean addProgramPoints(IntMap<ProgramPointSetClosure> m, /*PointsToGraphNode*/int from, /*PointsToGraphNode*/
-                                            int to,
-                                            ProgramPointSetClosure toAdd) {
+                                     int to, ProgramPointSetClosure toAdd) {
         ProgramPointSetClosure p = m.get(to);
         if (p == null) {
             p = new ProgramPointSetClosure(from, to, this.g);
@@ -163,7 +98,7 @@ public final class GraphDelta {
         return p.add(ppr);
     }
 
-    private MutableIntSet getOrCreateFISet(/*PointsToGraphNode*/int src, Integer initialSize) {
+    MutableIntSet getOrCreateFISet(/*PointsToGraphNode*/int src, Integer initialSize) {
         MutableIntSet s = deltaFI.get(src);
         if (s == null) {
             if (initialSize == null || initialSize == 0) {
