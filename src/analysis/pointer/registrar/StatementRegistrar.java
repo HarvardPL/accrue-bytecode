@@ -311,17 +311,20 @@ public class StatementRegistrar {
                         // No need to do anything with primitive fields
                         continue;
                     }
-                    ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
-                    ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
-                    addStatement(stmtFactory.nullToLocal(staticField, pp));
-                    if (first == null) {
-                        first = pp;
+                    if (f.getDeclaringClass().equals(m.getDeclaringClass())) {
+                        // The static field is in the class we are initializing
+                        ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                        ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
+                        addStatement(stmtFactory.nullToLocal(staticField, pp));
+                        if (first == null) {
+                            first = pp;
+                        }
+                        else {
+                            assert prev != null;
+                            prev.addSucc(pp);
+                        }
+                        prev = pp;
                     }
-                    else {
-                        assert prev != null;
-                        prev.addSucc(pp);
-                    }
-                    prev = pp;
                 }
                 if (first != null) {
                     // Some program points were added
@@ -1683,9 +1686,9 @@ public class StatementRegistrar {
                     if (catchSG == null) {
                         catchSG = new PPSubGraph(ir.getMethod(), catchIns, pprint);
                         insToPPSubGraph.put(catchIns, catchSG);
+                        catchEntries.add(catchSG.entry());
+                        caught.setLocalDef(catchSG.entry());
                     }
-                    catchEntries.add(catchSG.entry());
-                    caught.setLocalDef(catchSG.entry());
                     ProgramPoint pp = subgraph.addException(succ, thrown.getExpectedType(), isGenerated, isCalleeThrow);
                     this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
                 }

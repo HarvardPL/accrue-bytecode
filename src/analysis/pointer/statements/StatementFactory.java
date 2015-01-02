@@ -393,11 +393,11 @@ public class StatementFactory {
      * @return statement to be processed during pointer analysis
      */
     public NullToLocalStatement nullToLocal(ReferenceVariable left, ProgramPoint pp) {
-        assert left != null;
-        assert pp != null;
+        assert left != null : "Null reference variable for " + pp;
+        assert pp != null : "Null program point for " + left;
 
         NullToLocalStatement s = new NullToLocalStatement(left, pp);
-        assert map.put(new StatementKey(left), s) == null;
+        assert map.put(new StatementKey(left), s) == null : "Duplicate statement " + s;
         return s;
     }
 
