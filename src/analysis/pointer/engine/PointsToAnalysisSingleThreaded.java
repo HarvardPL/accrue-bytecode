@@ -373,6 +373,7 @@ public class PointsToAnalysisSingleThreaded<IK extends InstanceKey, C extends Co
         if (outputLevel >= 3) {
             System.err.println("\tPROCESSING: " + sac);
         }
+        @SuppressWarnings("unchecked")
         GraphDelta changed = s.process((C) c, this.haf, g, delta, registrar, sac);
 
         if (changed.isEmpty()) {
@@ -432,6 +433,7 @@ public class PointsToAnalysisSingleThreaded<IK extends InstanceKey, C extends Co
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
+                    @SuppressWarnings("unchecked")
                     GraphDelta d = s.process((C) c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null "

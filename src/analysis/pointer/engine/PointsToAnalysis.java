@@ -79,10 +79,12 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
             this.context = context;
         }
 
+        @SuppressWarnings("unchecked")
         public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(HeapAbstractionFactory<IK, C> haf) {
             return this.stmt.getReadDependencies((C) this.context, haf);
         }
 
+        @SuppressWarnings("unchecked")
         public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(HeapAbstractionFactory<IK, C> haf) {
             return this.stmt.getWriteDependencies((C) this.context, haf);
         }

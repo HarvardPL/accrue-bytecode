@@ -71,6 +71,7 @@ public class SpecialCallStatement extends CallStatement {
         Iterator<InstanceKey> iter = (delta == null ? g.pointsToIterator(receiverRep, originator)
                 : delta.pointsToIterator(receiverRep));
         while (iter.hasNext()) {
+            @SuppressWarnings("unchecked")
             IK recHeapCtxt = (IK) iter.next();
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
         }

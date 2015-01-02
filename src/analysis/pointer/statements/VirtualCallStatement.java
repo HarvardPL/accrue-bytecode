@@ -73,6 +73,7 @@ public class VirtualCallStatement extends CallStatement {
                 : delta.pointsToIterator(receiverRep);
 
         while (iter.hasNext()) {
+            @SuppressWarnings("unchecked")
             IK recHeapContext = (IK) iter.next();
 
             // find the callee.

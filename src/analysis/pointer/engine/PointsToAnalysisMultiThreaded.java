@@ -224,6 +224,7 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
 
+        @SuppressWarnings("unchecked")
         GraphDelta changes = s.process((C) c, this.haf, execService.g, delta, execService.registrar, sac);
 
         if (changes.isEmpty()) {
@@ -371,6 +372,7 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
+                    @SuppressWarnings("unchecked")
                     GraphDelta d = s.process((C) c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
