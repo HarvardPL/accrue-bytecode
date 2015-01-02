@@ -42,17 +42,12 @@ public class FieldToLocalStatement extends PointsToStatement {
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
      *
-     * @param l
-     *            points-to graph node for local assigned into
-     * @param o
-     *            points-to graph node for receiver of field access
-     * @param f
-     *            field accessed
-     * @param m
-     *            method the statement was created for
+     * @param l points-to graph node for local assigned into
+     * @param o points-to graph node for receiver of field access
+     * @param f field accessed
+     * @param m method the statement was created for
      */
-    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o,
-                                    FieldReference f, IMethod m) {
+    protected FieldToLocalStatement(ReferenceVariable l, ReferenceVariable o, FieldReference f, IMethod m) {
         super(m);
         this.declaredField = f;
         this.receiver = o;
@@ -65,8 +60,10 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode left = new ReferenceVariableReplica(context, this.assignee, haf);
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
 
@@ -89,10 +86,9 @@ public class FieldToLocalStatement extends PointsToStatement {
             // object k, add everything that k.f points to to v's set.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(rec); iter.hasNext();) {
                 InstanceKey recHeapContext = iter.next();
-                ObjectField f =
-                        new ObjectField(recHeapContext,
-                                        this.declaredField.getName().toString(),
-                                        this.declaredField.getFieldType());
+                ObjectField f = new ObjectField(recHeapContext,
+                                                this.declaredField.getName().toString(),
+                                                this.declaredField.getFieldType());
                 GraphDelta d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
             }
@@ -129,9 +125,9 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
+        ReferenceVariableReplica rec = new ReferenceVariableReplica(ctxt, this.receiver, haf);
 
         List<Object> uses = new ArrayList<>(2);
         uses.add(rec);
@@ -142,7 +138,8 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, this.assignee, haf));
     }
 }

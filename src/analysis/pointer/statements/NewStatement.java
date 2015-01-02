@@ -65,8 +65,10 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         InstanceKey newHeapContext = haf.record(alloc, context);
         assert newHeapContext != null;
 
@@ -95,14 +97,14 @@ public class NewStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         return Collections.emptySet();
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
     }
 }

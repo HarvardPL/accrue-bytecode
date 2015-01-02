@@ -14,6 +14,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a "return" instruction
@@ -32,27 +33,23 @@ public class ReturnStatement extends PointsToStatement {
     /**
      * Create a points-to statement for a return instruction
      *
-     * @param result
-     *            Node for return result
-     * @param returnSummary
-     *            Node summarizing all return values for the method
-     * @param m
-     *            method the points-to statement came from
+     * @param result Node for return result
+     * @param returnSummary Node summarizing all return values for the method
+     * @param m method the points-to statement came from
      */
-    protected ReturnStatement(ReferenceVariable result,
-            ReferenceVariable returnSummary, IMethod m) {
+    protected ReturnStatement(ReferenceVariable result, ReferenceVariable returnSummary, IMethod m) {
         super(m);
         this.result = result;
         this.returnSummary = returnSummary;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
-        ReferenceVariableReplica returnRes =
- new ReferenceVariableReplica(context, result, haf);
-        ReferenceVariableReplica summaryRes =
- new ReferenceVariableReplica(context, returnSummary, haf);
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
+        ReferenceVariableReplica returnRes = new ReferenceVariableReplica(context, result, haf);
+        ReferenceVariableReplica summaryRes = new ReferenceVariableReplica(context, returnSummary, haf);
 
         // don't need to use delta, as this just adds a subset edge
         return g.copyEdges(returnRes, summaryRes);
@@ -81,15 +78,15 @@ public class ReturnStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, result, haf);
         return Collections.singleton(r);
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, returnSummary, haf));
     }
 

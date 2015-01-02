@@ -42,17 +42,12 @@ public class LocalToArrayStatement extends PointsToStatement {
      * Statement for an assignment into an array, a[i] = v. Note that we do not reason about the individual array
      * elements.
      *
-     * @param a
-     *            points-to graph node for array assigned into
-     * @param value
-     *            points-to graph node for assigned value
-     * @param baseType
-     *            type of the array elements
-     * @param m
-     *            method the points-to statement came from
+     * @param a points-to graph node for array assigned into
+     * @param value points-to graph node for assigned value
+     * @param baseType type of the array elements
+     * @param m method the points-to statement came from
      */
-    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v,
-            TypeReference baseType, IMethod m) {
+    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, IMethod m) {
         super(m);
         array = a;
         value = v;
@@ -60,8 +55,10 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array, haf);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value, haf);
 
@@ -71,10 +68,7 @@ public class LocalToArrayStatement extends PointsToStatement {
             // no changes, let's do the processing in a straightforward way.
             for (Iterator<InstanceKey> iter = g.pointsToIterator(a, originator); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
                 GraphDelta d1 = g.copyEdges(v, contents);
                 changed = changed.combine(d1);
             }
@@ -85,10 +79,7 @@ public class LocalToArrayStatement extends PointsToStatement {
             // point to everything that the RHS can.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
                 GraphDelta d1 = g.copyEdges(v, contents);
                 changed = changed.combine(d1);
             }
@@ -126,8 +117,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
         ReferenceVariableReplica v = new ReferenceVariableReplica(ctxt, value, haf);
         List<ReferenceVariableReplica> uses = new ArrayList<>(2);
@@ -137,8 +128,8 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.emptySet();
     }
 }

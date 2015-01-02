@@ -15,6 +15,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for an assignment from a local into a static field
@@ -33,15 +34,11 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     /**
      * Statement for an assignment from a local into a static field, ClassName.staticField = local
      *
-     * @param staticField
-     *            points-to graph node for the assigned value
-     * @param local
-     *            points-to graph node for assignee
-     * @param m
-     *            method containing the statement
+     * @param staticField points-to graph node for the assigned value
+     * @param local points-to graph node for assignee
+     * @param m method containing the statement
      */
-    protected LocalToStaticFieldStatement(ReferenceVariable staticField,
-            ReferenceVariable local, IMethod m) {
+    protected LocalToStaticFieldStatement(ReferenceVariable staticField, ReferenceVariable local, IMethod m) {
         super(m);
         assert !local.isSingleton() : local + " is static";
         assert staticField.isSingleton() : staticField + " is not static";
@@ -50,8 +47,10 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
         PointsToGraphNode r = new ReferenceVariableReplica(context, local, haf);
         // don't need to use delta, as this just adds a subset edge
@@ -82,15 +81,15 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(r);
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
 }

@@ -33,7 +33,7 @@ public final class GraphDelta {
         this.g = g;
         // Map doesn't need to be thread safe, since when it is being modified it is thread local
         // and when it is shared, it is read only.
-        this.delta = new SparseIntMap<MutableIntSet>();
+        this.delta = new SparseIntMap<>();
     }
 
 

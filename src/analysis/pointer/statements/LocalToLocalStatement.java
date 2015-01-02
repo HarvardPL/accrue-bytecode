@@ -18,6 +18,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a local assignment, left = right
@@ -43,16 +44,12 @@ public class LocalToLocalStatement extends PointsToStatement {
     /**
      * Statement for a local assignment, left = right
      *
-     * @param left
-     *            points-to graph node for assignee
-     * @param right
-     *            points-to graph node for the assigned value
-     * @param m
-     *            method the assignment is from
+     * @param left points-to graph node for assignee
+     * @param right points-to graph node for the assigned value
+     * @param m method the assignment is from
      */
-    protected LocalToLocalStatement(ReferenceVariable left,
-            ReferenceVariable right, IMethod m, boolean filterBasedOnType,
-            boolean isFromMethodSummaryVariable) {
+    protected LocalToLocalStatement(ReferenceVariable left, ReferenceVariable right, IMethod m,
+                                    boolean filterBasedOnType, boolean isFromMethodSummaryVariable) {
         super(m);
         assert !left.isSingleton() : left + " is static";
         this.left = left;
@@ -62,8 +59,10 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left, haf);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right, haf);
         // don't need to use delta, as this just adds a subset edge
@@ -76,8 +75,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType())
-                + ") " + right;
+        return left + " = (" + PrettyPrinter.typeString(left.getExpectedType()) + ") " + right;
     }
 
     @Override
@@ -97,7 +95,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, right, haf);
 
         if (!isFromMethodSummaryVariable) {
@@ -121,7 +120,8 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, left, haf));
     }
 }

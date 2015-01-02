@@ -204,7 +204,7 @@ public class StatementRegistrar {
             if (ir == null) {
                 // Native method with no signature
                 assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-                this.registerNative(m, this.rvFactory);
+                this.registerNative(m);
                 return true;
             }
 
@@ -570,7 +570,7 @@ public class StatementRegistrar {
             }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
-            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
+            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee);
             this.addStatement(stmtFactory.staticCall(i.getCallSite(),
                                                      ir.getMethod(),
                                                      resolvedCallee,
@@ -587,7 +587,7 @@ public class StatementRegistrar {
             }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
-            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
+            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee);
             this.addStatement(stmtFactory.specialCall(i.getCallSite(),
                                                       ir.getMethod(),
                                                       resolvedCallee,
@@ -773,7 +773,7 @@ public class StatementRegistrar {
         }
 
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getResult(), valType, ir.getMethod(), pp);
-        ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
+        ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod()).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
     }
 
@@ -793,12 +793,11 @@ public class StatementRegistrar {
      * Get the method summary nodes for the given method, create if necessary
      *
      * @param method method to get summary nodes for
-     * @param rvFactory factory for creating new reference variables (if necessary)
      */
-    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method, ReferenceVariableFactory rvFactory) {
+    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method) {
         MethodSummaryNodes msn = this.methods.get(method);
         if (msn == null) {
-            msn = new MethodSummaryNodes(method, rvFactory);
+            msn = new MethodSummaryNodes(method);
             MethodSummaryNodes ex = this.methods.putIfAbsent(method, msn);
             if (ex != null) {
                 msn = ex;
@@ -1121,7 +1120,7 @@ public class StatementRegistrar {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
-                caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
+                caught = this.findOrCreateMethodSummary(ir.getMethod()).getException();
                 this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), true));
             }
         }
@@ -1152,8 +1151,8 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m));
     }
 
-    private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
-        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m, rvFactory);
+    private void registerNative(IMethod m) {
+        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m);
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
             this.registerAllocationForNative(m, m.getReturnType(), methodSummary.getReturn());
@@ -1197,7 +1196,7 @@ public class StatementRegistrar {
     }
 
     private void registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory, PrettyPrinter pp) {
-        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
+        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod());
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
             TypeReference paramType = ir.getParameterType(i);
             if (paramType.isPrimitiveType()) {

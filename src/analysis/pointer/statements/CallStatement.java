@@ -40,21 +40,15 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Points-to statement for a special method invocation.
      *
-     * @param callSite
-     *            Method call site
-     * @param caller
-     *            caller method
-     * @param result
-     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param actuals
-     *            Actual arguments to the call
-     * @param exception
-     *            Node in the caller representing the exception thrown by this call (if any) also exceptions implicitly
-     *            thrown by this statement
+     * @param callSite Method call site
+     * @param caller caller method
+     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param actuals Actual arguments to the call
+     * @param exception Node in the caller representing the exception thrown by this call (if any) also exceptions
+     *            implicitly thrown by this statement
      */
-    protected CallStatement(CallSiteReference callSite, IMethod caller,
-            ReferenceVariable result, List<ReferenceVariable> actuals,
-            ReferenceVariable exception) {
+    protected CallStatement(CallSiteReference callSite, IMethod caller, ReferenceVariable result,
+                            List<ReferenceVariable> actuals, ReferenceVariable exception) {
         super(caller);
         this.callSite = new CallSiteLabel(caller, callSite);
         this.actuals = actuals;
@@ -65,23 +59,20 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Process a call for a particular receiver and resolved method
      *
-     * @param callerContext
-     *            Calling context for the caller
-     * @param receiver
-     *            Heap context for the receiver
-     * @param callee
-     *            Actual method being called
-     * @param g
-     *            points-to graph (may be modified)
-     * @param haf
-     *            abstraction factory used for creating new context from existing
-     * @param calleeSummary
-     *            summary nodes for formals and exits of the callee
+     * @param callerContext Calling context for the caller
+     * @param receiver Heap context for the receiver
+     * @param callee Actual method being called
+     * @param g points-to graph (may be modified)
+     * @param haf abstraction factory used for creating new context from existing
+     * @param calleeSummary summary nodes for formals and exits of the callee
      * @return true if the points-to graph has changed
      */
-    protected final GraphDelta processCall(Context callerContext,
-            InstanceKey receiver, IMethod callee, PointsToGraph g,
-            HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
+    protected final <IK extends InstanceKey, C extends Context> GraphDelta processCall(C callerContext,
+                                                                                       IK receiver,
+                                                                                       IMethod callee,
+                                                                                       PointsToGraph g,
+                                                                                       HeapAbstractionFactory<IK, C> haf,
+                                                                                       MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
@@ -89,11 +80,7 @@ public abstract class CallStatement extends PointsToStatement {
         GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
-        g.addCall(callSite.getReference(),
-                  getMethod(),
-                  callerContext,
-                  callee,
-                  calleeContext);
+        g.addCall(callSite.getReference(), getMethod(), callerContext, callee, calleeContext);
 
         // ////////////////// Return //////////////////
 
@@ -119,8 +106,7 @@ public abstract class CallStatement extends PointsToStatement {
         // add edge from "this" in the callee to the receiver
         // if this is a static call then the receiver will be null
         if (!callee.isStatic()) {
-            ReferenceVariableReplica thisRep =
-                    new ReferenceVariableReplica(calleeContext,
+            ReferenceVariableReplica thisRep = new ReferenceVariableReplica(calleeContext,
                                                                             calleeSummary.getFormal(0),
                                                                             haf);
             GraphDelta receiverChange = g.addEdge(thisRep, receiver);
@@ -208,10 +194,8 @@ public abstract class CallStatement extends PointsToStatement {
     /**
      * Replace the variable for an actual argument with the given variable
      *
-     * @param argNum
-     *            index of the argument to replace
-     * @param newVariable
-     *            new reference variable
+     * @param argNum index of the argument to replace
+     * @param newVariable new reference variable
      */
     protected void replaceActual(int argNum, ReferenceVariable newVariable) {
         actuals.set(argNum, newVariable);

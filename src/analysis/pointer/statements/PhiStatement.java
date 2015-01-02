@@ -16,6 +16,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to graph statement for a phi, representing choice at control flow merges. v = phi(x1, x2, ...)
@@ -34,15 +35,11 @@ public class PhiStatement extends PointsToStatement {
     /**
      * Points-to graph statement for a phi, v = phi(xs[1], xs[2], ...)
      *
-     * @param v
-     *            value assigned into
-     * @param xs
-     *            list of arguments to the phi, v is a choice amongst these
-     * @param m
-     *            method containing the phi instruction
+     * @param v value assigned into
+     * @param xs list of arguments to the phi, v is a choice amongst these
+     * @param m method containing the phi instruction
      */
-    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs,
-            IMethod m) {
+    protected PhiStatement(ReferenceVariable v, List<ReferenceVariable> xs, IMethod m) {
         super(m);
         assert !xs.isEmpty();
         assignee = v;
@@ -50,8 +47,10 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee, haf);
 
         GraphDelta changed = new GraphDelta(g);
@@ -95,20 +94,19 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
         for (ReferenceVariable use : uses) {
-            ReferenceVariableReplica n =
- new ReferenceVariableReplica(ctxt, use, haf);
+            ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
             l.add(n);
         }
         return l;
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, assignee, haf));
     }
 

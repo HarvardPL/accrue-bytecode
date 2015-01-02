@@ -24,7 +24,7 @@ public final class ReferenceVariableReplica implements PointsToGraphNode {
      * @param rv reference variable for the local variable or static field
      * @param haf heap abstraction factory (used to get the "initial context" for singleton reference variables)
      */
-    public ReferenceVariableReplica(Context context, ReferenceVariable rv, HeapAbstractionFactory haf) {
+    public ReferenceVariableReplica(Context context, ReferenceVariable rv, HeapAbstractionFactory<?, ?> haf) {
         assert rv != null;
         assert context != null;
         l = rv;

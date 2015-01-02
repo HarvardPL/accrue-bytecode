@@ -169,7 +169,7 @@ public final class PointsToGraph {
     /**
      * Heap abstraction factory.
      */
-    private final HeapAbstractionFactory haf;
+    private final HeapAbstractionFactory<?, ?> haf;
 
 
     private final DependencyRecorder depRecorder;
@@ -181,7 +181,7 @@ public final class PointsToGraph {
      */
     private boolean graphFinished = false;
 
-    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
+    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory<?, ?> haf, DependencyRecorder depRecorder) {
         this.depRecorder = depRecorder;
 
         this.haf = haf;
@@ -725,7 +725,7 @@ public final class PointsToGraph {
      *
      * @return heap abstraction factory for this pointer analysis
      */
-    public HeapAbstractionFactory getHaf() {
+    public HeapAbstractionFactory<?, ?> getHaf() {
         return haf;
     }
 
@@ -1337,7 +1337,7 @@ public final class PointsToGraph {
 
         this.pointsTo = compact(this.pointsTo, "pointsTo");
         this.instanceKeyDictionary = compact(this.instanceKeyDictionary, "instanceKeyDictionary");
-        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary, "reverseGraphNodeDictionary");
+        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
     }
 
     /**
@@ -1361,7 +1361,7 @@ public final class PointsToGraph {
     /**
      * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
      */
-    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m, String debugName) {
+    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
         if (m.isEmpty()) {
             return new ReadOnlyConcurrentMap<>(Collections.<K, V> emptyMap());
         }

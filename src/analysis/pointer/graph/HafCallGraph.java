@@ -28,7 +28,7 @@ public class HafCallGraph extends ExplicitCallGraph {
     /**
      * Heap abstraction factory defining how contexts are created
      */
-    private final HeapAbstractionFactory haf;
+    private final HeapAbstractionFactory<?, ?> haf;
     /**
      * WALA's fake root method that calls entry points
      */
@@ -41,7 +41,7 @@ public class HafCallGraph extends ExplicitCallGraph {
      * @param haf
      *            Heap abstraction factory
      */
-    public HafCallGraph(HeapAbstractionFactory haf) {
+    public HafCallGraph(HeapAbstractionFactory<?, ?> haf) {
         super(AnalysisUtil.getClassHierarchy(), AnalysisUtil.getOptions(), AnalysisUtil.getCache());
         this.haf = haf;
         this.fakeRoot = AnalysisUtil.getFakeRoot();

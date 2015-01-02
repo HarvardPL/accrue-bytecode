@@ -41,7 +41,6 @@ public class AllocSiteNodeFactory {
     protected static AllocSiteNode createNormal(IClass allocatedClass, IMethod allocatingMethod,
                                                 ReferenceVariable result, int pc, int lineNumber) {
         String name = PrettyPrinter.typeString(allocatedClass);
-        @SuppressWarnings("synthetic-access")
         AllocSiteNode n = new AllocSiteNode(name, allocatedClass, allocatingMethod, pc, false, lineNumber);
         assert nodeMap.put(result, n) == null;
         return n;
@@ -60,7 +59,7 @@ public class AllocSiteNodeFactory {
      * @return unique allocation node
      */
     public static AllocSiteNode createGenerated(String debugString, IClass allocatedClass, IMethod allocatingMethod,
-                                                   ReferenceVariable result, boolean isStringLiteral) {
+                                                ReferenceVariable result, boolean isStringLiteral) {
         @SuppressWarnings("synthetic-access")
         AllocSiteNode n = new AllocSiteNode(debugString, allocatedClass, allocatingMethod, isStringLiteral);
         assert result == null || nodeMap.put(result, n) == null;
@@ -125,7 +124,7 @@ public class AllocSiteNodeFactory {
          * @param lineNumber line number from source code if one can be found, -1 otherwise
          */
         public AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod, int programCounter,
-                              boolean isStringLiteral, int lineNumber) {
+                             boolean isStringLiteral, int lineNumber) {
             assert debugString != null;
             assert allocatingMethod != null;
             assert allocatedClass != null;

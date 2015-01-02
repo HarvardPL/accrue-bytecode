@@ -21,6 +21,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.TypeReference;
 
 public class ExceptionAssignmentStatement extends PointsToStatement {
@@ -38,20 +39,14 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
      *
-     * @param thrown
-     *            reference variable for the exception being thrown
-     * @param caught
-     *            reference variable for the caught exception (or summary for the method exit)
-     * @param notType
-     *            types that the exception being caught cannot have since those types must have been caught by previous
-     *            catch blocks
-     * @param m
-     *            method the exception is thrown in
+     * @param thrown reference variable for the exception being thrown
+     * @param caught reference variable for the caught exception (or summary for the method exit)
+     * @param notType types that the exception being caught cannot have since those types must have been caught by
+     *            previous catch blocks
+     * @param m method the exception is thrown in
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown,
-                                           ReferenceVariable caught,
-                                           Set<IClass> notType, IMethod m,
-                                           boolean isToMethodSummaryVariable) {
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
+                                           IMethod m, boolean isToMethodSummaryVariable) {
         super(m);
         assert notType != null;
         this.isToMethodSummaryVariable = isToMethodSummaryVariable;
@@ -72,8 +67,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, this.caught, haf);
         PointsToGraphNode r;
         if (this.thrown.isSingleton()) {
@@ -94,10 +91,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return this.caught + " = ("
-                + PrettyPrinter.typeString(this.caught.getExpectedType()) + ") "
-                + this.thrown + " NOT "
-                + (this.filter == null ? "empty" : this.filter.notTypes);
+        return this.caught + " = (" + PrettyPrinter.typeString(this.caught.getExpectedType()) + ") " + this.thrown
+                + " NOT " + (this.filter == null ? "empty" : this.filter.notTypes);
     }
 
     @Override
@@ -135,8 +130,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-                                             HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica r;
         if (this.thrown.isSingleton()) {
             // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
@@ -150,8 +145,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-                                              HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, this.caught, haf);
         if (this.isToMethodSummaryVariable && !this.getMethod().isStatic()) {
             List<Object> defs = new ArrayList<>(3);
@@ -160,8 +155,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
             if (!this.getMethod().isPrivate()) {
                 // Add in a special object for the exceptional return, so that virtual call statements can
                 // have a read dependency on it...
-                defs.add(new OrderedPair<>(this.getMethod().getSelector(),
-                        "ex-return"));
+                defs.add(new OrderedPair<>(this.getMethod().getSelector(), "ex-return"));
             }
             return defs;
         }

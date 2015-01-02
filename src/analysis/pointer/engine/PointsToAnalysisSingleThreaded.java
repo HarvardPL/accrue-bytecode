@@ -43,6 +43,7 @@ import analysis.pointer.statements.StaticFieldToLocalStatement;
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.shrikeBT.IInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.util.intset.IntIterator;
@@ -51,7 +52,7 @@ import com.ibm.wala.util.intset.IntIterator;
  * Single-threaded implementation of a points-to graph solver. Given a set of
  * constraints, {@link PointsToStatement}s, compute the fixed point.
  */
-public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
+public class PointsToAnalysisSingleThreaded<IK extends InstanceKey, C extends Context> extends PointsToAnalysis<IK, C> {
 
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a
@@ -66,7 +67,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *
      * @param haf Abstraction factory for this points-to analysis
      */
-    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
+    public PointsToAnalysisSingleThreaded(HeapAbstractionFactory<IK, C> haf) {
         super(haf);
     }
 
@@ -142,6 +143,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             @Override
             public void startCollapseNode(int n, int rep) {
                 // add the new dependencies.
+                @SuppressWarnings("synthetic-access")
                 Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
                 if (deps != null) {
                     for (StmtAndContext depSac : deps) {
@@ -150,6 +152,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
             }
 
+            @SuppressWarnings("synthetic-access")
             @Override
             public void finishCollapseNode(int n, int rep) {
                 // remove the old dependency.
@@ -177,6 +180,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 }
             }
 
+            @SuppressWarnings("synthetic-access")
             private void updateLineCounter(IMethod m) {
                 if (printed.add(m)) {
                     if (!m.isNative() && m instanceof IBytecodeMethod && !AnalysisUtil.hasSignature(m)) {
@@ -369,7 +373,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (outputLevel >= 3) {
             System.err.println("\tPROCESSING: " + sac);
         }
-        GraphDelta changed = s.process(c, this.haf, g, delta, registrar, sac);
+        GraphDelta changed = s.process((C) c, this.haf, g, delta, registrar, sac);
 
         if (changed.isEmpty()) {
             this.processedWithNoChange++;
@@ -428,7 +432,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
+                    GraphDelta d = s.process((C) c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null "
                                 + s.getClass() + " : " + s);

@@ -32,16 +32,12 @@ public class ArrayToLocalStatement extends PointsToStatement {
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i]
      *
-     * @param v
-     *            variable being assigned into
-     * @param a
-     *            variable for the array being accessed
-     * @param baseType
-     *            base type of the array
+     * @param v variable being assigned into
+     * @param a variable for the array being accessed
+     * @param baseType base type of the array
      * @param m
      */
-    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a,
-            TypeReference baseType, IMethod m) {
+    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, IMethod m) {
         super(m);
         value = v;
         array = a;
@@ -49,8 +45,10 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, array, haf);
         PointsToGraphNode v = new ReferenceVariableReplica(context, value, haf);
 
@@ -62,10 +60,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // let's do the normal processing
             for (Iterator<InstanceKey> iter = g.pointsToIterator(a, originator); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
                 GraphDelta d1 = g.copyEdges(contents, v);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -77,10 +72,7 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // object k, add everything that k[i] points to to v's set.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType);
                 GraphDelta d1 = g.copyEdges(contents, v);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -114,15 +106,15 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
         return Collections.singleton(a);
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, value, haf));
     }
 }

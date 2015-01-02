@@ -27,11 +27,24 @@ public class CrossProduct<C1 extends Context, C2 extends Context, IK1 extends In
     private final HeapAbstractionFactory<IK2, C2> haf2;
     private final CrossProductContext<C1, C2> initial;
 
-    public CrossProduct(HeapAbstractionFactory<IK1, C1> haf1, HeapAbstractionFactory<IK2, C2> haf2) {
+    private CrossProduct(HeapAbstractionFactory<IK1, C1> haf1, HeapAbstractionFactory<IK2, C2> haf2) {
         this.haf1 = haf1;
         this.haf2 = haf2;
         this.initial = memoize(new CrossProductContext<>(haf1.initialContext(), haf2.initialContext()),
-                                        haf1.initialContext(), haf2.initialContext());
+                               haf1.initialContext(),
+                               haf2.initialContext());
+    }
+
+    /**
+     * Create a new cross product heap abstraction factory from two regular heap abstraction factories
+     * 
+     * @param haf1 first heap abstraction factory
+     * @param haf2 second heap abstraction factory
+     * @return new cross product heap abstraction factory
+     */
+    public static <C1 extends Context, C2 extends Context, IK1 extends InstanceKey, IK2 extends InstanceKey> CrossProduct<C1, C2, IK1, IK2> create(HeapAbstractionFactory<IK1, C1> haf1,
+                                                                                                                                                   HeapAbstractionFactory<IK2, C2> haf2) {
+        return new CrossProduct<>(haf1, haf2);
     }
 
     @Override

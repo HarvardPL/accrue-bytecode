@@ -89,7 +89,9 @@ public final class AccrueAnalysisOptions {
     /**
      * Analysis entry point (contains the main method)
      */
-    @Parameter(names = { "-e", "-entry", "-s", "-start" }, description = "The entry point (containing a main method) written as a full class name with packages separated by dots (e.g. java.lang.String)")
+    @Parameter(
+        names = { "-e", "-entry", "-s", "-start" },
+        description = "The entry point (containing a main method) written as a full class name with packages separated by dots (e.g. java.lang.String)")
     private String entryPoint;
 
     /**
@@ -159,7 +161,10 @@ public final class AccrueAnalysisOptions {
     /**
      * Name of the analysis to be run
      */
-    @Parameter(names = { "-n", "-analyisName" }, validateWith = AccrueAnalysisOptions.AnalysisNameValidator.class, description = "Name of the analysis to run.")
+    @Parameter(
+        names = { "-n", "-analyisName" },
+        validateWith = AccrueAnalysisOptions.AnalysisNameValidator.class,
+        description = "Name of the analysis to run.")
     private String analyisName;
 
     /**
@@ -211,12 +216,15 @@ public final class AccrueAnalysisOptions {
     /**
      * Heap abstraction factory definition
      */
-    @Parameter(names = { "-haf", "-heapAbstractionFactory" }, validateWith = AccrueAnalysisOptions.HafValidator.class, description = "The HeapAbstractionFactory class defining how analysis contexts are created.")
+    @Parameter(
+        names = { "-haf", "-heapAbstractionFactory" },
+        validateWith = AccrueAnalysisOptions.HafValidator.class,
+        description = "The HeapAbstractionFactory class defining how analysis contexts are created.")
     private String hafString = "[type(2,1), scs(2)]";
     /**
      * {@link HeapAbstractionFactory} defining how analysis contexts are created
      */
-    private HeapAbstractionFactory haf;
+    private HeapAbstractionFactory<?, ?> haf;
 
     /**
      * Validate the requested {@link HeapAbstractionFactory} name. SIDE EFFECT: If the parameter is valid then this sets
@@ -234,7 +242,9 @@ public final class AccrueAnalysisOptions {
     /**
      * Class path to be used by the analysis
      */
-    @Parameter(names = { "-analysisClassPath", "-cp" }, description = "Classpath containing code for application and libraries to be analyzed.")
+    @Parameter(
+        names = { "-analysisClassPath", "-cp" },
+        description = "Classpath containing code for application and libraries to be analyzed.")
     private String analysisClassPath = DEFAULT_CLASSPATH;
 
     private AccrueAnalysisOptions() {
@@ -310,7 +320,7 @@ public final class AccrueAnalysisOptions {
      *
      * @return heap abstraction factory
      */
-    public HeapAbstractionFactory getHaf() {
+    public HeapAbstractionFactory<?, ?> getHaf() {
         if (this.haf == null) {
             this.haf = parseHaf(this.hafString);
         }
@@ -354,9 +364,9 @@ public final class AccrueAnalysisOptions {
      * @param hafString String to parse
      * @return the HeapAbstractionFactory for the given String
      */
-    static HeapAbstractionFactory parseHaf(String hafString) {
+    static HeapAbstractionFactory<?, ?> parseHaf(String hafString) {
         try {
-            OrderedPair<HeapAbstractionFactory, Integer> p = parseHafs(hafString, 0);
+            OrderedPair<HeapAbstractionFactory<?, ?>, Integer> p = parseHafs(hafString, 0);
             if (p.snd() != hafString.length()) {
                 throw new ParseException("There are " + (hafString.length() - p.snd())
                         + " characters remaining after parsing " + hafString);
@@ -392,9 +402,9 @@ public final class AccrueAnalysisOptions {
      * @return Class corresponding to the string being parsed and position in original string.
      * @throws ParseException parser error
      */
-    private static OrderedPair<HeapAbstractionFactory, Integer> parseHafs(String hafString, int ind)
-                                                                                                      throws ParseException {
-        List<HeapAbstractionFactory> hafs = new ArrayList<>();
+    private static OrderedPair<HeapAbstractionFactory<?, ?>, Integer> parseHafs(String hafString, int ind)
+                                                                                                          throws ParseException {
+        List<HeapAbstractionFactory<?, ?>> hafs = new ArrayList<>();
 
         ind = consumeWhiteSpace(hafString, ind);
         Character closeParen = null;
@@ -414,12 +424,12 @@ public final class AccrueAnalysisOptions {
             closeParen = '}';
         }
 
-        OrderedPair<HeapAbstractionFactory, Integer> op = parseBaseHaf(hafString, ind);
+        OrderedPair<HeapAbstractionFactory<?, ?>, Integer> op = parseBaseHaf(hafString, ind);
         hafs.add(op.fst());
         ind = op.snd();
         while (ind < hafString.length() && (hafString.charAt(ind) == ',' || hafString.charAt(ind) == 'x')) {
             ind++;
-            OrderedPair<HeapAbstractionFactory, Integer> next = parseBaseHaf(hafString, ind);
+            OrderedPair<HeapAbstractionFactory<?, ?>, Integer> next = parseBaseHaf(hafString, ind);
             hafs.add(next.fst());
             ind = next.snd();
         }
@@ -433,16 +443,16 @@ public final class AccrueAnalysisOptions {
             ind = consumeWhiteSpace(hafString, ind);
         }
 
-        HeapAbstractionFactory haf = null;
-        for (HeapAbstractionFactory h : hafs) {
+        HeapAbstractionFactory<?, ?> haf = null;
+        for (HeapAbstractionFactory<?, ?> h : hafs) {
             if (haf == null) {
                 haf = h;
             }
             else {
-                haf = new CrossProduct(haf, h);
+                haf = CrossProduct.create(haf, h);
             }
         }
-        return new OrderedPair<>(haf, ind);
+        return new OrderedPair<HeapAbstractionFactory<?, ?>, Integer>(haf, ind);
 
     }
 
@@ -454,8 +464,8 @@ public final class AccrueAnalysisOptions {
      * @return parsed HeapAbstractionFactory and new index into the original string
      * @throws ParseException parser problem
      */
-    private static OrderedPair<HeapAbstractionFactory, Integer> parseBaseHaf(String hafString, int ind)
-                                                                                                         throws ParseException {
+    private static OrderedPair<HeapAbstractionFactory<?, ?>, Integer> parseBaseHaf(String hafString, int ind)
+                                                                                                             throws ParseException {
         ind = consumeWhiteSpace(hafString, ind);
         OrderedPair<String, Integer> op = parseClassName(hafString, ind);
         if (op == null) {
@@ -477,8 +487,8 @@ public final class AccrueAnalysisOptions {
             ind++; // consume the close paren
         }
         ind = consumeWhiteSpace(hafString, ind);
-        HeapAbstractionFactory haf = constructHaf(hafClassname, args);
-        return new OrderedPair<>(haf, ind);
+        HeapAbstractionFactory<?, ?> haf = constructHaf(hafClassname, args);
+        return new OrderedPair<HeapAbstractionFactory<?, ?>, Integer>(haf, ind);
     }
 
     /**
@@ -553,7 +563,7 @@ public final class AccrueAnalysisOptions {
         ind = consumeWhiteSpace(s, ind);
         if (s.charAt(ind) == '{') {
             ind++; // consume '{'
-            OrderedPair<HeapAbstractionFactory, Integer> h = parseHafs(s, ind);
+            OrderedPair<HeapAbstractionFactory<?, ?>, Integer> h = parseHafs(s, ind);
             ind = h.snd();
             ind = consumeWhiteSpace(s, ind);
             if (s.charAt(ind) != '}') {
@@ -617,7 +627,8 @@ public final class AccrueAnalysisOptions {
         return ind;
     }
 
-    private static HeapAbstractionFactory constructHaf(String hafClassname, List<Object> args) throws ParseException {
+    private static HeapAbstractionFactory<?, ?> constructHaf(String hafClassname, List<Object> args)
+                                                                                                    throws ParseException {
         Class<?> c;
         try {
             if (hafClassname == null) {
@@ -676,7 +687,7 @@ public final class AccrueAnalysisOptions {
         }
 
         try {
-            return (HeapAbstractionFactory) cons.newInstance(args.toArray());
+            return (HeapAbstractionFactory<?, ?>) cons.newInstance(args.toArray());
         }
         catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             throw new ParseException("Could not invoke HeapAbstractionFactory constructor: " + c.getCanonicalName()

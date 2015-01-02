@@ -14,7 +14,6 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -40,10 +39,6 @@ public class VirtualCallStatement extends CallStatement {
      * Reference variable for the receiver of the call
      */
     private ReferenceVariable receiver;
-    /**
-     * Factory used to create callee summary nodes
-     */
-    private final ReferenceVariableFactory rvFactory;
 
     /**
      * Points-to statement for a virtual method invocation.
@@ -55,22 +50,21 @@ public class VirtualCallStatement extends CallStatement {
      * @param receiver Receiver of the call
      * @param actuals Actual arguments to the call
      * @param exception Node representing the exception thrown by this call (if any)
-     * @param rvFactory factory for managing the creation of reference variables for local variables and static fields
      */
     protected VirtualCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                    ReferenceVariable result, ReferenceVariable receiver,
-                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                   ReferenceVariableFactory rvFactory) {
+                                   List<ReferenceVariable> actuals, ReferenceVariable exception) {
         super(callSite, caller, result, actuals, exception);
 
         this.callee = callee;
         this.receiver = receiver;
-        this.rvFactory = rvFactory;
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                              StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(context, this.receiver, haf);
 
         GraphDelta changed = new GraphDelta(g);
@@ -79,7 +73,7 @@ public class VirtualCallStatement extends CallStatement {
                 : delta.pointsToIterator(receiverRep);
 
         while (iter.hasNext()) {
-            InstanceKey recHeapContext = iter.next();
+            IK recHeapContext = (IK) iter.next();
 
             // find the callee.
             // The receiver is recHeapContext, and we want to find a method that matches selector
@@ -102,8 +96,7 @@ public class VirtualCallStatement extends CallStatement {
                                                        resolvedCallee,
                                                        g,
                                                        haf,
-                                                       registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                           this.rvFactory)));
+                                                       registrar.findOrCreateMethodSummary(resolvedCallee)));
         }
         return changed;
     }
@@ -181,7 +174,8 @@ public class VirtualCallStatement extends CallStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         List<Object> uses = new ArrayList<>(this.getActuals().size() + 2);
         uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
         for (ReferenceVariable use : this.getActuals()) {
@@ -198,7 +192,8 @@ public class VirtualCallStatement extends CallStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         List<Object> defs = new ArrayList<>(3);
 
         if (this.getResult() != null) {

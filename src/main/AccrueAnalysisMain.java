@@ -98,7 +98,7 @@ public class AccrueAnalysisMain {
         String analysisName = options.getAnalysisName();
         int fileLevel = options.getFileLevel();
         String classPath = options.getAnalysisClassPath();
-        HeapAbstractionFactory haf = options.getHaf();
+        HeapAbstractionFactory<?, ?> haf = options.getHaf();
         boolean isOnline = options.registerOnline();
         boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
         testMode = options.isTestMode();
@@ -415,7 +415,7 @@ public class AccrueAnalysisMain {
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
-                                                                                            HeapAbstractionFactory haf,
+                                                                                            HeapAbstractionFactory<?, ?> haf,
                                                                                             boolean singleThreaded,
                                                                                             boolean isOnline,
                                                                                             boolean useSingleAllocForGenEx,
@@ -477,7 +477,7 @@ public class AccrueAnalysisMain {
     }
 
     @SuppressWarnings("unused")
-    private static void runWalaPointerAnalysis(final HeapAbstractionFactory haf,
+    private static void runWalaPointerAnalysis(final HeapAbstractionFactory<?, ?> haf,
                                                boolean useSingleAllocForGenEx,
                                                boolean useSingleAllocForThrowable,
                                                boolean useSingleAllocForPrimitiveArrays,
@@ -685,7 +685,7 @@ public class AccrueAnalysisMain {
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
      */
-    private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
+    private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory<?, ?> haf,
                                            String outputDir, boolean singleThreaded, boolean isOnline,
                                            boolean useSingleAllocForGenEx,
                                            boolean useSingleAllocForThrowable,

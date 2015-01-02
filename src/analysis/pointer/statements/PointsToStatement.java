@@ -68,9 +68,11 @@ public abstract class PointsToStatement {
      * @param originator The SaC that caused this processing, i.e. the pair of this and context.
      * @return Changes to the graph as a result of processing this statement. Must be non-null.
      */
-    public abstract GraphDelta process(Context context,
-            HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-            StatementRegistrar registrar, StmtAndContext originator);
+    public abstract <IK extends InstanceKey, C extends Context> GraphDelta process(C context,
+                                                                                   HeapAbstractionFactory<IK, C> haf,
+                                                                                   PointsToGraph g, GraphDelta delta,
+                                                                                   StatementRegistrar registrar,
+                                                                                   StmtAndContext originator);
 
     @Override
     public final int hashCode() {
@@ -193,15 +195,15 @@ public abstract class PointsToStatement {
      * (e.g., FieldReferences and IMethods) to express dependencies between
      * statements.
      */
-    public abstract Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf);
+    public abstract <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                                  HeapAbstractionFactory<IK, C> haf);
 
     /**
      * Get the objects that processing this PointsToStatement in the
      * specified context will "write". See documentation for
      * getReadDependencies
      */
-    public abstract Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf);
+    public abstract <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                                   HeapAbstractionFactory<IK, C> haf);
 
 }

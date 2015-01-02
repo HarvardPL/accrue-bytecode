@@ -42,17 +42,12 @@ public class LocalToFieldStatement extends PointsToStatement {
     /**
      * Statement for an assignment into a field, o.f = v
      *
-     * @param o
-     *            points-to graph node for receiver of field access
-     * @param f
-     *            field assigned to
-     * @param v
-     *            points-to graph node for value assigned
-     * @param m
-     *            method the points-to statement came from
+     * @param o points-to graph node for receiver of field access
+     * @param f field assigned to
+     * @param v points-to graph node for value assigned
+     * @param m method the points-to statement came from
      */
-    public LocalToFieldStatement(ReferenceVariable o, FieldReference f,
-                                 ReferenceVariable v, IMethod m) {
+    public LocalToFieldStatement(ReferenceVariable o, FieldReference f, ReferenceVariable v, IMethod m) {
         super(m);
         this.field = f;
         this.receiver = o;
@@ -60,8 +55,10 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         PointsToGraphNode rec = new ReferenceVariableReplica(context, this.receiver, haf);
         PointsToGraphNode local = new ReferenceVariableReplica(context, this.localVar, haf);
 
@@ -95,11 +92,8 @@ public class LocalToFieldStatement extends PointsToStatement {
 
     @Override
     public String toString() {
-        return this.receiver
-                + "."
-                + (this.field != null
-                ? this.field.getName() : PointsToGraph.ARRAY_CONTENTS)
-                + " = " + this.localVar;
+        return this.receiver + "." + (this.field != null ? this.field.getName() : PointsToGraph.ARRAY_CONTENTS) + " = "
+                + this.localVar;
     }
 
     @Override
@@ -126,11 +120,10 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
-        ReferenceVariableReplica var =
- new ReferenceVariableReplica(ctxt, this.localVar, haf);
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
+        ReferenceVariableReplica rec = new ReferenceVariableReplica(ctxt, this.receiver, haf);
+        ReferenceVariableReplica var = new ReferenceVariableReplica(ctxt, this.localVar, haf);
         List<Object> uses = new ArrayList<>(2);
         uses.add(rec);
         uses.add(var);
@@ -140,7 +133,8 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.singleton(this.field);
     }
 

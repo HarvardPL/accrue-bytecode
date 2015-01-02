@@ -16,6 +16,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for class initialization
@@ -30,12 +31,10 @@ public class ClassInitStatement extends PointsToStatement {
 
     /**
      * Create a points-to statement for class initialization
-     * 
-     * @param clinits
-     *            class initialization methods that might need to be called in the order they need to be called (i.e.
-     *            element j is a super class of element j+1)
-     * @param m
-     *            method the instruction triggering the initialization is in
+     *
+     * @param clinits class initialization methods that might need to be called in the order they need to be called
+     *            (i.e. element j is a super class of element j+1)
+     * @param m method the instruction triggering the initialization is in
      */
     protected ClassInitStatement(List<IMethod> clinits, IMethod m) {
         super(m);
@@ -44,8 +43,10 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf,
-            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public <IK extends InstanceKey, C extends Context> GraphDelta process(C context, HeapAbstractionFactory<IK, C> haf,
+                                                                          PointsToGraph g, GraphDelta delta,
+                                                                          StatementRegistrar registrar,
+                                                                          StmtAndContext originator) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit
@@ -56,12 +57,9 @@ public class ClassInitStatement extends PointsToStatement {
         // statements in the clinit method, this doesn't blow up the points-to graph, but is unsound.
         if (PointsToAnalysis.outputLevel >= 2 && added) {
             for (IMethod m : clinits) {
-                System.err.print("ADDING CLINIT: "
-                        + PrettyPrinter.methodString(m));
+                System.err.print("ADDING CLINIT: " + PrettyPrinter.methodString(m));
             }
-            System.err.println("\n\tFROM "
-                    + PrettyPrinter.methodString(getMethod()) + " in "
-                    + context);
+            System.err.println("\n\tFROM " + PrettyPrinter.methodString(getMethod()) + " in " + context);
         }
 
         return new GraphDelta(g);
@@ -95,14 +93,14 @@ public class ClassInitStatement extends PointsToStatement {
     }
 
     @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getReadDependencies(C ctxt,
+                                                                                         HeapAbstractionFactory<IK, C> haf) {
         return Collections.emptyList();
     }
 
     @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
+    public <IK extends InstanceKey, C extends Context> Collection<?> getWriteDependencies(C ctxt,
+                                                                                          HeapAbstractionFactory<IK, C> haf) {
         return Collections.emptyList();
     }
 }

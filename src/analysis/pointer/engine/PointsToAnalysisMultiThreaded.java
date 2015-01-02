@@ -23,11 +23,12 @@ import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
-public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
+public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Context> extends PointsToAnalysis<IK, C> {
 
 
     /**
@@ -42,12 +43,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private static boolean paranoidMode = false;
 
-    int numThreads() {
+    static int numThreads() {
         //return 1;
         return Runtime.getRuntime().availableProcessors();
     }
 
-    public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
+    public PointsToAnalysisMultiThreaded(HeapAbstractionFactory<IK, C> haf) {
         super(haf);
     }
 
@@ -68,7 +69,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
         //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
         //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
         //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
         //                                                                                               null,
@@ -84,6 +85,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             @Override
             public void startCollapseNode(int n, int rep) {
                 // add the new dependencies.
+                @SuppressWarnings("synthetic-access")
                 Set<StmtAndContext> deps = interestingDepedencies.get(n);
                 if (deps != null) {
                     for (StmtAndContext depSac : deps) {
@@ -92,6 +94,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 }
             }
 
+            @SuppressWarnings("synthetic-access")
             @Override
             public void finishCollapseNode(int n, int rep) {
                 // remove the old dependency.
@@ -161,7 +164,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.err.println("   Number of threads used : " + this.numThreads());
+        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
         if (!AccrueAnalysisMain.testMode) {
@@ -221,7 +224,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         PointsToStatement s = sac.stmt;
         Context c = sac.context;
 
-        GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
+        GraphDelta changes = s.process((C) c, this.haf, execService.g, delta, execService.registrar, sac);
 
         if (changes.isEmpty()) {
             return;
@@ -368,7 +371,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
-                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
+                    GraphDelta d = s.process((C) c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
                     }
