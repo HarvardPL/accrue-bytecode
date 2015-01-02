@@ -48,8 +48,7 @@ import com.ibm.wala.util.intset.SparseIntSet;
  * Graph mapping local variables (in a particular context) and fields to
  * abstract heap locations (representing zero or more actual heap locations)
  */
-public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
-
+public final class PointsToGraph {
 
     public static final String ARRAY_CONTENTS = "[contents]";
 
@@ -66,11 +65,11 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private ConcurrentIntMap<IK> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<InstanceKey> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * Dictionary for mapping InstanceKeys to ints
      */
-    private ConcurrentMap<IK, Integer> reverseInstanceKeyDictionary = new ConcurrentHashMap<>();
+    private ConcurrentMap<InstanceKey, Integer> reverseInstanceKeyDictionary = new ConcurrentHashMap<>();
 
     /**
      * Dictionary to record the concrete type of instance keys.
@@ -146,7 +145,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
     /**
      * The contexts that a method may appear in.
      */
-    private ConcurrentMap<IMethod, Set<C>> reachableContexts = new ConcurrentHashMap<>();
+    private ConcurrentMap<IMethod, Set<Context>> reachableContexts = new ConcurrentHashMap<>();
 
     /**
      * The classes that will be loaded (i.e., we need to analyze their static
@@ -163,14 +162,14 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private ConcurrentMap<OrderedPair<IMethod, C>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, C>>>> callGraphMap = AnalysisUtil.createConcurrentHashMap();
+    private ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>>> callGraphMap = AnalysisUtil.createConcurrentHashMap();
 
     private HafCallGraph callGraph = null;
 
     /**
      * Heap abstraction factory.
      */
-    private final HeapAbstractionFactory<IK, C> haf;
+    private final HeapAbstractionFactory haf;
 
 
     private final DependencyRecorder depRecorder;
@@ -182,7 +181,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      */
     private boolean graphFinished = false;
 
-    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory<IK, C> haf, DependencyRecorder depRecorder) {
+    public PointsToGraph(StatementRegistrar registrar, HeapAbstractionFactory haf, DependencyRecorder depRecorder) {
         this.depRecorder = depRecorder;
 
         this.haf = haf;
@@ -270,7 +269,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param heapContext
      * @return
      */
-    public GraphDelta<IK, C> addEdge(PointsToGraphNode node, IK heapContext) {
+    public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
         assert !this.graphFinished;
 
@@ -304,7 +303,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
             }
         }
 
-        GraphDelta<IK, C> delta = new GraphDelta<>(this);
+        GraphDelta delta = new GraphDelta(this);
         if (!this.pointsToSet(n).contains(h)) {
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
             addToSetAndSupersets(delta,
@@ -326,11 +325,10 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param toCollapse
      * @param delta
      */
-    private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta<IK, C> delta) {
+    private void collapseCycles(IntMap<MutableIntSet> toCollapse, GraphDelta delta) {
         if (!USE_CYCLE_COLLAPSING) {
             return;
         }
-
         IntIterator iter = toCollapse.keyIterator();
         while (iter.hasNext()) {
             int rep = iter.next();
@@ -372,12 +370,12 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param target
      * @return
      */
-    public GraphDelta<IK, C> copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
+    public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
         assert !this.graphFinished;
         int s = this.getRepresentative(lookupDictionary(source));
         int t = this.getRepresentative(lookupDictionary(target));
 
-        GraphDelta<IK, C> changed = new GraphDelta<>(this);
+        GraphDelta changed = new GraphDelta(this);
         if (s == t) {
             // don't bother adding
             return changed;
@@ -399,14 +397,14 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param target
      * @return
      */
-    public GraphDelta<IK, C> copyFilteredEdges(PointsToGraphNode source,
+    public GraphDelta copyFilteredEdges(PointsToGraphNode source,
                                         TypeFilter filter,
                                         PointsToGraphNode target) {
         assert !this.graphFinished;
         // source is a subset of target, target is a subset of source.
         if (TypeFilter.IMPOSSIBLE.equals(filter)) {
             // impossible filter! Don't bother adding the relationship.
-            return new GraphDelta<>(this);
+            return new GraphDelta(this);
         }
 
         int s = this.getRepresentative(lookupDictionary(source));
@@ -414,10 +412,10 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
 
         if (s == t) {
             // don't bother adding
-            return new GraphDelta<>(this);
+            return new GraphDelta(this);
         }
 
-        GraphDelta<IK, C> changed = new GraphDelta<>(this);
+        GraphDelta changed = new GraphDelta(this);
         if (isFilteredSubsetOf.add(s, t, filter)) {
             computeDeltaForAddedSubsetRelation(changed, s, filter, t);
         }
@@ -428,8 +426,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta,
      * and the recurses
      */
-    private void computeDeltaForAddedSubsetRelation(GraphDelta<IK, C> changed, /*PointsToGraphNode*/int source,
-                                                    TypeFilter filter, /*PointsToGraphNode*/
+    private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/
                                           int target) {
 
         IntSet s = this.pointsToSet(source);
@@ -448,14 +445,10 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
 
     }
 
-    private void addToSetAndSupersets(GraphDelta<IK, C> changed,
-                                      /*PointsToGraphNode*/int target,
-                                      IntIterator toAdd,
+    private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, IntIterator toAdd,
                                       int toAddSizeGuess,
-                                      MutableIntSet currentlyAdding,
-                                      IntStack currentlyAddingStack,
-                                      Stack<Set<TypeFilter>> filterStack,
-                                      IntMap<MutableIntSet> toCollapse) {
+                                  MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
+                                  Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
         if (USE_CYCLE_COLLAPSING) {
             if (currentlyAdding.contains(target)) {
@@ -571,12 +564,12 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param n
      * @return
      */
-    public Iterator<IK> pointsToIterator(PointsToGraphNode n) {
+    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode n) {
         assert this.graphFinished : "Can only get a points to set without an originator if the graph is finished";
         return pointsToIterator(n, null);
     }
 
-    public Iterator<IK> pointsToIterator(PointsToGraphNode node, StmtAndContext originator) {
+    public Iterator<InstanceKey> pointsToIterator(PointsToGraphNode node, StmtAndContext originator) {
         assert this.graphFinished || originator != null;
         int n = lookupDictionary(node);
         if (this.graphFinished && n < 0) {
@@ -618,24 +611,25 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param calleeContext analyis context for the callee
      */
     public boolean addCall(CallSiteReference callSite, IMethod caller,
- C callerContext, IMethod callee, C calleeContext) {
-        OrderedPair<IMethod, C> callerPair = new OrderedPair<>(caller, callerContext);
-        OrderedPair<IMethod, C> calleePair = new OrderedPair<>(callee, calleeContext);
+                           Context callerContext, IMethod callee,
+                           Context calleeContext) {
+        OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
+        OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
 
-        ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, C>>> m = this.callGraphMap.get(callerPair);
+        ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> m = this.callGraphMap.get(callerPair);
         if (m == null) {
             m = AnalysisUtil.createConcurrentHashMap();
-            ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, C>>> existing = this.callGraphMap.putIfAbsent(callerPair,
+            ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> existing = this.callGraphMap.putIfAbsent(callerPair,
                                                                                                                           m);
             if (existing != null) {
                 m = existing;
             }
         }
 
-        Set<OrderedPair<IMethod, C>> s = m.get(callSite);
+        Set<OrderedPair<IMethod, Context>> s = m.get(callSite);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<OrderedPair<IMethod, C>> existing = m.putIfAbsent(callSite, s);
+            Set<OrderedPair<IMethod, Context>> existing = m.putIfAbsent(callSite, s);
 
             if (existing != null) {
                 s = existing;
@@ -653,12 +647,11 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param callee method
      * @param calleeContext context
      */
-    private void recordReachableContext(IMethod callee, C calleeContext) {
-        Set<C> s = this.reachableContexts.get(callee);
-
+    private void recordReachableContext(IMethod callee, Context calleeContext) {
+        Set<Context> s = this.reachableContexts.get(callee);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<C> existing = this.reachableContexts.putIfAbsent(callee, s);
+            Set<Context> existing = this.reachableContexts.putIfAbsent(callee, s);
             if (existing != null) {
                 s = existing;
             }
@@ -670,8 +663,8 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
         }
     }
 
-    private Set<C> getOrCreateContextSet(IMethod callee) {
-        return PointsToGraph.<IMethod, C> getOrCreateSet(callee, this.reachableContexts);
+    private Set<Context> getOrCreateContextSet(IMethod callee) {
+        return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.reachableContexts);
     }
 
     static MutableIntSet getOrCreateIntSet(int key, ConcurrentIntMap<MutableIntSet> map) {
@@ -719,10 +712,10 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      * @param m method reference to get contexts for
      * @return set of contexts for the given method
      */
-    public Set<C> getContexts(IMethod m) {
-        Set<C> s = this.reachableContexts.get(m);
+    public Set<Context> getContexts(IMethod m) {
+        Set<Context> s = this.reachableContexts.get(m);
         if (s == null) {
-            return Collections.<C> emptySet();
+            return Collections.<Context> emptySet();
         }
         return Collections.unmodifiableSet(this.reachableContexts.get(m));
     }
@@ -732,7 +725,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      *
      * @return heap abstraction factory for this pointer analysis
      */
-    public HeapAbstractionFactory<IK, C> getHaf() {
+    public HeapAbstractionFactory getHaf() {
         return haf;
     }
 
@@ -752,17 +745,17 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
         HafCallGraph callGraph = new HafCallGraph(this.haf);
         this.callGraph = callGraph;
         try {
-            for (OrderedPair<IMethod, C> callerPair : this.callGraphMap.keySet()) {
+            for (OrderedPair<IMethod, Context> callerPair : this.callGraphMap.keySet()) {
                 IMethod caller = callerPair.fst();
-                C callerContext = callerPair.snd();
+                Context callerContext = callerPair.snd();
                 CGNode src = callGraph.findOrCreateNode(caller, callerContext);
 
-                ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, C>>> m = this.callGraphMap.get(callerPair);
+                ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> m = this.callGraphMap.get(callerPair);
                 for (CallSiteReference callSite : m.keySet()) {
-                    Set<OrderedPair<IMethod, C>> calleePairs = m.get(callSite);
-                    for (OrderedPair<IMethod, C> calleePair : calleePairs) {
+                    Set<OrderedPair<IMethod, Context>> calleePairs = m.get(callSite);
+                    for (OrderedPair<IMethod, Context> calleePair : calleePairs) {
                         IMethod callee = calleePair.fst();
-                        C calleeContext = calleePair.snd();
+                        Context calleeContext = calleePair.snd();
 
                         CGNode dst = callGraph.findOrCreateNode(callee, calleeContext);
 
@@ -772,7 +765,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
                 }
             }
 
-            C initialContext = this.haf.initialContext();
+            Context initialContext = this.haf.initialContext();
 
             for (IMethod entryPoint : this.entryPoints) {
                 callGraph.registerEntrypoint(callGraph.findOrCreateNode(entryPoint, initialContext));
@@ -865,7 +858,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
      *         otherwise
      */
     public boolean addClassInitializers(List<IMethod> classInits) {
-        C initialContext = this.haf.initialContext();
+        Context initialContext = this.haf.initialContext();
 
         boolean cgChanged = false;
         for (int j = classInits.size() - 1; j >= 0; j--) {
@@ -996,7 +989,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
         }
 
         public int underlyingSetSize() {
-            if (this.s instanceof PointsToGraph.FilteredIntSet) {
+            if (this.s instanceof FilteredIntSet) {
                 return ((FilteredIntSet) this.s).underlyingSetSize();
             }
             return this.s.size();
@@ -1160,7 +1153,7 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
         }
     }
 
-    public class IntToInstanceKeyIterator implements Iterator<IK> {
+    public class IntToInstanceKeyIterator implements Iterator<InstanceKey> {
         private final IntIterator iter;
 
         public IntToInstanceKeyIterator(IntIterator iter) {
@@ -1173,9 +1166,9 @@ public final class PointsToGraph<IK extends InstanceKey, C extends Context> {
         }
 
         @Override
-        public IK next() {
+        public InstanceKey next() {
             @SuppressWarnings("synthetic-access")
-            IK ik = PointsToGraph.this.instanceKeyDictionary.get(this.iter.next());
+            InstanceKey ik = PointsToGraph.this.instanceKeyDictionary.get(this.iter.next());
             assert ik != null;
             return ik;
         }

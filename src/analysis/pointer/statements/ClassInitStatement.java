@@ -16,12 +16,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for class initialization
  */
-public class ClassInitStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
+public class ClassInitStatement extends PointsToStatement {
 
     /**
      * Class initialization methods that might need to be called in the order they need to be called (i.e. element j is
@@ -31,7 +30,7 @@ public class ClassInitStatement<IK extends InstanceKey, C extends Context> exten
 
     /**
      * Create a points-to statement for class initialization
-     *
+     * 
      * @param clinits
      *            class initialization methods that might need to be called in the order they need to be called (i.e.
      *            element j is a super class of element j+1)
@@ -45,8 +44,8 @@ public class ClassInitStatement<IK extends InstanceKey, C extends Context> exten
     }
 
     @Override
-    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK,C> haf,
-                                     PointsToGraph<IK,C> g, GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         boolean added = g.addClassInitializers(clinits);
         // TODO process exceptions thrown by a clinit
         // TODO add more precise edges to the call graph for a clinit
@@ -65,7 +64,7 @@ public class ClassInitStatement<IK extends InstanceKey, C extends Context> exten
                     + context);
         }
 
-        return new GraphDelta<>(g);
+        return new GraphDelta(g);
     }
 
     @Override
@@ -96,14 +95,14 @@ public class ClassInitStatement<IK extends InstanceKey, C extends Context> exten
     }
 
     @Override
-    public Collection<?> getReadDependencies(C ctxt,
-            HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
         return Collections.emptyList();
     }
 
     @Override
-    public Collection<?> getWriteDependencies(C ctxt,
-            HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getWriteDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
         return Collections.emptyList();
     }
 }

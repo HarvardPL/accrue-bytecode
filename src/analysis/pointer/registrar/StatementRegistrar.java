@@ -35,9 +35,6 @@ import analysis.pointer.statements.StatementFactory;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.classLoader.Language;
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.shrikeBT.IInvokeInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.ssa.IR;
@@ -55,17 +52,14 @@ import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
-import com.ibm.wala.types.Descriptor;
 import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
-import com.ibm.wala.util.strings.Atom;
 
 /**
  * This class manages the registration of new points-to graph statements, which are then processed by the pointer
  * analysis
  */
-public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
+public class StatementRegistrar {
 
     /**
      * Map from method signature to nodes representing formals and returns
@@ -78,7 +72,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
     /**
      * Map from method to the points-to statements generated from instructions in that method
      */
-    private final ConcurrentMap<IMethod, Set<PointsToStatement<IK, C>>> statementsForMethod;
+    private final ConcurrentMap<IMethod, Set<PointsToStatement>> statementsForMethod;
 
     /**
      * The total number of statements
@@ -140,7 +134,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
     /**
      * factory used to create points-to statements
      */
-    private final StatementFactory<IK, C> stmtFactory;
+    private final StatementFactory stmtFactory;
     /**
      * Map from method to index mapping replaced variables to their replacements
      */
@@ -167,7 +161,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
      *            class. This will reduce the size of the points-to graph (and speed up the points-to analysis), but
      *            result in a loss of precision for these classes.
      */
-    public StatementRegistrar(StatementFactory<IK, C> factory, boolean useSingleAllocForGenEx,
+    public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
                               boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
@@ -232,10 +226,10 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
             }
 
             // now try to remove duplicates
-            Set<PointsToStatement<IK, C>> oldStatements = this.getStatementsForMethod(m);
+            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
             int oldSize = oldStatements.size();
-            OrderedPair<Set<PointsToStatement<IK, C>>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            Set<PointsToStatement<IK, C>> newStatements = duplicateResults.fst();
+            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+            Set<PointsToStatement> newStatements = duplicateResults.fst();
             replacedVariableMap.put(m, duplicateResults.snd());
             int newSize = newStatements.size();
 
@@ -267,7 +261,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
     /**
      * A listener that will get notified of newly created statements.
      */
-    private StatementListener<IK, C> stmtListener = null;
+    private StatementListener stmtListener = null;
     int swingClasses = 0;
 
     private static int removed = 0;
@@ -328,8 +322,8 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
             this.registerInvoke((SSAInvokeInstruction) i, bb, ir, this.rvFactory, types, printer);
             return;
         case LOAD_METADATA:
-            // Reflection Not sure what this is for
-            // this.registerReflection((SSALoadMetadataInstruction) i, ir, this.rvFactory, types, printer);
+            // Reflection
+            this.registerReflection((SSALoadMetadataInstruction) i, ir, this.rvFactory, types, printer);
             return;
         case NEW_ARRAY:
             this.registerNewArray((SSANewInstruction) i, ir, this.rvFactory, types, printer);
@@ -877,12 +871,12 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
      *
      * @param s statement to add
      */
-    protected void addStatement(PointsToStatement<IK, C> s) {
+    protected void addStatement(PointsToStatement s) {
         IMethod m = s.getMethod();
-        Set<PointsToStatement<IK, C>> ss = this.statementsForMethod.get(m);
+        Set<PointsToStatement> ss = this.statementsForMethod.get(m);
         if (ss == null) {
             ss = AnalysisUtil.createConcurrentSet();
-            Set<PointsToStatement<IK, C>> ex = this.statementsForMethod.putIfAbsent(m, ss);
+            Set<PointsToStatement> ex = this.statementsForMethod.putIfAbsent(m, ss);
             if (ex != null) {
                 ss = ex;
             }
@@ -930,8 +924,8 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
      * @param m method to get the statements for
      * @return set of points-to statements for <code>m</code>
      */
-    public Set<PointsToStatement<IK, C>> getStatementsForMethod(IMethod m) {
-        Set<PointsToStatement<IK, C>> ret = this.statementsForMethod.get(m);
+    public Set<PointsToStatement> getStatementsForMethod(IMethod m) {
+        Set<PointsToStatement> ret = this.statementsForMethod.get(m);
         if (ret != null) {
             return ret;
 
@@ -1001,7 +995,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
                     // This is the value field of the String
                     ReferenceVariable stringValue = ReferenceVariableFactory.createStringLitField();
                     this.addStatement(stmtFactory.newForStringField(stringValue, m));
-                    this.addStatement(new LocalToFieldStatement<IK, C>(stringLit, f.getReference(), stringValue, m));
+                    this.addStatement(new LocalToFieldStatement(stringLit, f.getReference(), stringValue, m));
                 }
             }
         }
@@ -1054,10 +1048,10 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
             assert klass != null : "No class found for " + PrettyPrinter.typeString(varType);
 
             // We present that the allocation for this object occurs in the entry point.
-            NewStatement<IK, C> stmt = stmtFactory.newForGeneratedObject(rv,
-                                                                         klass,
-                                                                         this.entryPoint,
-                                                                         PrettyPrinter.typeString(varType));
+            NewStatement stmt = stmtFactory.newForGeneratedObject(rv,
+                                                                  klass,
+                                                                  this.entryPoint,
+                                                                  PrettyPrinter.typeString(varType));
             this.addStatement(stmt);
 
         }
@@ -1108,7 +1102,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
 
                 if (maybeCaught || definitelyCaught) {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                    this.addStatement(StatementFactory.<IK, C> exceptionAssignment(thrown,
+                    this.addStatement(StatementFactory.exceptionAssignment(thrown,
                                                                            caught,
                                                                            notType,
                                                                            ir.getMethod(),
@@ -1128,11 +1122,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
                 // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
                 caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
-                this.addStatement(StatementFactory.<IK, C> exceptionAssignment(thrown,
-                                                                               caught,
-                                                                               notType,
-                                                                               ir.getMethod(),
-                                                                               true));
+                this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), true));
             }
         }
     }
@@ -1176,7 +1166,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
                 for (TypeReference exType : exceptions) {
                     // Allocation of exception of a particular type
                     ReferenceVariable ex = ReferenceVariableFactory.createNativeException(exType, m);
-                    this.addStatement(StatementFactory.<IK, C> exceptionAssignment(ex,
+                    this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                            methodSummary.getException(),
                                                                            Collections.<IClass> emptySet(),
                                                                            m,
@@ -1197,7 +1187,7 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
         if (!containsRTE) {
             ReferenceVariable ex = ReferenceVariableFactory.createNativeException(TypeReference.JavaLangRuntimeException,
                                                                                   m);
-            this.addStatement(StatementFactory.<IK, C> exceptionAssignment(ex,
+            this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                    methodSummary.getException(),
                                                                    Collections.<IClass> emptySet(),
                                                                    m,
@@ -1284,13 +1274,13 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
         }
     }
 
-    public interface StatementListener<IK extends InstanceKey, C extends Context> {
+    public interface StatementListener {
         /**
          * Called when a new statement is added to the registrar.
          *
          * @param stmt
          */
-        void newStatement(PointsToStatement<IK, C> stmt);
+        void newStatement(PointsToStatement stmt);
     }
 
     public void setStatementListener(StatementListener stmtListener) {

@@ -27,7 +27,7 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 /**
  * Defines how to process points-to graph information for a particular statement
  */
-public abstract class PointsToStatement<IK extends InstanceKey, C extends Context> {
+public abstract class PointsToStatement {
 
     /**
      * method this statement was created in
@@ -38,7 +38,8 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
      * Statement derived from an expression in <code>m</code> defining how points-to results change as a result of this
      * statement.
      *
-     * @param m method this statement was created in
+     * @param m
+     *            method this statement was created in
      */
     public PointsToStatement(IMethod m) {
         this.m = m;
@@ -67,9 +68,9 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
      * @param originator The SaC that caused this processing, i.e. the pair of this and context.
      * @return Changes to the graph as a result of processing this statement. Must be non-null.
      */
-    public abstract GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK, C> haf, PointsToGraph<IK, C> g,
-                                              GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar,
-                                              StmtAndContext<IK, C> originator);
+    public abstract GraphDelta process(Context context,
+            HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+            StatementRegistrar registrar, StmtAndContext originator);
 
     @Override
     public final int hashCode() {
@@ -88,11 +89,14 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
      * Check whether the types in the assignment satisfy type-system requirements (i.e. ensure that left = right is a
      * valid assignment)
      *
-     * @param left assignee
-     * @param right assigned
+     * @param left
+     *            assignee
+     * @param right
+     *            assigned
      * @return true if right can safely be assigned to the left
      */
-    protected final boolean checkTypes(ReferenceVariableReplica left, ReferenceVariableReplica right) {
+    protected final boolean checkTypes(ReferenceVariableReplica left,
+            ReferenceVariableReplica right) {
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         IClass c1 = cha.lookupClass(left.getExpectedType());
         IClass c2 = cha.lookupClass(right.getExpectedType());
@@ -115,9 +119,12 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
             return true;
         }
 
-        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left + " = " + right + " is invalid");
-        System.err.println("\t" + PrettyPrinter.typeString(left.getExpectedType()) + " = "
-                + PrettyPrinter.typeString(right.getExpectedType()) + " does not type check");
+        System.err.println("TYPE-CHECK-FAILURE: " + this + "\n\t" + left
+                + " = " + right + " is invalid");
+        System.err.println("\t"
+                + PrettyPrinter.typeString(left.getExpectedType()) + " = "
+                + PrettyPrinter.typeString(right.getExpectedType())
+                + " does not type check");
         if (PointsToAnalysis.outputLevel >= 1) {
             CFGWriter.writeToFile(getMethod());
             TypeRepository.print(getMethod());
@@ -130,15 +137,22 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
      * Check whether the given set is empty and print an error message if we are in debug mode (PointsToAnalysis.DEBUG =
      * true) and the output level is high enough.
      *
-     * @param pointsToSet set to check
-     * @param r replicate the points to set is for
-     * @param description description of the replica the points to set came from
-     * @param callee callee method
+     * @param pointsToSet
+     *            set to check
+     * @param r
+     *            replicate the points to set is for
+     * @param description
+     *            description of the replica the points to set came from
+     * @param callee
+     *            callee method
      * @return false if the check fails and all the conditions required to perform the check hold
      */
-    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet, PointsToGraphNode r, String description) {
-        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && pointsToSet.isEmpty()) {
-            System.err.println("EMPTY: " + r + " in " + this + " " + description + " from "
+    protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet,
+            PointsToGraphNode r, String description) {
+        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6
+                && pointsToSet.isEmpty()) {
+            System.err.println("EMPTY: " + r + " in " + this + " "
+                    + description + " from "
                     + PrettyPrinter.methodString(getMethod()));
             return false;
         }
@@ -149,8 +163,10 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
      * Replace a variable use with a different variable. What the number corresponds to is defined by the implementation
      * of {@link PointsToStatement#getUses()}.
      *
-     * @param useNumber use number of the variable to be replaced
-     * @param newVariable reference variable to replace the use
+     * @param useNumber
+     *            use number of the variable to be replaced
+     * @param newVariable
+     *            reference variable to replace the use
      */
     public abstract void replaceUse(int useNumber, ReferenceVariable newVariable);
 
@@ -170,17 +186,22 @@ public abstract class PointsToStatement<IK extends InstanceKey, C extends Contex
     public abstract ReferenceVariable getDef();
 
     /**
-     * Get the objects that processing this PointsToStatement in the specified context will "read". One
-     * PointsToStatement depends on another if the first "reads" an object that the other "writes". The objects are
-     * typically ReferenceVariableReplicas, but may use other objects (e.g., FieldReferences and IMethods) to express
-     * dependencies between statements.
+     * Get the objects that processing this PointsToStatement in the
+     * specified context will "read". One PointsToStatement depends on another
+     * if the first "reads" an object that the other "writes". The objects
+     * are typically ReferenceVariableReplicas, but may use other objects
+     * (e.g., FieldReferences and IMethods) to express dependencies between
+     * statements.
      */
-    public abstract Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf);
+    public abstract Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf);
 
     /**
-     * Get the objects that processing this PointsToStatement in the specified context will "write". See documentation
-     * for getReadDependencies
+     * Get the objects that processing this PointsToStatement in the
+     * specified context will "write". See documentation for
+     * getReadDependencies
      */
-    public abstract Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf);
+    public abstract Collection<?> getWriteDependencies(Context ctxt,
+            HeapAbstractionFactory haf);
 
 }

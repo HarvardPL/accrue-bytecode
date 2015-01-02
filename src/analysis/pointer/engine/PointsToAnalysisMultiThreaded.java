@@ -23,12 +23,11 @@ import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
-public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Context> extends PointsToAnalysis<IK, C> {
+public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
     /**
@@ -36,7 +35,7 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    private ConcurrentIntMap<Set<StmtAndContext<IK, C>>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
      * are no changes.
@@ -48,23 +47,22 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
         return Runtime.getRuntime().availableProcessors();
     }
 
-    public PointsToAnalysisMultiThreaded(HeapAbstractionFactory<IK, C> haf) {
+    public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
         super(haf);
     }
 
     @Override
-    public PointsToGraph<IK, C> solve(StatementRegistrar<IK, C> registrar) {
+    public PointsToGraph solve(StatementRegistrar registrar) {
         return this.solveConcurrently(registrar, false);
     }
 
     @Override
-    public PointsToGraph<IK, C> solveAndRegister(StatementRegistrar<IK, C> onlineRegistrar) {
+    public PointsToGraph solveAndRegister(StatementRegistrar onlineRegistrar) {
         onlineRegistrar.registerMethod(AnalysisUtil.getFakeRoot());
         return this.solveConcurrently(onlineRegistrar, true);
     }
 
-    public PointsToGraph<IK, C> solveConcurrently(final StatementRegistrar<IK, C> registrar,
-                                                  final boolean registerOnline) {
+    public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf);
         long startTime = System.currentTimeMillis();
 
@@ -76,19 +74,19 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
         //                                                                                               null,
         //                                                                                               true));
 
-        DependencyRecorder<IK, C> depRecorder = new DependencyRecorder<IK, C>() {
+        DependencyRecorder depRecorder = new DependencyRecorder() {
 
             @Override
-            public void recordRead(int n, StmtAndContext<IK, C> sac) {
+            public void recordRead(int n, StmtAndContext sac) {
                 addInterestingDependency(n, sac);
             }
 
             @Override
             public void startCollapseNode(int n, int rep) {
                 // add the new dependencies.
-                Set<StmtAndContext<IK, C>> deps = interestingDepedencies.get(n);
+                Set<StmtAndContext> deps = interestingDepedencies.get(n);
                 if (deps != null) {
-                    for (StmtAndContext<IK, C> depSac : deps) {
+                    for (StmtAndContext depSac : deps) {
                         addInterestingDependency(rep, depSac);
                     }
                 }
@@ -97,47 +95,47 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
             @Override
             public void finishCollapseNode(int n, int rep) {
                 // remove the old dependency.
-                Set<StmtAndContext<IK, C>> deps = interestingDepedencies.get(n);
+                Set<StmtAndContext> deps = interestingDepedencies.get(n);
                 if (deps != null) {
                     interestingDepedencies.remove(n);
                 }
             }
 
             @Override
-            public void recordNewContext(IMethod callee, C calleeContext) {
+            public void recordNewContext(IMethod callee, Context calleeContext) {
                 if (registerOnline) {
                     // Add statements for the given method to the registrar
                     registrar.registerMethod(callee);
                 }
 
-                for (PointsToStatement<IK, C> stmt : registrar.getStatementsForMethod(callee)) {
-                    StmtAndContext<IK, C> newSaC = new StmtAndContext<>(stmt, calleeContext);
+                for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
+                    StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     execService.submitTask(newSaC);
                 }
             }
         };
 
-        PointsToGraph<IK, C> g = new PointsToGraph<>(registrar, this.haf, depRecorder);
+        PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder);
         execService.setGraphAndRegistrar(g, registrar);
 
         // Add initial contexts
         for (IMethod m : registrar.getInitialContextMethods()) {
-            for (PointsToStatement<IK, C> s : registrar.getStatementsForMethod(m)) {
-                for (C c : g.getContexts(s.getMethod())) {
-                    StmtAndContext<IK, C> sac = new StmtAndContext<>(s, c);
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    StmtAndContext sac = new StmtAndContext(s, c);
                     execService.submitTask(sac);
                 }
             }
         }
 
         if (registerOnline) {
-            StatementListener stmtListener = new StatementListener<IK, C>() {
+            StatementListener stmtListener = new StatementListener() {
 
                 @Override
-                public void newStatement(PointsToStatement<IK, C> stmt) {
+                public void newStatement(PointsToStatement stmt) {
                     if (stmt.getMethod().equals(registrar.getEntryPoint())) {
                         // it's a new special instruction. Let's make sure it gets evaluated.
-                        execService.submitTask(new StmtAndContext<>(stmt, haf.initialContext()));
+                        execService.submitTask(new StmtAndContext(stmt, haf.initialContext()));
                     }
 
                 }
@@ -219,11 +217,11 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
     }
 
 
-    void processSaC(StmtAndContext<IK, C> sac, GraphDelta<IK, C> delta, ExecutorServiceCounter execService) {
-        PointsToStatement<IK, C> s = sac.stmt;
-        C c = sac.context;
+    void processSaC(StmtAndContext sac, GraphDelta delta, ExecutorServiceCounter execService) {
+        PointsToStatement s = sac.stmt;
+        Context c = sac.context;
 
-        GraphDelta<IK, C> changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
+        GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);
 
         if (changes.isEmpty()) {
             return;
@@ -231,7 +229,7 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
-            for (StmtAndContext<IK, C> depSaC : this.getInterestingDependencies(n)) {
+            for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
                 execService.submitTask(depSaC, changes);
             }
         }
@@ -240,8 +238,8 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
 
 
     class ExecutorServiceCounter {
-        public PointsToGraph<IK, C> g;
-        public StatementRegistrar<IK, C> registrar;
+        public PointsToGraph g;
+        public StatementRegistrar registrar;
         private ExecutorService exec;
 
         /**
@@ -262,7 +260,7 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
             this.totalTasksWithDelta = new AtomicLong(0);
         }
 
-        public void setGraphAndRegistrar(PointsToGraph<IK, C> g, StatementRegistrar<IK, C> registrar) {
+        public void setGraphAndRegistrar(PointsToGraph g, StatementRegistrar registrar) {
             this.g = g;
             this.registrar = registrar;
 
@@ -283,11 +281,11 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
 
         }
 
-        public void submitTask(StmtAndContext<IK, C> sac) {
+        public void submitTask(StmtAndContext sac) {
             submitTask(sac, null);
         }
 
-        public void submitTask(StmtAndContext<IK, C> sac, GraphDelta<IK, C> delta) {
+        public void submitTask(StmtAndContext sac, GraphDelta delta) {
             this.numTasks.incrementAndGet();
             if (delta == null) {
                 this.totalTasksNoDelta.incrementAndGet();
@@ -330,10 +328,10 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
         }
 
         public class RunnableStmtAndContext implements Runnable {
-            private final StmtAndContext<IK, C> sac;
-            private final GraphDelta<IK, C> delta;
+            private final StmtAndContext sac;
+            private final GraphDelta delta;
 
-            public RunnableStmtAndContext(StmtAndContext<IK, C> stmtAndContext, GraphDelta<IK, C> delta) {
+            public RunnableStmtAndContext(StmtAndContext stmtAndContext, GraphDelta delta) {
                 this.sac = stmtAndContext;
                 this.delta = delta;
             }
@@ -362,15 +360,15 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
      * @param registrar points-to statement registrar
      * @return true if the points-to graph changed
      */
-    private boolean processAllStatements(PointsToGraph<IK, C> g, StatementRegistrar<IK, C> registrar) {
+    private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
         boolean changed = false;
         System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
                 + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
-            for (PointsToStatement<IK, C> s : registrar.getStatementsForMethod(m)) {
-                for (C c : g.getContexts(s.getMethod())) {
-                    GraphDelta<IK, C> d = s.process(c, this.haf, g, null, registrar, new StmtAndContext<>(s, c));
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
                     if (d == null) {
                         throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
                     }
@@ -395,8 +393,8 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
      * @param n node to get the dependencies for
      * @return set of dependencies
      */
-    private Set<StmtAndContext<IK, C>> getInterestingDependencies(/*PointsToGraphNode*/int n) {
-        Set<StmtAndContext<IK, C>> sacs = this.interestingDepedencies.get(n);
+    private Set<StmtAndContext> getInterestingDependencies(/*PointsToGraphNode*/int n) {
+        Set<StmtAndContext> sacs = this.interestingDepedencies.get(n);
         if (sacs == null) {
             return Collections.emptySet();
         }
@@ -412,13 +410,13 @@ public class PointsToAnalysisMultiThreaded<IK extends InstanceKey, C extends Con
      * @param sac statement and context that depends on <code>n</code>
      * @return true if the dependency did not already exist
      */
-    boolean addInterestingDependency(/*PointsToGraphNode*/int n, StmtAndContext<IK, C> sac) {
+    boolean addInterestingDependency(/*PointsToGraphNode*/int n, StmtAndContext sac) {
         // use double checked approach...
 
-        Set<StmtAndContext<IK, C>> s = this.interestingDepedencies.get(n);
+        Set<StmtAndContext> s = this.interestingDepedencies.get(n);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<StmtAndContext<IK, C>> existing = this.interestingDepedencies.putIfAbsent(n, s);
+            Set<StmtAndContext> existing = this.interestingDepedencies.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;
             }

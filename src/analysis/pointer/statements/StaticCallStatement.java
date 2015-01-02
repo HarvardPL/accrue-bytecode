@@ -17,12 +17,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a static method call
  */
-public class StaticCallStatement<IK extends InstanceKey, C extends Context> extends CallStatement<IK, C> {
+public class StaticCallStatement extends CallStatement {
 
     /**
      * Called method
@@ -36,16 +35,25 @@ public class StaticCallStatement<IK extends InstanceKey, C extends Context> exte
     /**
      * Points-to statement for a static method invocation.
      *
-     * @param callSite Method call site
-     * @param caller caller method
-     * @param callee Method being called
-     * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
-     * @param actuals Actual arguments to the call
-     * @param exception Node representing the exception thrown by this call (if any)
-     * @param calleeSummary summary nodes for formals and exits of the callee
-     * @param receiver Receiver of the call
+     * @param callSite
+     *            Method call site
+     * @param caller
+     *            caller method
+     * @param callee
+     *            Method being called
+     * @param result
+     *            Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
+     * @param actuals
+     *            Actual arguments to the call
+     * @param exception
+     *            Node representing the exception thrown by this call (if any)
+     * @param calleeSummary
+     *            summary nodes for formals and exits of the callee
+     * @param receiver
+     *            Receiver of the call
      */
-    protected StaticCallStatement(CallSiteReference callSite, IMethod caller, IMethod callee, ReferenceVariable result,
+    protected StaticCallStatement(CallSiteReference callSite, IMethod caller,
+                                  IMethod callee, ReferenceVariable result,
                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
                                   MethodSummaryNodes calleeSummary) {
         super(callSite, caller, result, actuals, exception);
@@ -54,8 +62,8 @@ public class StaticCallStatement<IK extends InstanceKey, C extends Context> exte
     }
 
     @Override
-    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK, C> haf, PointsToGraph<IK, C> g,
-                                     GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+                              PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         return this.processCall(context, null, this.callee, g, haf, this.calleeSummary);
     }
 
@@ -101,16 +109,18 @@ public class StaticCallStatement<IK extends InstanceKey, C extends Context> exte
     }
 
     @Override
-    public Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
-        List<ReferenceVariableReplica> uses = new ArrayList<>(2 + this.getActuals().size());
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
+        List<ReferenceVariableReplica> uses = new ArrayList<>(2 + this.getActuals()
+                .size());
 
         for (ReferenceVariable use : this.getActuals()) {
             if (use != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
+                ReferenceVariableReplica n =
+ new ReferenceVariableReplica(ctxt, use, haf);
                 uses.add(n);
             }
         }
-        C calleeContext = haf.merge(this.callSite, null, ctxt);
+        Context calleeContext = haf.merge(this.callSite, null, ctxt);
         ReferenceVariableReplica ex = new ReferenceVariableReplica(calleeContext,
                                                                    this.calleeSummary.getException(),
                                                                    haf);
@@ -126,7 +136,7 @@ public class StaticCallStatement<IK extends InstanceKey, C extends Context> exte
     }
 
     @Override
-    public Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<IK, C> haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         List<ReferenceVariableReplica> defs = new ArrayList<>(2 + this.callee.getNumberOfParameters());
 
         if (this.getResult() != null) {
@@ -136,7 +146,7 @@ public class StaticCallStatement<IK extends InstanceKey, C extends Context> exte
             defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
         }
         // Write to the arguments of the callee.
-        C calleeContext = haf.merge(this.callSite, null, ctxt);
+        Context calleeContext = haf.merge(this.callSite, null, ctxt);
         for (int i = 0; i < this.callee.getNumberOfParameters(); i++) {
             ReferenceVariable rv = this.calleeSummary.getFormal(i);
             if (rv != null) {

@@ -16,12 +16,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to graph statement for a phi, representing choice at control flow merges. v = phi(x1, x2, ...)
  */
-public class PhiStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
+public class PhiStatement extends PointsToStatement {
 
     /**
      * Value assigned into
@@ -51,16 +50,16 @@ public class PhiStatement<IK extends InstanceKey, C extends Context> extends Poi
     }
 
     @Override
-    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK,C> haf,
-                                     PointsToGraph<IK,C> g, GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode a = new ReferenceVariableReplica(context, assignee, haf);
 
-        GraphDelta<IK, C> changed = new GraphDelta<>(g);
+        GraphDelta changed = new GraphDelta(g);
         // For every possible branch add edges into assignee
         for (ReferenceVariable use : uses) {
             PointsToGraphNode n = new ReferenceVariableReplica(context, use, haf);
             // no need to use delta, as this just adds subset relations.
-            GraphDelta<IK, C> d1 = g.copyEdges(n, a);
+            GraphDelta d1 = g.copyEdges(n, a);
 
             changed = changed.combine(d1);
         }
@@ -96,8 +95,8 @@ public class PhiStatement<IK extends InstanceKey, C extends Context> extends Poi
     }
 
     @Override
-    public Collection<?> getReadDependencies(C ctxt,
-            HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
         List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
         for (ReferenceVariable use : uses) {
             ReferenceVariableReplica n =
@@ -108,8 +107,8 @@ public class PhiStatement<IK extends InstanceKey, C extends Context> extends Poi
     }
 
     @Override
-    public Collection<?> getWriteDependencies(C ctxt,
-            HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getWriteDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, assignee, haf));
     }
 

@@ -18,7 +18,7 @@ import com.ibm.wala.types.MethodReference;
 /**
  * Points-to statement for a call to a method
  */
-public abstract class CallStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
+public abstract class CallStatement extends PointsToStatement {
 
     /**
      * Call site
@@ -79,15 +79,14 @@ public abstract class CallStatement<IK extends InstanceKey, C extends Context> e
      *            summary nodes for formals and exits of the callee
      * @return true if the points-to graph has changed
      */
-    protected final GraphDelta<IK, C> processCall(C callerContext,
- IK receiver, IMethod callee, PointsToGraph<IK, C> g,
- HeapAbstractionFactory<IK, C> haf,
-                                           MethodSummaryNodes calleeSummary) {
+    protected final GraphDelta processCall(Context callerContext,
+            InstanceKey receiver, IMethod callee, PointsToGraph g,
+            HeapAbstractionFactory haf, MethodSummaryNodes calleeSummary) {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
-        C calleeContext = haf.merge(callSite, receiver, callerContext);
-        GraphDelta<IK, C> changed = new GraphDelta<>(g);
+        Context calleeContext = haf.merge(callSite, receiver, callerContext);
+        GraphDelta changed = new GraphDelta(g);
 
         // Record the call in the call graph
         g.addCall(callSite.getReference(),
@@ -111,7 +110,7 @@ public abstract class CallStatement<IK extends InstanceKey, C extends Context> e
             assert checkTypes(resultRep, calleeReturn);
 
             // The assignee can point to anything the return summary node in the callee can point to
-            GraphDelta<IK, C> retChange = g.copyEdges(calleeReturn, resultRep);
+            GraphDelta retChange = g.copyEdges(calleeReturn, resultRep);
             changed = changed.combine(retChange);
         }
 
@@ -124,7 +123,7 @@ public abstract class CallStatement<IK extends InstanceKey, C extends Context> e
                     new ReferenceVariableReplica(calleeContext,
                                                                             calleeSummary.getFormal(0),
                                                                             haf);
-            GraphDelta<IK, C> receiverChange = g.addEdge(thisRep, receiver);
+            GraphDelta receiverChange = g.addEdge(thisRep, receiver);
             changed = changed.combine(receiverChange);
         }
 
@@ -150,7 +149,7 @@ public abstract class CallStatement<IK extends InstanceKey, C extends Context> e
             assert checkTypes(formalRep, actualRep);
 
             // Add edges from the points-to set for the actual argument to the formal argument
-            GraphDelta<IK, C> d1 = g.copyEdges(actualRep, formalRep);
+            GraphDelta d1 = g.copyEdges(actualRep, formalRep);
             changed = changed.combine(d1);
         }
 
@@ -162,7 +161,7 @@ public abstract class CallStatement<IK extends InstanceKey, C extends Context> e
                                                                          haf);
 
         // The exception in the caller can point to anything the summary node in the callee can point to
-        GraphDelta<IK, C> exChange = g.copyEdges(calleeEx, callerEx);
+        GraphDelta exChange = g.copyEdges(calleeEx, callerEx);
         changed = changed.combine(exChange);
 
         return changed;

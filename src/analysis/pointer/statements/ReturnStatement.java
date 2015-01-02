@@ -14,12 +14,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a "return" instruction
  */
-public class ReturnStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
+public class ReturnStatement extends PointsToStatement {
 
     /**
      * Node for return result
@@ -48,8 +47,8 @@ public class ReturnStatement<IK extends InstanceKey, C extends Context> extends 
     }
 
     @Override
-    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK,C> haf,
-                                     PointsToGraph<IK,C> g, GraphDelta<IK, C> delta, StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf,
+            PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica returnRes =
  new ReferenceVariableReplica(context, result, haf);
         ReferenceVariableReplica summaryRes =
@@ -82,15 +81,15 @@ public class ReturnStatement<IK extends InstanceKey, C extends Context> extends 
     }
 
     @Override
-    public Collection<?> getReadDependencies(C ctxt,
-            HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getReadDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
         ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, result, haf);
         return Collections.singleton(r);
     }
 
     @Override
-    public Collection<?> getWriteDependencies(C ctxt,
-            HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getWriteDependencies(Context ctxt,
+            HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(ctxt, returnSummary, haf));
     }
 

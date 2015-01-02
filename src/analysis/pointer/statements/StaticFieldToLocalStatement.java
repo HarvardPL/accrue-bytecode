@@ -15,12 +15,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for an assignment from a static field to a local variable, v = o.x
  */
-public class StaticFieldToLocalStatement<IK extends InstanceKey, C extends Context> extends PointsToStatement<IK, C> {
+public class StaticFieldToLocalStatement extends PointsToStatement {
 
     /**
      * assignee
@@ -48,8 +47,8 @@ public class StaticFieldToLocalStatement<IK extends InstanceKey, C extends Conte
     }
 
     @Override
-    public GraphDelta<IK, C> process(C context, HeapAbstractionFactory<IK,C> haf, PointsToGraph<IK,C> g, GraphDelta<IK, C> delta,
-                                     StatementRegistrar<IK, C> registrar, StmtAndContext<IK, C> originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
 
         PointsToGraphNode l = new ReferenceVariableReplica(context, local, haf);
         PointsToGraphNode r = new ReferenceVariableReplica(haf.initialContext(), staticField, haf);
@@ -88,12 +87,12 @@ public class StaticFieldToLocalStatement<IK extends InstanceKey, C extends Conte
     }
 
     @Override
-    public Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
         return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
     }
 
     @Override
-    public Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<IK,C> haf) {
+    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
         ReferenceVariableReplica l = new ReferenceVariableReplica(ctxt, local, haf);
         return Collections.singleton(l);
     }

@@ -8,12 +8,11 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to analysis engine
  */
-public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context> {
+public abstract class PointsToAnalysis {
 
     /**
      * If true then debug strings may be more verbose, and memory usage may be higher, no additional output should be
@@ -23,7 +22,7 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
     /**
      * Defining abstraction factory for this points-to analysis
      */
-    protected final HeapAbstractionFactory<IK, C> haf;
+    protected final HeapAbstractionFactory haf;
 
     /**
      * Effects the amount of debugging output. See also {@link PointsToAnalysis#DEBUG}, which makes debug strings in
@@ -35,11 +34,11 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
     /**
      * Create a new analysis with the given abstraction
      */
-    public PointsToAnalysis(HeapAbstractionFactory<IK, C> haf) {
+    public PointsToAnalysis(HeapAbstractionFactory haf) {
         this.haf = haf;
     }
 
-    public HeapAbstractionFactory<IK, C> heapAbstractionFactory() {
+    public HeapAbstractionFactory heapAbstractionFactory() {
         return haf;
     }
 
@@ -51,20 +50,20 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
      *
      * @return points-to graph consistent with the statements in the registrar
      */
-    public abstract PointsToGraph<IK, C> solve(StatementRegistrar<IK, C> registrar);
+    public abstract PointsToGraph solve(StatementRegistrar registrar);
 
     /**
      * Points-to statement together with a code context
      */
-    public static class StmtAndContext<IK extends InstanceKey, C extends Context> {
+    public static class StmtAndContext {
         /**
          * Code context
          */
-        final C context;
+        final Context context;
         /**
          * Points-to statement
          */
-        final PointsToStatement<IK, C> stmt;
+        final PointsToStatement stmt;
 
         /**
          * Combination of a points-to statement and a code context
@@ -74,16 +73,16 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
          * @param context
          *            code context
          */
-        public StmtAndContext(PointsToStatement<IK, C> stmt, C context) {
+        public StmtAndContext(PointsToStatement stmt, Context context) {
             this.stmt = stmt;
             this.context = context;
         }
 
-        public Collection<?> getReadDependencies(HeapAbstractionFactory<IK, C> haf) {
+        public Collection<?> getReadDependencies(HeapAbstractionFactory haf) {
             return this.stmt.getReadDependencies(this.context, haf);
         }
 
-        public Collection<?> getWriteDependencies(HeapAbstractionFactory<IK, C> haf) {
+        public Collection<?> getWriteDependencies(HeapAbstractionFactory haf) {
             return this.stmt.getWriteDependencies(this.context, haf);
         }
 
@@ -108,7 +107,7 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
             if (this.getClass() != obj.getClass()) {
                 return false;
             }
-            StmtAndContext<IK, C> other = (StmtAndContext<IK, C>) obj;
+            StmtAndContext other = (StmtAndContext) obj;
             if (this.context == null) {
                 if (other.context != null) {
                     return false;
@@ -134,5 +133,5 @@ public abstract class PointsToAnalysis<IK extends InstanceKey, C extends Context
         }
     }
 
-    abstract public PointsToGraph<IK, C> solveAndRegister(StatementRegistrar<IK, C> registrar);
+    abstract public PointsToGraph solveAndRegister(StatementRegistrar registrar);
 }
