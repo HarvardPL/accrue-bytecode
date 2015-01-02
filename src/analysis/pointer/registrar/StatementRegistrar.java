@@ -730,8 +730,14 @@ public class StatementRegistrar {
                                      PrettyPrinter printer, MethodSummaryNodes methSumm, Set<ProgramPoint> callExits) {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
-        assert !insToPPSubGraph.containsKey(i) || i instanceof SSAGetCaughtExceptionInstruction;
-        PPSubGraph subgraph = new PPSubGraph(ir.getMethod(), i, printer);
+        PPSubGraph subgraph;
+        if (insToPPSubGraph.containsKey(i)) {
+            assert i instanceof SSAGetCaughtExceptionInstruction;
+            subgraph = insToPPSubGraph.get(i);
+        }
+        else {
+            subgraph = new PPSubGraph(ir.getMethod(), i, printer);
+        }
         insToPPSubGraph.put(i, subgraph);
 
         // Add statements for any string literals in the instruction
@@ -1686,9 +1692,9 @@ public class StatementRegistrar {
                     if (catchSG == null) {
                         catchSG = new PPSubGraph(ir.getMethod(), catchIns, pprint);
                         insToPPSubGraph.put(catchIns, catchSG);
-                        catchEntries.add(catchSG.entry());
-                        caught.setLocalDef(catchSG.entry());
                     }
+                    catchEntries.add(catchSG.entry());
+                    caught.setLocalDef(catchSG.entry());
                     ProgramPoint pp = subgraph.addException(succ, thrown.getExpectedType(), isGenerated, isCalleeThrow);
                     this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
                 }
