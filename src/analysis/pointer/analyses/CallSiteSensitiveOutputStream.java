@@ -6,8 +6,6 @@ import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.cha.IClassHierarchy;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.TypeReference;
@@ -15,7 +13,8 @@ import com.ibm.wala.types.TypeReference;
 /**
  * Analysis where the contexts are based on procedure call sites
  */
-public class CallSiteSensitiveOutputStream extends HeapAbstractionFactory {
+public class CallSiteSensitiveOutputStream extends
+        HeapAbstractionFactory<AllocationName<ContextStack<CallSiteLabel>>, ContextStack<CallSiteLabel>> {
 
     /**
      * Default depth of call sites to keep track of
@@ -62,15 +61,16 @@ public class CallSiteSensitiveOutputStream extends HeapAbstractionFactory {
         return sensitivity;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite, Context context) {
-        return AllocationName.create((ContextStack<CallSiteLabel>) context, allocationSite);
+    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite,
+                                                              ContextStack<CallSiteLabel> context) {
+        return AllocationName.create(context, allocationSite);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite,
+                                             AllocationName<ContextStack<CallSiteLabel>> receiver,
+                                             ContextStack<CallSiteLabel> callerContext) {
         if (printStreamClass == null) {
             cha = AnalysisUtil.getClassHierarchy();
             printStreamClass = cha.lookupClass(PS_TYPE);
@@ -79,7 +79,7 @@ public class CallSiteSensitiveOutputStream extends HeapAbstractionFactory {
         if (callSite.isStatic() || !cha.isAssignableFrom(printStreamClass, receiver.getConcreteType())) {
             callSite = null;
         }
-        return ((ContextStack<CallSiteLabel>) callerContext).push(callSite, sensitivity);
+        return callerContext.push(callSite, sensitivity);
     }
 
     @Override

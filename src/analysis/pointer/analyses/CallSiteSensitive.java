@@ -46,14 +46,12 @@ public class CallSiteSensitive extends
         return sensitivity;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite,
                                                               ContextStack<CallSiteLabel> context) {
         return AllocationName.create(context, allocationSite);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite,
                                              AllocationName<ContextStack<CallSiteLabel>> receiver,

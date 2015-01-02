@@ -3,13 +3,11 @@ package analysis.pointer.analyses;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-
 /**
  * Analysis that tracks call sites of (only) static methods
  */
-public class MagicCallSiteSensitive extends HeapAbstractionFactory {
+public class CallSiteSensitiveMagic extends
+        HeapAbstractionFactory<AllocationName<ContextStack<CallSiteLabel>>, ContextStack<CallSiteLabel>> {
 
     /**
      * Default depth of call sites to keep track of
@@ -21,7 +19,7 @@ public class MagicCallSiteSensitive extends HeapAbstractionFactory {
      * Create a static call site sensitive heap abstraction factory with the default depth, i.e. up to the default
      * number of static call sites are tracked
      */
-    public MagicCallSiteSensitive() {
+    public CallSiteSensitiveMagic() {
         this(DEFAULT_SENSITIVITY);
     }
 
@@ -32,7 +30,7 @@ public class MagicCallSiteSensitive extends HeapAbstractionFactory {
      * @param sensitivity
      *            depth of the call site stack
      */
-    public MagicCallSiteSensitive(int sensitivity) {
+    public CallSiteSensitiveMagic(int sensitivity) {
         this.sensitivity = sensitivity;
     }
 
@@ -41,15 +39,16 @@ public class MagicCallSiteSensitive extends HeapAbstractionFactory {
         return sensitivity;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite, Context context) {
-        return AllocationName.create((ContextStack<CallSiteLabel>) context, allocationSite);
+    public AllocationName<ContextStack<CallSiteLabel>> record(AllocSiteNode allocationSite,
+                                                              ContextStack<CallSiteLabel> context) {
+        return AllocationName.create(context, allocationSite);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
+    public ContextStack<CallSiteLabel> merge(CallSiteLabel callSite,
+                                             AllocationName<ContextStack<CallSiteLabel>> receiver,
+                                             ContextStack<CallSiteLabel> callerContext) {
         if (!callSite.getCallee().toString().contains("bouncycastle")
                 && !callSite.getCallee().toString().contains("intToBigEndian")) {
             // only track call sites to generateDerivedKey.
@@ -59,7 +58,7 @@ public class MagicCallSiteSensitive extends HeapAbstractionFactory {
             System.err.println("CALLING: " + callSite);
         }
 
-        return ((ContextStack<CallSiteLabel>) callerContext).push(callSite, sensitivity);
+        return callerContext.push(callSite, sensitivity);
     }
 
     @Override

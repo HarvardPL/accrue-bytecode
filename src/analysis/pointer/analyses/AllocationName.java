@@ -15,7 +15,7 @@ import com.ibm.wala.util.collections.Pair;
 /**
  * Heap context that is the allocation site and the context for the allocation site
  */
-public class AllocationName<CC extends Context> implements InstanceKey {
+class AllocationName<CC extends Context> implements InstanceKey {
 
     /**
      * Allocation site
@@ -28,12 +28,12 @@ public class AllocationName<CC extends Context> implements InstanceKey {
 
     /**
      * Unique name for an allocation site with the given context and allocation site node
-     * 
+     *
      * @param allocationContext
      *            context in which the allocation occurs
      * @param asn
      *            allocation site
-     * 
+     *
      * @return allocation site name
      */
     public static <CC extends Context> AllocationName<CC> create(
@@ -46,7 +46,7 @@ public class AllocationName<CC extends Context> implements InstanceKey {
 
     /**
      * New allocation site
-     * 
+     *
      * @param allocationContext
      *            context in which the allocation occurs
      * @param asn

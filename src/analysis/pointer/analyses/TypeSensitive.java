@@ -1,11 +1,7 @@
 package analysis.pointer.analyses;
 
-import util.print.PrettyPrinter;
-import analysis.pointer.analyses.TypeSensitive.ClassWrapper;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
-
-import com.ibm.wala.classLoader.IClass;
 
 /**
  * A Type Sensitive pointer analysis (nType+mH), as described in
@@ -87,44 +83,5 @@ public class TypeSensitive extends
     @Override
     public String toString() {
         return n + "Type+" + m + "H";
-    }
-
-    /**
-     * We want nicer printing so wrap the class in a lightweight wrapper
-     */
-    protected static class ClassWrapper {
-
-        private IClass c;
-
-        ClassWrapper(IClass c) {
-            assert c != null;
-            this.c = c;
-        }
-
-        @Override
-        public String toString() {
-            return PrettyPrinter.typeString(c);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 + c.hashCode();
-        }
-
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            ClassWrapper other = (ClassWrapper) obj;
-            return c == other.c;
-        }
     }
 }

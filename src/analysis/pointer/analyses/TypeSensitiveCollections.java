@@ -1,12 +1,9 @@
 package analysis.pointer.analyses;
 
-import util.print.PrettyPrinter;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
 
 import com.ibm.wala.classLoader.IClass;
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * A Type Sensitive pointer analysis (nType+mH), as described in
@@ -16,7 +13,8 @@ import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
  * it is recommended that one combine this with another abstraction to recover precision for static calls (e.g.
  * StaticCallStiteSensitive)
  */
-public class CollectionsTypeSensitive extends HeapAbstractionFactory {
+public class TypeSensitiveCollections extends
+        HeapAbstractionFactory<AllocationName<ContextStack<ClassWrapper>>, ContextStack<ClassWrapper>> {
 
     /**
      * Number of elements to record for Calling Contexts
@@ -46,7 +44,7 @@ public class CollectionsTypeSensitive extends HeapAbstractionFactory {
      * @param m
      *            depth of heap context stack
      */
-    public CollectionsTypeSensitive(int n, int m) {
+    public TypeSensitiveCollections(int n, int m) {
         this.n = n;
         this.m = m;
     }
@@ -65,25 +63,26 @@ public class CollectionsTypeSensitive extends HeapAbstractionFactory {
     /**
      * Create a type sensitive abstraction factory with the default parameters
      */
-    public CollectionsTypeSensitive() {
+    public TypeSensitiveCollections() {
         this(DEFAULT_TYPE_DEPTH, DEFAULT_HEAP_DEPTH);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public ContextStack<ClassWrapper> merge(CallSiteLabel callSite, InstanceKey receiver, Context callerContext) {
-        AllocationName<ContextStack<ClassWrapper>> rec = (AllocationName<ContextStack<ClassWrapper>>) receiver;
+    public ContextStack<ClassWrapper> merge(CallSiteLabel callSite,
+                                            AllocationName<ContextStack<ClassWrapper>> receiver,
+                                            ContextStack<ClassWrapper> callerContext) {
+        AllocationName<ContextStack<ClassWrapper>> rec = receiver;
         if (!callSite.isStatic() && isJavaUtil(receiver.getConcreteType())) {
             return rec.getContext().push(new ClassWrapper(rec.getAllocationSite().getAllocatingClass()), n);
         }
         return initialContext();
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public AllocationName<ContextStack<ClassWrapper>> record(AllocSiteNode allocationSite, Context context) {
+    public AllocationName<ContextStack<ClassWrapper>> record(AllocSiteNode allocationSite,
+                                                             ContextStack<ClassWrapper> context) {
         if (isJavaUtil(allocationSite.getAllocatingClass())) {
-            ContextStack<ClassWrapper> allocationContext = ((ContextStack<ClassWrapper>) context).truncate(m);
+            ContextStack<ClassWrapper> allocationContext = context.truncate(m);
             return AllocationName.create(allocationContext, allocationSite);
         }
         return AllocationName.create(initialContext(), allocationSite);
@@ -97,44 +96,5 @@ public class CollectionsTypeSensitive extends HeapAbstractionFactory {
     @Override
     public String toString() {
         return "Collections-" + n + "Type+" + m + "H";
-    }
-
-    /**
-     * We want nicer printing so wrap the class in a lightweight wrapper
-     */
-    protected static class ClassWrapper {
-
-        private IClass c;
-
-        ClassWrapper(IClass c) {
-            assert c != null;
-            this.c = c;
-        }
-
-        @Override
-        public String toString() {
-            return PrettyPrinter.typeString(c);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 + c.hashCode();
-        }
-
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            ClassWrapper other = (ClassWrapper) obj;
-            return c == other.c;
-        }
     }
 }

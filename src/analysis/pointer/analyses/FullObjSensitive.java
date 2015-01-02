@@ -1,12 +1,7 @@
 package analysis.pointer.analyses;
 
-import analysis.pointer.analyses.FullObjSensitive.AllocationNameContext;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import analysis.pointer.statements.CallSiteLabel;
-
-import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.ContextItem;
-import com.ibm.wala.ipa.callgraph.ContextKey;
 
 /**
  * A full object sensitive analysis, as described in "Pick Your Contexts Well: Understanding Object-Sensitivity" by
@@ -80,65 +75,5 @@ public class FullObjSensitive extends
     @Override
     public String toString() {
         return n + "FullObjSens+1H";
-    }
-
-    public static class AllocationNameContext implements Context {
-        private final AllocationName<ContextStack<AllocSiteNode>> an;
-
-        AllocationNameContext(AllocationName<ContextStack<AllocSiteNode>> an) {
-            this.an = an;
-        }
-
-        public static AllocationNameContext create(
-                AllocationName<ContextStack<AllocSiteNode>> an) {
-            // XXX ANDREW: maybe make this memoize. Steve: Yes, in the meantime ensure we have equality defined.
-
-            return new AllocationNameContext(an);
-        }
-
-        @Override
-        public ContextItem get(ContextKey name) {
-            return null;
-        }
-
-        public AllocationName<ContextStack<AllocSiteNode>> allocationName() {
-            return an;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + (an == null ? 0 : an.hashCode());
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof AllocationNameContext)) {
-                return false;
-            }
-            AllocationNameContext other = (AllocationNameContext) obj;
-            if (an == null) {
-                if (other.an != null) {
-                    return false;
-                }
-            }
-            else if (!an.equals(other.an)) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return String.valueOf(an);
-        }
     }
 }
