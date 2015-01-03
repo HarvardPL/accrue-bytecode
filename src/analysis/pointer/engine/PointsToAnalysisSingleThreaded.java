@@ -267,15 +267,18 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                             if (!reachabilitySubQueryQueue.remove(sq)) {
                                 throw new RuntimeException("Query should have been removed " + sq);
                             }
+                            numSubQuery++;
                             g.ppReach.processSubQuery(sq);
                         }
                         else {
                             // addToSetQueue
+                            numAddToSet++;
                             addToSetQueue.poll().process(analysisHandle);
                         }
                     }
                     else {
                         // addNonMostRecentQueue
+                        numNonMostRecent++;
                         addNonMostRecentQueue.poll().process(analysisHandle);
                     }
                     continue;
@@ -301,7 +304,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         long endTime = System.currentTimeMillis();
-        System.err.println("Processed " + this.numProcessed + " (statement, context) pairs"
+        System.err.println("Processed " + this.numSaCProcessed + " (statement, context) pairs"
                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : ""));
         long totalTime = endTime - this.startTime;
         System.err.println("   Total time       : " + totalTime / 1000 + "s.");
@@ -310,8 +313,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("   Topo sort time   : " + this.topoSortTime / 1000 + "s.");
         System.err.println("   => Analysis time - topo sort : "
                 + (totalTime - (this.registrationTime + this.topoSortTime)) / 1000 + "s.");
-        System.err.println("   Num no delta processed " + this.numNoDeltaProcessed);
-        System.err.println("   Num with delta processed " + (this.numProcessed - this.numNoDeltaProcessed));
+        System.err.println("   Num no delta processed " + this.numSaCNoDeltaProcessed);
+        System.err.println("   Num with delta processed " + (this.numSaCProcessed - this.numSaCNoDeltaProcessed));
 
         System.err.println("  counts: ");
         for (String key : this.counts.keySet()) {
@@ -381,11 +384,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return true;
     }
 
-    int numProcessed = 0;
-    int lastNumProcessed = 0;
-    int numNoDeltaProcessed = 0;
-    int lastNumNoDeltaProcessed = 0;
+    int numSaCProcessed = 0;
+    int lastNumSaCProcessed = 0;
+    int numSaCNoDeltaProcessed = 0;
+    int lastNumSaCNoDeltaProcessed = 0;
     int processedWithNoChange = 0;
+    int numSubQuery = 0;
+    int numAddToSet = 0;
+    int numNonMostRecent = 0;
     long registrationTime = 0;
     long topoSortTime = 0;
     long nextMilestone;
@@ -399,9 +405,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                             Queue<StmtAndContext> noDeltaQueue, Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
                             Queue<AddToSetOrigin> addToSetQueue, Set<ProgramPointSubQuery> reachabilitySubQueryQueue) {
         // Do some accounting for debugging/informational purposes.
-        this.numProcessed++;
+        this.numSaCProcessed++;
         if (delta == null) {
-            this.numNoDeltaProcessed++;
+            this.numSaCNoDeltaProcessed++;
         }
         else {
             String c = sac.stmt.getClass().getSimpleName();
@@ -437,17 +443,17 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 this.nextMilestone = this.nextMilestone + 1000 * 30; // 30 seconds
             } while (currTime > this.nextMilestone);
 
-            Set<ProgramPointSubQuery> reachabilitySubQueryQueueSet = new HashSet<>(reachabilitySubQueryQueue);
-            System.err.println("PROCESSED: " + this.numProcessed + " in " + (currTime - this.startTime) / 1000
-                    + "s; number of source node " + g.numPointsToGraphNodes() + "; queue=" + currentQueue.size()
-                    + " nextQueue=" + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size()
-                    + " addNonMostRecentQueue=" + addNonMostRecentQueue.size() + " addToSetQueue="
-                    + addToSetQueue.size() + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size()
-                    + " of which " + reachabilitySubQueryQueueSet.size() + " are unique ("
-                    + (this.numProcessed - this.lastNumProcessed) + " in " + (currTime - this.lastTime) / 1000 + "s)");
+            System.err.println("PROCESSED: " + this.numSaCProcessed + " SaC, " + numSubQuery + " subQuery, "
+                    + numAddToSet + " addToSet, " + numNonMostRecent + " nonMostRecent in "
+                    + (currTime - this.startTime) / 1000 + "s; number of source node " + g.numPointsToGraphNodes()
+                    + "; queue=" + currentQueue.size() + " nextQueue=" + nextQueue.size() + " noDeltaQueue="
+                    + noDeltaQueue.size() + " addNonMostRecentQueue=" + addNonMostRecentQueue.size()
+                    + " addToSetQueue=" + addToSetQueue.size() + " reachabilitySubQueryQueue="
+                    + reachabilitySubQueryQueue.size() + " (" + (this.numSaCProcessed - this.lastNumSaCProcessed)
+                    + " in " + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
-            this.lastNumProcessed = this.numProcessed;
-            this.lastNumNoDeltaProcessed = this.numNoDeltaProcessed;
+            this.lastNumSaCProcessed = this.numSaCProcessed;
+            this.lastNumSaCNoDeltaProcessed = this.numSaCNoDeltaProcessed;
             this.processedWithNoChange = 0;
         }
     }
