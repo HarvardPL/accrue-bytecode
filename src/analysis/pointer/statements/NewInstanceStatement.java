@@ -1,6 +1,8 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -11,6 +13,7 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableReplica;
+import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
@@ -22,15 +25,22 @@ import com.ibm.wala.ipa.callgraph.Context;
 
 public class NewInstanceStatement<C extends Context> extends PointsToStatement<AllocationName<C>, C> {
 
-    ReferenceVariable result;
-    ReferenceVariable receiver;
+    private final ReferenceVariable result;
+    private ReferenceVariable receiver;
+    private final CallSiteLabel callSite;
+    private final MethodSummaryNodes calleeSummary;
+    private final ReferenceVariable exception;
 
     // TODO: Is it bad that I don't have a one argument constructor?
 
-    public NewInstanceStatement(IMethod m, ReferenceVariable result, ReferenceVariable receiver) {
+    public NewInstanceStatement(IMethod m, ReferenceVariable result, ReferenceVariable receiver,
+                                CallSiteLabel callSite, MethodSummaryNodes calleeSummary, ReferenceVariable exception) {
         super(m);
         this.result = result;
         this.receiver = receiver;
+        this.callSite = callSite;
+        this.calleeSummary = calleeSummary;
+        this.exception = exception;
     }
 
     @Override
@@ -41,7 +51,14 @@ public class NewInstanceStatement<C extends Context> extends PointsToStatement<A
                                                     StmtAndContext<AllocationName<C>, C> originator) {
         PointsToGraphNode receiverInContext = new ReferenceVariableReplica(context, this.receiver, haf);
 
-        Iterator<AllocationName<C>> ans = delta.pointsToIterator(receiverInContext);
+        Iterator<AllocationName<C>> ans;
+        if (delta == null) {
+            ans = g.pointsToIterator(receiverInContext);
+        }
+        else {
+            ans = delta.pointsToIterator(receiverInContext);
+        }
+        GraphDelta<AllocationName<C>, C> d = new GraphDelta<>(g);
 
         while (ans.hasNext()) {
             AllocationName<C> an = ans.next();
@@ -57,45 +74,61 @@ public class NewInstanceStatement<C extends Context> extends PointsToStatement<A
                 assert newHeapContext != null;
                 ReferenceVariableReplica resultInContext = new ReferenceVariableReplica(context, this.result, haf);
                 // TODO: Does this do what I want?
-                delta = delta.combine(g.addEdge(resultInContext, newHeapContext));
+                d = d.combine(g.addEdge(resultInContext, newHeapContext));
+            }
+            else {
+                throw new RuntimeException("alocsite was the wrong type " + allocsite + " " + allocsite.getClass());
             }
         }
-        return delta;
+        return d;
     }
 
     @Override
     public String toString() {
-        return "NewInstanceStatement";
+        return result + " = " + receiver + ".newInstance()";
     }
 
     @Override
     public void replaceUse(int useNumber, ReferenceVariable newVariable) {
-        // TODO Auto-generated method stub
-
+        assert useNumber == 0;
+        receiver = newVariable;
     }
 
     @Override
     public List<ReferenceVariable> getUses() {
-        // TODO Auto-generated method stub
-        return null;
+        return Collections.singletonList(receiver);
     }
 
     @Override
     public ReferenceVariable getDef() {
-        // TODO Auto-generated method stub
-        return null;
+        return result;
     }
 
     @Override
     public Collection<?> getReadDependencies(C ctxt, HeapAbstractionFactory<AllocationName<C>, C> haf) {
-        // TODO Auto-generated method stub
-        return null;
+        List<ReferenceVariableReplica> uses = new ArrayList<>(3);
+
+        ReferenceVariableReplica receiverRep = new ReferenceVariableReplica(ctxt, receiver, haf);
+        uses.add(receiverRep);
+
+        C calleeContext = haf.merge(this.callSite, null, ctxt);
+        ReferenceVariableReplica ex = new ReferenceVariableReplica(calleeContext,
+                                                                   this.calleeSummary.getException(),
+                                                                   haf);
+        uses.add(ex);
+
+        // Say that we read the return of the callee.
+        ReferenceVariableReplica n = new ReferenceVariableReplica(calleeContext, this.calleeSummary.getReturn(), haf);
+        uses.add(n);
+        return uses;
     }
 
     @Override
     public Collection<?> getWriteDependencies(C ctxt, HeapAbstractionFactory<AllocationName<C>, C> haf) {
-        // TODO Auto-generated method stub
-        return null;
+        List<ReferenceVariableReplica> defs = new ArrayList<>(2);
+        defs.add(new ReferenceVariableReplica(ctxt, result, haf));
+        defs.add(new ReferenceVariableReplica(ctxt, exception, haf));
+        return defs;
     }
 
 }

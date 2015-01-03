@@ -27,6 +27,7 @@ import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.CallSiteLabel;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -527,15 +528,37 @@ public class StatementRegistrar<IK extends InstanceKey, C extends Context> {
         if (targetMethod.equals(MethodReference.JavaLangClassNewInstance)) {
             // CODE: x = c.newInstance()
             // so this should be a new allocation site and x is a reference variable that should point to a new object from this allocation point
-            // XXX: This is horrible, casting is bad
-            this.addStatement((PointsToStatement<IK, C>) stmtFactory.newInstance(result, receiver, ir.getMethod()));
+            IMethod callee = AnalysisUtil.getClassHierarchy().resolveMethod(MethodReference.JavaLangClassNewInstance);
+            ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(),
+                                                                     types.getType(i.getException()),
+                                                                     ir.getMethod(),
+                                                                     pp);
+            // XXX This is bad!!!
+            this.addStatement((PointsToStatement<IK, C>) stmtFactory.newInstance(result,
+                                                                                 receiver,
+                                                                                 ir.getMethod(),
+                                                                                 new CallSiteLabel(ir.getMethod(),
+                                                                                                   i.getCallSite()),
+                                                                                 findOrCreateMethodSummary(callee,
+                                                                                                           rvFactory),
+                                                                                 exception));
         }
         else if (targetMethod.equals(MethodReference.JavaLangClassForName)) {
             assert actuals.size() == 1; // TODO: there is also a three argument version
             this.addStatement(stmtFactory.stringToClass(result, actuals.get(1), ir.getMethod()));
         }
         else if (targetMethod.equals(JavaLangObjectGetClass)) {
-            this.addStatement(stmtFactory.objectToClass(result, receiver, ir.getMethod()));
+            IMethod callee = AnalysisUtil.getClassHierarchy().resolveMethod(JavaLangObjectGetClass);
+            ReferenceVariable exception = rvFactory.getOrCreateLocal(i.getException(),
+                                                                     types.getType(i.getException()),
+                                                                     ir.getMethod(),
+                                                                     pp);
+            this.addStatement(stmtFactory.objectToClass(result,
+                                                        receiver,
+                                                        ir.getMethod(),
+                                                        new CallSiteLabel(ir.getMethod(), i.getCallSite()),
+                                                        findOrCreateMethodSummary(callee, rvFactory),
+                                                        exception));
         }
         return;
     }

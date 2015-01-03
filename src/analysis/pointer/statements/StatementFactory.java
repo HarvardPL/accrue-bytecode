@@ -573,10 +573,12 @@ public class StatementFactory<IK extends InstanceKey, C extends Context> {
         return s;
     }
 
-    public NewInstanceStatement<C> newInstance(ReferenceVariable result, ReferenceVariable receiver, IMethod m) {
+    public NewInstanceStatement<C> newInstance(ReferenceVariable result, ReferenceVariable receiver, IMethod m,
+                                               CallSiteLabel callSite, MethodSummaryNodes calleeSummary,
+                                               ReferenceVariable exception) {
         assert result != null;
         assert receiver != null;
-        NewInstanceStatement<C> s = new NewInstanceStatement<>(m, result, receiver);
+        NewInstanceStatement<C> s = new NewInstanceStatement<>(m, result, receiver, callSite, calleeSummary, exception);
         // TODO: This is totally wrong, but I'm not sure what to do...
         assert map.put(new StatementKey(m, result, receiver), (PointsToStatement<IK, C>) s) == null;
         return s;
@@ -590,10 +592,17 @@ public class StatementFactory<IK extends InstanceKey, C extends Context> {
         return s;
     }
 
-    public ObjectToClassStatement<IK, C> objectToClass(ReferenceVariable result, ReferenceVariable receiver, IMethod m) {
+    public ObjectToClassStatement<IK, C> objectToClass(ReferenceVariable result, ReferenceVariable receiver, IMethod m,
+                                                       CallSiteLabel callSite, MethodSummaryNodes calleeSummary,
+                                                       ReferenceVariable exception) {
         assert result != null;
         assert receiver != null;
-        ObjectToClassStatement<IK, C> s = new ObjectToClassStatement<>(m, result, receiver);
+        ObjectToClassStatement<IK, C> s = new ObjectToClassStatement<>(m,
+                                                                       result,
+                                                                       receiver,
+                                                                       callSite,
+                                                                       calleeSummary,
+                                                                       exception);
         assert map.put(new StatementKey(m, result, receiver), s) == null;
         return s;
     }
