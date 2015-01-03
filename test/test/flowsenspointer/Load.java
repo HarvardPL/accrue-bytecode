@@ -10,6 +10,8 @@ public class Load extends TestBaseClass {
         // (most-recent a2).f --> most-recent a1
         mostRecent(s);
         mostRecent(s.f);
+        pointsToSize(s, 1);
+        pointsToSize(s.f, 1);
 
         Object o = s.f;
         // o --> most-recent a1
@@ -17,6 +19,9 @@ public class Load extends TestBaseClass {
         mostRecent(o);
         mostRecent(s);
         mostRecent(s.f);
+        pointsToSize(s, 1);
+        pointsToSize(s.f, 1);
+        pointsToSize(o, 1);
 
         Load s2 = new Load(); // a3
         // o still points to the most-recent since we are able to distinguish the two calls to Load.<init>
@@ -25,6 +30,9 @@ public class Load extends TestBaseClass {
         mostRecent(o);
         mostRecent(s);
         mostRecent(s.f);
+        pointsToSize(s, 1);
+        pointsToSize(s.f, 1);
+        pointsToSize(o, 1);
 
         Object o2 = s2.f;
         // o2 --> most-recent a1
@@ -32,6 +40,9 @@ public class Load extends TestBaseClass {
         mostRecent(o2);
         mostRecent(s2);
         mostRecent(s2.f);
+        pointsToSize(s, 1);
+        pointsToSize(s.f, 1);
+        pointsToSize(o, 1);
 
     }
 }
