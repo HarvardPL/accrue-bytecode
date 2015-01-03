@@ -89,7 +89,7 @@ public class StatementRegistrar {
     private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesWithinMethod;
 
     /**
-     * Program point for the normal exit of a class initialization method
+     * Program point for the call to a class initialization method
      */
     private final ConcurrentMap<IMethod, CallSiteProgramPoint> programPointForClassInit;
 
@@ -184,6 +184,10 @@ public class StatementRegistrar {
      * Program points for the entry to catch instructions
      */
     private final Set<ProgramPoint> catchEntries = new HashSet<>();
+    /**
+     * These are classes with no class initializer but with static fields
+     */
+    private final Set<IClass> noClinitWithStaticFields = new HashSet<>();
 
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
@@ -302,7 +306,7 @@ public class StatementRegistrar {
             }
 
             if (m.isClinit()) {
-                // XXX the following is to make sure static fields point to null before the clinit
+                // the following is to make sure static fields point to null before the clinit
                 ProgramPoint entry = methSumm.getEntryPP();
                 ProgramPoint prev = null;
                 ProgramPoint first = null;
@@ -311,20 +315,22 @@ public class StatementRegistrar {
                         // No need to do anything with primitive fields
                         continue;
                     }
-                    if (f.getDeclaringClass().equals(m.getDeclaringClass())) {
-                        // The static field is in the class we are initializing
-                        ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
-                        ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
-                        addStatement(stmtFactory.nullToLocal(staticField, pp));
-                        if (first == null) {
-                            first = pp;
-                        }
-                        else {
-                            assert prev != null;
-                            prev.addSucc(pp);
-                        }
-                        prev = pp;
+                    if (!f.getDeclaringClass().equals(m.getDeclaringClass())) {
+                        // The static field is not in the class we are initializing it will be initialized elsewhere
+                        continue;
                     }
+                    // The static field is in the class we are initializing
+                    ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                    ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
+                    addStatement(stmtFactory.nullToLocal(staticField, pp));
+                    if (first == null) {
+                        first = pp;
+                    }
+                    else {
+                        assert prev != null;
+                        prev.addSucc(pp);
+                    }
+                    prev = pp;
                 }
                 if (first != null) {
                     // Some program points were added
@@ -753,26 +759,20 @@ public class StatementRegistrar {
                                                 printer,
                                                 insToPPSubGraph,
                                                 methSumm);
-
         IClass reqInit = ClassInitFinder.getRequiredInitializedClass(i);
         if (reqInit != null) {
             // There is a class that must be initialized before executing this instruction
             List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
             assert inits != null;
             if (!inits.isEmpty()) {
-
                 // this is the location of the class initialization _statement_ not the class initializer itself
                 // So this triggers the processing of a new clinit, but is not the call site for the clinit
                 // (which is in the root method)
                 ProgramPoint clinitPP = subgraph.addIntermediateNormal("clinit " + PrettyPrinter.typeString(reqInit));
                 this.registerClassInitializers(i, clinitPP, inits);
-
-                if (!this.programPointForClassInit.containsKey(reqInit)) {
-                    // We have not seen this class before
-                    // record program points for the class initializers
-                    this.addProgramPointsForClassInitializers(reqInit);
-                }
             }
+            // record program points for the class initializers
+            this.addProgramPointsForClassInitializers(reqInit);
         }
 
         InstructionType type = InstructionType.forInstruction(i);
@@ -1738,13 +1738,33 @@ public class StatementRegistrar {
      * @param reqInit class that must be initialized
      */
     private void addProgramPointsForClassInitializers(IClass reqInit) {
+        List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
+        if (inits.isEmpty()) {
+            if (!reqInit.getAllStaticFields().isEmpty() && noClinitWithStaticFields.add(reqInit)) {
+                // There is no initializer, but there are static fields
+                // We still need to set these fields to null
+                for (IField f : reqInit.getAllStaticFields()) {
+                    if (!f.getDeclaringClass().equals(reqInit)) {
+                        // This field is in a superclass, it will be initialized elsewhere
+                        continue;
+                    }
+                    if (f.getFieldTypeReference().isPrimitiveType()) {
+                        // Primitive field
+                        continue;
+                    }
+                    ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                    ProgramPoint pp = new ProgramPoint(getEntryPoint(), staticField + " = null-lit");
+                    addStatement(stmtFactory.nullToLocal(staticField, pp));
+                    addEntryMethodProgramPoint(pp, false);
+                }
+            }
+            return;
+        }
+
         if (this.programPointForClassInit.containsKey(reqInit)) {
             // This class initializer was already added
             return;
         }
-
-        List<IMethod> inits = ClassInitFinder.getClassInitializersForClass(reqInit);
-        assert !inits.isEmpty();
 
         // list of program points for all required clinits
         LinkedList<ProgramPoint> pps = new LinkedList<>();
