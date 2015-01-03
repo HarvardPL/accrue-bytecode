@@ -1,11 +1,11 @@
 package test.flowsenspointer;
 
-public class SCall {
+public class SCall extends TestBaseClass {
 
     public static void main(String[] args) {
         Object o = SCall.foo();
-        o.hashCode();
         // o --> most-recent a1
+        mostRecent(o);
     }
 
     public static Object foo() {

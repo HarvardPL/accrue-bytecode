@@ -1,6 +1,6 @@
 package test.flowsenspointer;
 
-public class Load {
+public class Load extends TestBaseClass {
 
     public Object f = new Object(); // a1
 
@@ -32,14 +32,6 @@ public class Load {
         mostRecent(o2);
         mostRecent(s2);
         mostRecent(s2.f);
-
-    }
-
-    public static void mostRecent(Object o) {
-
-    }
-
-    public static void nonMostRecent(Object o) {
 
     }
 }

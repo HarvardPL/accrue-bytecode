@@ -1,6 +1,6 @@
 package test.flowsenspointer;
 
-public class New {
+public class New extends TestBaseClass {
 
     Object f;
 
@@ -8,13 +8,16 @@ public class New {
         New s = new New(); // a1
         // s --> a1
         s.foo();
+        mostRecent(s);
+        pointsToNull(s.f);
     }
 
     @SuppressWarnings("static-method")
     private void foo() {
-        @SuppressWarnings("unused")
-        New s = new New(); // a2
-        // s --> a2
+        New s2 = new New(); // a2
+        // s2 --> a2
+        mostRecent(s2);
+        pointsToNull(s2.f);
     }
 
 }

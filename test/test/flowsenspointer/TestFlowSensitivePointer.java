@@ -1,6 +1,7 @@
 package test.flowsenspointer;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -13,6 +14,7 @@ import main.AccrueAnalysisMain;
 import org.json.JSONException;
 
 import util.OrderedPair;
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.PointsToGraph;
@@ -49,28 +51,116 @@ import com.ibm.wala.types.TypeReference;
  */
 public class TestFlowSensitivePointer extends TestCase {
 
+    public static void testLoad() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Load", false);
+    }
+
+    public static void testLoadMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Load", true);
+    }
+
+    public static void testLoad2() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Load2", false);
+    }
+
+    public static void testLoad2MT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Load2", true);
+    }
+
+    public static void testMove() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Move", false);
+    }
+
+    public static void testMoveMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Move", true);
+    }
+
+    public static void testNew() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/New", false);
+    }
+
+    public static void testNewMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/New", true);
+    }
+
+    public static void testPreserve() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Preserve", false);
+    }
+
+    public static void testPreserveMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Preserve", true);
+    }
+
+    public static void testSCall() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/SCall", false);
+    }
+
+    public static void testSCallMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/SCall", true);
+    }
+
+    public static void testStore() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Store", false);
+    }
+
+    public static void testStoreMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Store", true);
+    }
+
+    public static void testStrongUpdate() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/StrongUpdate", false);
+    }
+
+    public static void testStrongUpdateMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/StrongUpdate", true);
+    }
+
+    public static void testVCall() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/VCall", false);
+    }
+
+    public static void testVCallMT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/VCall", true);
+    }
+
+    public static void testVCall2() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/VCall2", false);
+    }
+
+    public static void testVCall2MT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/VCall2", true);
+    }
+
     private static final String MOST_RECENT = "mostRecent";
     private static final String NON_MOST_RECENT = "nonMostRecent";
     private static final String POINTS_TO_NULL = "pointsToNull";
     private static final String POINTS_TO = "pointsTo";
     private static final String VOID_1_ARG_DESCRIPTOR = "(Ljava/lang/Object;)V";
     private static final ClassLoaderReference LOADER = ClassLoaderReference.Application;
+    private static final TypeReference TEST_BASE_CLASS = TypeReference.findOrCreate(LOADER, "L"
+            + "test/flowsenspointer/TestBaseClass");
 
-    private static Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> findArg(String className,
-                                                                                                String methodName,
+    private static Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> findArg(String methodName,
                                                                                                 PointsToGraph g) {
         Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> args = new LinkedHashSet<>();
         CallGraph cg = g.getCallGraph();
 
-        TypeReference tr = TypeReference.findOrCreate(LOADER, "L" + className);
-        MethodReference mr = MethodReference.findOrCreate(tr, methodName, VOID_1_ARG_DESCRIPTOR);
+        MethodReference mr = MethodReference.findOrCreate(TEST_BASE_CLASS, methodName, VOID_1_ARG_DESCRIPTOR);
         IMethod m = AnalysisUtil.getClassHierarchy().resolveMethod(mr);
-        assertTrue("No method found for " + mr, m != null);
+        if (m == null) {
+            System.err.println("TEST: WARNING " + PrettyPrinter.methodString(mr) + " not found");
+            return Collections.emptySet();
+        }
 
         Map<SSAInstruction, ProgramPoint> insToPP = g.getRegistrar().getInsToPP();
         ReferenceVariableCache rvCache = g.getRegistrar().getRvCache();
         for (CGNode n : cg) {
             IR ir = AnalysisUtil.getIR(n.getMethod());
+            if (ir == null) {
+                assert n.getMethod().isNative() : "No IR for non-native method "
+                        + PrettyPrinter.methodString(n.getMethod());
+                continue;
+            }
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction i : bb) {
                     if (i instanceof SSAInvokeInstruction) {
@@ -115,11 +205,8 @@ public class TestFlowSensitivePointer extends TestCase {
         return AccrueAnalysisMain.graph;
     }
 
-    private static void findMostRecent(PointsToGraph g, String className) {
-        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> mostRecent = findArg(className,
-                                                                                                  MOST_RECENT,
-                                                                                                  g);
-        assertFalse("No arguments found for " + MOST_RECENT + " when testing " + className, mostRecent.isEmpty());
+    private static void findMostRecent(PointsToGraph g) {
+        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> mostRecent = findArg(MOST_RECENT, g);
         for (OrderedPair<ReferenceVariableReplica, InterProgramPointReplica> p : mostRecent) {
             boolean foundMostRecent = false;
             Iterator<? extends InstanceKey> iter = g.pointsToIterator(p.fst(), p.snd());
@@ -144,11 +231,8 @@ public class TestFlowSensitivePointer extends TestCase {
         }
     }
 
-    private static void findPointsToNull(PointsToGraph g, String className) {
-        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> mostRecent = findArg(className,
-                                                                                                  POINTS_TO_NULL,
-                                                                                                  g);
-        assertFalse("No arguments found for " + POINTS_TO_NULL + " when testing " + className, mostRecent.isEmpty());
+    private static void findPointsToNull(PointsToGraph g) {
+        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> mostRecent = findArg(POINTS_TO_NULL, g);
         for (OrderedPair<ReferenceVariableReplica, InterProgramPointReplica> p : mostRecent) {
             boolean foundNull = false;
             Iterator<? extends InstanceKey> iter = g.pointsToIterator(p.fst(), p.snd());
@@ -173,11 +257,8 @@ public class TestFlowSensitivePointer extends TestCase {
         }
     }
 
-    private static void findNonMostRecent(PointsToGraph g, String className) {
-        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> nonMR = findArg(className,
-                                                                                             NON_MOST_RECENT,
-                                                                                             g);
-        assertFalse("No arguments found for " + NON_MOST_RECENT + " when testing " + className, nonMR.isEmpty());
+    private static void findNonMostRecent(PointsToGraph g) {
+        Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> nonMR = findArg(NON_MOST_RECENT, g);
         for (OrderedPair<ReferenceVariableReplica, InterProgramPointReplica> p : nonMR) {
             boolean foundNMR = false;
             Iterator<? extends InstanceKey> iter = g.pointsToIterator(p.fst(), p.snd());
@@ -202,10 +283,10 @@ public class TestFlowSensitivePointer extends TestCase {
         }
     }
 
-    private static void pointsTo(PointsToGraph g, String className) {
+    private static void pointsTo(PointsToGraph g) {
         Set<OrderedPair<ReferenceVariableReplica, InterProgramPointReplica>> pt;
         try {
-            pt = findArg(className, POINTS_TO, g);
+            pt = findArg(POINTS_TO, g);
         }
         catch (AssertionFailedError e) {
             System.err.println("TEST: No points-to sets requested.");
@@ -227,55 +308,26 @@ public class TestFlowSensitivePointer extends TestCase {
         }
     }
 
-    public static void testLoad() throws ClassHierarchyException, IOException, JSONException {
-        String className = "test/flowsenspointer/Load";
+    private static void runTest(String className, boolean multiThreaded) throws ClassHierarchyException, IOException,
+                                                                        JSONException {
+        long start = System.currentTimeMillis();
         System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("TEST: %%%\t" + className + " single threaded");
-        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
-        PointsToGraph g = generatePointsToGraphSingleThreaded(className);
-        pointsTo(g, className);
-        findMostRecent(g, className);
-        // All are most recent and none are null for this test
-        //        findNonMostRecent(g, className);
-        //        findPointsToNull(g, className);
+        PointsToGraph g;
+        if (multiThreaded) {
+            System.err.println("TEST: %%%\t" + className + " multi threaded");
+            System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
+            g = generatePointsToGraphMultiThreaded(className);
+        }
+        else {
+            System.err.println("TEST: %%%\t" + className + " single threaded");
+            System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
+            g = generatePointsToGraphSingleThreaded(className);
+        }
+
+        pointsTo(g);
+        findMostRecent(g);
+        findNonMostRecent(g);
+        findPointsToNull(g);
+        System.err.println("TEST: time = " + (System.currentTimeMillis() - start) / 1000 + "s");
     }
-
-    public static void testLoadMT() throws ClassHierarchyException, IOException, JSONException {
-        String className = "test/flowsenspointer/Load";
-        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("TEST: %%%\t" + className + " multi threaded");
-        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
-        PointsToGraph g = generatePointsToGraphMultiThreaded(className);
-        pointsTo(g, className);
-        findMostRecent(g, className);
-        // All are most recent and none are null for this test
-        //        findNonMostRecent(g, className);
-        //        findPointsToNull(g, className);
-    }
-
-    public static void testLoad2() throws ClassHierarchyException, IOException, JSONException {
-        String className = "test/flowsenspointer/Load2";
-        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("TEST: %%%\t" + className + " single threaded");
-        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
-        PointsToGraph g = generatePointsToGraphSingleThreaded(className);
-        pointsTo(g, className);
-        findMostRecent(g, className);
-        findNonMostRecent(g, className);
-        findPointsToNull(g, className);
-    }
-
-    public static void testLoad2MT() throws ClassHierarchyException, IOException, JSONException {
-        String className = "test/flowsenspointer/Load2";
-        System.err.println("TEST: \nTEST: \nTEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
-        System.err.println("TEST: %%%\t" + className + " multi threaded");
-        System.err.println("TEST: %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\nTEST: ");
-
-        PointsToGraph g = generatePointsToGraphMultiThreaded(className);
-        pointsTo(g, className);
-        findMostRecent(g, className);
-        findNonMostRecent(g, className);
-        findPointsToNull(g, className);
-    }
-
 }

@@ -1,6 +1,6 @@
 package test.flowsenspointer;
 
-public class Load2 {
+public class Load2 extends TestBaseClass {
 
     public static Load2 staticfield = null;
 
@@ -36,7 +36,7 @@ public class Load2 {
             mostRecent(l);
             pointsToNull(staticfield);
             nonMostRecent(staticfield);
-            
+
             x--;
         }
 
@@ -47,25 +47,6 @@ public class Load2 {
         Object o2 = l.f;
         // o2 --> most-recent a2
         mostRecent(o2);
-
-    }
-
-    private static void pointsTo(Object arg4) {
-        // TODO Auto-generated method stub
-
-    }
-
-    private static void nonMostRecent(Object arg1) {
-        // TODO Auto-generated method stub
-    }
-
-    private static void mostRecent(Object arg2) {
-        // TODO Auto-generated method stub
-
-    }
-
-    private static void pointsToNull(Object arg3) {
-        // TODO Auto-generated method stub
 
     }
 }
