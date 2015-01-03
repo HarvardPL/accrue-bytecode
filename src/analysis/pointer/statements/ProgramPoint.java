@@ -89,7 +89,7 @@ public class ProgramPoint {
 
     @Override
     public String toString() {
-        return "pp" + id + " " + debugInfo;
+        return "pp" + id + "(" + this.containingProcedure.getSignature() + ": " + debugInfo + ")";
     }
 
     public String toStringSimple() {
