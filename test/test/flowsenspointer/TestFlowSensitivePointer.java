@@ -106,6 +106,14 @@ public class TestFlowSensitivePointer extends TestCase {
         runTest("test/flowsenspointer/Store", true);
     }
 
+    public static void testStore2() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Store2", false);
+    }
+
+    public static void testStore2MT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/Store2", true);
+    }
+
     public static void testStrongUpdate() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/StrongUpdate", false);
     }
@@ -479,13 +487,14 @@ public class TestFlowSensitivePointer extends TestCase {
                             int desiredSize = ir.getSymbolTable().getIntValue(use2);
                             if (actualSize != desiredSize) {
                                 StringBuilder sb = new StringBuilder();
-                                sb.append("Wrong number of elements in points-to set for " + rvr + "\n");
-                                sb.append("Expected " + desiredSize + " found " + actualSize + "\n");
+                                sb.append("TEST: Wrong number of elements in points-to set for " + rvr + "\n");
+                                sb.append("TEST: Expected " + desiredSize + " found " + actualSize + "\n");
                                 Iterator<? extends InstanceKey> iter2 = g.pointsToIterator(rvr, pp);
                                 while (iter2.hasNext()) {
                                     InstanceKeyRecency ik = (InstanceKeyRecency) iter2.next();
-                                    sb.append("\t" + ik + "\n");
+                                    sb.append("TEST: \t" + ik + "\n");
                                 }
+                                System.err.println(sb.toString());
                             }
                             assertEquals(desiredSize, actualSize);
                         }

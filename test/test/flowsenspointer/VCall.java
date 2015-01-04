@@ -6,9 +6,11 @@ public class VCall extends TestBaseClass {
         o.foo();
         // "this" in method hashCode() --> a1
         mostRecent(o);
+        pointsToSize(o, 1);
     }
 
     private void foo() {
         mostRecent(this);
+        pointsToSize(this, 1);
     }
 }
