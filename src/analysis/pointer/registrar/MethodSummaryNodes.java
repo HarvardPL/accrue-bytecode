@@ -46,13 +46,13 @@ public class MethodSummaryNodes {
      * @param method
      *            method these are the summary nodes for
      */
-    public MethodSummaryNodes(IMethod method, ReferenceVariableFactory rvFactory) {
+    public MethodSummaryNodes(IMethod method) {
         assert method != null : "method is null";
         name = PrettyPrinter.methodString(method);
 
         TypeReference returnType = method.getReturnType();
         if (!method.getReturnType().isPrimitiveType()) {
-            returnNode = rvFactory.createMethodExit(returnType, method, ExitType.NORMAL);
+            returnNode = ReferenceVariableFactory.createMethodExit(returnType, method, ExitType.NORMAL);
         } else {
             returnNode = null;
         }
@@ -76,11 +76,13 @@ public class MethodSummaryNodes {
                 formals.add(null);
             }
             else {
-                formals.add(rvFactory.createFormal(i, method.getParameterType(i), method, entryPP));
+                formals.add(ReferenceVariableFactory.createFormal(i, method.getParameterType(i), method, entryPP));
             }
         }
 
-        exception = rvFactory.createMethodExit(TypeReference.JavaLangThrowable, method, ExitType.EXCEPTIONAL);
+        exception = ReferenceVariableFactory.createMethodExit(TypeReference.JavaLangThrowable,
+                                                              method,
+                                                              ExitType.EXCEPTIONAL);
     }
 
     public ReferenceVariable getReturn() {

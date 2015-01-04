@@ -258,14 +258,14 @@ public class StatementRegistrar {
             if (ir == null) {
                 // Native method with no signature
                 assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-                this.registerNative(m, this.rvFactory);
+                this.registerNative(m);
                 return true;
             }
 
             TypeRepository types = new TypeRepository(ir);
             PrettyPrinter pprint = new PrettyPrinter(ir);
 
-            MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m, this.rvFactory);
+            MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m);
 
             // Add edges from formal summary nodes to the local variables representing the method parameters
             ProgramPoint lastFormalPP = this.registerFormalAssignments(ir, this.rvFactory, types, pprint);
@@ -1074,7 +1074,7 @@ public class StatementRegistrar {
             }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
-            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
+            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee);
             this.addStatement(stmtFactory.staticCall(cspp, resolvedCallee, result, actuals, exception, calleeSummary));
         }
         else if (i.isSpecial()) {
@@ -1085,7 +1085,7 @@ public class StatementRegistrar {
             }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
-            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
+            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee);
             this.addStatement(stmtFactory.specialCall(cspp,
                                                       resolvedCallee,
                                                       result,
@@ -1268,7 +1268,7 @@ public class StatementRegistrar {
         }
 
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getResult(), valType, ir.getMethod(), pprint);
-        ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
+        ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod()).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, pp, i));
     }
 
@@ -1288,14 +1288,13 @@ public class StatementRegistrar {
 
     /**
      * Get the method summary nodes for the given method, create if necessary
-     *
+     * 
      * @param method method to get summary nodes for
-     * @param rvFactory factory for creating new reference variables (if necessary)
      */
-    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method, ReferenceVariableFactory rvFactory) {
+    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method) {
         MethodSummaryNodes msn = this.methods.get(method);
         if (msn == null) {
-            msn = new MethodSummaryNodes(method, rvFactory);
+            msn = new MethodSummaryNodes(method);
             MethodSummaryNodes ex = this.methods.putIfAbsent(method, msn);
             if (ex != null) {
                 msn = ex;
@@ -1711,7 +1710,7 @@ public class StatementRegistrar {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
                 // do not propagate java.lang.Errors out of this class, this is possibly unsound
                 // uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
-                caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
+                caught = this.findOrCreateMethodSummary(ir.getMethod()).getException();
                 ProgramPoint pp = subgraph.addException(succ, thrown.getExpectedType(), isGenerated, isCalleeThrow);
                 this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, pp));
             }
@@ -1778,7 +1777,7 @@ public class StatementRegistrar {
             }
 
             // We assume all class initializers are called in the root method
-            MethodSummaryNodes entryNodes = findOrCreateMethodSummary(getEntryPoint(), rvFactory);
+            MethodSummaryNodes entryNodes = findOrCreateMethodSummary(getEntryPoint());
             // XXX We assume exceptions thrown by class inits are never caught but bubble out to the exception exit of the root method
             CallSiteProgramPoint classInitPP = CallSiteProgramPoint.createClassInit(init,
                                                                                     getEntryPoint(),
@@ -1824,8 +1823,8 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m, pp));
     }
 
-    private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
-        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m, rvFactory);
+    private void registerNative(IMethod m) {
+        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m);
         int ppCount = 0;
         ProgramPoint entryPP = methodSummary.getEntryPP();
         if (!m.getReturnType().isPrimitiveType()) {
@@ -1907,7 +1906,7 @@ public class StatementRegistrar {
      */
     private ProgramPoint registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory, TypeRepository types,
                                                    PrettyPrinter pprint) {
-        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
+        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod());
         ProgramPoint current = methodSummary.getEntryPP();
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
             int paramNum = ir.getParameter(i);

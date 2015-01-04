@@ -574,8 +574,7 @@ public class StatementFactory {
                                                           result,
                                                           receiver,
                                                           actuals,
-                                                          callerException,
-                                                          rvFactory);
+                                                          callerException);
         assert map.put(new StatementKey(callerPP, callee, result, receiver, actuals, callerException), s) == null;
         return s;
     }
