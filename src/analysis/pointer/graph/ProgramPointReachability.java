@@ -259,7 +259,27 @@ public final class ProgramPointReachability {
 
             // First check the call graph to find the set of call graph nodes that must be searched directly
             // (i.e. the effects for these nodes cannot be summarized).
+            // XXX The following code compares two different methods to find the set of relevant nodes. Andrew, take a look.
+            long start = System.currentTimeMillis();
             Set<OrderedPair<IMethod, Context>> relevantNodes = findRelevantNodes(query);
+            long mid = System.currentTimeMillis();
+            Set<OrderedPair<IMethod, Context>> altRelevantNodes = altFindRelevantNodes(query);
+            long end = System.currentTimeMillis();
+            if (!relevantNodes.equals(altRelevantNodes)) {
+                System.err.println("\n\n\n\nsource is "
+                        + new OrderedPair<>(query.source.getContainingProcedure(), query.source.getContext()));
+                System.err.println("dest is "
+                        + new OrderedPair<>(query.destination.getContainingProcedure(), query.destination.getContext()));
+                System.err.println("orig = " + relevantNodes.size() + " (" + (mid - start) + "ms)");
+                System.err.println("new  = " + altRelevantNodes.size() + " (" + (end - mid) + "ms)");
+                System.err.println("is orig subset of new? " + altRelevantNodes.containsAll(relevantNodes));
+                System.err.println("is new subset of orig? " + relevantNodes.containsAll(altRelevantNodes));
+                System.err.println("   ---   orig = " + relevantNodes);
+                System.err.println("\n    ---   new  = " + altRelevantNodes);
+
+                // Use the altRelevant nodes
+                relevantNodes = altRelevantNodes;
+            }
 
             if (relevantNodes.isEmpty()) {
                 // this path isn't possible.
@@ -367,7 +387,7 @@ public final class ProgramPointReachability {
             q.addFirst(new OrderedPair<>(sourceEdge, Collections.<CallGraphEdge> emptySet()));
         }
 
-        Set<CallGraphEdge> allVisited = new LinkedHashSet<>();
+        Set<CallGraphEdge> allVisited = new HashSet<>();
         while (!q.isEmpty()) {
             OrderedPair<CallGraphEdge, Set<CallGraphEdge>> p = q.poll();
             CallGraphEdge e = p.fst();
@@ -384,7 +404,7 @@ public final class ProgramPointReachability {
                 continue;
             }
 
-            path = new LinkedHashSet<>(path);
+            path = new HashSet<>(path);
             path.add(e);
             if (relevant.contains(e.getTarget()) || e.getTarget().equals(destinationCGNode)) {
                 // The target is in the relevant set or it is the node we are looking for
@@ -403,6 +423,124 @@ public final class ProgramPointReachability {
         }
 
         return relevant;
+    }
+
+    private Set<OrderedPair<IMethod, Context>> altFindRelevantNodes(ProgramPointSubQuery query) {
+        OrderedPair<IMethod, Context> sourceCGNode = new OrderedPair<>(query.source.getContainingProcedure(),
+                                                                       query.source.getContext());
+        OrderedPair<IMethod, Context> destinationCGNode = new OrderedPair<>(query.destination.getContainingProcedure(),
+                                                                            query.destination.getContext());
+
+        /*
+         * The set of relevant cg nodes, ie., an overapproximation of nodes that are on
+         * a (valid) path from the source to the destination. This method finds this set.
+         */
+        Set<OrderedPair<IMethod, Context>> relevant = new LinkedHashSet<>();
+
+        /*
+         * We maintain dependencies, so that if cg node a is in the set relevanceDependencies.get(b),
+         * then if b becomes a relevant node, then a is also a relevant node. We can think of this
+         * relevanceDependencies as describing the edges in the CFG that are reachable on a (valid)
+         * path from the source cg node.
+         */
+        Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies = new HashMap<>();
+
+        // The queue the cg node we are currently considering. The boolean indicates whether
+        // we should look at the caller edges or the callee edges. You can think of
+        // the pair <m, true> as being short hand for the set of call graph edges going into m,
+        // and <m, false> as being short hand for the set of call graph edges going from m.
+        Deque<OrderedPair<OrderedPair<IMethod, Context>, Boolean>> q = new ArrayDeque<>();
+
+
+        // Initialize the workqueue
+        q.add(new OrderedPair<>(sourceCGNode, Boolean.TRUE));
+        q.add(new OrderedPair<>(sourceCGNode, Boolean.FALSE));
+
+        Set<OrderedPair<OrderedPair<IMethod, Context>, Boolean>> allVisited = new HashSet<>();
+        Deque<OrderedPair<IMethod, Context>> newlyRelevant = new ArrayDeque<>();
+
+        while (!q.isEmpty()) {
+
+            OrderedPair<OrderedPair<IMethod, Context>, Boolean> p = q.poll();
+            OrderedPair<IMethod, Context> cgNode = p.fst();
+            boolean exploreCallers = p.snd();
+
+            if (cgNode.equals(destinationCGNode)) {
+                newlyRelevant.add(cgNode);
+            }
+
+            if (exploreCallers) {
+                // explore the callers of this cg node
+                this.addCallerDependency(query, cgNode);
+                for (OrderedPair<CallSiteProgramPoint, Context> caller : g.getCallersOf(cgNode)) {
+                    OrderedPair<IMethod, Context> callerCGNode = new OrderedPair<>(caller.fst().containingProcedure(),
+                                                                                   caller.snd());
+
+                    if (relevant.contains(callerCGNode)) {
+                        // since callerCGNode is relevant, so is cgNode.
+                        newlyRelevant.add(cgNode);
+                    }
+                    else {
+                        // if callerCGNode becomes relevant in the future, then cgNode will also be relevant.
+                        addToMapSet(relevanceDependencies, callerCGNode, cgNode);
+                    }
+
+                    // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
+                    // we want to visit both the callers and the callees of callerCGNode.
+                    if (allVisited.add(new OrderedPair<>(callerCGNode, Boolean.TRUE))) {
+                        q.add(new OrderedPair<>(callerCGNode, Boolean.TRUE));
+                    }
+                    if (allVisited.add(new OrderedPair<>(callerCGNode, Boolean.FALSE))) {
+                        q.add(new OrderedPair<>(callerCGNode, Boolean.FALSE));
+                    }
+                }
+            }
+            else {
+                // explore the callees of this cg node
+                for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
+                    this.addCalleeDependency(query, callSite);
+                    for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
+                        if (relevant.contains(callee)) {
+                            // since callee is relevant, so is cgNode.
+                            newlyRelevant.add(cgNode);
+                        }
+                        else {
+                            // if callee becomes relevant in the future, then cgNode will also be relevant.
+                            addToMapSet(relevanceDependencies, callee, cgNode);
+                        }
+                        // We are exploring only the callees of cgNode, so when we explore callee
+                        // we only need to explore its callees (not its callers).
+                        if (allVisited.add(new OrderedPair<>(callee, Boolean.FALSE))) {
+                            q.add(new OrderedPair<>(callee, Boolean.FALSE));
+                        }
+                    }
+                }
+
+            }
+
+            while (!newlyRelevant.isEmpty()) {
+                OrderedPair<IMethod, Context> cg = newlyRelevant.poll();
+                relevant.add(cg);
+                // cg has become relevant, so use relevanceDependencies to figure out
+                // what other nodes are now relevant.
+                Set<OrderedPair<IMethod, Context>> s = relevanceDependencies.remove(cg);
+                if (s != null) {
+                    newlyRelevant.addAll(s);
+                }
+            }
+
+        }
+
+        return relevant;
+    }
+
+    private static <K, V> boolean addToMapSet(Map<K, Set<V>> map, K key, V elem) {
+        Set<V> s = map.get(key);
+        if (s == null) {
+            s = new HashSet<>();
+            map.put(key, s);
+        }
+        return s.add(elem);
     }
 
     /**
