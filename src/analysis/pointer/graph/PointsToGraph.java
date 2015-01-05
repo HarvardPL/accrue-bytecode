@@ -551,10 +551,10 @@ public final class PointsToGraph {
 
     /**
      * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta, and recurses.
-     * 
+     *
      * If ippr is not null it means either: pointsToFS(source, ippr) \subseteq pointsToFI(target) (if source is flow
      * sensitive) or pointsToFI(source) \subseteq pointsToFS(target, ippr) (if target is flow sensitive)
-     * 
+     *
      * @param changed
      * @param source
      * @param sourceIsFlowSensitive
@@ -2443,5 +2443,49 @@ public final class PointsToGraph {
             printRvr.add(rvr);
         }
 
+    }
+
+    public void dumpCallGraphMap(String filename) {
+        String file = filename;
+        String fullFilename = file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpCallGraphMap(out);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    private void dumpCallGraphMap(Writer writer) throws IOException {
+        double spread = 2.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        int contextCount = 0;
+        Map<Context, Integer> contextID = new HashMap<>();
+
+        for (OrderedPair<CallSiteProgramPoint, Context> n : callGraphMap.keySet()) {
+            IMethod caller = n.fst().containingProcedure();
+            Integer context = contextID.get(n.snd());
+            if (context == null) {
+                contextCount++;
+                context = contextCount;
+                contextID.put(n.snd(), context);
+            }
+            String callerString = PrettyPrinter.methodString(caller) + "-" + context;
+            for (OrderedPair<IMethod, Context> calleeCG : callGraphMap.get(n)) {
+                IMethod callee = calleeCG.fst();
+                Integer contextCallee = contextID.get(calleeCG.snd());
+                if (contextCallee == null) {
+                    contextCount++;
+                    contextCallee = contextCount;
+                    contextID.put(calleeCG.snd(), contextCallee);
+                }
+                String calleeString = PrettyPrinter.methodString(callee) + "-" + contextCallee;
+                writer.write("\t\"" + callerString + "\" -> \"" + calleeString + "\";\n");
+            }
+        }
+        writer.write("};");
     }
 }
