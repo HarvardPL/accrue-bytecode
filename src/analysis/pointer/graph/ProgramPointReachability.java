@@ -464,9 +464,10 @@ public final class ProgramPointReachability {
             OrderedPair<OrderedPair<IMethod, Context>, Boolean> p = q.poll();
             OrderedPair<IMethod, Context> cgNode = p.fst();
             boolean exploreCallers = p.snd();
-
+            boolean isDestinationCGNode = false;
             if (cgNode.equals(destinationCGNode)) {
                 newlyRelevant.add(cgNode);
+                isDestinationCGNode = true;
             }
 
             if (exploreCallers) {
@@ -495,8 +496,13 @@ public final class ProgramPointReachability {
                     }
                 }
             }
-            else {
+            else if (!isDestinationCGNode) {
                 // explore the callees of this cg node
+                // Note that as an optimization, if this is the destination node, we do not need to explore the callees,
+                // since if there is a path from the source to the destination using the callees of the destination,
+                // then there is a path from the source to the destination without using the callees of the destination.
+                // (Note that we should *not* apply this optimization if exploreCallers == true, since this would be unsound e.g.,
+                // if the source and destination nodes are the same.)
                 for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
                     this.addCalleeDependency(query, callSite);
                     for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
