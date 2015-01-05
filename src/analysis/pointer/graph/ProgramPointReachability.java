@@ -265,18 +265,21 @@ public final class ProgramPointReachability {
             long mid = System.currentTimeMillis();
             Set<OrderedPair<IMethod, Context>> altRelevantNodes = altFindRelevantNodes(query);
             long end = System.currentTimeMillis();
-            if (!relevantNodes.equals(altRelevantNodes)) {
+            if (!relevantNodes.containsAll(altRelevantNodes)) {
                 System.err.println("\n\n\n\nsource is "
                         + new OrderedPair<>(query.source.getContainingProcedure(), query.source.getContext()));
                 System.err.println("dest is "
                         + new OrderedPair<>(query.destination.getContainingProcedure(), query.destination.getContext()));
-                System.err.println("orig = " + relevantNodes.size() + " (" + (mid - start) + "ms)");
+                System.err.println("\n\n\n\norig = " + relevantNodes.size() + " (" + (mid - start) + "ms)");
                 System.err.println("new  = " + altRelevantNodes.size() + " (" + (end - mid) + "ms)");
                 System.err.println("is orig subset of new? " + altRelevantNodes.containsAll(relevantNodes));
                 System.err.println("is new subset of orig? " + relevantNodes.containsAll(altRelevantNodes));
                 System.err.println("   ---   orig = " + relevantNodes);
-                System.err.println("\n    ---   new  = " + altRelevantNodes);
-
+                System.err.println("\n   ---   new  = " + altRelevantNodes);
+                altRelevantNodes.removeAll(relevantNodes);
+                System.err.println("\n   ---   diff  = " + altRelevantNodes);
+                g.dumpCallGraphMap(AnalysisUtil.getOutputDirectory() + "/callGraph");
+                assert false;
                 // Use the altRelevant nodes
                 relevantNodes = altRelevantNodes;
             }
@@ -425,6 +428,27 @@ public final class ProgramPointReachability {
         return relevant;
     }
 
+    /**
+     * Indication of which type of edges to inspect while finding relevant nodes
+     */
+    private static enum CGEdgeType {
+        /**
+         * Callee edges (i.e. edges in the call graph _from_ a given call graph node)
+         */
+        CALLEES,
+        /**
+         * Caller edges (i.e. edges in the call graph _to_ a given call graph node)
+         */
+        CALLERS;
+    }
+
+    /**
+     * Find call graph nodes that must be searched deeply for a path from the source to destination for the given query.
+     * Irrelevant nodes can have their effects (kill and alloc sets) summarized.
+     *
+     * @param query query to get the relevent nodes for
+     * @return the set of call graph nodes that cannot be summarized
+     */
     private Set<OrderedPair<IMethod, Context>> altFindRelevantNodes(ProgramPointSubQuery query) {
         OrderedPair<IMethod, Context> sourceCGNode = new OrderedPair<>(query.source.getContainingProcedure(),
                                                                        query.source.getContext());
@@ -447,30 +471,29 @@ public final class ProgramPointReachability {
 
         // The queue the cg node we are currently considering. The boolean indicates whether
         // we should look at the caller edges or the callee edges. You can think of
-        // the pair <m, true> as being short hand for the set of call graph edges going into m,
-        // and <m, false> as being short hand for the set of call graph edges going from m.
-        Deque<OrderedPair<OrderedPair<IMethod, Context>, Boolean>> q = new ArrayDeque<>();
+        // the pair <m, CALLERS> as being short hand for the set of call graph edges going into m (callers of m),
+        // and <m, CALLEES> as being short hand for the set of call graph edges going from m (callees from m).
+        Deque<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> q = new ArrayDeque<>();
 
 
         // Initialize the workqueue
-        q.add(new OrderedPair<>(sourceCGNode, Boolean.TRUE));
-        q.add(new OrderedPair<>(sourceCGNode, Boolean.FALSE));
+        q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLEES));
+        q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLERS));
 
-        Set<OrderedPair<OrderedPair<IMethod, Context>, Boolean>> allVisited = new HashSet<>();
+        Set<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> allVisited = new HashSet<>();
         Deque<OrderedPair<IMethod, Context>> newlyRelevant = new ArrayDeque<>();
 
         while (!q.isEmpty()) {
 
-            OrderedPair<OrderedPair<IMethod, Context>, Boolean> p = q.poll();
+            OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> p = q.poll();
             OrderedPair<IMethod, Context> cgNode = p.fst();
-            boolean exploreCallers = p.snd();
             boolean isDestinationCGNode = false;
             if (cgNode.equals(destinationCGNode)) {
                 newlyRelevant.add(cgNode);
                 isDestinationCGNode = true;
             }
 
-            if (exploreCallers) {
+            if (p.snd() == CGEdgeType.CALLERS) {
                 // explore the callers of this cg node
                 this.addCallerDependency(query, cgNode);
                 for (OrderedPair<CallSiteProgramPoint, Context> caller : g.getCallersOf(cgNode)) {
@@ -488,13 +511,13 @@ public final class ProgramPointReachability {
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
                     // we want to visit both the callers and the callees of callerCGNode.
-                    OrderedPair<OrderedPair<IMethod, Context>, Boolean> callersWorkItem = new OrderedPair<>(callerCGNode,
-                                                                                                            Boolean.TRUE);
+                    OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> callersWorkItem = new OrderedPair<>(callerCGNode,
+                                                                                                               CGEdgeType.CALLERS);
                     if (allVisited.add(callersWorkItem)) {
                         q.add(callersWorkItem);
                     }
-                    OrderedPair<OrderedPair<IMethod, Context>, Boolean> calleesWorkItem = new OrderedPair<>(callerCGNode,
-                                                                                                            Boolean.FALSE);
+                    OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> calleesWorkItem = new OrderedPair<>(callerCGNode,
+                                                                                                               CGEdgeType.CALLEES);
                     if (allVisited.add(calleesWorkItem)) {
                         q.add(calleesWorkItem);
                     }
@@ -505,7 +528,7 @@ public final class ProgramPointReachability {
                 // Note that as an optimization, if this is the destination node, we do not need to explore the callees,
                 // since if there is a path from the source to the destination using the callees of the destination,
                 // then there is a path from the source to the destination without using the callees of the destination.
-                // (Note that we should *not* apply this optimization if exploreCallers == true, since this would be unsound e.g.,
+                // (Note that we should *not* apply this optimization for CALLERS, since this would be unsound e.g.,
                 // if the source and destination nodes are the same.)
                 for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
                     this.addCalleeDependency(query, callSite);
@@ -520,8 +543,8 @@ public final class ProgramPointReachability {
                         }
                         // We are exploring only the callees of cgNode, so when we explore callee
                         // we only need to explore its callees (not its callers).
-                        if (allVisited.add(new OrderedPair<>(callee, Boolean.FALSE))) {
-                            q.add(new OrderedPair<>(callee, Boolean.FALSE));
+                        if (allVisited.add(new OrderedPair<>(callee, CGEdgeType.CALLEES))) {
+                            q.add(new OrderedPair<>(callee, CGEdgeType.CALLEES));
                         }
                     }
                 }
@@ -545,6 +568,15 @@ public final class ProgramPointReachability {
         return relevant;
     }
 
+    /**
+     * Add an element, <code>elem</code>, to a set that is the value in a map, <code>map</code>, for a particular key,
+     * <code>key</code>
+     *
+     * @param map map to add the element to
+     * @param key key to add the element to the map for
+     * @param elem element to add
+     * @return true if the set at the key did not already contain the specified element
+     */
     private static <K, V> boolean addToMapSet(Map<K, Set<V>> map, K key, V elem) {
         Set<V> s = map.get(key);
         if (s == null) {
