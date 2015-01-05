@@ -488,11 +488,15 @@ public final class ProgramPointReachability {
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
                     // we want to visit both the callers and the callees of callerCGNode.
-                    if (allVisited.add(new OrderedPair<>(callerCGNode, Boolean.TRUE))) {
-                        q.add(new OrderedPair<>(callerCGNode, Boolean.TRUE));
+                    OrderedPair<OrderedPair<IMethod, Context>, Boolean> callersWorkItem = new OrderedPair<>(callerCGNode,
+                                                                                                            Boolean.TRUE);
+                    if (allVisited.add(callersWorkItem)) {
+                        q.add(callersWorkItem);
                     }
-                    if (allVisited.add(new OrderedPair<>(callerCGNode, Boolean.FALSE))) {
-                        q.add(new OrderedPair<>(callerCGNode, Boolean.FALSE));
+                    OrderedPair<OrderedPair<IMethod, Context>, Boolean> calleesWorkItem = new OrderedPair<>(callerCGNode,
+                                                                                                            Boolean.FALSE);
+                    if (allVisited.add(calleesWorkItem)) {
+                        q.add(calleesWorkItem);
                     }
                 }
             }
@@ -526,12 +530,13 @@ public final class ProgramPointReachability {
 
             while (!newlyRelevant.isEmpty()) {
                 OrderedPair<IMethod, Context> cg = newlyRelevant.poll();
-                relevant.add(cg);
-                // cg has become relevant, so use relevanceDependencies to figure out
-                // what other nodes are now relevant.
-                Set<OrderedPair<IMethod, Context>> s = relevanceDependencies.remove(cg);
-                if (s != null) {
-                    newlyRelevant.addAll(s);
+                if (relevant.add(cg)) {
+                    // cg has become relevant, so use relevanceDependencies to figure out
+                    // what other nodes are now relevant.
+                    Set<OrderedPair<IMethod, Context>> s = relevanceDependencies.remove(cg);
+                    if (s != null) {
+                        newlyRelevant.addAll(s);
+                    }
                 }
             }
 
