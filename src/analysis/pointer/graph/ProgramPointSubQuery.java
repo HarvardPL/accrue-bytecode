@@ -60,7 +60,13 @@ public final class ProgramPointSubQuery {
         if (!destination.equals(other.destination)) {
             return false;
         }
+        if (noAlloc.isEmpty() != other.noAlloc.isEmpty()) {
+            return false;
+        }
         if (!noAlloc.sameValue(other.noAlloc)) {
+            return false;
+        }
+        if (noKill.isEmpty() != other.noKill.isEmpty()) {
             return false;
         }
         if (!noKill.sameValue(other.noKill)) {
