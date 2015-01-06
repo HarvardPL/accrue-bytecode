@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import util.OrderedPair;
 import analysis.AnalysisUtil;
@@ -37,11 +38,12 @@ public final class RelevantNodes {
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<RelevantNodesQuery>> findRelevantNodesCallerDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
 
-    private int totalRequests = 0;
-    private int cachedResponses = 0;
-    private int computedResponses = 0;
+    private AtomicInteger totalRequests = new AtomicInteger(0);
+    private AtomicInteger cachedResponses = new AtomicInteger(0);
+    private AtomicInteger computedResponses = new AtomicInteger(0);
     private long totalTime = 0;
     private long calleeDepTime = 0;
+    private long callerDepTime = 0;
 
     RelevantNodes(PointsToGraph g, PointsToAnalysisHandle analysisHandle,
                   ProgramPointReachability programPointReachability) {
@@ -64,20 +66,26 @@ public final class RelevantNodes {
             relevantNodes = computeRelevantNodes(relevantQuery);
         }
         else {
-            totalRequests++;
-            cachedResponses++;
+            this.totalRequests.incrementAndGet();
+            this.cachedResponses.incrementAndGet();
         }
 
-        if ((totalRequests % 1000) == 0) {
+        if ((this.totalRequests.get() % 25000) == 0) {
             System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
-                    + computedResponses + " computed (" + (int) (100 * ((float) cachedResponses / totalRequests))
+                    + computedResponses + " computed ("
+                    + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue()))
                     + "% hit rate)");
             double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
             double relevantTime = totalTime / 1000.0;
             double calleeTime = calleeDepTime / 1000.0;
-            System.err.println("Total: " + analysisTime + "s;  computeRelevantNodes: " + relevantTime
-                    + "s; RATIO: " + (relevantTime / analysisTime) + "; addFindRelevantNodesCalleeDependency: "
+            double callerTime = callerDepTime / 1000.0;
+            System.err.println("Total: " + analysisTime + "s;");
+            System.err.println("    computeRelevantNodes: " + relevantTime + "s; RATIO: "
+                    + (relevantTime / analysisTime) + ";");
+            System.err.println("    addFindRelevantNodesCalleeDependency: "
                     + calleeTime + "s; RATIO: " + (calleeTime / analysisTime));
+            System.err.println("    addFindRelevantNodesCallerDependency: " + callerTime + "s; RATIO: "
+                    + (callerTime / analysisTime));
         }
         return relevantNodes;
     }
@@ -92,8 +100,8 @@ public final class RelevantNodes {
      * @return the set of call graph nodes that cannot be summarized
      */
     public Set<OrderedPair<IMethod, Context>> computeRelevantNodes(RelevantNodesQuery relevantQuery) {
-        totalRequests++;
-        computedResponses++;
+        totalRequests.incrementAndGet();
+        computedResponses.incrementAndGet();
         long start = System.currentTimeMillis();
 
         OrderedPair<IMethod, Context> sourceCGNode = relevantQuery.sourceCGNode;
@@ -282,6 +290,8 @@ public final class RelevantNodes {
      */
     private void addFindRelevantNodesCallerDependency(RelevantNodesQuery relevantQuery,
                                                       OrderedPair<IMethod, Context> caller) {
+        long start = System.currentTimeMillis();
+
         Set<RelevantNodesQuery> s = findRelevantNodesCallerDependencies.get(caller);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
@@ -291,6 +301,7 @@ public final class RelevantNodes {
             }
         }
         s.add(relevantQuery);
+        callerDepTime += (System.currentTimeMillis() - start);
     }
 
     /**
@@ -324,6 +335,8 @@ public final class RelevantNodes {
         Set<RelevantNodesQuery> queries = findRelevantNodesCalleeDependencies.get(callSite);
         if (queries != null) {
             for (RelevantNodesQuery q : queries) {
+                // clear cache
+                this.cache.remove(q);
                 // recompute the query.
                 // Could do something smarter and incrementally change the result
                 this.analysisHandle.submitRelevantNodesQuery(q);
@@ -343,6 +356,8 @@ public final class RelevantNodes {
         Set<RelevantNodesQuery> queries = findRelevantNodesCallerDependencies.get(callGraphNode);
         if (queries != null) {
             for (RelevantNodesQuery q : queries) {
+                // clear cache
+                this.cache.remove(q);
                 // recompute the query.
                 // Could do something smarter and incrementally change the result
                 this.analysisHandle.submitRelevantNodesQuery(q);
