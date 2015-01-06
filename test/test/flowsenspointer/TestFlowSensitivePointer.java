@@ -138,6 +138,14 @@ public class TestFlowSensitivePointer extends TestCase {
         runTest("test/flowsenspointer/VCall2", true);
     }
 
+    public static void testDiamondCallGraph() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/DiamondCallGraph", false);
+    }
+
+    public static void testDiamondCallGraph2MT() throws ClassHierarchyException, IOException, JSONException {
+        runTest("test/flowsenspointer/DiamondCallGraph", true);
+    }
+
     // Names of interesting methods
     private static final String MOST_RECENT = "mostRecent";
     private static final String NON_MOST_RECENT = "nonMostRecent";
