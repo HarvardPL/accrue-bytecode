@@ -20,6 +20,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
+import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -56,7 +57,7 @@ public final class ProgramPointReachability {
     private final PointsToGraph g;
 
     /**
-     * A reference to allow us to submit a StmtAndContext for reprocessing
+     * A reference to allow us to submit a subquery for reprocessing
      */
     private final PointsToAnalysisHandle analysisHandle;
 
@@ -75,7 +76,7 @@ public final class ProgramPointReachability {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
-        this.relevantNodesComputation = new RelevantNodes(g, this);
+        this.relevantNodesComputation = new RelevantNodes(g, analysisHandle, this);
     }
 
     /**
@@ -1067,6 +1068,10 @@ public final class ProgramPointReachability {
 
     public void processSubQuery(ProgramPointSubQuery sq) {
         this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden);
+    }
+
+    public void processRelevantNodesQuery(RelevantNodesQuery rq) {
+        this.relevantNodesComputation.computeRelevantNodes(rq);
     }
 
     public void clearCaches() {

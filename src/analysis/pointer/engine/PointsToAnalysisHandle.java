@@ -2,10 +2,11 @@ package analysis.pointer.engine;
 
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
+import analysis.pointer.graph.RelevantNodes;
 
 /**
  * This interface provides a mechanism to submit StmtAndContexts to the PointsToAnalysis.
@@ -48,8 +49,15 @@ public interface PointsToAnalysisHandle {
     void submitReachabilityQuery(ProgramPointSubQuery mr);
 
     /**
+     * Request the the ProgramPointReachability query be processed.
+     * 
+     * @param task
+     */
+    void submitRelevantNodesQuery(RelevantNodes.RelevantNodesQuery rq);
+
+    /**
      * Get the points to graph.
-     *
+     * 
      * @return
      */
     PointsToGraph pointsToGraph();

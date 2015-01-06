@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -23,6 +24,11 @@ public final class RelevantNodes {
     private final PointsToGraph g;
     private final ProgramPointReachability programPointReachability;
 
+    /**
+     * A reference to allow us to submit a query for reprocessing
+     */
+    private final PointsToAnalysisHandle analysisHandle;
+
     private final Map<RelevantNodesQuery, Set<OrderedPair<IMethod, Context>>> cache = AnalysisUtil.createConcurrentHashMap();
 
     // Dependencies for the findRelevantNodes queries
@@ -33,8 +39,11 @@ public final class RelevantNodes {
     private int totalRequests = 0;
     private int cachedResponses = 0;
     private int computedResponses = 0;
-    RelevantNodes(PointsToGraph g, ProgramPointReachability programPointReachability) {
+
+    RelevantNodes(PointsToGraph g, PointsToAnalysisHandle analysisHandle,
+                  ProgramPointReachability programPointReachability) {
         this.g = g;
+        this.analysisHandle = analysisHandle;
         this.programPointReachability = programPointReachability;
     }
 
@@ -46,22 +55,21 @@ public final class RelevantNodes {
         // add a dependency
         addRelevantNodesDependency(query, relevantQuery);
 
-        totalRequests++;
         // check the cache.
         Set<OrderedPair<IMethod, Context>> relevantNodes = cache.get(relevantQuery);
         if (relevantNodes == null) {
             relevantNodes = computeRelevantNodes(relevantQuery);
-            computedResponses++;
         }
         else {
+            totalRequests++;
             cachedResponses++;
         }
 
-        //        if ((totalRequests % 1000) == 0) {
-        //            System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
-        //                    + computedResponses + " computed (" + (int) (100 * ((float) cachedResponses / totalRequests))
-        //                    + "% hit rate)");
-        //        }
+        if ((totalRequests % 10000) == 0) {
+            System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
+                    + computedResponses + " computed (" + (int) (100 * ((float) cachedResponses / totalRequests))
+                    + "% hit rate)");
+        }
         return relevantNodes;
     }
 
@@ -74,7 +82,10 @@ public final class RelevantNodes {
      *
      * @return the set of call graph nodes that cannot be summarized
      */
-    private Set<OrderedPair<IMethod, Context>> computeRelevantNodes(RelevantNodesQuery relevantQuery) {
+    public Set<OrderedPair<IMethod, Context>> computeRelevantNodes(RelevantNodesQuery relevantQuery) {
+        totalRequests++;
+        computedResponses++;
+
         OrderedPair<IMethod, Context> sourceCGNode = relevantQuery.sourceCGNode;
         OrderedPair<IMethod, Context> destinationCGNode = relevantQuery.destCGNode;
 
@@ -295,10 +306,8 @@ public final class RelevantNodes {
         if (queries != null) {
             for (RelevantNodesQuery q : queries) {
                 // recompute the query.
-                // Could do something smarter and incrementally change the result, and/or turn it into a task that can be run separately.
-                this.computeRelevantNodes(q);
-                totalRequests++;
-                computedResponses++;
+                // Could do something smarter and incrementally change the result
+                this.analysisHandle.submitRelevantNodesQuery(q);
             }
         }
     }
@@ -316,10 +325,8 @@ public final class RelevantNodes {
         if (queries != null) {
             for (RelevantNodesQuery q : queries) {
                 // recompute the query.
-                // Could do something smarter and incrementally change the result, and/or turn it into a task that can be run separately.
-                this.computeRelevantNodes(q);
-                totalRequests++;
-                computedResponses++;
+                // Could do something smarter and incrementally change the result
+                this.analysisHandle.submitRelevantNodesQuery(q);
             }
         }
 
@@ -329,7 +336,7 @@ public final class RelevantNodes {
      * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
      * program point in the destination call graph node
      */
-    private static class RelevantNodesQuery {
+    public static class RelevantNodesQuery {
         /**
          * Call graph node containing the source program point
          */

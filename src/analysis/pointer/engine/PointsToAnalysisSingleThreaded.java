@@ -24,6 +24,8 @@ import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
+import analysis.pointer.graph.RelevantNodes;
+import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -119,6 +121,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         final Queue<AddToSetOrigin> addToSetQueue = Collections.asLifoQueue(new ArrayDeque<AddToSetOrigin>());
         final Queue<AddNonMostRecentOrigin> addNonMostRecentQueue = Collections.asLifoQueue(new ArrayDeque<AddNonMostRecentOrigin>());
         final Set<ProgramPointSubQuery> reachabilitySubQueryQueue = new LinkedHashSet<>();
+        final Set<RelevantNodesQuery> relevantNodesQueryQueue = new LinkedHashSet<>();
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -214,7 +217,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         this.analysisHandle = new PointsToAnalysisHandleImpl(noDeltaQueue,
                                                              addToSetQueue,
                                                              addNonMostRecentQueue,
-                                                             reachabilitySubQueryQueue);
+                                                             reachabilitySubQueryQueue,
+                                                             relevantNodesQueryQueue);
 
         PointsToGraph g = new PointsToGraph(registrar, this.haf, depRecorder, this.analysisHandle);
 
@@ -249,7 +253,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         this.lastTime = this.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()
-                || !addNonMostRecentQueue.isEmpty() || !addToSetQueue.isEmpty() || !reachabilitySubQueryQueue.isEmpty()) {
+                || !addNonMostRecentQueue.isEmpty() || !addToSetQueue.isEmpty() || !reachabilitySubQueryQueue.isEmpty()
+                || !relevantNodesQueryQueue.isEmpty()) {
             if (currentQueue.isEmpty()) {
                 Queue<OrderedPair<StmtAndContext, GraphDelta>> t = nextQueue;
                 nextQueue = currentQueue;
@@ -261,14 +266,27 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 if (noDeltaQueue.isEmpty()) {
                     if (addNonMostRecentQueue.isEmpty()) {
                         if (addToSetQueue.isEmpty()) {
-                            Iterator<ProgramPointSubQuery> iter = reachabilitySubQueryQueue.iterator();
-                            ProgramPointSubQuery sq = iter.next();
-                            assert incrementCounter(sq);
-                            if (!reachabilitySubQueryQueue.remove(sq)) {
-                                throw new RuntimeException("Query should have been removed " + sq);
+                            if (relevantNodesQueryQueue.isEmpty()) {
+                                Iterator<ProgramPointSubQuery> iter = reachabilitySubQueryQueue.iterator();
+                                ProgramPointSubQuery sq = iter.next();
+                                assert incrementCounter(sq);
+                                if (!reachabilitySubQueryQueue.remove(sq)) {
+                                    throw new RuntimeException("Query should have been removed " + sq);
+                                }
+                                numSubQuery++;
+                                g.ppReach.processSubQuery(sq);
                             }
-                            numSubQuery++;
-                            g.ppReach.processSubQuery(sq);
+                            else {
+                                // relevantNodesQueryQueue
+                                Iterator<RelevantNodesQuery> iter = relevantNodesQueryQueue.iterator();
+                                RelevantNodesQuery rq = iter.next();
+                                assert incrementCounter(rq);
+                                if (!relevantNodesQueryQueue.remove(rq)) {
+                                    throw new RuntimeException("Query should have been removed " + rq);
+                                }
+                                numRelevantNodesQuery++;
+                                g.ppReach.processRelevantNodesQuery(rq);
+                            }
                         }
                         else {
                             // addToSetQueue
@@ -300,7 +318,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                             noDeltaQueue,
                             addNonMostRecentQueue,
                             addToSetQueue,
-                            reachabilitySubQueryQueue);
+                            reachabilitySubQueryQueue,
+                            relevantNodesQueryQueue);
         }
 
         long endTime = System.currentTimeMillis();
@@ -361,7 +380,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     /**
      * Number of times each query has been pulled from the queue
      */
-    private final Map<ProgramPointSubQuery, Integer> queryCounts = new HashMap<>();
+    private final Map<Object, Integer> queryCounts = new HashMap<>();
 
     /**
      * Increment the number of times the given query has been processed from the queue
@@ -369,7 +388,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      * @param p query
      * @return true if the counter was incremented. false if the threshold has been reached
      */
-    private boolean incrementCounter(ProgramPointSubQuery p) {
+    private boolean incrementCounter(Object p) {
         Integer count = queryCounts.get(p);
         if (count == null) {
             count = 0;
@@ -390,6 +409,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     int lastNumSaCNoDeltaProcessed = 0;
     int processedWithNoChange = 0;
     int numSubQuery = 0;
+    int numRelevantNodesQuery = 0;
     int numAddToSet = 0;
     int numNonMostRecent = 0;
     long registrationTime = 0;
@@ -403,7 +423,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                             Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue,
                             Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue,
                             Queue<StmtAndContext> noDeltaQueue, Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
-                            Queue<AddToSetOrigin> addToSetQueue, Set<ProgramPointSubQuery> reachabilitySubQueryQueue) {
+                            Queue<AddToSetOrigin> addToSetQueue, Set<ProgramPointSubQuery> reachabilitySubQueryQueue,
+                            Set<RelevantNodesQuery> relevantNodesQueryQueue) {
         // Do some accounting for debugging/informational purposes.
         this.numSaCProcessed++;
         if (delta == null) {
@@ -444,12 +465,14 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             } while (currTime > this.nextMilestone);
 
             System.err.println("PROCESSED: " + this.numSaCProcessed + " SaC, " + numSubQuery + " subQuery, "
+                    + numRelevantNodesQuery + " relevantNodesQuery, "
                     + numAddToSet + " addToSet, " + numNonMostRecent + " nonMostRecent in "
                     + (currTime - this.startTime) / 1000 + "s; number of source node " + g.numPointsToGraphNodes()
                     + "; queue=" + currentQueue.size() + " nextQueue=" + nextQueue.size() + " noDeltaQueue="
                     + noDeltaQueue.size() + " addNonMostRecentQueue=" + addNonMostRecentQueue.size()
                     + " addToSetQueue=" + addToSetQueue.size() + " reachabilitySubQueryQueue="
-                    + reachabilitySubQueryQueue.size() + " (" + (this.numSaCProcessed - this.lastNumSaCProcessed)
+                    + reachabilitySubQueryQueue.size() + " relevantNodesQueryQueue=" + relevantNodesQueryQueue.size()
+                    + " (" + (this.numSaCProcessed - this.lastNumSaCProcessed)
                     + " in " + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
             this.lastNumSaCProcessed = this.numSaCProcessed;
@@ -677,15 +700,19 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Queue<AddToSetOrigin> addToSetQueue;
         Queue<AddNonMostRecentOrigin> addNonMostRecentQueue;
         Set<ProgramPointSubQuery> reachabilitySubQueryQueue;
+        Set<RelevantNodes.RelevantNodesQuery> relevantNodesQueryQueue;
+
         PointsToGraph g;
 
         public PointsToAnalysisHandleImpl(Queue<StmtAndContext> noDeltaQueue, Queue<AddToSetOrigin> addToSetQueue,
                                           Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
-                                          Set<ProgramPointSubQuery> reachabilitySubQueryQueue) {
+                                          Set<ProgramPointSubQuery> reachabilitySubQueryQueue,
+                                          Set<RelevantNodes.RelevantNodesQuery> relevantNodesQueryQueue) {
             this.noDeltaQueue = noDeltaQueue;
             this.addToSetQueue = addToSetQueue;
             this.addNonMostRecentQueue = addNonMostRecentQueue;
             this.reachabilitySubQueryQueue = reachabilitySubQueryQueue;
+            this.relevantNodesQueryQueue = relevantNodesQueryQueue;
         }
 
         void setPointsToGraph(PointsToGraph g) {
@@ -726,6 +753,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         @Override
         public void submitReachabilityQuery(ProgramPointSubQuery sq) {
             reachabilitySubQueryQueue.add(sq);
+        }
+
+        @Override
+        public void submitRelevantNodesQuery(RelevantNodesQuery rq) {
+            relevantNodesQueryQueue.add(rq);
         }
 
     }
