@@ -259,7 +259,18 @@ public final class ProgramPointReachability {
 
             // First check the call graph to find the set of call graph nodes that must be searched directly
             // (i.e. the effects for these nodes cannot be summarized).
-            Set<OrderedPair<IMethod, Context>> relevantNodes = altFindRelevantNodes(query);
+            OrderedPair<IMethod, Context> source = new OrderedPair<>(query.source.getContainingProcedure(),
+                                                                     query.source.getContext());
+            OrderedPair<IMethod, Context> dest = new OrderedPair<>(query.destination.getContainingProcedure(),
+                                                                   query.destination.getContext());
+            RelevantNodesQuery relevantQuery = new RelevantNodesQuery(source, dest);
+
+            Set<OrderedPair<IMethod, Context>> relevantNodes = relevantNodesCache.get(relevantQuery);
+            if (relevantNodes == null) {
+                relevantNodes = findRelevantNodes(relevantQuery);
+            }
+            // XXX record before or after computing? I think after so the query doesn't restart while running
+            addRelevantNodesDependency(query, relevantQuery);
 
             if (relevantNodes.isEmpty()) {
                 // this path isn't possible.
@@ -350,14 +361,14 @@ public final class ProgramPointReachability {
      * Find call graph nodes that must be searched deeply for a path from the source to destination for the given query.
      * Irrelevant nodes can have their effects (kill and alloc sets) summarized.
      *
-     * @param query query to get the relevent nodes for
+     * @param sourceCGNode call graph node containing the source program point
+     * @param destinationCGNode call graph node containing the destination program point
+     *
      * @return the set of call graph nodes that cannot be summarized
      */
-    private Set<OrderedPair<IMethod, Context>> altFindRelevantNodes(ProgramPointSubQuery query) {
-        OrderedPair<IMethod, Context> sourceCGNode = new OrderedPair<>(query.source.getContainingProcedure(),
-                                                                       query.source.getContext());
-        OrderedPair<IMethod, Context> destinationCGNode = new OrderedPair<>(query.destination.getContainingProcedure(),
-                                                                            query.destination.getContext());
+    private Set<OrderedPair<IMethod, Context>> findRelevantNodes(RelevantNodesQuery relevantQuery) {
+        OrderedPair<IMethod, Context> sourceCGNode = relevantQuery.sourceCGNode;
+        OrderedPair<IMethod, Context> destinationCGNode = relevantQuery.destCGNode;
 
         /*
          * The set of relevant cg nodes, ie., an overapproximation of nodes that are on
@@ -379,7 +390,6 @@ public final class ProgramPointReachability {
         // and <m, CALLEES> as being short hand for the set of call graph edges going from m (callees from m).
         Deque<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> q = new ArrayDeque<>();
 
-
         // Initialize the workqueue
         q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLEES));
         q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLERS));
@@ -399,7 +409,7 @@ public final class ProgramPointReachability {
 
             if (p.snd() == CGEdgeType.CALLERS) {
                 // explore the callers of this cg node
-                this.addCallerDependency(query, cgNode);
+                this.addFindRelevantNodesCallerDependency(relevantQuery, cgNode);
                 for (OrderedPair<CallSiteProgramPoint, Context> caller : g.getCallersOf(cgNode)) {
                     OrderedPair<IMethod, Context> callerCGNode = new OrderedPair<>(caller.fst().containingProcedure(),
                                                                                    caller.snd());
@@ -435,7 +445,8 @@ public final class ProgramPointReachability {
                 // (Note that we should *not* apply this optimization for CALLERS, since this would be unsound e.g.,
                 // if the source and destination nodes are the same.)
                 for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
-                    this.addCalleeDependency(query, callSite);
+                    assert callSite.getPP() instanceof CallSiteProgramPoint;
+                    this.addFindRelevantNodesCalleeDependency(relevantQuery, callSite);
                     for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
                         if (relevant.contains(callee)) {
                             // since callee is relevant, so is cgNode.
@@ -468,7 +479,8 @@ public final class ProgramPointReachability {
             }
 
         }
-
+        // Record the results and rerun any dependencies
+        recordRelevantNodesResults(relevantQuery, relevant);
         return relevant;
     }
 
@@ -852,6 +864,78 @@ public final class ProgramPointReachability {
         return rr;
     }
 
+    /**
+     * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
+     * program point in the destination call graph node
+     */
+    private static class RelevantNodesQuery {
+        /**
+         * Call graph node containing the source program point
+         */
+        final OrderedPair<IMethod, Context> sourceCGNode;
+        /**
+         * Call graph node containing the destination program point
+         */
+        final OrderedPair<IMethod, Context> destCGNode;
+
+        /**
+         * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
+         * program point in the destination call graph node
+         *
+         * @param sourceCGNode Call graph node containing the source program point
+         * @param destCGNode Call graph node containing the destination program point
+         */
+        public RelevantNodesQuery(OrderedPair<IMethod, Context> sourceCGNode, OrderedPair<IMethod, Context> destCGNode) {
+            this.sourceCGNode = sourceCGNode;
+            this.destCGNode = destCGNode;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((this.destCGNode == null) ? 0 : this.destCGNode.hashCode());
+            result = prime * result + ((this.sourceCGNode == null) ? 0 : this.sourceCGNode.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            RelevantNodesQuery other = (RelevantNodesQuery) obj;
+            if (this.destCGNode == null) {
+                if (other.destCGNode != null) {
+                    return false;
+                }
+            }
+            else if (!this.destCGNode.equals(other.destCGNode)) {
+                return false;
+            }
+            if (this.sourceCGNode == null) {
+                if (other.sourceCGNode != null) {
+                    return false;
+                }
+            }
+            else if (!this.sourceCGNode.equals(other.sourceCGNode)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "Source: " + this.sourceCGNode + " Dest: " + this.destCGNode;
+        }
+    }
+
     /* *****************************************************************************
      *
      * REACHABILITY QUERY RESULT MEMOIZATION
@@ -866,6 +950,7 @@ public final class ProgramPointReachability {
      */
     private Set<ProgramPointSubQuery> positiveCache = AnalysisUtil.createConcurrentSet();
     private Set<ProgramPointSubQuery> negativeCache = AnalysisUtil.createConcurrentSet();
+    private Map<RelevantNodesQuery, Set<OrderedPair<IMethod, Context>>> relevantNodesCache = AnalysisUtil.createConcurrentHashMap();
 
     /* *****************************************************************************
      *
@@ -881,6 +966,99 @@ public final class ProgramPointReachability {
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> methodMethodDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentIntMap<Set<ProgramPointSubQuery>> killQueryDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
     private final ConcurrentIntMap<Set<OrderedPair<IMethod, Context>>> killMethodDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    // Dependencies for the findRelevantNodes queries
+    private final ConcurrentMap<ProgramPointReplica, Set<RelevantNodesQuery>> findRelevantNodesCalleeDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<RelevantNodesQuery>> findRelevantNodesCallerDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
+
+    /**
+     * Record the fact that the results of the query depends on the relevant nodes between the source and dest
+     *
+     * @param query query that depends on the relevant nodes
+     * @param relevantQuery query for relevant nodes from a source to a destination
+     */
+    private void addRelevantNodesDependency(ProgramPointSubQuery query, RelevantNodesQuery relevantQuery) {
+        Set<ProgramPointSubQuery> s = relevantNodesDependencies.get(relevantQuery);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<ProgramPointSubQuery> existing = relevantNodesDependencies.putIfAbsent(relevantQuery, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(query);
+    }
+
+    /**
+     * Record the fact that the results of a findRelevantNodes call depends on the callees for the given call-site
+     *
+     * @param relevantQuery query to find relevant nodes from a source to a destination call graph node
+     * @param callSite program point for the call-site
+     */
+    private void addFindRelevantNodesCalleeDependency(RelevantNodesQuery relevantQuery, ProgramPointReplica callSite) {
+        assert callSite.getPP() instanceof CallSiteProgramPoint;
+
+        Set<RelevantNodesQuery> s = findRelevantNodesCalleeDependencies.get(callSite);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<RelevantNodesQuery> existing = findRelevantNodesCalleeDependencies.putIfAbsent(callSite, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(relevantQuery);
+    }
+
+    /**
+     * Record the fact that the results of a findRelevantNodes call depends on the callers of a given call graph node
+     *
+     * @param relevantQuery query to find relevant nodes from a source to a destination call graph node
+     * @param caller call graph node for the caller
+     */
+    private void addFindRelevantNodesCallerDependency(RelevantNodesQuery relevantQuery,
+                                                      OrderedPair<IMethod, Context> caller) {
+        Set<RelevantNodesQuery> s = findRelevantNodesCallerDependencies.get(caller);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentSet();
+            Set<RelevantNodesQuery> existing = findRelevantNodesCallerDependencies.putIfAbsent(caller, s);
+            if (existing != null) {
+                s = existing;
+            }
+        }
+        s.add(relevantQuery);
+    }
+
+    /**
+     * Record the results of running a query to find to relevant nodes for queries from a source call graph node to a
+     * destination call graph node
+     *
+     * @param relevantQuery query to find relevant nodes
+     * @param results call graph nodes that are relevant to queries from a program point in the source to a program
+     *            point in the destination
+     */
+    private void recordRelevantNodesResults(RelevantNodesQuery relevantQuery, Set<OrderedPair<IMethod, Context>> results) {
+        Set<OrderedPair<IMethod, Context>> s = relevantNodesCache.get(relevantQuery);
+        if (s == null || !s.equals(results)) {
+            relevantNodesCache.put(relevantQuery, results);
+            // rerun queries that depend on the results of the relevant nodes query
+            Set<ProgramPointSubQuery> deps = relevantNodesDependencies.get(relevantQuery);
+            if (deps == null) {
+                // no dependencies, this must be the first time we ran the find relevant query
+                assert s == null;
+                return;
+            }
+
+            Iterator<ProgramPointSubQuery> iter = deps.iterator();
+            while (iter.hasNext()) {
+                ProgramPointSubQuery mr = iter.next();
+                // need to re-run the query
+                if (!requestRerunQuery(mr)) {
+                    // no need to rerun this anymore, it was true
+                    iter.remove();
+                }
+            }
+        }
+    }
 
     /**
      * Record the fact that the result of query depends on the callees of callSite, and thus, if the callees change,
