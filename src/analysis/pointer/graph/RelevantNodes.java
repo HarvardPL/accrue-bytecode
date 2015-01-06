@@ -213,24 +213,19 @@ public final class RelevantNodes {
      */
     private void recordRelevantNodesResults(RelevantNodesQuery relevantQuery, Set<OrderedPair<IMethod, Context>> results) {
         Set<OrderedPair<IMethod, Context>> s = cache.get(relevantQuery);
-        boolean changed = false;
         if (s == null) {
-            s = cache.putIfAbsent(relevantQuery, results);
-            changed = true;
-            if (s != null) {
+            s =  AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = cache.putIfAbsent(relevantQuery, s);
+            if (existing != null) {
                 // someone beat us to recording the result.
-                changed = s.addAll(results);
+                s = existing;
             }
         }
-        else {
-            changed = s.addAll(results);
-        }
-        if (changed) {
+
+        if (s.addAll(results)) {
             // rerun queries that depend on the results of the relevant nodes query
             Set<ProgramPointSubQuery> deps = relevantNodesDependencies.get(relevantQuery);
             if (deps == null) {
-                // no dependencies, this must be the first time we ran the find relevant query
-                assert s == null;
                 return;
             }
 
