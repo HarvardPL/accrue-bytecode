@@ -75,7 +75,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf + "(multithreaded, "
                 + PointsToAnalysisMultiThreaded.numThreads() + " threads)");
-        long startTime = System.currentTimeMillis();
+        PointsToAnalysis.startTime = System.currentTimeMillis();
 
 
         final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
@@ -171,7 +171,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         execService.shutdownAndAwaitTermination();
 
         long endTime = System.currentTimeMillis();
-        long totalTime = endTime - startTime;
+        long totalTime = endTime - PointsToAnalysis.startTime;
         if (AccrueAnalysisMain.testMode) {
             System.out.println(totalTime / 1000.0);
         }

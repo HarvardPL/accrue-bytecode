@@ -32,6 +32,10 @@ public abstract class PointsToAnalysis {
      * Flag for debugging the analysis by rerunning all the statements and looking for inconsistencies
      */
     public static boolean paranoidMode;
+    /**
+     * Time the pointer analysis started
+     */
+    public static long startTime;
 
 
     /**

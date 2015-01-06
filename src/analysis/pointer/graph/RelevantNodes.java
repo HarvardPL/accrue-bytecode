@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import util.OrderedPair;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
@@ -39,6 +40,8 @@ public final class RelevantNodes {
     private int totalRequests = 0;
     private int cachedResponses = 0;
     private int computedResponses = 0;
+    private long totalTime = 0;
+    private long calleeDepTime = 0;
 
     RelevantNodes(PointsToGraph g, PointsToAnalysisHandle analysisHandle,
                   ProgramPointReachability programPointReachability) {
@@ -65,10 +68,16 @@ public final class RelevantNodes {
             cachedResponses++;
         }
 
-        if ((totalRequests % 10000) == 0) {
+        if ((totalRequests % 1000) == 0) {
             System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
                     + computedResponses + " computed (" + (int) (100 * ((float) cachedResponses / totalRequests))
                     + "% hit rate)");
+            double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
+            double relevantTime = totalTime / 1000.0;
+            double calleeTime = calleeDepTime / 1000.0;
+            System.err.println("Total: " + analysisTime + "s;  computeRelevantNodes: " + relevantTime
+                    + "s; RATIO: " + (relevantTime / analysisTime) + "; addFindRelevantNodesCalleeDependency: "
+                    + calleeTime + "s; RATIO: " + (calleeTime / analysisTime));
         }
         return relevantNodes;
     }
@@ -85,6 +94,7 @@ public final class RelevantNodes {
     public Set<OrderedPair<IMethod, Context>> computeRelevantNodes(RelevantNodesQuery relevantQuery) {
         totalRequests++;
         computedResponses++;
+        long start = System.currentTimeMillis();
 
         OrderedPair<IMethod, Context> sourceCGNode = relevantQuery.sourceCGNode;
         OrderedPair<IMethod, Context> destinationCGNode = relevantQuery.destCGNode;
@@ -200,6 +210,7 @@ public final class RelevantNodes {
         }
         // Record the results and rerun any dependencies
         recordRelevantNodesResults(relevantQuery, relevant);
+        totalTime += (System.currentTimeMillis() - start);
         return relevant;
     }
 
@@ -243,6 +254,7 @@ public final class RelevantNodes {
      */
     private void addFindRelevantNodesCalleeDependency(RelevantNodesQuery relevantQuery, ProgramPointReplica callSite) {
         assert callSite.getPP() instanceof CallSiteProgramPoint;
+        long start = System.currentTimeMillis();
 
         Set<RelevantNodesQuery> s = findRelevantNodesCalleeDependencies.get(callSite);
         if (s == null) {
@@ -253,6 +265,7 @@ public final class RelevantNodes {
             }
         }
         s.add(relevantQuery);
+        calleeDepTime += (System.currentTimeMillis() - start);
     }
 
     /**

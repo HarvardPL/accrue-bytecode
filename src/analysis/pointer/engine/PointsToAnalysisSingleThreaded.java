@@ -112,8 +112,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf);
-        this.startTime = System.currentTimeMillis();
-        this.nextMilestone = this.startTime - 1;
+        PointsToAnalysis.startTime = System.currentTimeMillis();
+        this.nextMilestone = PointsToAnalysis.startTime - 1;
 
         Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
         this.nextQueue = Collections.asLifoQueue(new ArrayDeque<OrderedPair<StmtAndContext, GraphDelta>>());
@@ -250,7 +250,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             registrar.setStatementListener(stmtListener);
         }
 
-        this.lastTime = this.startTime;
+        this.lastTime = PointsToAnalysis.startTime;
         Set<StmtAndContext> visited = new HashSet<>();
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()
                 || !addNonMostRecentQueue.isEmpty() || !addToSetQueue.isEmpty() || !reachabilitySubQueryQueue.isEmpty()
@@ -325,7 +325,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         long endTime = System.currentTimeMillis();
         System.err.println("Processed " + this.numSaCProcessed + " (statement, context) pairs"
                 + (outputLevel >= 1 ? " (" + visited.size() + " unique)" : ""));
-        long totalTime = endTime - this.startTime;
+        long totalTime = endTime - PointsToAnalysis.startTime;
         System.err.println("   Total time       : " + totalTime / 1000 + "s.");
         System.err.println("   Registration time: " + this.registrationTime / 1000 + "s.");
         System.err.println("   => Analysis time : " + (totalTime - this.registrationTime) / 1000 + "s.");
@@ -416,7 +416,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     long topoSortTime = 0;
     long nextMilestone;
     long lastTime;
-    long startTime;
     Map<String, Map<StmtAndContext, Integer>> counts = new HashMap<>();
 
     private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
@@ -465,15 +464,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             } while (currTime > this.nextMilestone);
 
             System.err.println("PROCESSED: " + this.numSaCProcessed + " SaC, " + numSubQuery + " subQuery, "
-                    + numRelevantNodesQuery + " relevantNodesQuery, "
-                    + numAddToSet + " addToSet, " + numNonMostRecent + " nonMostRecent in "
-                    + (currTime - this.startTime) / 1000 + "s; number of source node " + g.numPointsToGraphNodes()
-                    + "; queue=" + currentQueue.size() + " nextQueue=" + nextQueue.size() + " noDeltaQueue="
-                    + noDeltaQueue.size() + " addNonMostRecentQueue=" + addNonMostRecentQueue.size()
-                    + " addToSetQueue=" + addToSetQueue.size() + " reachabilitySubQueryQueue="
-                    + reachabilitySubQueryQueue.size() + " relevantNodesQueryQueue=" + relevantNodesQueryQueue.size()
-                    + " (" + (this.numSaCProcessed - this.lastNumSaCProcessed)
-                    + " in " + (currTime - this.lastTime) / 1000 + "s)");
+                    + numRelevantNodesQuery + " relevantNodesQuery, " + numAddToSet + " addToSet, " + numNonMostRecent
+                    + " nonMostRecent in " + (currTime - PointsToAnalysis.startTime) / 1000
+                    + "s; number of source node " + g.numPointsToGraphNodes() + "; queue=" + currentQueue.size()
+                    + " nextQueue=" + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size()
+                    + " addNonMostRecentQueue=" + addNonMostRecentQueue.size() + " addToSetQueue="
+                    + addToSetQueue.size() + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size()
+                    + " relevantNodesQueryQueue=" + relevantNodesQueryQueue.size() + " ("
+                    + (this.numSaCProcessed - this.lastNumSaCProcessed) + " in " + (currTime - this.lastTime) / 1000
+                    + "s)");
             this.lastTime = currTime;
             this.lastNumSaCProcessed = this.numSaCProcessed;
             this.lastNumSaCNoDeltaProcessed = this.numSaCNoDeltaProcessed;
