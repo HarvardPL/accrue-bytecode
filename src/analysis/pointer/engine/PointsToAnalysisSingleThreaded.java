@@ -255,6 +255,13 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         while (!currentQueue.isEmpty() || !nextQueue.isEmpty() || !noDeltaQueue.isEmpty()
                 || !addNonMostRecentQueue.isEmpty() || !addToSetQueue.isEmpty() || !reachabilitySubQueryQueue.isEmpty()
                 || !relevantNodesQueryQueue.isEmpty()) {
+            printDiagnostics(g,
+                             currentQueue,
+                             noDeltaQueue,
+                             addNonMostRecentQueue,
+                             addToSetQueue,
+                             reachabilitySubQueryQueue,
+                             relevantNodesQueryQueue);
             if (currentQueue.isEmpty()) {
                 Queue<OrderedPair<StmtAndContext, GraphDelta>> t = nextQueue;
                 nextQueue = currentQueue;
@@ -377,6 +384,37 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return g;
     }
 
+    private void printDiagnostics(PointsToGraph g,
+                                  Queue<OrderedPair<PointsToAnalysis.StmtAndContext, GraphDelta>> currentQueue,
+                                  Queue<StmtAndContext> noDeltaQueue,
+                                  Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
+                                  Queue<AddToSetOrigin> addToSetQueue,
+                                  Set<ProgramPointSubQuery> reachabilitySubQueryQueue,
+                                  Set<RelevantNodesQuery> relevantNodesQueryQueue) {
+        long currTime = System.currentTimeMillis();
+        if (currTime > this.nextMilestone) {
+            do {
+                this.nextMilestone = this.nextMilestone + 1000 * 30; // 30 seconds
+            } while (currTime > this.nextMilestone);
+
+            System.err.println((currTime - PointsToAnalysis.startTime) / 1000.0 + " PROCESSED: " + this.numSaCProcessed
+                    + " SaC, "
+                    + numSubQuery + " subQuery, " + numRelevantNodesQuery + " relevantNodesQuery, " + numAddToSet
+                    + " addToSet, " + numNonMostRecent + " nonMostRecent in "
+                    + (currTime - PointsToAnalysis.startTime) / 1000 + "s; number of source node "
+                    + g.numPointsToGraphNodes() + ";\n\tqueue=" + currentQueue.size() + " nextQueue="
+                    + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size() + " addNonMostRecentQueue="
+                    + addNonMostRecentQueue.size() + " addToSetQueue=" + addToSetQueue.size()
+                    + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size() + " relevantNodesQueryQueue="
+                    + relevantNodesQueryQueue.size() + " (" + (this.numSaCProcessed - this.lastNumSaCProcessed)
+                    + " in " + (currTime - this.lastTime) / 1000 + "s)");
+            this.lastTime = currTime;
+            this.lastNumSaCProcessed = this.numSaCProcessed;
+            this.lastNumSaCNoDeltaProcessed = this.numSaCNoDeltaProcessed;
+            this.processedWithNoChange = 0;
+        }
+    }
+
     /**
      * Number of times each query has been pulled from the queue
      */
@@ -456,28 +494,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             this.processedWithNoChange++;
         }
         this.handleChanges(nextQueue, changed, g);
-
-        long currTime = System.currentTimeMillis();
-        if (currTime > this.nextMilestone) {
-            do {
-                this.nextMilestone = this.nextMilestone + 1000 * 30; // 30 seconds
-            } while (currTime > this.nextMilestone);
-
-            System.err.println("PROCESSED: " + this.numSaCProcessed + " SaC, " + numSubQuery + " subQuery, "
-                    + numRelevantNodesQuery + " relevantNodesQuery, " + numAddToSet + " addToSet, " + numNonMostRecent
-                    + " nonMostRecent in " + (currTime - PointsToAnalysis.startTime) / 1000
-                    + "s; number of source node " + g.numPointsToGraphNodes() + "; queue=" + currentQueue.size()
-                    + " nextQueue=" + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size()
-                    + " addNonMostRecentQueue=" + addNonMostRecentQueue.size() + " addToSetQueue="
-                    + addToSetQueue.size() + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size()
-                    + " relevantNodesQueryQueue=" + relevantNodesQueryQueue.size() + " ("
-                    + (this.numSaCProcessed - this.lastNumSaCProcessed) + " in " + (currTime - this.lastTime) / 1000
-                    + "s)");
-            this.lastTime = currTime;
-            this.lastNumSaCProcessed = this.numSaCProcessed;
-            this.lastNumSaCNoDeltaProcessed = this.numSaCNoDeltaProcessed;
-            this.processedWithNoChange = 0;
-        }
     }
 
     void handleChanges(Queue<OrderedPair<StmtAndContext, GraphDelta>> queue, GraphDelta changes, PointsToGraph g) {
