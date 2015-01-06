@@ -30,7 +30,7 @@ public final class RelevantNodes {
      */
     private final PointsToAnalysisHandle analysisHandle;
 
-    private final Map<RelevantNodesQuery, Set<OrderedPair<IMethod, Context>>> cache = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<RelevantNodesQuery, Set<OrderedPair<IMethod, Context>>> cache = AnalysisUtil.createConcurrentHashMap();
 
     // Dependencies for the findRelevantNodes queries
     private final ConcurrentMap<ProgramPointReplica, Set<RelevantNodesQuery>> findRelevantNodesCalleeDependencies = AnalysisUtil.createConcurrentHashMap();
@@ -224,13 +224,19 @@ public final class RelevantNodes {
      */
     private void recordRelevantNodesResults(RelevantNodesQuery relevantQuery, Set<OrderedPair<IMethod, Context>> results) {
         Set<OrderedPair<IMethod, Context>> s = cache.get(relevantQuery);
-        if (s == null || !s.equals(results)) {
-            cache.put(relevantQuery, results);
+        if (s == null) {
+            s =  AnalysisUtil.createConcurrentSet();
+            Set<OrderedPair<IMethod, Context>> existing = cache.putIfAbsent(relevantQuery, s);
+            if (existing != null) {
+                // someone beat us to recording the result.
+                s = existing;
+            }
+        }
+
+        if (s.addAll(results)) {
             // rerun queries that depend on the results of the relevant nodes query
             Set<ProgramPointSubQuery> deps = relevantNodesDependencies.get(relevantQuery);
             if (deps == null) {
-                // no dependencies, this must be the first time we ran the find relevant query
-                assert s == null;
                 return;
             }
 
