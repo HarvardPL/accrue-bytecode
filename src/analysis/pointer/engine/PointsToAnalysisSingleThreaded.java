@@ -266,17 +266,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 if (noDeltaQueue.isEmpty()) {
                     if (addNonMostRecentQueue.isEmpty()) {
                         if (addToSetQueue.isEmpty()) {
-                            if (relevantNodesQueryQueue.isEmpty()) {
-                                Iterator<ProgramPointSubQuery> iter = reachabilitySubQueryQueue.iterator();
-                                ProgramPointSubQuery sq = iter.next();
-                                assert incrementCounter(sq);
-                                if (!reachabilitySubQueryQueue.remove(sq)) {
-                                    throw new RuntimeException("Query should have been removed " + sq);
-                                }
-                                numSubQuery++;
-                                g.ppReach.processSubQuery(sq);
-                            }
-                            else {
+                            if (reachabilitySubQueryQueue.isEmpty()) {
                                 // relevantNodesQueryQueue
                                 Iterator<RelevantNodesQuery> iter = relevantNodesQueryQueue.iterator();
                                 RelevantNodesQuery rq = iter.next();
@@ -286,6 +276,16 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                 }
                                 numRelevantNodesQuery++;
                                 g.ppReach.processRelevantNodesQuery(rq);
+                            }
+                            else {
+                                Iterator<ProgramPointSubQuery> iter = reachabilitySubQueryQueue.iterator();
+                                ProgramPointSubQuery sq = iter.next();
+                                assert incrementCounter(sq);
+                                if (!reachabilitySubQueryQueue.remove(sq)) {
+                                    throw new RuntimeException("Query should have been removed " + sq);
+                                }
+                                numSubQuery++;
+                                g.ppReach.processSubQuery(sq);
                             }
                         }
                         else {

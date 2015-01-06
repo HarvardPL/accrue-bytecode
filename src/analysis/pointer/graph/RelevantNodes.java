@@ -335,6 +335,8 @@ public final class RelevantNodes {
         Set<RelevantNodesQuery> queries = findRelevantNodesCalleeDependencies.get(callSite);
         if (queries != null) {
             for (RelevantNodesQuery q : queries) {
+                // clear cache
+                this.cache.remove(q);
                 // recompute the query.
                 // Could do something smarter and incrementally change the result
                 this.analysisHandle.submitRelevantNodesQuery(q);
@@ -354,6 +356,8 @@ public final class RelevantNodes {
         Set<RelevantNodesQuery> queries = findRelevantNodesCallerDependencies.get(callGraphNode);
         if (queries != null) {
             for (RelevantNodesQuery q : queries) {
+                // clear cache
+                this.cache.remove(q);
                 // recompute the query.
                 // Could do something smarter and incrementally change the result
                 this.analysisHandle.submitRelevantNodesQuery(q);
