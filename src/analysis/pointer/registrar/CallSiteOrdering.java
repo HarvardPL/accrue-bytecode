@@ -33,7 +33,6 @@ class CallSiteOrdering {
      * @return Map from call-sites to call-sites that may occur after that call-site
      */
     Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> getForMethod(ProgramPoint entryPP) {
-
         WorkQueue<ProgramPoint> q = new WorkQueue<>();
         this.preds = new HashMap<>();
         this.callSitesAfter = new HashMap<>();
@@ -50,8 +49,8 @@ class CallSiteOrdering {
             }
             for (ProgramPoint succ : current.succs()) {
                 recordPredecessor(current, succ);
-                if (!visited.add(succ)) {
-                    q.add(current);
+                if (visited.add(succ)) {
+                    q.add(succ);
                 }
             }
         }
@@ -59,10 +58,10 @@ class CallSiteOrdering {
         assert q.isEmpty();
         // Record all call-sites seen by searching backward from the exit program points
         q.addAll(exits);
-        while (q.isEmpty()) {
+        while (!q.isEmpty()) {
             ProgramPoint current = q.poll();
             Set<CallSiteProgramPoint> result;
-            if (!current.succs().isEmpty()) {
+            if (current.succs().isEmpty()) {
                 assert current.isExceptionExitSummaryNode() || current.isNormalExitSummaryNode();
                 // initial results for the exit nodes
                 result = Collections.emptySet();

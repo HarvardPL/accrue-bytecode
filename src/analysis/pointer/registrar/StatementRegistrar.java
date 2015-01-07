@@ -424,13 +424,6 @@ public class StatementRegistrar {
         // compute and record the call-site ordering for this method
         Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> ordering = new CallSiteOrdering().getForMethod(methSumm.getEntryPP());
         callSiteOrdering.put(m, ordering);
-        System.err.println("ORDERING FOR " + PrettyPrinter.methodString(m));
-        for (CallSiteProgramPoint cspp : ordering.keySet()) {
-            System.err.println("\t" + cspp);
-            for (CallSiteProgramPoint after : ordering.get(cspp)) {
-                System.err.println("\t\t" + after);
-            }
-        }
 
         return true;
 
