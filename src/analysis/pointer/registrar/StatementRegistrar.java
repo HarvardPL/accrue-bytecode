@@ -87,6 +87,10 @@ public class StatementRegistrar {
      * Map from method to the CallSiteProgramPoints that are in that method.
      */
     private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesWithinMethod;
+    /**
+     * Map from method to the may-happen-after relationship for call-sites within the method
+     */
+    private final ConcurrentMap<IMethod, Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>>> callSiteOrdering;
 
     /**
      * Program point for the call to a class initialization method
@@ -218,6 +222,7 @@ public class StatementRegistrar {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.callSitesWithinMethod = AnalysisUtil.createConcurrentHashMap();
+        this.callSiteOrdering = AnalysisUtil.createConcurrentHashMap();
         this.programPointForClassInit = AnalysisUtil.createConcurrentHashMap();
         this.ppToStmtMap = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
@@ -245,6 +250,7 @@ public class StatementRegistrar {
      * Handle all the instructions for a given method
      *
      * @param m method to register points-to statements for
+     * @return whether the method was registered
      */
     public synchronized boolean registerMethod(IMethod m) {
         if (m.isAbstract()) {
@@ -252,170 +258,181 @@ public class StatementRegistrar {
             return false;
         }
 
-        if (this.registeredMethods.add(m)) {
-            // we need to register the method.
-            IR ir = AnalysisUtil.getIR(m);
-            if (ir == null) {
-                // Native method with no signature
-                assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-                this.registerNative(m);
-                return true;
-            }
-
-            TypeRepository types = new TypeRepository(ir);
-            PrettyPrinter pprint = new PrettyPrinter(ir);
-
-            MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m);
-
-            // Add edges from formal summary nodes to the local variables representing the method parameters
-            ProgramPoint lastFormalPP = this.registerFormalAssignments(ir, this.rvFactory, types, pprint);
-
-            Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
-            Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
-            // Normal exits and exceptions thrown at call sites
-            Set<ProgramPoint> callExits = new HashSet<>();
-
-            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                for (SSAInstruction ins : bb) {
-                    if (ins.toString().contains("signatures/library/java/lang/String")
-                            || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
-                        System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
-                                + " in " + m);
-                    }
-                    handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExits);
-                    if (ppToStmtMap.containsKey(insToPPSubGraph.get(ins).normalExit())) {
-                        // Record the pp for this instruction
-                        insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
-                    }
-                    else if (ins instanceof SSAInvokeInstruction) {
-                        insToPP.put(ins, insToPPSubGraph.get(ins).entry());
-                    }
-                }
-                // need to handle catch blocks here, getOrCreate...
-                ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
-                bbToEntryPP.put(bb, pp);
-
-                if (ir.getControlFlowGraph().entry() == bb) {
-                    lastFormalPP.addSucc(pp);
-                }
-            }
-
-            // Chain together the subgraphs
-            for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
-                addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
-            }
-
-            if (m.isClinit()) {
-                // the following is to make sure static fields point to null before the clinit
-                ProgramPoint entry = methSumm.getEntryPP();
-                ProgramPoint prev = null;
-                ProgramPoint first = null;
-                for (IField f : m.getDeclaringClass().getAllStaticFields()) {
-                    if (f.getFieldTypeReference().isPrimitiveType()) {
-                        // No need to do anything with primitive fields
-                        continue;
-                    }
-                    if (!f.getDeclaringClass().equals(m.getDeclaringClass())) {
-                        // The static field is not in the class we are initializing it will be initialized elsewhere
-                        continue;
-                    }
-                    // The static field is in the class we are initializing
-                    ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
-                    ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
-                    addStatement(stmtFactory.nullToLocal(staticField, pp));
-                    if (first == null) {
-                        first = pp;
-                    }
-                    else {
-                        assert prev != null;
-                        prev.addSucc(pp);
-                    }
-                    prev = pp;
-                }
-                if (first != null) {
-                    // Some program points were added
-                    Set<ProgramPoint> succs = entry.succs();
-                    entry.clearSuccs();
-                    entry.addSucc(first);
-                    // prev is now the last pp added
-                    assert prev != null;
-                    prev.addSuccs(succs);
-                }
-            }
-
-            // clean up graph
-            cleanUpProgramPoints(methSumm, callExits);
-
-            // now try to remove duplicates
-            Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
-
-
-            // XXX AAJ - I'm not sure this is valid anymore, some of these statements need to be treated flow-sensitively
-            //            int oldSize = oldStatements.size();
-            //            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
-            //            Set<PointsToStatement> newStatements = duplicateResults.fst();
-            //            replacedVariableMap.put(m, duplicateResults.snd());
-            //            int newSize = newStatements.size();
-            //
-            //            removedStmts += (oldSize - newSize);
-            //            this.statementsForMethod.put(m, newStatements);
-            //            this.size += (newSize - oldSize);
-
-            // XXX Don't replace anything for now
-            replacedVariableMap.put(m, new VariableIndex());
-            Set<PointsToStatement> newStatements = oldStatements;
-
-            if (PointsToAnalysis.outputLevel >= 1) {
-                System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
-                CFGWriter.writeToFile(ir);
-                System.err.println();
-            }
-
-            if (PointsToAnalysis.outputLevel >= 6) {
-                try (Writer writer = new StringWriter()) {
-                    PrettyPrinter.writeIR(ir, writer, "\t", "\n");
-                    System.err.print(writer.toString());
-                }
-                catch (IOException e) {
-                    throw new RuntimeException();
-                }
-            }
-
-            // int[] stats = df.cleanUpProgramPoints();
-            // removedProgramPoints += stats[1];
-            // totalProgramPoints += stats[0] - stats[1];
-
-            for (PointsToStatement stmt : newStatements) {
-                if (stmt.programPoint() instanceof CallSiteProgramPoint) {
-                    CallSiteProgramPoint pp = (CallSiteProgramPoint) stmt.programPoint();
-                    assert !pp.isDiscarded();
-                    Set<CallSiteProgramPoint> scpps = this.callSitesWithinMethod.get(m);
-                    if (scpps == null) {
-                        scpps = AnalysisUtil.createConcurrentSet();
-                        Set<CallSiteProgramPoint> existing = this.callSitesWithinMethod.put(m, scpps);
-                        if (existing != null) {
-                            // someone else got there first.
-                            scpps = existing;
-                        }
-                    }
-                    scpps.add(pp);
-                }
-                for (ReferenceVariable def : stmt.getDefs()) {
-                    if (def.hasLocalScope()) {
-                        def.setLocalDef(stmt.programPoint());
-                    }
-                }
-                for (ReferenceVariable use : stmt.getUses()) {
-                    if (use != null && use.hasLocalScope()) {
-                        use.addLocalUse(stmt.programPoint());
-                    }
-                }
-            }
-
-            return true;
-
+        if (!this.registeredMethods.add(m)) {
+            // Already registered
+            return false;
         }
-        return false;
+
+        // we need to register the method.
+        IR ir = AnalysisUtil.getIR(m);
+        if (ir == null) {
+            // Native method with no signature
+            assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
+            this.registerNative(m);
+            return true;
+        }
+
+        TypeRepository types = new TypeRepository(ir);
+        PrettyPrinter pprint = new PrettyPrinter(ir);
+
+        MethodSummaryNodes methSumm = this.findOrCreateMethodSummary(m);
+
+        // Add edges from formal summary nodes to the local variables representing the method parameters
+        ProgramPoint lastFormalPP = this.registerFormalAssignments(ir, this.rvFactory, types, pprint);
+
+        Map<SSAInstruction, PPSubGraph> insToPPSubGraph = new HashMap<>();
+        Map<ISSABasicBlock, ProgramPoint> bbToEntryPP = new HashMap<>();
+        // Normal exits and exceptions thrown at call sites
+        Set<ProgramPoint> callExits = new HashSet<>();
+
+        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+            for (SSAInstruction ins : bb) {
+                if (ins.toString().contains("signatures/library/java/lang/String")
+                        || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
+                    System.err.println("\tWARNING: handling instruction mentioning String signature " + ins + " in "
+                            + m);
+                }
+                handleInstruction(ins, ir, bb, insToPPSubGraph, types, pprint, methSumm, callExits);
+                if (ppToStmtMap.containsKey(insToPPSubGraph.get(ins).normalExit())) {
+                    // Record the pp for this instruction
+                    insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
+                }
+                else if (ins instanceof SSAInvokeInstruction) {
+                    insToPP.put(ins, insToPPSubGraph.get(ins).entry());
+                }
+            }
+            // need to handle catch blocks here, getOrCreate...
+            ProgramPoint pp = new ProgramPoint(m, "BB" + bb.getNumber() + " entry");
+            bbToEntryPP.put(bb, pp);
+
+            if (ir.getControlFlowGraph().entry() == bb) {
+                lastFormalPP.addSucc(pp);
+            }
+        }
+
+        // Chain together the subgraphs
+        for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
+            addPPEdgesForBasicBlock(bb, methSumm, ir.getControlFlowGraph(), insToPPSubGraph, bbToEntryPP);
+        }
+
+        if (m.isClinit()) {
+            // the following is to make sure static fields point to null before the clinit
+            ProgramPoint entry = methSumm.getEntryPP();
+            ProgramPoint prev = null;
+            ProgramPoint first = null;
+            for (IField f : m.getDeclaringClass().getAllStaticFields()) {
+                if (f.getFieldTypeReference().isPrimitiveType()) {
+                    // No need to do anything with primitive fields
+                    continue;
+                }
+                if (!f.getDeclaringClass().equals(m.getDeclaringClass())) {
+                    // The static field is not in the class we are initializing it will be initialized elsewhere
+                    continue;
+                }
+                // The static field is in the class we are initializing
+                ReferenceVariable staticField = rvFactory.getOrCreateStaticField(f.getReference());
+                ProgramPoint pp = new ProgramPoint(m, staticField + " = null-lit");
+                addStatement(stmtFactory.nullToLocal(staticField, pp));
+                if (first == null) {
+                    first = pp;
+                }
+                else {
+                    assert prev != null;
+                    prev.addSucc(pp);
+                }
+                prev = pp;
+            }
+            if (first != null) {
+                // Some program points were added
+                Set<ProgramPoint> succs = entry.succs();
+                entry.clearSuccs();
+                entry.addSucc(first);
+                // prev is now the last pp added
+                assert prev != null;
+                prev.addSuccs(succs);
+            }
+        }
+
+        // clean up graph
+        cleanUpProgramPoints(methSumm, callExits);
+
+        // now try to remove duplicates
+        Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
+
+        // XXX AAJ - I'm not sure this is valid anymore, some of these statements need to be treated flow-sensitively
+        //            int oldSize = oldStatements.size();
+        //            OrderedPair<Set<PointsToStatement>, VariableIndex> duplicateResults = RemoveDuplicateStatements.removeDuplicates(oldStatements);
+        //            Set<PointsToStatement> newStatements = duplicateResults.fst();
+        //            replacedVariableMap.put(m, duplicateResults.snd());
+        //            int newSize = newStatements.size();
+        //
+        //            removedStmts += (oldSize - newSize);
+        //            this.statementsForMethod.put(m, newStatements);
+        //            this.size += (newSize - oldSize);
+
+        // XXX Don't replace anything for now
+        replacedVariableMap.put(m, new VariableIndex());
+        Set<PointsToStatement> newStatements = oldStatements;
+
+        if (PointsToAnalysis.outputLevel >= 1) {
+            System.err.println("HANDLED: " + PrettyPrinter.methodString(m));
+            CFGWriter.writeToFile(ir);
+            System.err.println();
+        }
+
+        if (PointsToAnalysis.outputLevel >= 6) {
+            try (Writer writer = new StringWriter()) {
+                PrettyPrinter.writeIR(ir, writer, "\t", "\n");
+                System.err.print(writer.toString());
+            }
+            catch (IOException e) {
+                throw new RuntimeException();
+            }
+        }
+
+        // int[] stats = df.cleanUpProgramPoints();
+        // removedProgramPoints += stats[1];
+        // totalProgramPoints += stats[0] - stats[1];
+
+        for (PointsToStatement stmt : newStatements) {
+            if (stmt.programPoint() instanceof CallSiteProgramPoint) {
+                CallSiteProgramPoint pp = (CallSiteProgramPoint) stmt.programPoint();
+                assert !pp.isDiscarded();
+                Set<CallSiteProgramPoint> scpps = this.callSitesWithinMethod.get(m);
+                if (scpps == null) {
+                    scpps = AnalysisUtil.createConcurrentSet();
+                    Set<CallSiteProgramPoint> existing = this.callSitesWithinMethod.put(m, scpps);
+                    if (existing != null) {
+                        // someone else got there first.
+                        scpps = existing;
+                    }
+                }
+                scpps.add(pp);
+            }
+            for (ReferenceVariable def : stmt.getDefs()) {
+                if (def.hasLocalScope()) {
+                    def.setLocalDef(stmt.programPoint());
+                }
+            }
+            for (ReferenceVariable use : stmt.getUses()) {
+                if (use != null && use.hasLocalScope()) {
+                    use.addLocalUse(stmt.programPoint());
+                }
+            }
+        }
+
+        // compute and record the call-site ordering for this method
+        Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> ordering = new CallSiteOrdering().getForMethod(methSumm.getEntryPP());
+        callSiteOrdering.put(m, ordering);
+        System.err.println("ORDERING FOR " + PrettyPrinter.methodString(m));
+        for (CallSiteProgramPoint cspp : ordering.keySet()) {
+            System.err.println("\t" + cspp);
+            for (CallSiteProgramPoint after : ordering.get(cspp)) {
+                System.err.println("\t\t" + after);
+            }
+        }
+
+        return true;
 
     }
 
@@ -1288,7 +1305,7 @@ public class StatementRegistrar {
 
     /**
      * Get the method summary nodes for the given method, create if necessary
-     * 
+     *
      * @param method method to get summary nodes for
      */
     public MethodSummaryNodes findOrCreateMethodSummary(IMethod method) {
@@ -1930,6 +1947,17 @@ public class StatementRegistrar {
      */
     public ReferenceVariableCache getRvCache() {
         return this.rvFactory.getRvCache(replacedVariableMap, methods);
+    }
+
+    /**
+     * Get the may-happen-after relationship for call sites within a given method
+     *
+     * @param m method
+     * @return map from call-site to the set of call-sites that may occur after it
+     */
+    public Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> getCallSiteOrdering(IMethod m) {
+        assert callSiteOrdering.containsKey(m);
+        return callSiteOrdering.get(m);
     }
 
     /**

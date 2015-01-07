@@ -71,6 +71,9 @@ class CallSiteOrdering {
                 result = new HashSet<>();
                 for (ProgramPoint succ : current.succs()) {
                     result.addAll(getResults(succ));
+                    if (succ instanceof CallSiteProgramPoint) {
+                        result.add((CallSiteProgramPoint) succ);
+                    }
                 }
             }
 
