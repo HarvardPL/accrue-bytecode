@@ -12,6 +12,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import util.OrderedPair;
+import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
@@ -70,7 +72,7 @@ public final class RelevantNodes {
             this.cachedResponses.incrementAndGet();
         }
 
-        if ((this.totalRequests.get() % 25000) == 0) {
+        if ((this.totalRequests.get() % 10000) == 0) {
             System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
                     + computedResponses + " computed ("
                     + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue()))
@@ -125,26 +127,32 @@ public final class RelevantNodes {
         // we should look at the caller edges or the callee edges. You can think of
         // the pair <m, CALLERS> as being short hand for the set of call graph edges going into m (callers of m),
         // and <m, CALLEES> as being short hand for the set of call graph edges going from m (callees from m).
-        Deque<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> q = new ArrayDeque<>();
+        Deque<WorkItem> q = new ArrayDeque<>();
 
         // Initialize the workqueue
-        q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLEES));
-        q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLERS));
+        q.add(new WorkItem(sourceCGNode, CGEdgeType.CALLEES));
+        q.add(new WorkItem(sourceCGNode, CGEdgeType.CALLERS));
 
-        Set<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> allVisited = new HashSet<>();
+        Set<WorkItem> allVisited = new HashSet<>();
         Deque<OrderedPair<IMethod, Context>> newlyRelevant = new ArrayDeque<>();
+        int count = 0;
 
         while (!q.isEmpty()) {
-
-            OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> p = q.poll();
-            OrderedPair<IMethod, Context> cgNode = p.fst();
+            WorkItem p = q.poll();
+            count++;
+            if (count % 100000 == 0) {
+                // Detect infinite loop
+                System.err.println("Searching relevant from " + sourceCGNode + " to " + destinationCGNode);
+                System.err.println("Processed " + count + " work items latest: " + p);
+            }
+            OrderedPair<IMethod, Context> cgNode = p.cgNode;
             boolean isDestinationCGNode = false;
             if (cgNode.equals(destinationCGNode)) {
                 newlyRelevant.add(cgNode);
                 isDestinationCGNode = true;
             }
-
-            if (p.snd() == CGEdgeType.CALLERS) {
+            switch (p.type) {
+            case CALLERS :
                 // explore the callers of this cg node
                 this.addFindRelevantNodesCallerDependency(relevantQuery, cgNode);
                 for (OrderedPair<CallSiteProgramPoint, Context> caller : g.getCallersOf(cgNode)) {
@@ -162,25 +170,31 @@ public final class RelevantNodes {
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
                     // we want to visit both the callers and the callees of callerCGNode.
-                    OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> callersWorkItem = new OrderedPair<>(callerCGNode,
-                                                                                                               CGEdgeType.CALLERS);
+                    WorkItem callersWorkItem = new WorkItem (callerCGNode, CGEdgeType.CALLERS);
                     if (allVisited.add(callersWorkItem)) {
                         q.add(callersWorkItem);
                     }
-                    OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> calleesWorkItem = new OrderedPair<>(callerCGNode,
-                                                                                                               CGEdgeType.CALLEES);
-                    if (allVisited.add(calleesWorkItem)) {
-                        q.add(calleesWorkItem);
+
+                    // Only add the callees in the caller that are after the return site
+                    Set<CallSiteProgramPoint> after = getCallsitesAfter(caller.fst());
+                    for (CallSiteProgramPoint cspp : after) {
+                        WorkItem singleCalleeWorkItem = new WorkItem(cspp, caller.snd());
+                        if (allVisited.add(singleCalleeWorkItem)) {
+                            q.add(singleCalleeWorkItem);
+                        }
                     }
                 }
-            }
-            else if (!isDestinationCGNode) {
+                break;
+            case CALLEES :
+                if (isDestinationCGNode) {
+                    // Note that as an optimization, if this is the destination node, we do not need to explore the callees,
+                    // since if there is a path from the source to the destination using the callees of the destination,
+                    // then there is a path from the source to the destination without using the callees of the destination.
+                    // (Note that we should *not* apply this optimization for CALLERS, since this would be unsound e.g.,
+                    // if the source and destination nodes are the same.)
+                    break;
+                }
                 // explore the callees of this cg node
-                // Note that as an optimization, if this is the destination node, we do not need to explore the callees,
-                // since if there is a path from the source to the destination using the callees of the destination,
-                // then there is a path from the source to the destination without using the callees of the destination.
-                // (Note that we should *not* apply this optimization for CALLERS, since this would be unsound e.g.,
-                // if the source and destination nodes are the same.)
                 for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
                     assert callSite.getPP() instanceof CallSiteProgramPoint;
                     this.addFindRelevantNodesCalleeDependency(relevantQuery, callSite);
@@ -195,12 +209,33 @@ public final class RelevantNodes {
                         }
                         // We are exploring only the callees of cgNode, so when we explore callee
                         // we only need to explore its callees (not its callers).
-                        if (allVisited.add(new OrderedPair<>(callee, CGEdgeType.CALLEES))) {
-                            q.add(new OrderedPair<>(callee, CGEdgeType.CALLEES));
+                        if (allVisited.add(new WorkItem(callee, CGEdgeType.CALLEES))) {
+                            q.add(new WorkItem(callee, CGEdgeType.CALLEES));
                         }
                     }
                 }
-
+                break;
+            case PRECISE_CALLEE:
+                // This is a precise call site add callees for any possible targets to the queue
+                assert p.callSite != null;
+                ProgramPointReplica callSiteReplica = p.callSite.getReplica(p.cgNode.snd());
+                this.addFindRelevantNodesCalleeDependency(relevantQuery, callSiteReplica);
+                for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSiteReplica)) {
+                    if (relevant.contains(callee)) {
+                        // since callee is relevant, so is cgNode.
+                        newlyRelevant.add(cgNode);
+                    }
+                    else {
+                        // if callee becomes relevant in the future, then cgNode will also be relevant.
+                        addToMapSet(relevanceDependencies, callee, cgNode);
+                    }
+                    // We are exploring only the callees of cgNode, so when we explore callee
+                    // we only need to explore its callees (not its callers).
+                    if (allVisited.add(new WorkItem(callee, CGEdgeType.CALLEES))) {
+                        q.add(new WorkItem(callee, CGEdgeType.CALLEES));
+                    }
+                }
+                break;
             }
 
             while (!newlyRelevant.isEmpty()) {
@@ -439,6 +474,91 @@ public final class RelevantNodes {
     }
 
     /**
+     * Work queue element of work, indicates which call graph edges to process next
+     */
+    private static class WorkItem {
+        final CGEdgeType type;
+        final OrderedPair<IMethod, Context> cgNode;
+        final CallSiteProgramPoint callSite;
+
+        /**
+         * Create a callers or callees work item that will process all edges entering or leaving a call graph node
+         * respectively
+         *
+         * @param cgNode current call graph node (for which the callees or callers should be processed)
+         * @param type Either CALLEES or CALLERS indicating which type of edges should be processed
+         */
+        WorkItem(OrderedPair<IMethod, Context> cgNode, CGEdgeType type) {
+            assert type != CGEdgeType.PRECISE_CALLEE;
+            this.type = type;
+            this.cgNode = cgNode;
+            this.callSite = null;
+        }
+
+        /**
+         * Create a work item for a particular call-site rather than processing all callees within an entire method
+         *
+         * @param callSite precise call site
+         * @param context context for call-graph nodes the call-site appears in
+         */
+        WorkItem(CallSiteProgramPoint callSite, Context context) {
+            this.type = CGEdgeType.PRECISE_CALLEE;
+            this.cgNode = new OrderedPair<>(callSite.containingProcedure(), context);
+            this.callSite = callSite;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + ((this.callSite == null) ? 0 : this.callSite.hashCode());
+            result = prime * result + ((this.cgNode == null) ? 0 : this.cgNode.hashCode());
+            result = prime * result + ((this.type == null) ? 0 : this.type.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            WorkItem other = (WorkItem) obj;
+            if (this.callSite == null) {
+                if (other.callSite != null) {
+                    return false;
+                }
+            }
+            else if (!this.callSite.equals(other.callSite)) {
+                return false;
+            }
+            if (this.cgNode == null) {
+                if (other.cgNode != null) {
+                    return false;
+                }
+            }
+            else if (!this.cgNode.equals(other.cgNode)) {
+                return false;
+            }
+            if (this.type != other.type) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "WorkItem [type=" + this.type + ", cgNode=" + this.cgNode + ", callSite=" + this.callSite + "]";
+        }
+
+    }
+
+    /**
      * Indication of which type of edges to inspect while finding relevant nodes
      */
     private static enum CGEdgeType {
@@ -449,7 +569,11 @@ public final class RelevantNodes {
         /**
          * Caller edges (i.e. edges in the call graph _to_ a given call graph node)
          */
-        CALLERS;
+        CALLERS,
+        /**
+         * Edge for a paricular call site
+         */
+        PRECISE_CALLEE;
     }
 
     /**
@@ -468,6 +592,31 @@ public final class RelevantNodes {
             map.put(key, s);
         }
         return s.add(elem);
+    }
+
+    /**
+     * Get all callSites that come after the given one in the same method. After means that they occur on some path from
+     * the given call-site to the exit.
+     *
+     * @param callSite call site program point
+     * @return set of call sites after the given call-site in the same method
+     */
+    private Set<CallSiteProgramPoint> getCallsitesAfter(CallSiteProgramPoint callSite) {
+        Set<CallSiteProgramPoint> after = g.getRegistrar().getCallSiteOrdering(callSite.getContainingProcedure()).get(callSite);
+        if (after == null) {
+            Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> ordering = g.getRegistrar()
+                                                                             .getCallSiteOrdering(callSite.getContainingProcedure());
+            CFGWriter.writeToFile(callSite.getContainingProcedure());
+            System.err.println("ORDERING FOR " + PrettyPrinter.methodString(callSite.getContainingProcedure()));
+            for (CallSiteProgramPoint first : ordering.keySet()) {
+                System.err.println("\t" + first.getID() + "-" + PrettyPrinter.methodString(first.getCallee()));
+                for (CallSiteProgramPoint cspp2 : ordering.get(first)) {
+                    System.err.println("\t\t" + cspp2.getID() + "-" + PrettyPrinter.methodString(cspp2.getCallee()));
+                }
+            }
+        }
+        assert after != null : "null call sites after " + callSite;
+        return after;
     }
 
 }

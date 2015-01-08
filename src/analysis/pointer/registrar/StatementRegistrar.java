@@ -2023,6 +2023,36 @@ public class StatementRegistrar {
     }
 
     /**
+     * Write program-point successor graph to file for a given method.
+     */
+    public void dumpProgramPointSuccGraphToFile(IMethod m) {
+        String file = PrettyPrinter.methodString(m);
+        String fullFilename = file + "_ppgraph.dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpProgramPointSuccGraph(m, out);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    /**
+     * Write program-point successor graph to file for a given method.
+     */
+    public static void dumpProgramPointSuccGraphToFile(ProgramPoint entryPP) {
+        String file = PrettyPrinter.methodString(entryPP.getContainingProcedure());
+        String fullFilename = "tests/" + file + "_ppgraph.dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpProgramPointSuccGraph(entryPP, out);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    /**
      * Write program-point successor graph to file.
      */
     public void dumpProgramPointSuccGraphToFile(String filename) {
@@ -2035,6 +2065,49 @@ public class StatementRegistrar {
         catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
+    }
+
+    /**
+     * Write out the program point graph to the given writer
+     */
+    private static Writer dumpProgramPointSuccGraph(ProgramPoint entryPP, Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        Set<ProgramPoint> visited = new HashSet<>();
+        WorkQueue<ProgramPoint> q = new WorkQueue<>();
+        q.add(entryPP);
+        while (!q.isEmpty()) {
+            ProgramPoint pp = q.poll();
+            if (!visited.contains(pp)) {
+                visited.add(pp);
+                for (ProgramPoint succ : pp.succs()) {
+                    String fromStr = escape(pp.toString());
+                    String toStr = escape(succ.toString());
+                    writer.write("\t\"" + fromStr + "\" -> \"" + toStr + "\";\n");
+                    q.add(succ);
+                }
+            }
+        }
+
+        writer.write("};\n");
+        return writer;
+    }
+
+    /**
+     * Write out the program point graph to the given writer
+     */
+    private Writer dumpProgramPointSuccGraph(IMethod m, Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        Set<ProgramPoint> visited = new HashSet<>();
+        writeSucc(methods.get(m).getEntryPP(), writer, visited);
+
+        writer.write("};\n");
+        return writer;
     }
 
     /**
@@ -2367,5 +2440,14 @@ public class StatementRegistrar {
         CallSiteProgramPoint cspp = programPointForClassInit.get(clinit);
         assert cspp != null : "Missing program point for " + PrettyPrinter.methodString(clinit);
         return cspp;
+    }
+
+    /**
+     * Compute the call-site ordering for the entry method (this is the only one that may change since class init
+     * methods may be added during statement registration)
+     */
+    public void computeFakeRootOrdering() {
+        Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> ordering = new CallSiteOrdering().getForMethod(getMethodSummary(this.entryMethod).getEntryPP());
+        callSiteOrdering.put(this.entryMethod, ordering);
     }
 }

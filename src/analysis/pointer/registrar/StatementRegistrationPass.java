@@ -224,6 +224,7 @@ public class StatementRegistrationPass {
             }
 
         }
+        registrar.computeFakeRootOrdering();
 
         this.registrar.reportStats();
         if (PointsToAnalysis.outputLevel >= 1) {

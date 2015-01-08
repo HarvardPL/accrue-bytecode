@@ -58,6 +58,7 @@ class CallSiteOrdering {
         assert q.isEmpty();
         // Record all call-sites seen by searching backward from the exit program points
         q.addAll(exits);
+        visited = new HashSet<>();
         while (!q.isEmpty()) {
             ProgramPoint current = q.poll();
             Set<CallSiteProgramPoint> result;
@@ -76,13 +77,18 @@ class CallSiteOrdering {
                 }
             }
 
-            if (recordResult(current, result)) {
+            boolean changed = recordResult(current, result);
+            if (!preds.containsKey(current)) {
+                // no predecessors to add to queue
+                assert current.isEntrySummaryNode();
+                continue;
+            }
+
+            for (ProgramPoint pred : preds.get(current)) {
                 // The result changed add all predecessors to the queue to be run/rerun
-                if (!preds.containsKey(current)) {
-                    assert current.isEntrySummaryNode() : "non entry without preds: " + current;
-                    continue;
+                if (changed || visited.add(pred)) {
+                    q.add(pred);
                 }
-                q.addAll(preds.get(current));
             }
         }
 
@@ -93,6 +99,7 @@ class CallSiteOrdering {
                 results.put((CallSiteProgramPoint) pp, callSitesAfter.get(pp));
             }
         }
+
         return results;
     }
 
