@@ -25,3 +25,18 @@ Flow sensitive issues
 - Do we want to special case Object.<init> in the pp reachability stuff. It never does anything and is always the same.
 
 XXX Fix data-flow framework to correctly analyze the static initializers before the main method (before fakeroot?)
+
+XXX I don't think this will work for offline registration, consider that class init methods can be added to the fake root changing the program point graph
+
+////// Relevant nodes
+
+Order of call/return sites, use program points to computes
+- deal with each call/return edge separately
+- Change visited set
+- Map of call-sites -> call-sites after
+
+Incremental computation of the findRelevantNodes
+- map from new node to Set<Edge>
+- cache the visited?
+- cache reachable dependencies?
+- use integer indexing
