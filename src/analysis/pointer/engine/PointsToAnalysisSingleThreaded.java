@@ -316,17 +316,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 sac = sacd.fst();
                 delta = sacd.snd();
             }
-            this.processSaC(sac,
-                            delta,
-                            g,
-                            registrar,
-                            currentQueue,
-                            nextQueue,
-                            noDeltaQueue,
-                            addNonMostRecentQueue,
-                            addToSetQueue,
-                            reachabilitySubQueryQueue,
-                            relevantNodesQueryQueue);
+            this.processSaC(sac, delta, g, registrar, nextQueue);
         }
 
         long endTime = System.currentTimeMillis();
@@ -457,11 +447,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     Map<String, Map<StmtAndContext, Integer>> counts = new HashMap<>();
 
     private void processSaC(StmtAndContext sac, GraphDelta delta, PointsToGraph g, StatementRegistrar registrar,
-                            Queue<OrderedPair<StmtAndContext, GraphDelta>> currentQueue,
-                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue,
-                            Queue<StmtAndContext> noDeltaQueue, Queue<AddNonMostRecentOrigin> addNonMostRecentQueue,
-                            Queue<AddToSetOrigin> addToSetQueue, Set<ProgramPointSubQuery> reachabilitySubQueryQueue,
-                            Set<RelevantNodesQuery> relevantNodesQueryQueue) {
+                            Queue<OrderedPair<StmtAndContext, GraphDelta>> nextQueue) {
         // Do some accounting for debugging/informational purposes.
         this.numSaCProcessed++;
         if (delta == null) {
