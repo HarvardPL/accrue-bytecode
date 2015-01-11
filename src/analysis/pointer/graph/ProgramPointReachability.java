@@ -21,6 +21,7 @@ import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -65,6 +66,14 @@ public final class ProgramPointReachability {
      * A reference to an object that will find us relevant nodes for reachability queries.
      */
     private final RelevantNodes relevantNodesComputation;
+    /**
+     * A reference to an object that will find us relevant nodes for reachability queries.
+     */
+    private final RelevantNodesIncremental relevantNodesIncrementalComputation;
+    /**
+     * Whether to use the incremental results or not for finding relevant nodes
+     */
+    public final boolean INCREMENTAL_RELEVANT = false;
 
     /**
      * Create a new reachability query engine
@@ -76,7 +85,14 @@ public final class ProgramPointReachability {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
-        this.relevantNodesComputation = new RelevantNodes(g, analysisHandle, this);
+        if (INCREMENTAL_RELEVANT) {
+            this.relevantNodesComputation = new RelevantNodes(g, analysisHandle, this);
+            this.relevantNodesIncrementalComputation = null;
+        }
+        else {
+            this.relevantNodesComputation = null;
+            this.relevantNodesIncrementalComputation = new RelevantNodesIncremental(g, analysisHandle, this);
+        }
     }
 
     /**
@@ -267,10 +283,13 @@ public final class ProgramPointReachability {
                                                                      query.source.getContext());
             OrderedPair<IMethod, Context> dest = new OrderedPair<>(query.destination.getContainingProcedure(),
                                                                    query.destination.getContext());
-
-            Set<OrderedPair<IMethod, Context>> relevantNodes = this.relevantNodesComputation.relevantNodes(source,
-                                                                                                           dest,
-                                                                                                           query);
+            Set<OrderedPair<IMethod, Context>> relevantNodes;
+            if (INCREMENTAL_RELEVANT) {
+                relevantNodes = this.relevantNodesComputation.relevantNodes(source, dest, query);
+            }
+            else {
+                relevantNodes = this.relevantNodesIncrementalComputation.relevantNodes(source, dest, query);
+            }
 
             if (relevantNodes.isEmpty()) {
                 // this path isn't possible.
@@ -1012,8 +1031,14 @@ public final class ProgramPointReachability {
 
         this.calleeAddedTo(callSite.getReplica(callerContext));
         this.callerAddedTo(new OrderedPair<>(callee, calleeContext));
-        this.relevantNodesComputation.calleeAddedTo(callSite.getReplica(callerContext));
-        this.relevantNodesComputation.callerAddedTo(new OrderedPair<>(callee, calleeContext));
+        if (INCREMENTAL_RELEVANT) {
+            this.relevantNodesIncrementalComputation.calleeAddedTo(callSite.getReplica(callerContext));
+            this.relevantNodesIncrementalComputation.callerAddedTo(new OrderedPair<>(callee, calleeContext));
+        }
+        else {
+            this.relevantNodesComputation.calleeAddedTo(callSite.getReplica(callerContext));
+            this.relevantNodesComputation.callerAddedTo(new OrderedPair<>(callee, calleeContext));
+        }
 
     }
 
@@ -1072,6 +1097,10 @@ public final class ProgramPointReachability {
 
     public void processRelevantNodesQuery(RelevantNodesQuery rq) {
         this.relevantNodesComputation.computeRelevantNodes(rq);
+    }
+
+    public void processSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
+        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq);
     }
 
     public void clearCaches() {

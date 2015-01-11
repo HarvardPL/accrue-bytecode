@@ -7,6 +7,7 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
 import analysis.pointer.graph.RelevantNodes;
+import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
 
 /**
  * This interface provides a mechanism to submit StmtAndContexts to the PointsToAnalysis.
@@ -42,22 +43,29 @@ public interface PointsToAnalysisHandle {
 
 
     /**
-     * Request the the ProgramPointReachability query be processed.
+     * Request that the ProgramPointReachability query be processed.
      *
      * @param task
      */
     void submitReachabilityQuery(ProgramPointSubQuery mr);
 
     /**
-     * Request the the ProgramPointReachability query be processed.
-     * 
-     * @param task
+     * Request that the RelevantNodesQuery query be processed.
+     *
+     * @param mr
      */
     void submitRelevantNodesQuery(RelevantNodes.RelevantNodesQuery rq);
 
     /**
+     * Request a source node query starting at the given source
+     *
+     * @param source
+     */
+    void submitSourceRelevantNodesQuery(SourceRelevantNodesQuery source);
+
+    /**
      * Get the points to graph.
-     * 
+     *
      * @return
      */
     PointsToGraph pointsToGraph();
