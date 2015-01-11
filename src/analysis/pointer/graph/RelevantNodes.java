@@ -40,6 +40,8 @@ public final class RelevantNodes {
     private final ConcurrentMap<ProgramPointReplica, Set<RelevantNodesQuery>> findRelevantNodesCalleeDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<RelevantNodesQuery>> findRelevantNodesCallerDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
+    private final Set<OrderedPair<IMethod, Context>> sources = AnalysisUtil.createConcurrentSet();
+    private final Set<OrderedPair<IMethod, Context>> targets = AnalysisUtil.createConcurrentSet();
 
     private AtomicInteger totalRequests = new AtomicInteger(0);
     private AtomicInteger cachedResponses = new AtomicInteger(0);
@@ -100,6 +102,8 @@ public final class RelevantNodes {
 
         OrderedPair<IMethod, Context> sourceCGNode = relevantQuery.sourceCGNode;
         OrderedPair<IMethod, Context> destinationCGNode = relevantQuery.destCGNode;
+        sources.add(relevantQuery.sourceCGNode);
+        targets.add(relevantQuery.destCGNode);
 
         /*
          * The set of relevant cg nodes, ie., an overapproximation of nodes that are on
@@ -253,143 +257,6 @@ public final class RelevantNodes {
         return relevant;
     }
 
-    /**
-     * Find call graph nodes that must be searched deeply for a path from the source to destination for the given query.
-     * Irrelevant nodes can have their effects (kill and alloc sets) summarized.
-     *
-     * @param sourceCGNode call graph node containing the source program point
-     * @param destinationCGNode call graph node containing the destination program point
-     *
-     * @return the set of call graph nodes that cannot be summarized
-     */
-    @Deprecated
-    public Set<OrderedPair<IMethod, Context>> oldComputeRelevantNodes(RelevantNodesQuery relevantQuery) {
-        totalRequests.incrementAndGet();
-        computedResponses.incrementAndGet();
-        long start = System.currentTimeMillis();
-
-        OrderedPair<IMethod, Context> sourceCGNode = relevantQuery.sourceCGNode;
-        OrderedPair<IMethod, Context> destinationCGNode = relevantQuery.destCGNode;
-
-        /*
-         * The set of relevant cg nodes, ie., an overapproximation of nodes that are on
-         * a (valid) path from the source to the destination. This method finds this set.
-         */
-        Set<OrderedPair<IMethod, Context>> relevant = new LinkedHashSet<>();
-
-        /*
-         * We maintain dependencies, so that if cg node a is in the set relevanceDependencies.get(b),
-         * then if b becomes a relevant node, then a is also a relevant node. We can think of this
-         * relevanceDependencies as describing the edges in the CFG that are reachable on a (valid)
-         * path from the source cg node.
-         */
-        Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies = new HashMap<>();
-
-        // The queue the cg node we are currently considering. The boolean indicates whether
-        // we should look at the caller edges or the callee edges. You can think of
-        // the pair <m, CALLERS> as being short hand for the set of call graph edges going into m (callers of m),
-        // and <m, CALLEES> as being short hand for the set of call graph edges going from m (callees from m).
-        Deque<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> q = new ArrayDeque<>();
-
-        // Initialize the workqueue
-        q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLEES));
-        q.add(new OrderedPair<>(sourceCGNode, CGEdgeType.CALLERS));
-
-        Set<OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType>> allVisited = new HashSet<>();
-        Deque<OrderedPair<IMethod, Context>> newlyRelevant = new ArrayDeque<>();
-
-        while (!q.isEmpty()) {
-
-            OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> p = q.poll();
-            OrderedPair<IMethod, Context> cgNode = p.fst();
-            boolean isDestinationCGNode = false;
-            if (cgNode.equals(destinationCGNode)) {
-                newlyRelevant.add(cgNode);
-                isDestinationCGNode = true;
-            }
-
-            if (p.snd() == CGEdgeType.CALLERS) {
-                // explore the callers of this cg node
-                this.addFindRelevantNodesCallerDependency(relevantQuery, cgNode);
-                for (OrderedPair<CallSiteProgramPoint, Context> caller : g.getCallersOf(cgNode)) {
-                    OrderedPair<IMethod, Context> callerCGNode = new OrderedPair<>(caller.fst().containingProcedure(),
-                                                                                   caller.snd());
-
-                    if (relevant.contains(callerCGNode)) {
-                        // since callerCGNode is relevant, so is cgNode.
-                        newlyRelevant.add(cgNode);
-                    }
-                    else {
-                        // if callerCGNode becomes relevant in the future, then cgNode will also be relevant.
-                        addToMapSet(relevanceDependencies, callerCGNode, cgNode);
-                    }
-
-                    // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
-                    // we want to visit both the callers and the callees of callerCGNode.
-                    OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> callersWorkItem = new OrderedPair<>(callerCGNode,
-                                                                                                               CGEdgeType.CALLERS);
-                    if (allVisited.add(callersWorkItem)) {
-                        q.add(callersWorkItem);
-                    }
-                    OrderedPair<OrderedPair<IMethod, Context>, CGEdgeType> calleesWorkItem = new OrderedPair<>(callerCGNode,
-                                                                                                               CGEdgeType.CALLEES);
-                    if (allVisited.add(calleesWorkItem)) {
-                        q.add(calleesWorkItem);
-                    }
-                }
-            }
-            else if (!isDestinationCGNode) {
-                // explore the callees of this cg node
-                // Note that as an optimization, if this is the destination node, we do not need to explore the callees,
-                // since if there is a path from the source to the destination using the callees of the destination,
-                // then there is a path from the source to the destination without using the callees of the destination.
-                // (Note that we should *not* apply this optimization for CALLERS, since this would be unsound e.g.,
-                // if the source and destination nodes are the same.)
-                for (ProgramPointReplica callSite : g.getCallSitesWithinMethod(cgNode)) {
-                    assert callSite.getPP() instanceof CallSiteProgramPoint;
-                    this.addFindRelevantNodesCalleeDependency(relevantQuery, callSite);
-                    for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
-                        if (relevant.contains(callee)) {
-                            // since callee is relevant, so is cgNode.
-                            newlyRelevant.add(cgNode);
-                        }
-                        else {
-                            // if callee becomes relevant in the future, then cgNode will also be relevant.
-                            addToMapSet(relevanceDependencies, callee, cgNode);
-                        }
-                        // We are exploring only the callees of cgNode, so when we explore callee
-                        // we only need to explore its callees (not its callers).
-                        if (allVisited.add(new OrderedPair<>(callee, CGEdgeType.CALLEES))) {
-                            q.add(new OrderedPair<>(callee, CGEdgeType.CALLEES));
-                        }
-                    }
-                }
-
-            }
-
-            while (!newlyRelevant.isEmpty()) {
-                OrderedPair<IMethod, Context> cg = newlyRelevant.poll();
-                if (relevant.add(cg)) {
-                    // cg has become relevant, so use relevanceDependencies to figure out
-                    // what other nodes are now relevant.
-                    Set<OrderedPair<IMethod, Context>> s = relevanceDependencies.remove(cg);
-                    if (s != null) {
-                        newlyRelevant.addAll(s);
-                    }
-                }
-            }
-
-        }
-        // Record the results and rerun any dependencies
-        recordRelevantNodesResults(relevantQuery, relevant);
-        totalTime.addAndGet(System.currentTimeMillis() - start);
-        totalSize.addAndGet(relevant.size());
-        if (computedResponses.get() % 1000 == 0) {
-            printDiagnostics();
-        }
-        return relevant;
-    }
-
     private void printDiagnostics() {
         System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
                 + computedResponses + " computed ("
@@ -405,6 +272,10 @@ public final class RelevantNodes {
         double size = totalSize.get();
         System.err.println("Total: " + analysisTime + "s;");
         System.err.println("    size: " + size + " average: " + size / computedResponses.get());
+        System.err.println("    sources: " + sources.size() + " sources/computed: " + ((double) sources.size())
+                / computedResponses.get());
+        System.err.println("    targets: " + targets.size() + " targets/computed: " + ((double) targets.size())
+                / computedResponses.get());
         System.err.println("    computeRelevantNodes: " + relevantTime + "s; RATIO: " + (relevantTime / analysisTime)
                 + ";");
         System.err.println("    addFindRelevantNodesCalleeDependency: " + calleeTime + "s; RATIO: "
