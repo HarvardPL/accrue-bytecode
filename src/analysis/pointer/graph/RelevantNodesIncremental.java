@@ -631,6 +631,7 @@ public final class RelevantNodesIncremental {
         if (existing != null && existing.equals(sqr)) {
             // There were already results in the cache
             // merge the results with the existing results and check whether the existing cached value changed
+            // XXX is this neccessary, seems like "this" or "other" will have strictly better results
             resultsChanged |= existing.join(sqr);
         }
 
