@@ -73,7 +73,7 @@ public final class ProgramPointReachability {
     /**
      * Whether to use the incremental results or not for finding relevant nodes
      */
-    public final boolean INCREMENTAL_RELEVANT = false;
+    public final boolean INCREMENTAL_RELEVANT = true;
 
     /**
      * Create a new reachability query engine
@@ -86,12 +86,12 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         if (INCREMENTAL_RELEVANT) {
-            this.relevantNodesComputation = new RelevantNodes(g, analysisHandle, this);
-            this.relevantNodesIncrementalComputation = null;
-        }
-        else {
             this.relevantNodesComputation = null;
             this.relevantNodesIncrementalComputation = new RelevantNodesIncremental(g, analysisHandle, this);
+        }
+        else {
+            this.relevantNodesComputation = new RelevantNodes(g, analysisHandle, this);
+            this.relevantNodesIncrementalComputation = null;
         }
     }
 
@@ -285,10 +285,10 @@ public final class ProgramPointReachability {
                                                                    query.destination.getContext());
             Set<OrderedPair<IMethod, Context>> relevantNodes;
             if (INCREMENTAL_RELEVANT) {
-                relevantNodes = this.relevantNodesComputation.relevantNodes(source, dest, query);
+                relevantNodes = this.relevantNodesIncrementalComputation.relevantNodes(source, dest, query);
             }
             else {
-                relevantNodes = this.relevantNodesIncrementalComputation.relevantNodes(source, dest, query);
+                relevantNodes = this.relevantNodesComputation.relevantNodes(source, dest, query);
             }
 
             if (relevantNodes.isEmpty()) {
