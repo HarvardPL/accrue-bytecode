@@ -1096,11 +1096,17 @@ public final class ProgramPointReachability {
     }
 
     public void processRelevantNodesQuery(RelevantNodesQuery rq) {
-        this.relevantNodesComputation.computeRelevantNodes(rq);
+        if (INCREMENTAL_RELEVANT) {
+            this.relevantNodesIncrementalComputation.computeRelevantNodes(rq);
+        }
+        else {
+            this.relevantNodesComputation.computeRelevantNodes(rq);
+        }
     }
 
     public void processSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
-        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq);
+        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq,
+                                                                           this.relevantNodesIncrementalComputation.getStartItems(sq));
     }
 
     public void clearCaches() {
