@@ -258,7 +258,8 @@ public final class RelevantNodes {
     }
 
     private void printDiagnostics() {
-        System.err.println("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
+        System.err.println("\n************** RELEVANT NODE STATISTICS **************");
+        System.err.println("Total requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
                 + computedResponses + " computed ("
                 + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue())) + "% hit rate)");
         System.err.println("\tRecomputed" + recomputedResponses.get() + " " + recomputedResponses.doubleValue()
