@@ -11,6 +11,7 @@ import junit.framework.TestCase;
 import main.AccrueAnalysisMain;
 
 import org.json.JSONException;
+import org.junit.Test;
 
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -50,98 +51,122 @@ import com.ibm.wala.types.TypeReference;
  */
 public class TestFlowSensitivePointer extends TestCase {
     // TESTS
+    @Test(timeout = 100000)
     public static void testLoad() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Load", false);
     }
 
+    @Test(timeout = 100000)
     public static void testLoadMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Load", true);
     }
 
+    @Test(timeout = 100000)
     public static void testLoad2() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Load2", false);
     }
 
+    @Test(timeout = 100000)
     public static void testLoad2MT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Load2", true);
     }
 
+    @Test(timeout = 100000)
     public static void testMove() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Move", false);
     }
 
+    @Test(timeout = 100000)
     public static void testMoveMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Move", true);
     }
 
+    @Test(timeout = 100000)
     public static void testNew() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/New", false);
     }
 
+    @Test(timeout = 100000)
     public static void testNewMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/New", true);
     }
 
+    @Test(timeout = 100000)
     public static void testPreserve() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Preserve", false);
     }
 
+    @Test(timeout = 100000)
     public static void testPreserveMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Preserve", true);
     }
 
+    @Test(timeout = 100000)
     public static void testSCall() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/SCall", false);
     }
 
+    @Test(timeout = 100000)
     public static void testSCallMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/SCall", true);
     }
 
+    @Test(timeout = 100000)
     public static void testStore() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Store", false);
     }
 
+    @Test(timeout = 100000)
     public static void testStoreMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Store", true);
     }
 
+    @Test(timeout = 100000)
     public static void testStore2() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Store2", false);
     }
 
+    @Test(timeout = 100000)
     public static void testStore2MT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/Store2", true);
     }
 
+    @Test(timeout = 100000)
     public static void testStrongUpdate() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/StrongUpdate", false);
     }
 
+    @Test(timeout = 100000)
     public static void testStrongUpdateMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/StrongUpdate", true);
     }
 
+    @Test(timeout = 100000)
     public static void testVCall() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/VCall", false);
     }
 
+    @Test(timeout = 100000)
     public static void testVCallMT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/VCall", true);
     }
 
+    @Test(timeout = 100000)
     public static void testVCall2() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/VCall2", false);
     }
 
+    @Test(timeout = 100000)
     public static void testVCall2MT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/VCall2", true);
     }
 
+    @Test(timeout = 100000)
     public static void testDiamondCallGraph() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/DiamondCallGraph", false);
     }
 
+    @Test(timeout = 100000)
     public static void testDiamondCallGraph2MT() throws ClassHierarchyException, IOException, JSONException {
         runTest("test/flowsenspointer/DiamondCallGraph", true);
     }
