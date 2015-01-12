@@ -3,7 +3,6 @@ package analysis.pointer.graph;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -114,13 +113,11 @@ public final class RelevantNodesIncremental {
      * indicate which call graph nodes become relevant whan another node becomes relevant
      *
      * @param sourceCGNode call graph node containing the source program point
-     * @param initial initial queue of work items
-     *
      * @return Dependencies, so that if cg node a is in the set relevanceDependencies.get(b), then if b becomes a
      *         relevant node, then a is also a relevant node. We can think of this relevanceDependencies as describing
      *         the edges in the CFG that are reachable on a (valid) path from the source cg node.
      */
-    SourceQueryResults computeSourceDependencies(SourceRelevantNodesQuery query, Set<WorkItem> initial) {
+    SourceQueryResults computeSourceDependencies(SourceRelevantNodesQuery query) {
         OrderedPair<IMethod, Context> sourceCGNode = query.sourceCGNode;
 
         totalSourceRequests.incrementAndGet();
@@ -133,18 +130,10 @@ public final class RelevantNodesIncremental {
         // Start from the previous results
         SourceQueryResults previous = sourceQueryCache.get(query);
 
+        Set<WorkItem> initial = startItems.get(query);
         assert initial != null : "Null start items for " + query;
-        if (initial.isEmpty()) {
-            // The items that were added have already been processed,
-            //     probably "on demand" by a relevant nodes query that needed them
-            // Use the cached results
-            cachedSourceResponses.incrementAndGet();
-            return previous;
-        }
 
-        long start = System.currentTimeMillis();
-
-        Deque<WorkItem> q = new ArrayDeque<>(initial);
+        Deque<WorkItem> q = new ArrayDeque<>();
         if (DEBUG) {
             System.err.println("INITIAL");
             for (WorkItem wi : initial) {
@@ -158,18 +147,41 @@ public final class RelevantNodesIncremental {
          * relevanceDependencies as describing the edges in the CFG that are reachable on a (valid)
          * path from the source cg node.
          */
-        Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies;
+        ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies;
         Set<WorkItem> allVisited;
         if (previous == null) {
             // No previous results initialize the visited and relevant sets
-            relevanceDependencies = new HashMap<>();
-            allVisited = new HashSet<>();
+            relevanceDependencies = AnalysisUtil.createConcurrentHashMap();
+            allVisited = AnalysisUtil.createConcurrentSet();
         }
         else {
             relevanceDependencies = previous.relevanceDependencies;
             allVisited = previous.alreadyVisited;
         }
-        allVisited.addAll(initial);
+
+        // Add all the initial items that have not yet been visited to the work queue
+        // XXX Is there a way to get around this synchronized block, do not want another thread in this loop when we call "remove"
+        synchronized (initial) {
+            Iterator<WorkItem> iter = initial.iterator();
+            while (iter.hasNext()) {
+                WorkItem item = iter.next();
+                if (allVisited.add(item)) {
+                    q.add(item);
+                }
+                else {
+                    // It is safe to remove the start item from the set of start items for this query since it has been
+                    // visited in the cached result which means every future query will skip it.
+                    iter.remove();
+                }
+            }
+        }
+
+        if (q.isEmpty()) {
+            // There are no new items to process the previous results will suffice
+            cachedSourceResponses.incrementAndGet();
+            return previous;
+        }
+        long start = System.currentTimeMillis();
 
         int count = 0;
 
@@ -177,7 +189,7 @@ public final class RelevantNodesIncremental {
             WorkItem p = q.poll();
             count++;
             if (count % 100000 == 0) {
-                // Detect infinite loop
+                // Detect possible infinite loop
                 System.err.println("Searching relevant from " + sourceCGNode);
                 System.err.println("Processed " + count + " work items latest: " + p);
             }
@@ -325,18 +337,16 @@ public final class RelevantNodesIncremental {
      */
     void calleeAddedTo(ProgramPointReplica callSite) {
         assert callSite.getPP() instanceof CallSiteProgramPoint;
-        Set<SourceRelevantNodesQuery> sources = sourceQueryCalleeDependencies.get(callSite);
-        if (sources != null) {
+        Set<SourceRelevantNodesQuery> queries = sourceQueryCalleeDependencies.get(callSite);
+        if (queries != null) {
             // New work item that needs to be processed when the query is rerun
             Set<WorkItem> newItem = Collections.singleton(new WorkItem((CallSiteProgramPoint) callSite.getPP(),
                                                                        callSite.getContext()));
-            for (SourceRelevantNodesQuery sourceCGNode : sources) {
-                // Queries are rerun as needed by computeRelevantNodes
-                // A run is triggered when there are start items to process
-                addStartItems(sourceCGNode, newItem);
+            for (SourceRelevantNodesQuery query : queries) {
+                addStartItems(query, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
-                this.analysisHandle.submitSourceRelevantNodesQuery(sourceCGNode);
+                this.analysisHandle.submitSourceRelevantNodesQuery(query);
             }
         }
     }
@@ -350,16 +360,15 @@ public final class RelevantNodesIncremental {
      * @param callGraphNode call graph node that has another caller
      */
     void callerAddedTo(OrderedPair<IMethod, Context> callGraphNode) {
-        Set<SourceRelevantNodesQuery> sources = sourceQueryCallerDependencies.get(callGraphNode);
-        if (sources != null) {
+        Set<SourceRelevantNodesQuery> queries = sourceQueryCallerDependencies.get(callGraphNode);
+        if (queries != null) {
             // New work item that needs to be proccessed when the query is rerun
             Set<WorkItem> newItem = Collections.singleton(new WorkItem(callGraphNode, CGEdgeType.CALLERS));
-            for (SourceRelevantNodesQuery sourceCGNode : sources) {
-                addStartItems(sourceCGNode, newItem);
-                // recompute the query.
-                // XXX don't need to submit a job, queries are rerun as needed by computeRelevantNodes
-                // A run is triggered when there are start items to process
-                //                this.analysisHandle.submitSourceRelevantNodesQuery(sourceCGNode);
+            for (SourceRelevantNodesQuery query : queries) {
+                addStartItems(query, newItem);
+
+                // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
+                this.analysisHandle.submitSourceRelevantNodesQuery(query);
             }
         }
     }
@@ -437,18 +446,18 @@ public final class RelevantNodesIncremental {
     //    }
 
     /**
-     * Add work items to the initial queue for a source query starting at sourceCGNode
+     * Add work items to the initial queue for a source query
      *
-     * @param sourceCGNode start node of the source query
+     * @param query start node of the source query
      * @param startItems items to add to the initial queue
      */
-    private void addStartItems(SourceRelevantNodesQuery sourceCGNode, Set<WorkItem> newItems) {
+    private void addStartItems(SourceRelevantNodesQuery query, Set<WorkItem> newItems) {
         long start = System.currentTimeMillis();
 
-        Set<WorkItem> s = startItems.get(sourceCGNode);
+        Set<WorkItem> s = startItems.get(query);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<WorkItem> existing = startItems.putIfAbsent(sourceCGNode, s);
+            Set<WorkItem> existing = startItems.putIfAbsent(query, s);
             if (existing != null) {
                 s = existing;
             }
@@ -456,17 +465,6 @@ public final class RelevantNodesIncremental {
         s.addAll(newItems);
 
         startItemTime.addAndGet(System.currentTimeMillis() - start);
-    }
-
-    /**
-     * Get the start items to inialize the queue with
-     *
-     * @param query query to get the start items for
-     * @return set of initial work items
-     */
-    Set<WorkItem> getStartItems(SourceRelevantNodesQuery query) {
-        Set<WorkItem> s = startItems.replace(query, new HashSet<WorkItem>());
-        return s;
     }
 
     /**
@@ -621,30 +619,26 @@ public final class RelevantNodesIncremental {
     /**
      * Record the data structures computed for a given source
      *
-     * @param sourceCGNode call graph node the computes to record results for
+     * @param query call graph node the computes to record results for
      * @param sqr query results to cache
      * @return true if the cache changed
      */
-    private void recordSourceQueryResults(SourceRelevantNodesQuery sourceCGNode, SourceQueryResults sqr) {
+    private void recordSourceQueryResults(SourceRelevantNodesQuery query, SourceQueryResults sqr) {
         long start = System.currentTimeMillis();
-        SourceQueryResults s = sourceQueryCache.get(sourceCGNode);
-        SourceQueryResults existing = sourceQueryCache.put(sourceCGNode, sqr);
-        assert s == existing : "RACE: putting results in the source query cache for " + sourceCGNode;
 
-        if (s != null) {
-            // XXX need to join the results with the previous, not just overwrite them, check for known races
-            assert sqr.alreadyVisited.containsAll(s.alreadyVisited) : "RACE: visited set for " + sourceCGNode;
-            Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> deps = s.relevanceDependencies;
-            for (OrderedPair<IMethod, Context> dep : deps.keySet()) {
-                assert sqr.relevanceDependencies.containsKey(dep) : "RACE: key in relevant deps for " + sourceCGNode;
-                assert sqr.relevanceDependencies.get(dep).containsAll(deps.get(dep)) : "RACE: value in relevant deps for "
-                        + sourceCGNode;
-            }
+        SourceQueryResults existing = sourceQueryCache.putIfAbsent(query, sqr);
+        boolean resultsChanged = false;
+        if (existing != null && existing.equals(sqr)) {
+            // There were already results in the cache
+            // merge the results with the existing results and check whether the existing cached value changed
+            resultsChanged |= existing.join(sqr);
         }
 
-        if (s == null || !s.equals(sqr)) {
+        // If existing is null then the results have changed
+        resultsChanged |= existing == null;
+        if (resultsChanged) {
             // results changed! rerun relevant queries that depend on the results of the relevant nodes query
-            Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependency.get(sourceCGNode);
+            Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependency.get(query);
             if (deps == null) {
                 return;
             }
@@ -661,13 +655,44 @@ public final class RelevantNodesIncremental {
      * that source.
      */
     private static class SourceQueryResults {
-        final Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies;
+        final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies;
         final Set<WorkItem> alreadyVisited;
 
-        public SourceQueryResults(Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies,
+        public SourceQueryResults(ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies,
                                   Set<WorkItem> allVisited) {
             this.relevanceDependencies = relevanceDependencies;
             this.alreadyVisited = allVisited;
+        }
+
+        /**
+         * Imperatively join this with another set of results. Add in any missing visited elements or relevance
+         * dependencies.
+         *
+         * @param other results to join with this
+         * @return true if elements were added to the visited set or the dependencies as a result of this call
+         */
+        public boolean join(SourceQueryResults other) {
+            boolean changed = false;
+            changed |= this.alreadyVisited.addAll(other.alreadyVisited);
+
+            for (OrderedPair<IMethod, Context> dep : other.relevanceDependencies.keySet()) {
+                if (this.relevanceDependencies.containsKey(dep)) {
+                    changed |= this.relevanceDependencies.get(dep).addAll(other.relevanceDependencies.get(dep));
+                } else {
+                    // This is a new key
+                    Set<OrderedPair<IMethod, Context>> existing;
+                    existing = this.relevanceDependencies.putIfAbsent(dep, other.relevanceDependencies.get(dep));
+                    if (existing != null) {
+                        // Someone beat us to it, add the dependencies to the existing set
+                        changed |= existing.addAll(other.relevanceDependencies.get(dep));
+                    }
+                    else {
+                        // This is a new key
+                        changed = true;
+                    }
+                }
+            }
+            return changed;
         }
 
         @Override
@@ -716,8 +741,8 @@ public final class RelevantNodesIncremental {
      * Find call graph nodes that must be searched deeply for a path from the source to destination for the given query.
      * Irrelevant nodes can have their effects (kill and alloc sets) summarized.
      *
-     * @param sourceCGNode call graph node containing the source program point
-     * @param destinationCGNode call graph node containing the destination program point
+     * @param relevantQuery call graph node containing the source program point and call graph node containing the
+     *            destination program point
      *
      * @return the set of call graph nodes that cannot be summarized
      */
@@ -737,25 +762,14 @@ public final class RelevantNodesIncremental {
 
         SourceRelevantNodesQuery sourceQuery = new SourceRelevantNodesQuery(relevantQuery.sourceCGNode);
         SourceQueryResults sqr = sourceQueryCache.get(sourceQuery);
-        Set<WorkItem> initialQ = getStartItems(sourceQuery);
-        if (sqr == null || (initialQ != null && !initialQ.isEmpty())) {
-            // We do not have the necessary source query computed yet or need to recompute
-
-            // If this is either the first time the source query has been requested or there are some items to process
-            //    then we need to run the source query before computing the relevant nodes
-            if (DEBUG) {
-                System.err.println("\tCOMPUTE Source Dependencies needed");
-            }
-
-            if (sqr == null) {
-                // This is the first time computing this query include the source in the initial work queue
-                assert initialQ == null;
-                initialQ = new HashSet<>();
-                initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLEES));
-                initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLERS));
-            }
-            sqr = computeSourceDependencies(sourceQuery, initialQ);
+        if (sqr == null) {
+            // This is the first time computing this query include the source in the initial work queue
+            Set<WorkItem> initialQ = new HashSet<>();
+            initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLEES));
+            initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLERS));
+            addStartItems(sourceQuery, initialQ);
         }
+        sqr = computeSourceDependencies(sourceQuery);
 
         Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> deps = sqr.relevanceDependencies;
 
@@ -774,6 +788,9 @@ public final class RelevantNodesIncremental {
             // The destination is reachable from the source
             // The destination is relevant
             newlyRelevant.add(relevantQuery.destCGNode);
+        }
+        if (newlyRelevant.isEmpty()) {
+            System.err.println("UNREACHABLE " + relevantQuery);
         }
         if (DEBUG) {
             System.err.println("PROCESSING DEPENDENCIES");
@@ -842,10 +859,10 @@ public final class RelevantNodesIncremental {
      * Record a dependency of sourceCGNode on the callers of calleeCGNode. If the callers of calleeCGNode change then
      * recompute the dependencies starting at sourceCGNode
      *
-     * @param sourceCGNode start node in the source query
+     * @param query query starting at a particular source that computes dependencies
      * @param calleeCGNode CG node the source query dependends on
      */
-    private void addSourceQueryCallerDependency(SourceRelevantNodesQuery sourceCGNode,
+    private void addSourceQueryCallerDependency(SourceRelevantNodesQuery query,
                                                 OrderedPair<IMethod, Context> calleeCGNode) {
         long start = System.currentTimeMillis();
 
@@ -857,7 +874,7 @@ public final class RelevantNodesIncremental {
                 s = existing;
             }
         }
-        s.add(sourceCGNode);
+        s.add(query);
 
         callerDepTime.addAndGet(System.currentTimeMillis() - start);
     }
@@ -865,10 +882,10 @@ public final class RelevantNodesIncremental {
     /**
      * Record the fact that the results of a source query depend on the callees for the given call-site
      *
-     * @param sourceCGNode start CG node for the source query
+     * @param query query starting at a particular source that computes dependencies
      * @param callSite program point for the call-site
      */
-    private void addSourceQueryCalleeDependency(SourceRelevantNodesQuery sourceCGNode, ProgramPointReplica callSite) {
+    private void addSourceQueryCalleeDependency(SourceRelevantNodesQuery query, ProgramPointReplica callSite) {
         assert callSite.getPP() instanceof CallSiteProgramPoint;
         long start = System.currentTimeMillis();
 
@@ -880,29 +897,29 @@ public final class RelevantNodesIncremental {
                 s = existing;
             }
         }
-        s.add(sourceCGNode);
+        s.add(query);
 
         calleeDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     /**
-     * Record a dependency need to recompute the relevant node query if the query starting at sourceCGNode changes
+     * Record a dependency need to recompute the relevant node query if the query starting at sourceQuery changes
      *
-     * @param relevant relevant node query that depends on the results of a source query
-     * @param sourceCGNode call graph node to start the source query at
+     * @param relevantQuery relevant node query that depends on the results of a source query
+     * @param sourceQuery query that computes dependencies starting at a particular source
      */
-    private void addRelevantNodeSourceQueryDependency(RelevantNodesQuery relevant, SourceRelevantNodesQuery sourceCGNode) {
+    private void addRelevantNodeSourceQueryDependency(RelevantNodesQuery relevantQuery, SourceRelevantNodesQuery sourceQuery) {
         long start = System.currentTimeMillis();
 
-        Set<RelevantNodesQuery> s = relevantNodeSourceQueryDependency.get(sourceCGNode);
+        Set<RelevantNodesQuery> s = relevantNodeSourceQueryDependency.get(sourceQuery);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<RelevantNodesQuery> existing = relevantNodeSourceQueryDependency.putIfAbsent(sourceCGNode, s);
+            Set<RelevantNodesQuery> existing = relevantNodeSourceQueryDependency.putIfAbsent(sourceQuery, s);
             if (existing != null) {
                 s = existing;
             }
         }
-        s.add(relevant);
+        s.add(relevantQuery);
 
         queryDepTime.addAndGet(System.currentTimeMillis() - start);
     }
@@ -1049,11 +1066,17 @@ public final class RelevantNodesIncremental {
                                                                                                                           dest));
         if (!relevantNodes.equals(prevRelevantNodes)) {
             System.err.println("Computing relevant from " + source + " to " + dest);
-            System.err.println("Incremental comuted:");
+            System.err.println("Incremental computed:");
+            if (relevantNodes.isEmpty()) {
+                System.err.println("\tEMPTY");
+            }
             for (OrderedPair<IMethod, Context> rn : relevantNodes) {
                 System.err.println("\t" + rn);
             }
-            System.err.println("Old method comuted:");
+            System.err.println("Old method computed:");
+            if (prevRelevantNodes.isEmpty()) {
+                System.err.println("\tEMPTY");
+            }
             for (OrderedPair<IMethod, Context> rn : prevRelevantNodes) {
                 System.err.println("\t" + rn);
             }

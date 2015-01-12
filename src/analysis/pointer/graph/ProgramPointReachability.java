@@ -1105,8 +1105,7 @@ public final class ProgramPointReachability {
     }
 
     public void processSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
-        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq,
-                                                                           this.relevantNodesIncrementalComputation.getStartItems(sq));
+        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq);
     }
 
     public void clearCaches() {
