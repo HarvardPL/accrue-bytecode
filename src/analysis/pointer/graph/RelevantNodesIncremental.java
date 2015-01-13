@@ -102,8 +102,6 @@ public final class RelevantNodesIncremental {
             this.totalRequests.incrementAndGet();
             this.cachedResponses.incrementAndGet();
         }
-
-        DEBUG = false;
         assert relevantNodes != null;
         return relevantNodes;
     }
@@ -119,6 +117,9 @@ public final class RelevantNodesIncremental {
      */
     SourceQueryResults computeSourceDependencies(SourceRelevantNodesQuery query) {
         OrderedPair<IMethod, Context> sourceCGNode = query.sourceCGNode;
+        if (DEBUG) {
+            System.err.println("%% SOURCE QUERY for " + sourceCGNode);
+        }
 
         totalSourceRequests.incrementAndGet();
         computedSourceResponses.incrementAndGet();
@@ -131,15 +132,25 @@ public final class RelevantNodesIncremental {
         SourceQueryResults previous = sourceQueryCache.get(query);
 
         Set<WorkItem> initial = startItems.get(query);
+        // XXX when is it ok to remove the start items?
+        // They are added when a new callee/caller is added so they need to be processed at least once
+        // We cannot remove them here:
+        // The issue is that in the multi-threaded we might get a race where two threads
+        //     get the same previous results, but different initial values
+        // Maybe remove them when recording the results for this?
+        // What if a new call gets added to the same callee/caller while processing this meaning that the start item
+        //     needs to be reprocessed again
+        // This needs some thought
         assert initial != null : "Null start items for " + query;
 
-        Deque<WorkItem> q = new ArrayDeque<>();
         if (DEBUG) {
-            System.err.println("INITIAL");
+            System.err.println("%% INITIAL");
             for (WorkItem wi : initial) {
-                System.err.println("\t" + wi);
+                System.err.println("%%\t" + wi);
             }
         }
+
+        Deque<WorkItem> q = new ArrayDeque<>();
 
         /*
          * We maintain dependencies, so that if cg node a is in the set relevanceDependencies.get(b),
@@ -159,26 +170,19 @@ public final class RelevantNodesIncremental {
             allVisited = previous.alreadyVisited;
         }
 
-        // Add all the initial items that have not yet been visited to the work queue
-        // XXX Is there a way to get around this synchronized block, do not want another thread in this loop when we call "remove"
-        synchronized (initial) {
-            Iterator<WorkItem> iter = initial.iterator();
-            while (iter.hasNext()) {
-                WorkItem item = iter.next();
-                if (allVisited.add(item)) {
-                    q.add(item);
-                }
-                else {
-                    // It is safe to remove the start item from the set of start items for this query since it has been
-                    // visited in the cached result which means every future query will skip it.
-                    iter.remove();
-                }
-            }
+        // Add all the initial items to the work queue
+        Iterator<WorkItem> iter = initial.iterator();
+        while (iter.hasNext()) {
+            WorkItem item = iter.next();
+            q.add(item);
         }
 
         if (q.isEmpty()) {
             // There are no new items to process the previous results will suffice
             cachedSourceResponses.incrementAndGet();
+            if (DEBUG) {
+                System.err.println("%%\tUSING PREVIOUS");
+            }
             return previous;
         }
         long start = System.currentTimeMillis();
@@ -187,6 +191,9 @@ public final class RelevantNodesIncremental {
 
         while (!q.isEmpty()) {
             WorkItem p = q.poll();
+            if (DEBUG) {
+                System.err.println("%%\tQ " + p);
+            }
             count++;
             if (count % 100000 == 0) {
                 // Detect possible infinite loop
@@ -204,6 +211,10 @@ public final class RelevantNodesIncremental {
 
                     // if callerCGNode becomes relevant in the future, then cgNode will also be relevant.
                     addToMapSet(relevanceDependencies, callerCGNode, cgNode);
+                    if (DEBUG) {
+                        System.err.println("%%\t\t" + cgNode);
+                        System.err.println("%%\t\tDEPENDS ON " + callerCGNode);
+                    }
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
                     // we want to visit both the callers and the callees of callerCGNode.
@@ -230,6 +241,10 @@ public final class RelevantNodesIncremental {
                     for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
                         // if callee becomes relevant in the future, then cgNode will also be relevant.
                         addToMapSet(relevanceDependencies, callee, cgNode);
+                        if (DEBUG) {
+                            System.err.println("%%\t\t" + cgNode);
+                            System.err.println("%%\t\tDEPENDS ON " + callee);
+                        }
 
                         // We are exploring only the callees of cgNode, so when we explore callee
                         // we only need to explore its callees (not its callers).
@@ -248,6 +263,10 @@ public final class RelevantNodesIncremental {
                 for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSiteReplica)) {
                     // if callee becomes relevant in the future, then cgNode will also be relevant.
                     addToMapSet(relevanceDependencies, callee, cgNode);
+                    if (DEBUG) {
+                        System.err.println("%%\t\t" + cgNode);
+                        System.err.println("%%\t\tDEPENDS ON " + callee);
+                    }
 
                     // We are exploring only the callees of the call-site, so when we explore callee
                     // we only need to explore its callees (not its callers).
@@ -748,6 +767,10 @@ public final class RelevantNodesIncremental {
      * @return the set of call graph nodes that cannot be summarized
      */
     Set<OrderedPair<IMethod, Context>> computeRelevantNodes(RelevantNodesQuery relevantQuery) {
+        //        if (XXX) {
+        //            DEBUG = true;
+        //            System.err.println("COMPUTING RELEVANT " + relevantQuery);
+        //        }
         totalRequests.incrementAndGet();
         computedResponses.incrementAndGet();
         if (relevantCache.get(relevantQuery) != null) {
@@ -794,12 +817,12 @@ public final class RelevantNodesIncremental {
             System.err.println("UNREACHABLE " + relevantQuery);
         }
         if (DEBUG) {
-            System.err.println("PROCESSING DEPENDENCIES");
+            System.err.println("%% PROCESSING DEPENDENCIES");
         }
         while (!newlyRelevant.isEmpty()) {
             OrderedPair<IMethod, Context> cg = newlyRelevant.poll();
             if (DEBUG) {
-                System.err.println("\tnewly relevant " + cg);
+                System.err.println("%%\tnewly relevant " + cg);
             }
             if (relevant.add(cg)) {
                 // cg has become relevant, so use relevanceDependencies to figure out
@@ -808,11 +831,11 @@ public final class RelevantNodesIncremental {
                 if (DEBUG) {
                     if (s != null) {
                         for (OrderedPair<IMethod, Context> dep : s) {
-                            System.err.println("\t\tdep " + dep);
+                            System.err.println("%%\t\tdep " + dep);
                         }
                     }
                     else {
-                        System.err.println(("\t\tNO DEPS"));
+                        System.err.println(("%%\t\tNO DEPS"));
                     }
                 }
                 if (s != null) {
@@ -833,6 +856,7 @@ public final class RelevantNodesIncremental {
         if (computedResponses.get() % 1000 == 0) {
             printDiagnostics();
         }
+        DEBUG = false;
         return relevant;
     }
 
