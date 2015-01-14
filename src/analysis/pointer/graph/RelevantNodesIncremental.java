@@ -26,7 +26,19 @@ import com.ibm.wala.ipa.callgraph.Context;
 
 public final class RelevantNodesIncremental {
 
+    /**
+     * Print a ton for each run, such as the elements pulled off the queue
+     */
     private boolean DEBUG = false;
+    /**
+     * Print diagnostic information about timing and numbers intermittently, this shouldn't affect performance too much
+     */
+    private boolean TEST_MODE = true;
+    /**
+     * Each relevant nodes query will also run the older (non-incremental) algorithm and compare the results with this
+     * one, an assertion error if they are not identical
+     */
+    private boolean COMPARE_WITH_OLD_ALGORITHM = false;
 
     private final PointsToGraph g;
     private final ProgramPointReachability programPointReachability;
@@ -281,7 +293,7 @@ public final class RelevantNodesIncremental {
         // Record the results and rerun any dependencies
         SourceQueryResults sqr = new SourceQueryResults(relevanceDependencies, allVisited);
         recordSourceQueryResults(query, sqr);
-        totalTime.addAndGet(System.currentTimeMillis() - start);
+        totalSourceTime.addAndGet(System.currentTimeMillis() - start);
 
         return sqr;
     }
@@ -767,7 +779,7 @@ public final class RelevantNodesIncremental {
      * @return the set of call graph nodes that cannot be summarized
      */
     Set<OrderedPair<IMethod, Context>> computeRelevantNodes(RelevantNodesQuery relevantQuery) {
-        //        if (XXX) {
+        //        if (%%%) {
         //            DEBUG = true;
         //            System.err.println("COMPUTING RELEVANT " + relevantQuery);
         //        }
@@ -813,7 +825,7 @@ public final class RelevantNodesIncremental {
             // The destination is relevant
             newlyRelevant.add(relevantQuery.destCGNode);
         }
-        if (newlyRelevant.isEmpty()) {
+        if (DEBUG && newlyRelevant.isEmpty()) {
             System.err.println("UNREACHABLE " + relevantQuery);
         }
         if (DEBUG) {
@@ -850,12 +862,15 @@ public final class RelevantNodesIncremental {
         totalTime.addAndGet(System.currentTimeMillis() - start);
         totalSize.addAndGet(relevant.size());
 
-        // Compare against the old algorithm
-        compareWithOldAlgorithm(relevantQuery.sourceCGNode, relevantQuery.destCGNode, sqr, relevant);
+        if (COMPARE_WITH_OLD_ALGORITHM) {
+            compareWithOldAlgorithm(relevantQuery.sourceCGNode, relevantQuery.destCGNode, sqr, relevant);
+        }
 
-        if (computedResponses.get() % 1000 == 0) {
+        if (TEST_MODE && computedResponses.get() % 10000 == 0) {
             printDiagnostics();
         }
+
+        // Reset the DEBUG variable after each call to this method
         DEBUG = false;
         return relevant;
     }
@@ -1034,11 +1049,11 @@ public final class RelevantNodesIncremental {
         System.err.println("\nTotal relevent requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
                 + computedResponses + " computed ("
                 + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue())) + "% hit rate)");
-        System.err.println("\tRecomputed" + recomputedResponses.get() + " " + recomputedResponses.doubleValue()
+        System.err.println("\tRecomputed " + recomputedResponses.get() + " " + recomputedResponses.doubleValue()
                 / computedResponses.doubleValue() + "% of all computed");
         System.err.println("\nTotal source requests: " + totalSourceRequests + "  ;  " + cachedSourceResponses
                 + "  cached " + computedSourceResponses + " computed ("
-                + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue())) + "% hit rate)");
+                + (int) (100 * (cachedSourceResponses.floatValue() / totalSourceRequests.floatValue())) + "% hit rate)");
 
         double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
         double relevantTime = totalTime.get() / 1000.0;
@@ -1073,6 +1088,7 @@ public final class RelevantNodesIncremental {
                 + (queryTime / sourceTime));
         System.err.println("    recordSourceQueryResults: " + recordSourceTime + "s; RATIO: "
                 + (recordSourceTime / sourceTime) + ";");
+        System.err.println("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
     }
 
     /**

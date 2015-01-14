@@ -410,7 +410,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     + nextQueue.size() + " noDeltaQueue=" + noDeltaQueue.size() + " addNonMostRecentQueue="
                     + addNonMostRecentQueue.size() + " addToSetQueue=" + addToSetQueue.size()
                     + " reachabilitySubQueryQueue=" + reachabilitySubQueryQueue.size() + " relevantNodesQueryQueue="
-                    + relevantNodesQueryQueue.size() + "sourceRelevantNodesQueryQueue="
+                    + relevantNodesQueryQueue.size() + " sourceRelevantNodesQueryQueue="
                     + sourceRelevantNodesQueryQueue.size() + " (" + (this.numSaCProcessed - this.lastNumSaCProcessed)
                     + " in " + (currTime - this.lastTime) / 1000 + "s)");
             this.lastTime = currTime;
@@ -532,6 +532,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
                 + registrar.getRegisteredMethods().size() + " methods");
         int failcount = 0;
+        int successcount = 0;
         for (IMethod m : registrar.getRegisteredMethods()) {
             for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
                 for (Context c : g.getContexts(s.getMethod())) {
@@ -547,6 +548,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                         if (failcount > 10) {
                             System.err.println("\nThere may be more failures, but exiting now...");
                             System.exit(1);
+                        }
+                    }
+                    else {
+                        successcount++;
+                        if (successcount % 10000 == 0) {
+                            System.err.println("PROCESSED " + successcount);
                         }
                     }
                 }
