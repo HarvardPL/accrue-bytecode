@@ -33,7 +33,7 @@ public final class RelevantNodesIncremental {
     /**
      * Print diagnostic information about timing and numbers intermittently, this shouldn't affect performance too much
      */
-    private boolean TEST_MODE = true;
+    private boolean PRINT_DIAGNOSTICS = true;
     /**
      * Each relevant nodes query will also run the older (non-incremental) algorithm and compare the results with this
      * one, an assertion error if they are not identical
@@ -143,27 +143,6 @@ public final class RelevantNodesIncremental {
         // Start from the previous results
         SourceQueryResults previous = sourceQueryCache.get(query);
 
-        Set<WorkItem> initial = startItems.get(query);
-        // XXX when is it ok to remove the start items?
-        // They are added when a new callee/caller is added so they need to be processed at least once
-        // We cannot remove them here:
-        // The issue is that in the multi-threaded we might get a race where two threads
-        //     get the same previous results, but different initial values
-        // Maybe remove them when recording the results for this?
-        // What if a new call gets added to the same callee/caller while processing this meaning that the start item
-        //     needs to be reprocessed again
-        // This needs some thought
-        assert initial != null : "Null start items for " + query;
-
-        if (DEBUG) {
-            System.err.println("%% INITIAL");
-            for (WorkItem wi : initial) {
-                System.err.println("%%\t" + wi);
-            }
-        }
-
-        Deque<WorkItem> q = new ArrayDeque<>();
-
         /*
          * We maintain dependencies, so that if cg node a is in the set relevanceDependencies.get(b),
          * then if b becomes a relevant node, then a is also a relevant node. We can think of this
@@ -178,15 +157,34 @@ public final class RelevantNodesIncremental {
             allVisited = AnalysisUtil.createConcurrentSet();
         }
         else {
+            // Incrementally update the existing results
             relevanceDependencies = previous.relevanceDependencies;
             allVisited = previous.alreadyVisited;
         }
 
-        // Add all the initial items to the work queue
-        Iterator<WorkItem> iter = initial.iterator();
-        while (iter.hasNext()) {
-            WorkItem item = iter.next();
-            q.add(item);
+        Deque<WorkItem> q = new ArrayDeque<>();
+        synchronized (startItems) {
+            Set<WorkItem> initial = startItems.get(query);
+            // XXX when is it ok to remove the start items?
+            // They are added when a new callee/caller is added so they need to be processed at least once
+            // We cannot remove them here:
+            // The issue is that in the multi-threaded we might get a race where two threads
+            //     get the same previous results, but different initial values
+            // Maybe remove them when recording the results for this?
+            // What if a new call gets added to the same callee/caller while processing this meaning that the start item
+            //     needs to be reprocessed again
+            // This needs some thought
+            assert initial != null : "Null start items for " + query;
+
+            if (DEBUG) {
+                System.err.println("%% INITIAL");
+                for (WorkItem wi : initial) {
+                    System.err.println("%%\t" + wi);
+                }
+            }
+
+            // Add all the initial items to the work queue
+            q.addAll(initial);
         }
 
         if (q.isEmpty()) {
@@ -705,6 +703,9 @@ public final class RelevantNodesIncremental {
          */
         public boolean join(SourceQueryResults other) {
             boolean changed = false;
+            // XXX Modifying these sets inline causes a concurrent modification error since we iterate over them when
+            // computing a source query
+            // Probably need to make the sets functional and make this method functional
             changed |= this.alreadyVisited.addAll(other.alreadyVisited);
 
             for (OrderedPair<IMethod, Context> dep : other.relevanceDependencies.keySet()) {
@@ -794,9 +795,10 @@ public final class RelevantNodesIncremental {
         targets.add(relevantQuery.destCGNode);
 
         // Use the source query results to compute the relevant nodes
-        addRelevantNodeSourceQueryDependency(relevantQuery, new SourceRelevantNodesQuery(relevantQuery.sourceCGNode));
-
         SourceRelevantNodesQuery sourceQuery = new SourceRelevantNodesQuery(relevantQuery.sourceCGNode);
+        addRelevantNodeSourceQueryDependency(relevantQuery, sourceQuery);
+
+
         SourceQueryResults sqr = sourceQueryCache.get(sourceQuery);
         if (sqr == null) {
             // This is the first time computing this query include the source in the initial work queue
@@ -804,6 +806,9 @@ public final class RelevantNodesIncremental {
             initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLEES));
             initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLERS));
             addStartItems(sourceQuery, initialQ);
+        }
+        else {
+            // XXX Ignore the cached value for now. There may be a way to use it once we figure out how to clear the startItems.
         }
         sqr = computeSourceDependencies(sourceQuery);
 
@@ -866,7 +871,7 @@ public final class RelevantNodesIncremental {
             compareWithOldAlgorithm(relevantQuery.sourceCGNode, relevantQuery.destCGNode, sqr, relevant);
         }
 
-        if (TEST_MODE && computedResponses.get() % 10000 == 0) {
+        if (PRINT_DIAGNOSTICS && computedResponses.get() % 1000 == 0) {
             printDiagnostics();
         }
 
