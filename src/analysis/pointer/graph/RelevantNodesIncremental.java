@@ -163,19 +163,19 @@ public final class RelevantNodesIncremental {
         }
 
         Deque<WorkItem> q = new ArrayDeque<>();
-        synchronized (startItems) {
-            Set<WorkItem> initial = startItems.get(query);
-            // XXX when is it ok to remove the start items?
-            // They are added when a new callee/caller is added so they need to be processed at least once
-            // We cannot remove them here:
-            // The issue is that in the multi-threaded we might get a race where two threads
-            //     get the same previous results, but different initial values
-            // Maybe remove them when recording the results for this?
-            // What if a new call gets added to the same callee/caller while processing this meaning that the start item
-            //     needs to be reprocessed again
-            // This needs some thought
-            assert initial != null : "Null start items for " + query;
-
+        Set<WorkItem> initial = startItems.get(query);
+        // XXX when is it ok to remove the start items?
+        // They are added when a new callee/caller is added so they need to be processed at least once
+        // We cannot remove them here:
+        // The issue is that in the multi-threaded we might get a race where two threads
+        //     get the same previous results, but different initial values
+        // Maybe remove them when recording the results for this?
+        // What if a new call gets added to the same callee/caller while processing this meaning that the start item
+        //     needs to be reprocessed again
+        // This needs some thought
+        assert initial != null : "Null start items for " + query;
+        // XXX This synchronized block prevents the startItems from being modified while iterating through them to add to the initial queue
+        synchronized (initial) {
             if (DEBUG) {
                 System.err.println("%% INITIAL");
                 for (WorkItem wi : initial) {
@@ -189,6 +189,8 @@ public final class RelevantNodesIncremental {
 
         if (q.isEmpty()) {
             // There are no new items to process the previous results will suffice
+            // XXX This is imposible for now since the startItems never get removed
+            assert false : "no start items for " + query;
             cachedSourceResponses.incrementAndGet();
             if (DEBUG) {
                 System.err.println("%%\tUSING PREVIOUS");
@@ -196,7 +198,6 @@ public final class RelevantNodesIncremental {
             return previous;
         }
         long start = System.currentTimeMillis();
-
         int count = 0;
 
         while (!q.isEmpty()) {
@@ -612,7 +613,7 @@ public final class RelevantNodesIncremental {
     private static <K, V> boolean addToMapSet(Map<K, Set<V>> map, K key, V elem) {
         Set<V> s = map.get(key);
         if (s == null) {
-            s = new HashSet<>();
+            s = AnalysisUtil.createConcurrentSet();
             map.put(key, s);
         }
         return s.add(elem);
@@ -657,15 +658,19 @@ public final class RelevantNodesIncremental {
 
         SourceQueryResults existing = sourceQueryCache.putIfAbsent(query, sqr);
         boolean resultsChanged = false;
-        if (existing != null && existing.equals(sqr)) {
+
+        if (existing == null) {
+            // There were no results in the cache, sqr is currently in the cache
+            resultsChanged = true;
+        }
+        else if (!existing.equals(sqr)) {
             // There were already results in the cache
             // merge the results with the existing results and check whether the existing cached value changed
             // XXX is this neccessary, seems like "this" or "other" will have strictly better results
+            // This operation is not thread safe!!!
             resultsChanged |= existing.join(sqr);
         }
 
-        // If existing is null then the results have changed
-        resultsChanged |= existing == null;
         if (resultsChanged) {
             // results changed! rerun relevant queries that depend on the results of the relevant nodes query
             Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependency.get(query);
@@ -706,6 +711,7 @@ public final class RelevantNodesIncremental {
             // XXX Modifying these sets inline causes a concurrent modification error since we iterate over them when
             // computing a source query
             // Probably need to make the sets functional and make this method functional
+            // XXX Also this is not thread safe for the same reason, they are used in computeSourceQuery and may be modified here at the same time.
             changed |= this.alreadyVisited.addAll(other.alreadyVisited);
 
             for (OrderedPair<IMethod, Context> dep : other.relevanceDependencies.keySet()) {
