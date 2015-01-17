@@ -346,24 +346,47 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void submitTask(ProgramPointSubQuery sq) {
-            this.pendingPPSubQuery.get().add(sq);
+            // XXX make sure we add sq to the current pendingPPSubQuery set,
+            // by looping until we know that we added it to the set that is in the reference.
+            Set<ProgramPointSubQuery> s;
+            do {
+                s = this.pendingPPSubQuery.get();
+                s.add(sq);
+            } while (this.pendingPPSubQuery.get() != s);
         }
 
         public void submitTask(RelevantNodesQuery rq) {
-            this.pendingRelevantNodesQuery.get().add(rq);
+            Set<RelevantNodesQuery> s;
+            do {
+                s = this.pendingRelevantNodesQuery.get();
+                s.add(rq);
+            } while (this.pendingRelevantNodesQuery.get() != s);
         }
 
         public void submitTask(SourceRelevantNodesQuery sq) {
-            this.pendingSourceRelevantNodesQuery.get().add(sq);
+            Set<SourceRelevantNodesQuery> s;
+            do {
+                s = this.pendingSourceRelevantNodesQuery.get();
+                s.add(sq);
+            } while (this.pendingSourceRelevantNodesQuery.get() != s);
+
         }
 
         public void submitTask(AddNonMostRecentOrigin task) {
-            this.pendingAddNonMostRecentOrigin.get().add(task);
+            Set<AddNonMostRecentOrigin> s;
+            do {
+                s = this.pendingAddNonMostRecentOrigin.get();
+                s.add(task);
+            } while (this.pendingAddNonMostRecentOrigin.get() != s);
         }
 
 
         public void submitTask(AddToSetOrigin task) {
-            this.pendingAddToSetOrigin.get().add(task);
+            Set<AddToSetOrigin> s;
+            do {
+                s = this.pendingAddToSetOrigin.get();
+                s.add(task);
+            } while (this.pendingAddToSetOrigin.get() != s);
         }
 
         public void finishedTask() {

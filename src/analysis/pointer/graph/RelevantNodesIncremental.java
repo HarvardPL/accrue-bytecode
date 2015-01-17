@@ -143,27 +143,29 @@ public final class RelevantNodesIncremental {
         // Start from the previous results
         SourceQueryResults previous = sourceQueryCache.get(query);
 
+        if (previous == null) {
+            // No previous results initialize the visited and relevant sets
+            previous = new SourceQueryResults(AnalysisUtil.<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> createConcurrentHashMap(),
+                                              AnalysisUtil.<WorkItem> createConcurrentSet());
+            SourceQueryResults existing = sourceQueryCache.putIfAbsent(query, previous);
+            if (existing != null) {
+                // someone beat us!
+                previous = existing;
+            }
+        }
+        boolean resultsChanged = false;
+
         /*
          * We maintain dependencies, so that if cg node a is in the set relevanceDependencies.get(b),
          * then if b becomes a relevant node, then a is also a relevant node. We can think of this
          * relevanceDependencies as describing the edges in the CFG that are reachable on a (valid)
          * path from the source cg node.
          */
-        ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies;
-        Set<WorkItem> allVisited;
-        if (previous == null) {
-            // No previous results initialize the visited and relevant sets
-            relevanceDependencies = AnalysisUtil.createConcurrentHashMap();
-            allVisited = AnalysisUtil.createConcurrentSet();
-        }
-        else {
-            // Incrementally update the existing results
-            relevanceDependencies = previous.relevanceDependencies;
-            allVisited = previous.alreadyVisited;
-        }
+        ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> relevanceDependencies = previous.relevanceDependencies;
+        Set<WorkItem> allVisited = previous.alreadyVisited;
 
         Deque<WorkItem> q = new ArrayDeque<>();
-        Set<WorkItem> initial = startItems.get(query);
+        Set<WorkItem> initial = this.startItems.replace(query, AnalysisUtil.<WorkItem> createConcurrentSet());
         // XXX when is it ok to remove the start items?
         // They are added when a new callee/caller is added so they need to be processed at least once
         // We cannot remove them here:
@@ -174,23 +176,18 @@ public final class RelevantNodesIncremental {
         //     needs to be reprocessed again
         // This needs some thought
         assert initial != null : "Null start items for " + query;
-        // XXX This synchronized block prevents the startItems from being modified while iterating through them to add to the initial queue
-        synchronized (initial) {
-            if (DEBUG) {
-                System.err.println("%% INITIAL");
-                for (WorkItem wi : initial) {
-                    System.err.println("%%\t" + wi);
-                }
+        if (DEBUG) {
+            System.err.println("%% INITIAL");
+            for (WorkItem wi : initial) {
+                System.err.println("%%\t" + wi);
             }
-
-            // Add all the initial items to the work queue
-            q.addAll(initial);
         }
+
+        // Add all the initial items to the work queue
+        q.addAll(initial);
 
         if (q.isEmpty()) {
             // There are no new items to process the previous results will suffice
-            // XXX This is imposible for now since the startItems never get removed
-            assert false : "no start items for " + query;
             cachedSourceResponses.incrementAndGet();
             if (DEBUG) {
                 System.err.println("%%\tUSING PREVIOUS");
@@ -221,7 +218,7 @@ public final class RelevantNodesIncremental {
                                                                                    caller.snd());
 
                     // if callerCGNode becomes relevant in the future, then cgNode will also be relevant.
-                    addToMapSet(relevanceDependencies, callerCGNode, cgNode);
+                    resultsChanged |= addToMapSet(relevanceDependencies, callerCGNode, cgNode);
                     if (DEBUG) {
                         System.err.println("%%\t\t" + cgNode);
                         System.err.println("%%\t\tDEPENDS ON " + callerCGNode);
@@ -251,7 +248,7 @@ public final class RelevantNodesIncremental {
                     this.addSourceQueryCalleeDependency(query, callSite);
                     for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSite)) {
                         // if callee becomes relevant in the future, then cgNode will also be relevant.
-                        addToMapSet(relevanceDependencies, callee, cgNode);
+                        resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
                         if (DEBUG) {
                             System.err.println("%%\t\t" + cgNode);
                             System.err.println("%%\t\tDEPENDS ON " + callee);
@@ -273,7 +270,7 @@ public final class RelevantNodesIncremental {
                 this.addSourceQueryCalleeDependency(query, callSiteReplica);
                 for (OrderedPair<IMethod, Context> callee : g.getCalleesOf(callSiteReplica)) {
                     // if callee becomes relevant in the future, then cgNode will also be relevant.
-                    addToMapSet(relevanceDependencies, callee, cgNode);
+                    resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
                     if (DEBUG) {
                         System.err.println("%%\t\t" + cgNode);
                         System.err.println("%%\t\tDEPENDS ON " + callee);
@@ -291,7 +288,9 @@ public final class RelevantNodesIncremental {
 
         // Record the results and rerun any dependencies
         SourceQueryResults sqr = new SourceQueryResults(relevanceDependencies, allVisited);
-        recordSourceQueryResults(query, sqr);
+        if (resultsChanged) {
+            recordSourceQueryResultsChanged(query);
+        }
         totalSourceTime.addAndGet(System.currentTimeMillis() - start);
 
         return sqr;
@@ -484,16 +483,18 @@ public final class RelevantNodesIncremental {
     private void addStartItems(SourceRelevantNodesQuery query, Set<WorkItem> newItems) {
         long start = System.currentTimeMillis();
 
-        Set<WorkItem> s = startItems.get(query);
-        if (s == null) {
-            s = AnalysisUtil.createConcurrentSet();
-            Set<WorkItem> existing = startItems.putIfAbsent(query, s);
-            if (existing != null) {
-                s = existing;
+        Set<WorkItem> s;
+        do {
+            s = startItems.get(query);
+            if (s == null) {
+                s = AnalysisUtil.createConcurrentSet();
+                Set<WorkItem> existing = startItems.putIfAbsent(query, s);
+                if (existing != null) {
+                    s = existing;
+                }
             }
-        }
-        s.addAll(newItems);
-
+            s.addAll(newItems);
+        } while (s != startItems.get(query));
         startItemTime.addAndGet(System.currentTimeMillis() - start);
     }
 
@@ -653,34 +654,18 @@ public final class RelevantNodesIncremental {
      * @param sqr query results to cache
      * @return true if the cache changed
      */
-    private void recordSourceQueryResults(SourceRelevantNodesQuery query, SourceQueryResults sqr) {
+    private void recordSourceQueryResultsChanged(SourceRelevantNodesQuery query) {
         long start = System.currentTimeMillis();
 
-        SourceQueryResults existing = sourceQueryCache.putIfAbsent(query, sqr);
-        boolean resultsChanged = false;
 
-        if (existing == null) {
-            // There were no results in the cache, sqr is currently in the cache
-            resultsChanged = true;
-        }
-        else if (!existing.equals(sqr)) {
-            // There were already results in the cache
-            // merge the results with the existing results and check whether the existing cached value changed
-            // XXX is this neccessary, seems like "this" or "other" will have strictly better results
-            // This operation is not thread safe!!!
-            resultsChanged |= existing.join(sqr);
+        // results changed! rerun relevant queries that depend on the results of the relevant nodes query
+        Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependency.get(query);
+        if (deps == null) {
+            return;
         }
 
-        if (resultsChanged) {
-            // results changed! rerun relevant queries that depend on the results of the relevant nodes query
-            Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependency.get(query);
-            if (deps == null) {
-                return;
-            }
-
-            for (RelevantNodesQuery rq : deps) {
-                analysisHandle.submitRelevantNodesQuery(rq);
-            }
+        for (RelevantNodesQuery rq : deps) {
+            analysisHandle.submitRelevantNodesQuery(rq);
         }
         recordSourceQueryTime.addAndGet(System.currentTimeMillis() - start);
     }
@@ -697,41 +682,6 @@ public final class RelevantNodesIncremental {
                                   Set<WorkItem> allVisited) {
             this.relevanceDependencies = relevanceDependencies;
             this.alreadyVisited = allVisited;
-        }
-
-        /**
-         * Imperatively join this with another set of results. Add in any missing visited elements or relevance
-         * dependencies.
-         *
-         * @param other results to join with this
-         * @return true if elements were added to the visited set or the dependencies as a result of this call
-         */
-        public boolean join(SourceQueryResults other) {
-            boolean changed = false;
-            // XXX Modifying these sets inline causes a concurrent modification error since we iterate over them when
-            // computing a source query
-            // Probably need to make the sets functional and make this method functional
-            // XXX Also this is not thread safe for the same reason, they are used in computeSourceQuery and may be modified here at the same time.
-            changed |= this.alreadyVisited.addAll(other.alreadyVisited);
-
-            for (OrderedPair<IMethod, Context> dep : other.relevanceDependencies.keySet()) {
-                if (this.relevanceDependencies.containsKey(dep)) {
-                    changed |= this.relevanceDependencies.get(dep).addAll(other.relevanceDependencies.get(dep));
-                } else {
-                    // This is a new key
-                    Set<OrderedPair<IMethod, Context>> existing;
-                    existing = this.relevanceDependencies.putIfAbsent(dep, other.relevanceDependencies.get(dep));
-                    if (existing != null) {
-                        // Someone beat us to it, add the dependencies to the existing set
-                        changed |= existing.addAll(other.relevanceDependencies.get(dep));
-                    }
-                    else {
-                        // This is a new key
-                        changed = true;
-                    }
-                }
-            }
-            return changed;
         }
 
         @Override
