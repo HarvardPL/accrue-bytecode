@@ -3,6 +3,7 @@ package analysis.dataflow.interprocedural.pdg.graph.node;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import types.TypeRepository;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.dataflow.util.AbstractLocation;
@@ -31,40 +32,47 @@ public class PDGNodeFactory {
      * Find the unique node for the local variable or constant used by instruction, <code>i</code>, in position
      * <code>useNumber</code>. Create if necessary.
      *
-     * @param i
-     *            instruction with at least <code>useNumber</code> + 1 uses
-     * @param useNumber
-     *            valid use index (uses are 0 indexed)
-     * @param cgNode
-     *            call graph node containing the code and context for the instruction
+     * @param i instruction with at least <code>useNumber</code> + 1 uses
+     * @param useNumber valid use index (uses are 0 indexed)
+     * @param cgNode call graph node containing the code and context for the instruction
+     * @param types type inference results used to get the type of the local
      * @return PDG node for the use with the given use number in <code>i</code>
      */
-    public static PDGNode findOrCreateUse(SSAInstruction i, int useNumber, CGNode cgNode, PrettyPrinter pp) {
+    public static PDGNode findOrCreateUse(SSAInstruction i, int useNumber, CGNode cgNode, PrettyPrinter pp,
+                                          TypeRepository types) {
         assert i.getNumberOfUses() > useNumber : "Use number: " + useNumber + " bigger than the numbe of uses: "
                                         + i.getNumberOfUses() + " for " + i + " IN "
                                         + PrettyPrinter.cgNodeString(cgNode);
         int valueNumber = i.getUse(useNumber);
-        return findOrCreateLocal(valueNumber, cgNode, pp);
+        return findOrCreateLocal(valueNumber, cgNode, pp, types);
     }
 
     /**
      * Find the unique node for the local variable or constant given by the value number. Create if necessary.
      *
-     * @param valueNumber
-     *            value number for the local variable
-     * @param cgNode
-     *            call graph node containing the code and context for the local variable
+     * @param valueNumber value number for the local variable
+     * @param cgNode call graph node containing the code and context for the local variable
+     * @param types type inference results used to get the type of the local
      * @return PDG node for the local variable
      */
-    public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode, PrettyPrinter pp) {
+    public static PDGNode findOrCreateLocal(int valueNumber, CGNode cgNode, PrettyPrinter pp, TypeRepository types) {
         assert valueNumber >= 0 : "negative value number for local " + valueNumber + " for\n"
                                         + PrettyPrinter.cgNodeString(cgNode);
         IR ir = cgNode.getIR();
         PDGNode n;
         if (ir.getSymbolTable().isConstant(valueNumber)) {
-            n = PDGNodeFactory.findOrCreateOther(pp.valString(valueNumber), PDGNodeType.BASE_VALUE, cgNode, valueNumber);
-        } else {
-            n = PDGNodeFactory.findOrCreateOther(pp.valString(valueNumber), PDGNodeType.LOCAL, cgNode, valueNumber);
+            n = PDGNodeFactory.findOrCreateOther(pp.valString(valueNumber),
+                                                 PDGNodeType.BASE_VALUE,
+                                                 cgNode,
+                                                 types.getType(valueNumber),
+                                                 valueNumber);
+        }
+        else {
+            n = PDGNodeFactory.findOrCreateOther(pp.valString(valueNumber),
+                                                 PDGNodeType.LOCAL,
+                                                 cgNode,
+                                                 types.getType(valueNumber),
+                                                 valueNumber);
         }
 
         return n;
@@ -75,23 +83,22 @@ public class PDGNodeFactory {
      * order to ensure that this node is unique a disambiguation key must be specified to distinguish different nodes
      * created with the same type in the same call graph node. If no such node exists one will be created.
      *
-     * @param description
-     *            human readable description of the node, will not be used to disambiguate nodes and may later be
-     *            changed
-     * @param type
-     *            type of expression node being created
-     * @param n
-     *            call graph node containing the code and context for the expression
-     * @param disambuationKey
-     *            key used to distinguish nodes (in addition to the call graph node and type)
+     * @param description human readable description of the node, will not be used to disambiguate nodes and may later
+     *            be changed
+     * @param type type of expression node being created
+     * @param n call graph node containing the code and context for the expression
+     * @param javaType the type of the expresssion represented by this node or null if there is none
+     * @param disambuationKey key used to distinguish nodes (in addition to the call graph node and type)
      * @return unique PDG node of the given type created in the given call graph node with the given disambiguation key
      */
     public static ProcedurePDGNode findOrCreateOther(String description, PDGNodeType type, CGNode n,
-                                    Object disambuationKey) {
+                                                     TypeReference javaType, Object disambuationKey) {
+        assert (type.isPathCondition() && javaType == null) || (!type.isPathCondition() && javaType != null) : type.isPathCondition()
+                + " " + (javaType == null);
         ExpressionNodeKey key = new ExpressionNodeKey(type, n, disambuationKey);
         ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {
-            node = new ProcedurePDGNode(description, type, n);
+            node = new ProcedurePDGNode(description, type, n, javaType);
             expressionNodes.put(key, node);
         }
         return node;
@@ -113,6 +120,7 @@ public class PDGNodeFactory {
         return findOrCreateOther("Gen-" + PrettyPrinter.typeString(type),
                                  PDGNodeType.BASE_VALUE,
                                  n,
+                                 type,
                                  new OrderedPair<>(i, type));
     }
 
@@ -120,18 +128,18 @@ public class PDGNodeFactory {
      * Find a the unique node corresponding to the (first) local variable defined by the instruction, <code>i</code>.
      * Create this node if it does not already exist.
      *
-     * @param i
-     *            instruction that defines a local variable
-     * @param n
-     *            call graph node containing the code and context the local is defined in
+     * @param i instruction that defines a local variable
+     * @param n call graph node containing the code and context the local is defined in
+     * @param types type inference results used to get the type of the local
      * @return unique node for the (first) local variable defined by <code>i</code>
      */
-    public static ProcedurePDGNode findOrCreateLocalDef(SSAInstruction i, CGNode n, PrettyPrinter pp) {
+    public static ProcedurePDGNode findOrCreateLocalDef(SSAInstruction i, CGNode n, PrettyPrinter pp,
+                                                        TypeRepository types) {
         assert i.hasDef() : "Trying to create def node for instruction that has no def " + pp.instructionString(i);
         ExpressionNodeKey key = new ExpressionNodeKey(PDGNodeType.LOCAL, n, i.getDef());
         ProcedurePDGNode node = expressionNodes.get(key);
         if (node == null) {
-            node = new ProcedurePDGNode(pp.instructionString(i), PDGNodeType.LOCAL, n);
+            node = new ProcedurePDGNode(pp.instructionString(i), PDGNodeType.LOCAL, n, types.getType(i.getDef()));
             expressionNodes.put(key, node);
         } else {
             node.setDescription(pp.instructionString(i));

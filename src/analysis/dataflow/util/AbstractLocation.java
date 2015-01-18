@@ -8,6 +8,7 @@ import analysis.pointer.graph.PointsToGraph;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.FieldReference;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Represents an abstract location, i.e., zero or more concrete locations.
@@ -138,5 +139,18 @@ public class AbstractLocation {
         }
         return (field != null ? PrettyPrinter.typeString(field.getDeclaringClass()) + "." + field.getName()
                 : "NULL FIELD") + (receiverContext == null ? " (static)" : "" /*in " + receiverContext*/);
+    }
+
+    /**
+     * Java type of the location
+     *
+     * @return the java type for the location
+     */
+    public TypeReference getJavaType() {
+        if (isArrayContents) {
+            assert receiverContext.getConcreteType().getReference().isArrayType();
+            return receiverContext.getConcreteType().getReference().getArrayElementType();
+        }
+        return field.getFieldTypeReference();
     }
 }

@@ -15,7 +15,7 @@ public class AbstractLocationPDGNode extends PDGNode {
     private final AbstractLocation loc;
 
     protected AbstractLocationPDGNode(AbstractLocation loc) {
-        super("LOC " + loc.toString(), PDGNodeType.ABSTRACT_LOCATION);
+        super("LOC " + loc.toString(), PDGNodeType.ABSTRACT_LOCATION, loc.getJavaType());
         this.loc = loc;
     }
 
@@ -32,6 +32,7 @@ public class AbstractLocationPDGNode extends PDGNode {
     public JSONObject toJSON() {
         JSONObject json = JSONUtil.toJSON(this);
         JSONUtil.addJSON(json, "location", getLocation().toString());
+        JSONUtil.addJSON(json, "javatype", getJavaType().getName().toString());
         return json;
     }
 

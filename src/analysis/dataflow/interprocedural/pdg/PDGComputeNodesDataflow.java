@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import signatures.Signatures;
+import types.TypeRepository;
 import util.IteratorSet;
 import util.OrderedPair;
 import util.print.PrettyPrinter;
@@ -71,6 +72,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     private final Map<OrderedPair<Set<PDGContext>, ISSABasicBlock>, PDGContext> confluenceMemo;
     private final Map<ISSABasicBlock, PDGContext> mostRecentConfluence;
     private final PrettyPrinter pp;
+    private final TypeRepository types;
 
     public PDGComputeNodesDataflow(CGNode currentNode, PDGInterproceduralDataFlow interProc) {
         super(true);
@@ -78,6 +80,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         this.interProc = interProc;
         this.ir = currentNode.getIR();
         this.pp = new PrettyPrinter(ir);
+        this.types = new TypeRepository(ir);
 
         // compute post dominators
         SSACFG cfg = ir.getControlFlowGraph();
@@ -138,9 +141,16 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             }
         }
 
-        PDGAddEdgesDataflow edgeDF = new PDGAddEdgesDataflow(currentNode, interProc, mergeNodes, trueExceptionContexts,
-                                        falseExceptionContexts, calleeExceptionContexts, getOutputContexts(),
-                                        getInstructionInput());
+        PDGAddEdgesDataflow edgeDF = new PDGAddEdgesDataflow(currentNode,
+                                                             pp,
+                                                             types,
+                                                             interProc,
+                                                             mergeNodes,
+                                                             trueExceptionContexts,
+                                                             falseExceptionContexts,
+                                                             calleeExceptionContexts,
+                                                             getOutputContexts(),
+                                                             getInstructionInput());
         edgeDF.setOutputLevel(getOutputLevel());
         edgeDF.dataflow();
     }
@@ -547,10 +557,12 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             truePC = PDGNodeFactory.findOrCreateOther("!" + pp.valString(i.getUse(0)),
                                                       PDGNodeType.BOOLEAN_FALSE_PC,
                                                       currentNode,
+                                                      null,
                                                       i);
             falsePC = PDGNodeFactory.findOrCreateOther(pp.valString(i.getUse(0)),
                                                        PDGNodeType.BOOLEAN_TRUE_PC,
                                                        currentNode,
+                                                       null,
                                                        i);
         }
         else if (ir.getSymbolTable().isZeroOrFalse(i.getUse(1)) && i.getOperator().equals(Operator.NE)) {
@@ -559,18 +571,24 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             truePC = PDGNodeFactory.findOrCreateOther(pp.valString(i.getUse(0)),
                                                       PDGNodeType.BOOLEAN_TRUE_PC,
                                                       currentNode,
+                                                      null,
                                                       i);
             falsePC = PDGNodeFactory.findOrCreateOther("!" + pp.valString(i.getUse(0)),
                                                        PDGNodeType.BOOLEAN_FALSE_PC,
                                                        currentNode,
+                                                       null,
                                                        i);
         }
         else {
             // Some other test
             String cond = pp.valString(i.getUse(0)) + " " + PrettyPrinter.conditionalOperatorString(i.getOperator())
                     + " " + pp.valString(i.getUse(1));
-            truePC = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.BOOLEAN_TRUE_PC, currentNode, i);
-            falsePC = PDGNodeFactory.findOrCreateOther("!(" + cond + ")", PDGNodeType.BOOLEAN_FALSE_PC, currentNode, i);
+            truePC = PDGNodeFactory.findOrCreateOther(cond, PDGNodeType.BOOLEAN_TRUE_PC, currentNode, null, i);
+            falsePC = PDGNodeFactory.findOrCreateOther("!(" + cond + ")",
+                                                       PDGNodeType.BOOLEAN_FALSE_PC,
+                                                       currentNode,
+                                                       null,
+                                                       i);
         }
 
         Map<ISSABasicBlock, PDGContext> out = new LinkedHashMap<>();
@@ -680,15 +698,17 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGNode normalExitPC = PDGNodeFactory.findOrCreateOther(normalDesc,
                                                                 PDGNodeType.PC_OTHER,
                                                                 currentNode,
+                                                                null,
                                                                 new OrderedPair<>(i, ExitType.NORMAL));
 
         String exDesc = "EX_EXIT_PC after " + PrettyPrinter.methodString(i.getDeclaredTarget());
         PDGNode exExitPC = PDGNodeFactory.findOrCreateOther(exDesc,
                                                             PDGNodeType.PC_OTHER,
                                                             currentNode,
+                                                            null,
                                                             new OrderedPair<>(i, ExitType.EXCEPTIONAL));
 
-        PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode, pp);
+        PDGNode exValue = PDGNodeFactory.findOrCreateLocal(i.getException(), currentNode, pp, types);
         PDGContext exContext = new PDGContext(null, exValue, exExitPC);
         calleeExceptionContexts.put(i, exContext);
 
@@ -812,11 +832,12 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
         PDGNode ret = null;
         if (i.getNumberOfUses() > 0) {
             // This function returns something
-            PDGNode val = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp);
+            PDGNode val = PDGNodeFactory.findOrCreateUse(i, 0, currentNode, pp, types);
             ret = PDGNodeFactory.findOrCreateOther("return " + val,
-                                                           PDGNodeType.OTHER_EXPRESSION,
-                                                           currentNode,
-                                                           new OrderedPair<>(i, "RETURN"));
+                                                   PDGNodeType.OTHER_EXPRESSION,
+                                                   currentNode,
+                                                   types.getType(i.getUse(0)),
+                                                   new OrderedPair<>(i, "RETURN"));
 
         }
         return factToMap(new PDGContext(ret, null, in.getPCNode()), current, cfg);
@@ -826,7 +847,10 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
     protected Map<ISSABasicBlock, PDGContext> flowSwitch(SSASwitchInstruction i, Set<PDGContext> previousItems,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         PDGNode newPC = PDGNodeFactory.findOrCreateOther("switch-PC in " + PrettyPrinter.methodString(ir.getMethod()),
-                                        PDGNodeType.PC_OTHER, currentNode, i);
+                                                         PDGNodeType.PC_OTHER,
+                                                         currentNode,
+                                                         null,
+                                                         i);
         return factToMap(new PDGContext(null, null, newPC), current, cfg);
     }
 
@@ -842,7 +866,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
                                                                     current);
         PDGContext normal = afterEx.get(ExitType.NORMAL);
         PDGContext npe = afterEx.get(ExitType.EXCEPTIONAL);
-        PDGNode throwExpr = getNodeForThrowExpression(i, current, currentNode, pp);
+        PDGNode throwExpr = getNodeForThrowExpression(i, current, currentNode, pp, types.getType(i.getException()));
 
         PDGContext afterThrow = new PDGContext(null, throwExpr, normal.getPCNode());
 
@@ -886,6 +910,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             PDGNode truePC = PDGNodeFactory.findOrCreateOther(reasonForException,
                                                               PDGNodeType.BOOLEAN_TRUE_PC,
                                                               currentNode,
+                                                              null,
                                                               new OrderedPair<>(i, exType));
 
             String falseReason;
@@ -898,6 +923,7 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             PDGNode falsePC = PDGNodeFactory.findOrCreateOther(falseReason,
                                                                PDGNodeType.BOOLEAN_FALSE_PC,
                                                                currentNode,
+                                                               null,
                                                                new OrderedPair<>(i, exType));
             PDGNode exceptionValue = PDGNodeFactory.findOrCreateGeneratedException(exType, currentNode, i);
 
@@ -972,31 +998,42 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
             pcs.add(c.getPCNode());
         }
 
-        PDGNode newEx = mergeIfNecessary(exceptions, "EX MERGE", PDGNodeType.EXCEPTION_MERGE, disambiguationKey);
-        PDGNode newRet = mergeIfNecessary(returns, "RETURN MERGE", PDGNodeType.OTHER_EXPRESSION, disambiguationKey);
-        PDGNode newPC = mergeIfNecessary(pcs, "PC MERGE", PDGNodeType.PC_MERGE, disambiguationKey);
+        // XXX We might be able to do better than "Throwable" here but it is at least sound
+        PDGNode newEx = mergeIfNecessary(exceptions,
+                                         "EX MERGE",
+                                         PDGNodeType.EXCEPTION_MERGE,
+                                         TypeReference.JavaLangThrowable,
+                                         disambiguationKey);
+        PDGNode newRet = mergeIfNecessary(returns,
+                                          "RETURN MERGE",
+                                          PDGNodeType.OTHER_EXPRESSION,
+                                          ir.getMethod().getReturnType(),
+                                          disambiguationKey);
+        PDGNode newPC = mergeIfNecessary(pcs, "PC MERGE", PDGNodeType.PC_MERGE, null, disambiguationKey);
         return new PDGContext(newRet, newEx, newPC);
     }
 
     /**
      * Create a new merge node if the input set has size bigger than 1
      *
-     * @param nodesToMerge
-     *            nodes to be merged if necessary
-     * @param mergeNodeDesc
-     *            description to be put into the new merge node
-     * @param mergeNodeType
-     *            type of the new merge node
-     * @param disambiguationKey
-     *            key to disambiguate the new merge node
+     * @param nodesToMerge nodes to be merged if necessary
+     * @param mergeNodeDesc description to be put into the new merge node
+     * @param mergeNodeType type of the new merge node
+     * @param disambiguationKey key to disambiguate the new merge node
+     * @param javaType java type of the expression represented by the merge node
      * @return new merge node if any, if the set contains only one node then that node is returned, null if the set of
      *         nodes is empty
      */
     private PDGNode mergeIfNecessary(Set<PDGNode> nodesToMerge, String mergeNodeDesc, PDGNodeType mergeNodeType,
+                                     TypeReference javaType,
                                     Object disambiguationKey) {
         PDGNode result;
         if (nodesToMerge.size() > 1) {
-            result = PDGNodeFactory.findOrCreateOther(mergeNodeDesc, mergeNodeType, currentNode, disambiguationKey);
+            result = PDGNodeFactory.findOrCreateOther(mergeNodeDesc,
+                                                      mergeNodeType,
+                                                      currentNode,
+                                                      javaType,
+                                                      disambiguationKey);
             mergeNodes.put(result, nodesToMerge);
         } else if (nodesToMerge.size() == 1) {
             return nodesToMerge.iterator().next();
@@ -1069,10 +1106,11 @@ public class PDGComputeNodesDataflow extends InstructionDispatchDataFlow<PDGCont
      * @return node for the throw (e.g. "throw foo")
      */
     protected static PDGNode getNodeForThrowExpression(SSAThrowInstruction i, ISSABasicBlock bb, CGNode node,
-                                                       PrettyPrinter pp) {
+                                                       PrettyPrinter pp, TypeReference thrownType) {
         return PDGNodeFactory.findOrCreateOther(pp.instructionString(i),
                                                 PDGNodeType.OTHER_EXPRESSION,
                                                 node,
+                                                thrownType,
                                                 bb.getNumber());
     }
 }

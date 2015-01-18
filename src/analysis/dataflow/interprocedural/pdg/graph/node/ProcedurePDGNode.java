@@ -7,6 +7,7 @@ import analysis.dataflow.interprocedural.pdg.serialization.JSONUtil;
 import analysis.dataflow.interprocedural.pdg.serialization.PDGNodeClassName;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Node created for a specific call graph node which represents a procedure and
@@ -20,21 +21,17 @@ public class ProcedurePDGNode extends PDGNode {
     private final CGNode n;
 
     /**
-     * Create the node with the given type in the code and context given by the
-     * call graph node, <code>n</code>.
+     * Create the node with the given type in the code and context given by the call graph node, <code>n</code>.
      *
-     * @param description
-     *            human readable description of the node, may later be changed
+     * @param description human readable description of the node, may later be changed
      *
-     * @param type
-     *            type of expression node being created
-     * @param n
-     *            call graph node containing the code and context the node is
-     *            created in
+     * @param type type of expression node being created
+     * @param n call graph node containing the code and context the node is created in
+     * @param javaType the type of the expresssion represented by this node or null if there is none
      * @return PDG node of the given type created in the given call graph node
      */
-    protected ProcedurePDGNode(String description, PDGNodeType type, CGNode n) {
-        super(description, type);
+    protected ProcedurePDGNode(String description, PDGNodeType type, CGNode n, TypeReference javaType) {
+        super(description, type, javaType);
         this.n = n;
     }
 
@@ -66,6 +63,9 @@ public class ProcedurePDGNode extends PDGNode {
         JSONObject json = JSONUtil.toJSON(this);
         JSONUtil.addJSON(json, "code", PrettyPrinter.methodString(n.getMethod()));
         JSONUtil.addJSON(json, "isShortCircuit", false);
+        if (getJavaType() != null) {
+            JSONUtil.addJSON(json, "javatype", getJavaType().getName().toString());
+        }
         return json;
     }
 
