@@ -40,3 +40,5 @@ Incremental computation of the findRelevantNodes
 - cache the visited?
 - cache reachable dependencies?
 - use integer indexing
+
+XXX Only process new dependencies
