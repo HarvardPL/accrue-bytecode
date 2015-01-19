@@ -104,6 +104,10 @@ public class AnalysisUtil {
      * Signatures
      */
     private static Signatures signatures;
+    /**
+     * Number of threads to use for concurrent data structures
+     */
+    private static int numThreads;
 
     public static final void TEST_resetAllStaticFields() {
         cache = null;
@@ -170,13 +174,16 @@ public class AnalysisUtil {
      * @param classPath Java class path to load class filed from with entries separated by ":"
      * @param entryPoint entry point main method, e.g mypackage.mysubpackage.MyClass
      * @param outputDirectory directory to put outputfiles into
+     * @param numThreads if using a multi-threaded points-to analysis then this is the number of threads to use
      *
      * @throws IOException Thrown when the analysis scope is invalid
      * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
      *             class path and for other reasons see {@link ClassHierarchy}
      */
-    public static void init(String classPath, String entryPoint, String outputDirectory) throws IOException,
-                                                                                        ClassHierarchyException {
+    public static void init(String classPath, String entryPoint, String outputDirectory, int numThreads)
+                                                                                                        throws IOException,
+                                                                                                        ClassHierarchyException {
+        AnalysisUtil.numThreads = numThreads;
         AnalysisUtil.signatures = new Signatures();
 
         AnalysisUtil.outputDirectory = outputDirectory;

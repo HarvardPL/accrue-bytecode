@@ -31,6 +31,14 @@ public final class AccrueAnalysisOptions {
     private boolean singleThreadedPointerAnalysis = false;
 
     /**
+     * Number of threads for multi-threaded pointer analysis.
+     */
+    @Parameter(
+        names = { "-numThreads" },
+        description = "Number of threads for the multi threaded pointer analysis. Default is the number of processors available to the JVM.")
+    private int numThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Output folder default is "tests"
      */
     @Parameter(names = { "-out" }, description = "Output directory, default is the tests directory.")
@@ -843,5 +851,14 @@ public final class AccrueAnalysisOptions {
      */
     public boolean isTestMode() {
         return testMode;
+    }
+
+    /**
+     * Number of threads to use for the multi-threaded points-to analysis
+     *
+     * @return number of threads
+     */
+    public int getNumThreads() {
+        return this.numThreads;
     }
 }

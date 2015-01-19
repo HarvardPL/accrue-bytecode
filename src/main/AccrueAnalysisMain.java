@@ -107,7 +107,8 @@ public class AccrueAnalysisMain {
         HeapAbstractionFactory haf = options.getHaf();
         boolean isOnline = options.registerOnline();
         boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
-        testMode = options.isTestMode();
+        AccrueAnalysisMain.testMode = options.isTestMode();
+        int numThreads = useSingleThreadedPointerAnalysis ? 1 : options.getNumThreads();
 
         // Trade-offs for points-to analysis precision vs. size/time
         boolean singleGenEx = options.shouldUseSingleAllocForGenEx();
@@ -136,14 +137,14 @@ public class AccrueAnalysisMain {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results;
         PointsToGraph g;
         ReferenceVariableCache rvCache;
+        AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
+
         switch (analysisName) {
         case "pointsto":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             System.err.println("STARTING WALA POINTER ANALYSIS");
             runWalaPointerAnalysis(haf, singleGenEx, singleThrowable, singlePrimArray, singleString, singleWrappers);
             break;
         case "pointsto2":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -155,7 +156,8 @@ public class AccrueAnalysisMain {
                                             singleWrappers,
                                             simplePrint,
                                             outputDir,
-                                            fileName);
+                                            fileName,
+                                            numThreads);
             g = results.fst();
             g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
 
@@ -176,13 +178,11 @@ public class AccrueAnalysisMain {
             graph = g;
             break;
         case "maincfg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
             ir = AnalysisUtil.getIR(entry.getMethod());
             printSingleCFG(ir, outputDir + "/" + fileName + "_main");
             break;
         case "bool":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             runBooleanConstant(entryPoint,
                                outputLevel,
                                haf,
@@ -194,10 +194,10 @@ public class AccrueAnalysisMain {
                                singlePrimArray,
                                singleString,
                                singleWrappers,
-                               simplePrint);
+                               simplePrint,
+                               numThreads);
             break;
         case "nonnull":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -209,7 +209,8 @@ public class AccrueAnalysisMain {
                                             singleWrappers,
                                             simplePrint,
                                             outputDir,
-                                            fileName);
+                                            fileName,
+                                            numThreads);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -217,7 +218,6 @@ public class AccrueAnalysisMain {
             nonNull.writeAllToFiles(r, outputDir);
             break;
         case "precise-ex":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -229,7 +229,8 @@ public class AccrueAnalysisMain {
                                             singleWrappers,
                                             simplePrint,
                                             outputDir,
-                                            fileName);
+                                            fileName,
+                                            numThreads);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -238,7 +239,6 @@ public class AccrueAnalysisMain {
             preciseEx.writeAllToFiles(r, outputDir);
             break;
         case "reachability":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -250,14 +250,14 @@ public class AccrueAnalysisMain {
                                             singleWrappers,
                                             simplePrint,
                                             outputDir,
-                                            fileName);
+                                            fileName,
+                                            numThreads);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
             r.writeAllToFiles(outputDir);
             break;
         case "cfg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -269,12 +269,12 @@ public class AccrueAnalysisMain {
                                             singleWrappers,
                                             simplePrint,
                                             outputDir,
-                                            fileName);
+                                            fileName,
+                                            numThreads);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
         case "cfg-for-class":
-            AnalysisUtil.init(classPath, null, outputDir);
             String name = "L" + options.getClassNameForCFG().replace(".", "/");
             System.err.println("Printing CFGs for " + name);
             TypeReference type = TypeReference.findOrCreate(ClassLoaderReference.Application, name);
@@ -294,7 +294,6 @@ public class AccrueAnalysisMain {
             }
             break;
         case "pdg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -306,7 +305,8 @@ public class AccrueAnalysisMain {
                                             singleWrappers,
                                             simplePrint,
                                             outputDir,
-                                            fileName);
+                                            fileName,
+                                            numThreads);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -370,7 +370,6 @@ public class AccrueAnalysisMain {
         //            printAllCFG(g);
         //            break;
         case "string-main":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
             StringVariableFactory factory = new StringVariableFactory();
             StringAnalysisResults stringResults = new StringAnalysisResults(factory);
             IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();
@@ -439,6 +438,7 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param numThreads if multi-threaded then this is the number of threads to use
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
@@ -452,13 +452,14 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForImmutableWrappers,
                                                                                             boolean simplePrint,
                                                                                             String outputDir,
-                                                                                            String mainCFGFileName) {
+                                                                                            String mainCFGFileName,
+                                                                                            int numThreads) {
         PointsToAnalysis analysis;
         if (singleThreaded) {
             analysis = new PointsToAnalysisSingleThreaded(haf);
         }
         else {
-            analysis = new PointsToAnalysisMultiThreaded(haf);
+            analysis = new PointsToAnalysisMultiThreaded(haf, numThreads);
         }
         PointsToGraph g;
         StatementRegistrar registrar;
@@ -720,13 +721,15 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param simplePrint print simple points-to graph and program point graph
+     * @param numThreads if multi-threaded then this is the number of threads to use
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
                                            String outputDir, boolean singleThreaded, boolean isOnline,
                                            boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
-                                           boolean useSingleAllocForImmutableWrappers,
-                                           boolean simplePrint) {
+                                           boolean useSingleAllocForImmutableWrappers, boolean simplePrint,
+                                           int numThreads) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            isOnline,
@@ -738,7 +741,8 @@ public class AccrueAnalysisMain {
                                                                                            useSingleAllocForImmutableWrappers,
                                                                                            simplePrint,
                                                                                            outputDir,
-                                                                                           entryPoint);
+                                                                                           entryPoint,
+                                                                                           numThreads);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {

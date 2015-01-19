@@ -53,14 +53,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * Useful handle to pass around.
      */
     private PointsToAnalysisHandleImpl analysisHandle;
+    /**
+     * Number of threads to use for the points-to analysis
+     */
+    private int numThreads;
 
-    static int numThreads() {
-        //return 1;
-        return Runtime.getRuntime().availableProcessors();
-    }
-
-    public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
+    public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf, int numThreads) {
         super(haf);
+        this.numThreads = numThreads;
     }
 
     @Override
@@ -75,12 +75,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
-        System.err.println("Starting points to engine using " + this.haf + "(multithreaded, "
-                + PointsToAnalysisMultiThreaded.numThreads() + " threads)");
+        System.err.println("Starting points to engine using " + this.haf + " (multithreaded, " + this.numThreads
+                + " thread(s))");
         PointsToAnalysis.startTime = System.currentTimeMillis();
 
 
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -179,7 +179,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
+        System.err.println("   Number of threads used : " + this.numThreads);
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
 
         if (!AccrueAnalysisMain.testMode) {
@@ -291,9 +291,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public ExecutorServiceCounter(ForkJoinPool exec) {
             this.exec = exec;
+            // Statement and context tasks
             this.numRemainingTasks = new AtomicLong(0);
             this.totalStmtAndCtxtNoDeltaTasks = new AtomicLong(0);
             this.totalStmtAndCtxtWithDeltaTasks = new AtomicLong(0);
+
+            // Other tasks
             this.totalAddNonMostRecentOriginTasks = new AtomicLong(0);
             this.totalAddToSetTasks = new AtomicLong(0);
             this.totalRelevantNodesQueryTasks = new AtomicLong(0);
@@ -469,7 +472,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public boolean containsPending() {
             return numRemainingTasks.get() > 0 || !pendingAddNonMostRecentOrigin.get().isEmpty()
-                    || !pendingAddToSetOrigin.get().isEmpty() || !pendingPPSubQuery.get().isEmpty();
+                    || !pendingAddToSetOrigin.get().isEmpty() || !pendingPPSubQuery.get().isEmpty()
+                    || !pendingRelevantNodesQuery.get().isEmpty() || !pendingSourceRelevantNodesQuery.get().isEmpty();
         }
 
         public long numRemainingTasks() {
@@ -481,7 +485,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 synchronized (this) {
                     try {
                         // XXX could add timeout stuff here
-                        this.wait();
+                        this.wait(100000);
+                        System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
+                                + numRemainingTasks.get() + "; pendingAddNonMostRecentOrigin: "
+                                + pendingAddNonMostRecentOrigin.get().size() + "; pendingAddToSetOrigin: "
+                                + pendingAddToSetOrigin.get().size() + "; pendingPPSubQuery: "
+                                + pendingPPSubQuery.get().size() + "; pendingRelevantNodesQuery: "
+                                + pendingRelevantNodesQuery.get().size() + "; pendingSourceRelevantNodesQuery: "
+                                + pendingSourceRelevantNodesQuery.get().size());
                     }
                     catch (InterruptedException e) {
                         e.printStackTrace();
@@ -686,10 +697,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
+        // XXX Should this be numThreads?
         return new ConcurrentIntHashSet(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
+        // XXX Should this be numThreads?
         return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
