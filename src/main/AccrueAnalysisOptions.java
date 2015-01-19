@@ -18,6 +18,14 @@ import com.beust.jcommander.ParameterException;
 public final class AccrueAnalysisOptions {
 
     /**
+     * Number of threads for multi-threaded pointer analysis.
+     */
+    @Parameter(
+        names = { "-numThreads" },
+        description = "Number of threads for the multi threaded pointer analysis. Default is the number of processors available to the JVM.")
+    private int numThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Classpath to use when none is specified
      */
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
@@ -29,14 +37,6 @@ public final class AccrueAnalysisOptions {
         names = { "-singleThreaded" },
         description = "Use single-threaded pointer analysis. Can be used to get the number of lines of code analyzed, but can be much slower.")
     private boolean singleThreadedPointerAnalysis = false;
-
-    /**
-     * Number of threads for multi-threaded pointer analysis.
-     */
-    @Parameter(
-        names = { "-numThreads" },
-        description = "Number of threads for the multi threaded pointer analysis. Default is the number of processors available to the JVM.")
-    private int numThreads = Runtime.getRuntime().availableProcessors();
 
     /**
      * Output folder default is "tests"

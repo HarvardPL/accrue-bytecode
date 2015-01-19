@@ -34,7 +34,6 @@ import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
-import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.AnnotatedIntRelation.SetAnnotatedIntRelation;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -85,7 +84,7 @@ public final class PointsToGraph {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * Dictionary for mapping InstanceKeys to ints
@@ -95,7 +94,7 @@ public final class PointsToGraph {
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    ConcurrentIntMap<IClass> concreteTypeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    ConcurrentIntMap<IClass> concreteTypeDictionary = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -110,13 +109,13 @@ public final class PointsToGraph {
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = AnalysisUtil.makeConcurrentIntMap();
 
     /* ***************************************************************************
      *
      * Record allocation sites of an InstanceKeyRecency.
      */
-    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = AnalysisUtil.makeConcurrentIntMap();
 
     /* ***************************************************************************
      *
@@ -135,14 +134,14 @@ public final class PointsToGraph {
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints). These are the flow-insensitive facts, i.e., they hold true at all program points.
      */
-    private ConcurrentIntMap<MutableIntSet> pointsToFI = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<MutableIntSet> pointsToFI = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * Map from PointsToGraphNode to InstanceKeys, including the program points (actually, the interprogrampoint
      * replicas) at which they are valid. These are the flow sensitive points to information. if (s,t,ps) \in deltaFS,
      * and p \in ps, then s points to t at program point p.
      */
-    private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * If "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
@@ -960,7 +959,7 @@ public final class PointsToGraph {
     static MutableIntSet getOrCreateIntSet(int key, ConcurrentIntMap<MutableIntSet> map) {
         MutableIntSet set = map.get(key);
         if (set == null) {
-            set = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
+            set = AnalysisUtil.makeConcurrentIntSet();
             MutableIntSet ex = map.putIfAbsent(key, set);
             if (ex != null) {
                 set = ex;
@@ -973,7 +972,7 @@ public final class PointsToGraph {
     private static <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);
         if (set == null) {
-            set = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+            set = AnalysisUtil.makeConcurrentIntMap();
             ConcurrentIntMap<T> existing = map.putIfAbsent(key, set);
             if (existing != null) {
                 set = existing;
@@ -1678,7 +1677,7 @@ public final class PointsToGraph {
         assert !isFlowSensitivePointsToGraphNode(n);
         MutableIntSet s = this.pointsToFI.get(n);
         if (s == null && !graphFinished) {
-            s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
+            s = AnalysisUtil.makeConcurrentIntSet();
             MutableIntSet ex = this.pointsToFI.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!

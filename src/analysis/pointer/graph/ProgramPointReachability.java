@@ -19,7 +19,6 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysisHandle;
-import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -753,8 +752,8 @@ public final class ProgramPointReachability {
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointSubQuery>> callerQueryDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointSubQuery>> methodQueryDependencies = AnalysisUtil.createConcurrentHashMap();
     private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>> methodMethodDependencies = AnalysisUtil.createConcurrentHashMap();
-    private final ConcurrentIntMap<Set<ProgramPointSubQuery>> killQueryDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
-    private final ConcurrentIntMap<Set<OrderedPair<IMethod, Context>>> killMethodDependencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final ConcurrentIntMap<Set<ProgramPointSubQuery>> killQueryDependencies = AnalysisUtil.makeConcurrentIntMap();
+    private final ConcurrentIntMap<Set<OrderedPair<IMethod, Context>>> killMethodDependencies = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * Record the fact that the result of query depends on the callees of callSite, and thus, if the callees change,

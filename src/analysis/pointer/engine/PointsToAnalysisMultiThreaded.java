@@ -10,9 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import main.AccrueAnalysisMain;
-import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
-import util.intset.ConcurrentIntHashSet;
 import util.print.CFGWriter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -31,7 +29,6 @@ import analysis.pointer.statements.PointsToStatement;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
-import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
@@ -41,13 +38,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
      * program points set that allocate ikr requires reevaluation of sac.
      */
-    private ConcurrentIntMap<Set<AllocationDepender>> allocationDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private ConcurrentIntMap<Set<AllocationDepender>> allocationDepedencies = AnalysisUtil.makeConcurrentIntMap();
 
     /**
      * Useful handle to pass around.
@@ -400,7 +397,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             // Check if we should add any pending tasks.
             int bound = (int) (exec.getParallelism() * 1.5);
-            if (this.numRemainingTasks.get() < bound) {
+            if (this.numRemainingTasks.get() <= bound) {
                 // try adding some more tasks
 
                 {
@@ -411,7 +408,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                         exec.execute(new RunnablePointsToTask(t));
                     }
                 }
-                if (this.numRemainingTasks.get()  < bound) {
+                if (this.numRemainingTasks.get() <= bound) {
                     // try adding some more tasks
                     {
                         Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(AnalysisUtil.<AddNonMostRecentOrigin> createConcurrentSet());
@@ -421,7 +418,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                             exec.execute(new RunnablePointsToTask(t));
                         }
                     }
-                    if (this.numRemainingTasks.get() < bound) {
+                    if (this.numRemainingTasks.get() <= bound) {
                         // try adding some more tasks
                         {
                             Set<SourceRelevantNodesQuery> s = pendingSourceRelevantNodesQuery.getAndSet(AnalysisUtil.<SourceRelevantNodesQuery> createConcurrentSet());
@@ -433,7 +430,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                             }
                         }
 
-                        if (this.numRemainingTasks.get() < bound) {
+                        if (this.numRemainingTasks.get() <= bound) {
                             Set<RelevantNodesQuery> s = pendingRelevantNodesQuery.getAndSet(AnalysisUtil.<RelevantNodesQuery> createConcurrentSet());
 
                             for (RelevantNodesQuery rq : s) {
@@ -442,7 +439,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                                 exec.execute(new RunnablePointsToTask(new RelevantNodesQueryTask(rq)));
                             }
                         }
-                        if (this.numRemainingTasks.get() < bound) {
+                        if (this.numRemainingTasks.get() <= bound) {
                             // try adding some more tasks
                             {
                                 Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
@@ -694,16 +691,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
         return s.add(depender);
-    }
-
-    public static MutableIntSet makeConcurrentIntSet() {
-        // XXX Should this be numThreads?
-        return new ConcurrentIntHashSet(16, 0.75f, Runtime.getRuntime().availableProcessors());
-    }
-
-    public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        // XXX Should this be numThreads?
-        return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
     }
 
     public class PointsToAnalysisHandleImpl implements PointsToAnalysisHandle {

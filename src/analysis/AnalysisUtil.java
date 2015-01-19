@@ -9,6 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import main.AccrueAnalysisMain;
 import signatures.Signatures;
+import util.intmap.ConcurrentIntHashMap;
+import util.intmap.ConcurrentIntMap;
+import util.intset.ConcurrentIntHashSet;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 
@@ -33,6 +36,7 @@ import com.ibm.wala.types.Selector;
 import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.config.AnalysisScopeReader;
+import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
  * Utilities that are valid for an entire set of analyses, and can be accessed statically
@@ -106,8 +110,10 @@ public class AnalysisUtil {
     private static Signatures signatures;
     /**
      * Number of threads to use for concurrent data structures
+     *
+     * XXX initialized to total processors to make sure there is something here during initialization
      */
-    private static int numThreads;
+    private static int numThreads = Runtime.getRuntime().availableProcessors();
 
     public static final void TEST_resetAllStaticFields() {
         cache = null;
@@ -427,11 +433,19 @@ public class AnalysisUtil {
     }
 
     public static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
-        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentHashMap<>(16, 0.75f, numThreads);
     }
 
     public static <T> Set<T> createConcurrentSet() {
         return Collections.newSetFromMap(AnalysisUtil.<T, Boolean> createConcurrentHashMap());
+    }
+
+    public static MutableIntSet makeConcurrentIntSet() {
+        return new ConcurrentIntHashSet(16, 0.75f, numThreads);
+    }
+
+    public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
+        return new ConcurrentIntHashMap<>(16, 0.75f, numThreads);
     }
 
     /**
