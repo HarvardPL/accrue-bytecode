@@ -118,5 +118,11 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
             return true;
         }
 
+        @Override
+        public String toString() {
+            return "AddToSetOrigin [n=" + this.n + ", src=" + this.src + ", trg=" + this.trg + ", ippr=" + this.ippr
+                    + "]";
+        }
+
     }
 }

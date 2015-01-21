@@ -65,4 +65,8 @@ public class StmtAndContextReachabilityOriginator implements ReachabilityQueryOr
         return true;
     }
 
+    @Override
+    public String toString() {
+        return sac.toString();
+    }
 }

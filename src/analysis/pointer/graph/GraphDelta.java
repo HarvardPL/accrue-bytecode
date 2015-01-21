@@ -165,12 +165,12 @@ public final class GraphDelta {
         while (iter.hasNext()) {
             int i = iter.next();
             MutableIntSet s = deltaFI.get(i);
-            sb.append("\n" + g.lookupPointsToGraphNodeDictionary(i));
+            sb.append("\n" + i + " " + g.lookupPointsToGraphNodeDictionary(i));
             sb.append(" --> ");
             IntIterator iter2 = s.intIterator();
             while (iter2.hasNext()) {
                 int ik = iter2.next();
-                sb.append("\n\t" + g.lookupInstanceKeyDictionary(ik));
+                sb.append("\n\t" + ik + " " + g.lookupInstanceKeyDictionary(ik));
             }
             size += s.size();
         }
@@ -185,7 +185,7 @@ public final class GraphDelta {
             IntIterator iter2 = s.keyIterator();
             while (iter2.hasNext()) {
                 int ik = iter2.next();
-                sb.append("\n\t" + g.lookupInstanceKeyDictionary(ik));
+                sb.append("\n\t" + ik + " " + g.lookupInstanceKeyDictionary(ik));
                 sb.append("\n\t\t" + s.get(ik));
             }
             size += s.size();

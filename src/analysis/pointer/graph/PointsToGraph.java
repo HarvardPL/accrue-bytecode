@@ -316,9 +316,6 @@ public final class PointsToGraph {
      * @return
      */
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKeyRecency heapContext, InterProgramPointReplica ippr) {
-
-        // System.err.println("ADDING EDGE:(" + node + "," + heapContext + "," + ippr + ")");
-
         assert node != null && heapContext != null;
         assert !this.graphFinished;
 
@@ -364,12 +361,12 @@ public final class PointsToGraph {
      * Lookup functions that queries the dictionaries.
      */
 
-    protected InstanceKeyRecency lookupInstanceKeyDictionary(int key) {
+    InstanceKeyRecency lookupInstanceKeyDictionary(int key) {
         return this.instanceKeyDictionary.get(key);
 
     }
 
-    protected int lookupDictionary(InstanceKeyRecency key) {
+    int lookupDictionary(InstanceKeyRecency key) {
         Integer n = this.reverseInstanceKeyDictionary.get(key);
         if (n == null) {
             // not in the dictionary yet
@@ -398,11 +395,11 @@ public final class PointsToGraph {
         return n;
     }
 
-    protected PointsToGraphNode lookupPointsToGraphNodeDictionary(int node) {
+    PointsToGraphNode lookupPointsToGraphNodeDictionary(int node) {
         return this.graphNodeDictionary.get(node);
     }
 
-    protected int lookupDictionary(PointsToGraphNode node) {
+    int lookupDictionary(PointsToGraphNode node) {
         Integer n = this.reverseGraphNodeDictionary.get(node);
         if (n == null) {
             // not in the dictionary yet
@@ -630,8 +627,6 @@ public final class PointsToGraph {
                                       MutableIntSet currentlyAdding,
                                       IntStack currentlyAddingStack, Stack<Set<TypeFilter>> filterStack,
                                       Stack<ExplicitProgramPointSet> programPointStack) {
-
-
         assert !targetIsFlowSensitive ? (targetPoints == null || targetPoints.isEmpty()) : true : "If target is not flow sensitive then targetPoints must be null";
 
         IntSet added = this.addToSet(changed, target, targetIsFlowSensitive, targetPoints, toAdd, toAddSetSizeGuess);
@@ -1720,17 +1715,21 @@ public final class PointsToGraph {
     protected IntSet addToSet(GraphDelta changed, /*PointsToGraphNode*/int n, boolean nIsFlowSensitive,
                                                        ExplicitProgramPointSet ppsToAdd,
                               /*Iterator<InstanceKeyRecency>*/IntIterator toAdd, int toAddSizeBestGuess) {
-
-        if (DEBUG) {
-            System.err.println("\n%%%%%%%%%%%%%%%%%%%%%%");
-            System.err.println(lookupPointsToGraphNodeDictionary(n) + " --> ");
-        }
+        //        if (XXX) {
+        //            DEBUG = true;
+        //        }
 
         MutableIntSet added = MutableSparseIntSet.makeEmpty();
 
         if (!toAdd.hasNext()) {
             // nothing to do...
+            DEBUG = false;
             return added;
+        }
+
+        if (DEBUG) {
+            System.err.println("\n%%%%%%%%%%%%%%%%%%%%%%");
+            System.err.println(n + " " + lookupPointsToGraphNodeDictionary(n) + " --> ");
         }
 
         if (!nIsFlowSensitive) {
@@ -1742,7 +1741,8 @@ public final class PointsToGraph {
                 int next = toAdd.next();
                 if (graphSet.add(next)) {
                     if (DEBUG) {
-                        System.err.println("\t" + lookupInstanceKeyDictionary(next));
+                        System.err.println("\t" + next + " " + lookupInstanceKeyDictionary(next));
+                        System.err.print("");
                     }
 
                     if (deltaSet == null) {
@@ -1780,6 +1780,7 @@ public final class PointsToGraph {
             if (DEBUG) {
                 System.err.println("%%%%%%%%%%%%%%%%%%%%%%\n");
             }
+            DEBUG = false;
             return added;
         }
         // flow sensitive!
@@ -1792,7 +1793,8 @@ public final class PointsToGraph {
             // could be more efficient here, and check that we do not already have a relationship for n --> to.
             if (this.addProgramPoints(graphMap, n, to, ppsToAdd)) {
                 if (DEBUG) {
-                    System.err.println("\t" + lookupInstanceKeyDictionary(to));
+                    System.err.println("\t" + to + " " + lookupInstanceKeyDictionary(to));
+                    System.err.print("");
                 }
 
                 if (deltaMap == null) {
@@ -1814,6 +1816,7 @@ public final class PointsToGraph {
         if (DEBUG) {
             System.err.println("%%%%%%%%%%%%%%%%%%%%%%\n");
         }
+        DEBUG = false;
         return added;
     }
 

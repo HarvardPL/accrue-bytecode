@@ -91,4 +91,8 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsTo
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "AddNonMostRecentOrigin [n=" + this.n + ", rvr=" + this.rvr + ", i=" + this.i + "]";
+    }
 }

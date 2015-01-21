@@ -35,6 +35,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
+import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
  * This class answers questions about what programs are reachable from what other program points, and caches answers
@@ -504,9 +505,13 @@ public final class ProgramPointReachability {
                 for (InterProgramPointReplica src : res.getAllSources()) {
                     for (InterProgramPointReplica target : res.getTargetMap(src).keySet()) {
                         System.err.println("\t\t" + src + " -> " + target + " " + res.getTargetMap(src).get(target));
-                        IntIterator iter = res.getTargetMap(src).get(target).getAlloced().intIterator();
-                        while (iter.hasNext()) {
-                            System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                        MutableIntSet alloced = res.getTargetMap(src).get(target).getAlloced();
+                        IntIterator iter;
+                        if (alloced != null) {
+                            iter = alloced.intIterator();
+                            while (iter.hasNext()) {
+                                System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                            }
                         }
                     }
                 }
@@ -540,9 +545,12 @@ public final class ProgramPointReachability {
             for (InterProgramPointReplica src : rr.getAllSources()) {
                 for (InterProgramPointReplica target : rr.getTargetMap(src).keySet()) {
                     System.err.println("\t\t" + src + " -> " + target + " " + rr.getTargetMap(src).get(target));
-                    IntIterator iter = rr.getTargetMap(src).get(target).getAlloced().intIterator();
-                    while (iter.hasNext()) {
-                        System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                    MutableIntSet alloced = rr.getTargetMap(src).get(target).getAlloced();
+                    if (alloced != null) {
+                        IntIterator iter = alloced.intIterator();
+                        while (iter.hasNext()) {
+                            System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                        }
                     }
                 }
             }
