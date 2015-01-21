@@ -661,7 +661,7 @@ public final class ProgramPointReachability {
                                             + stmt.getReadDependencyForKillField(context, g.getHaf()));
                                 }
                                 // not enough info available yet.
-                                // add a depedency since more information may change this search
+                                // add a dependency since more information may change this search
                                 // conservatively assume that it kills any kind of the field we give it.
                                 current.addMaybeKilledField(stmt.getMaybeKilledField());
                                 addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
@@ -1072,6 +1072,12 @@ public final class ProgramPointReachability {
 
     }
 
+    /**
+     * Takes a GraphDelta (representing changse to the PointsToGraph) and recomputes ProgramPointSubQuerys and
+     * reachability info for methods that read any PointsToGraphNode that changed.
+     * 
+     * @param delta
+     */
     public void checkPointsToGraphDelta(GraphDelta delta) {
         IntIterator domainIter = delta.domainIterator();
         while (domainIter.hasNext()) {
