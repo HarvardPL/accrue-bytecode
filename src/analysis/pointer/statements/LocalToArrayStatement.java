@@ -100,7 +100,7 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayKillNode() {
+    public boolean mayKillNode(Context context, PointsToGraph g) {
         return array.isFlowSensitive();
     }
 

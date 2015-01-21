@@ -51,7 +51,7 @@ public class NullToLocalStatement extends PointsToStatement {
 
 
     @Override
-    public boolean mayKillNode() {
+    public boolean mayKillNode(Context context, PointsToGraph g) {
         return result.isFlowSensitive();
     }
 

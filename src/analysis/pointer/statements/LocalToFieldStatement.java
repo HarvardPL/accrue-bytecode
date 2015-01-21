@@ -102,8 +102,10 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
-    public boolean mayKillNode() {
-        return true;
+    public boolean mayKillNode(Context context, PointsToGraph g) {
+        OrderedPair<Boolean, PointsToGraphNode> k = this.killsNode(context, g);
+        // if k == (TRUE, null) then this statement doesn't kill a node (and won't in the future). Otherwise it may.
+        return !(k.fst() == Boolean.TRUE && k.snd() == null);
     }
 
     @Override

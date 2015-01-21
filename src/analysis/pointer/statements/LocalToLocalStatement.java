@@ -69,7 +69,7 @@ public class LocalToLocalStatement extends PointsToStatement {
 
 
     @Override
-    public boolean mayKillNode() {
+    public boolean mayKillNode(Context context, PointsToGraph g) {
         return left.isFlowSensitive();
     }
 

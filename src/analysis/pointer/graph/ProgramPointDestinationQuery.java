@@ -547,7 +547,7 @@ public final class ProgramPointDestinationQuery {
      * @param currentContext analysis context for the call graph node currently being searched
      */
     private boolean handlePossibleKill(PointsToStatement stmt, Context currentContext) {
-        if (stmt.mayKillNode()) {
+        if (stmt.mayKillNode(currentContext, g)) {
             // record the dependency before we call stmt.killsNode
             ppr.addKillDependency(this.currentSubQuery, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
 

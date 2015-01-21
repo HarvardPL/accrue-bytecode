@@ -653,7 +653,7 @@ public final class ProgramPointReachability {
                     // not a call or a return, it's just a normal statement.
                     // does ipp kill this.node?
                     if (stmt != null) {
-                        if (stmt.mayKillNode()) {
+                        if (stmt.mayKillNode(context, g)) {
                             // record the dependency before we call stmt.killsNode
                             addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
 
@@ -681,7 +681,6 @@ public final class ProgramPointReachability {
                                 }
                                 else if (killed.snd() == null) {
                                     // we have enough information to know that this statement does not kill a node we care about
-                                    // XXX!@! Andrew: should we remove the kill, i.e., some call current.removeKill(g.lookupDictionary(killed.snd()))? Is this a bug???
                                     removeKillDependency(m,
                                                          context,
                                                          stmt.getReadDependencyForKillField(context, g.getHaf()));

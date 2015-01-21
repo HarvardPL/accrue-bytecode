@@ -89,6 +89,9 @@ public abstract class PointsToStatement {
      * null if it does not. If this method returns (true, null), then all subsequent calls to the method will always
      * return (true, null), even if more points to edges are added to the graph.
      *
+     * If this method may return something other than null or (TRUE, null), then mayKillNode(context, g) should return
+     * true.
+     *
      * @param context
      * @param g
      * @return
@@ -99,11 +102,13 @@ public abstract class PointsToStatement {
     }
 
     /**
-     * !@!
-     * 
+     * Does this stmt (for the given context) possibly kill a node? If killsNode(Context context, PointsToGraph g) may
+     * return something other than null or (TRUE, null), then mayKillNode(context, g) should return true.
+     *
+     *
      * @return
      */
-    public boolean mayKillNode() {
+    public boolean mayKillNode(Context context, PointsToGraph g) {
         return false;
     }
 
