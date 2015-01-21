@@ -235,8 +235,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             return;
         }
 
-        execService.g.ppReach.checkPointsToGraphDelta(changes);
-
         IntIterator iter = changes.domainIterator();
         while (iter.hasNext()) {
             int n = iter.next();
@@ -254,6 +252,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 }
             }
         }
+
+        execService.g.ppReach.checkPointsToGraphDelta(changes);
     }
 
 
