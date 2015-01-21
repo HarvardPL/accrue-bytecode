@@ -49,10 +49,20 @@ public class NullToLocalStatement extends PointsToStatement {
         return g.addEdge(r, nullIkr, ppr.post());
     }
 
+
+    @Override
+    public boolean mayKillNode() {
+        return result.isFlowSensitive();
+    }
+
     @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, result.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, result, g.getHaf()) : null);
+        if (!result.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      result,
+                                                                                                      g.getHaf()));
     }
 
     @Override

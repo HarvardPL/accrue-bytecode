@@ -40,7 +40,7 @@ public class FieldToLocalStatement extends PointsToStatement {
 
     /**
      * Points-to statement for a field access assigned to a local, l = o.f
-     * 
+     *
      * @param l points-to graph node for local assigned into
      * @param o points-to graph node for receiver of field access
      * @param f field accessed
@@ -109,9 +109,18 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean mayKillNode() {
+        return assignee.isFlowSensitive();
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, assignee.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null);
+        if (!assignee.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      assignee,
+                                                                                                      g.getHaf()));
     }
 
     @Override

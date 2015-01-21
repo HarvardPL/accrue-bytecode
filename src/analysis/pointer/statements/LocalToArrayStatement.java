@@ -100,9 +100,18 @@ public class LocalToArrayStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean mayKillNode() {
+        return array.isFlowSensitive();
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, array.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, array, g.getHaf()) : null);
+        if (!array.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      array,
+                                                                                                      g.getHaf()));
     }
 
     @Override

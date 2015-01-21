@@ -547,38 +547,42 @@ public final class ProgramPointDestinationQuery {
      * @param currentContext analysis context for the call graph node currently being searched
      */
     private boolean handlePossibleKill(PointsToStatement stmt, Context currentContext) {
-        OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
-        if (killed != null) {
-            if (!killed.fst()) {
-                // not enough info available yet.
-                // add a depedency since more information may change this search
-                ppr.addKillDependency(this.currentSubQuery,
-                                      stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
-                // for the moment, assume conservatively that this statement
-                // may kill a field we are interested in.
-                if (DEBUG2) {
-                    System.err.println("\t\t\tKILL: " + killed);
+        if (stmt.mayKillNode()) {
+            // record the dependency before we call stmt.killsNode
+            ppr.addKillDependency(this.currentSubQuery, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+
+            OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
+            if (killed != null) {
+                if (!killed.fst()) {
+                    // not enough info available yet.
+                    // for the moment, assume conservatively that this statement
+                    // may kill a field we are interested in.
+                    if (DEBUG2) {
+                        System.err.println("\t\t\tKILL: " + killed);
+                    }
+                    return true;
                 }
-                return true;
-            }
-            else if (killed.snd() != null && noKill.contains(g.lookupDictionary(killed.snd()))) {
-                // dang! we killed something we shouldn't. Prune the search.
-                // add a depedency in case this changes in the future.
-                ppr.addKillDependency(this.currentSubQuery,
-                                      stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
-                if (DEBUG2) {
-                    System.err.println("\t\t\tKILL: " + killed);
+                else if (killed.snd() != null && noKill.contains(g.lookupDictionary(killed.snd()))) {
+                    // dang! we killed something we shouldn't. Prune the search.
+                    if (DEBUG2) {
+                        System.err.println("\t\t\tKILL: " + killed);
+                    }
+                    return true;
                 }
-                return true;
+                else if (killed.snd() == null) {
+                    // we have enough information to know that this statement does not kill a node we care about
+                    ppr.removeKillDependency(this.currentSubQuery,
+                                             stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                }
+                // we have enough information to determine whether this statement kills a field, and it does not
+                // kill anything we care about. So we can continue with the search.
+                assert killed.fst() && (killed.snd() == null || !noKill.contains(g.lookupDictionary(killed.snd())));
             }
-            else if (killed.snd() == null) {
-                // we have enough information to know that this statement does not kill a node we care about
-                ppr.removeKillDependency(this.currentSubQuery,
-                                         stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
-            }
-            // we have enough information to determine whether this statement kills a field, and it does not
-            // kill anything we care about. So we can continue with the search.
-            assert killed.fst() && (killed.snd() == null || !noKill.contains(g.lookupDictionary(killed.snd())));
+        }
+        else {
+            // The statement should not be able to kill a node.
+            assert stmt.killsNode(currentContext, g) == null
+                    || (stmt.killsNode(currentContext, g).fst() == true && stmt.killsNode(currentContext, g).snd() == null);
         }
 
         // is "to" allocated at this program point?

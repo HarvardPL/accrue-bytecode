@@ -67,10 +67,20 @@ public class LocalToLocalStatement extends PointsToStatement {
         return g.copyEdges(r, pre, l, post);
     }
 
+
+    @Override
+    public boolean mayKillNode() {
+        return left.isFlowSensitive();
+    }
+
     @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, left.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, left, g.getHaf()) : null);
+        if (!left.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      left,
+                                                                                                      g.getHaf()));
     }
 
     @Override

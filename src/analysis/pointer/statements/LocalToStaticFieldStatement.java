@@ -59,10 +59,20 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
         return g.copyEdges(r, pre, l, post);
     }
 
+
+    @Override
+    public boolean mayKillNode() {
+        return staticField.isFlowSensitive();
+    }
+
     @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, staticField.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, staticField, g.getHaf()) : null);
+        if (!staticField.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      staticField,
+                                                                                                      g.getHaf()));
     }
 
     @Override

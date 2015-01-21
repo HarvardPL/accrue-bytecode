@@ -653,37 +653,45 @@ public final class ProgramPointReachability {
                     // not a call or a return, it's just a normal statement.
                     // does ipp kill this.node?
                     if (stmt != null) {
-                        OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
-                        if (killed != null) {
-                            if (!killed.fst()) {
-                                if (DEBUG2) {
-                                    System.err.println("\t\tCould Kill "
-                                            + stmt.getReadDependencyForKillField(context, g.getHaf()));
-                                }
-                                // not enough info available yet.
-                                // add a dependency since more information may change this search
-                                // conservatively assume that it kills any kind of the field we give it.
-                                current.addMaybeKilledField(stmt.getMaybeKilledField());
-                                addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
+                        if (stmt.mayKillNode()) {
+                            // record the dependency before we call stmt.killsNode
+                            addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
 
-                            }
-                            else if (killed.snd() != null && killed.snd() != null) {
-                                if (DEBUG2) {
-                                    System.err.println("\t\tDoes Kill "
-                                            + stmt.getReadDependencyForKillField(context, g.getHaf()) + " "
-                                            + g.lookupDictionary(killed.snd()));
+                            OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
+                            if (killed != null) {
+                                if (!killed.fst()) {
+                                    if (DEBUG2) {
+                                        System.err.println("\t\tCould Kill "
+                                                + stmt.getReadDependencyForKillField(context, g.getHaf()));
+                                    }
+                                    // not enough info available yet.
+                                    // add a dependency since more information may change this search
+                                    // conservatively assume that it kills any kind of the field we give it.
+                                    current.addMaybeKilledField(stmt.getMaybeKilledField());
+
                                 }
-                                // this statement really does kill something.
-                                current.addKill(g.lookupDictionary(killed.snd()));
-                                // record it, including the dependency.
-                                addKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
+                                else if (killed.snd() != null) {
+                                    if (DEBUG2) {
+                                        System.err.println("\t\tDoes Kill "
+                                                + stmt.getReadDependencyForKillField(context, g.getHaf()) + " "
+                                                + g.lookupDictionary(killed.snd()));
+                                    }
+                                    // this statement really does kill something.
+                                    current.addKill(g.lookupDictionary(killed.snd()));
+                                }
+                                else if (killed.snd() == null) {
+                                    // we have enough information to know that this statement does not kill a node we care about
+                                    // XXX!@! Andrew: should we remove the kill, i.e., some call current.removeKill(g.lookupDictionary(killed.snd()))? Is this a bug???
+                                    removeKillDependency(m,
+                                                         context,
+                                                         stmt.getReadDependencyForKillField(context, g.getHaf()));
+                                }
                             }
-                            else if (killed.snd() == null) {
-                                // we have enough information to know that this statement does not kill a node we care about
-                                removeKillDependency(m,
-                                                     context,
-                                                     stmt.getReadDependencyForKillField(context, g.getHaf()));
-                            }
+                        }
+                        else {
+                            // The statement should not be able to kill a node.
+                            assert stmt.killsNode(context, g) == null
+                                    || (stmt.killsNode(context, g).fst() == true && stmt.killsNode(context, g).snd() == null);
                         }
 
                         // is anything allocated at this program point?
@@ -1075,7 +1083,7 @@ public final class ProgramPointReachability {
     /**
      * Takes a GraphDelta (representing changse to the PointsToGraph) and recomputes ProgramPointSubQuerys and
      * reachability info for methods that read any PointsToGraphNode that changed.
-     * 
+     *
      * @param delta
      */
     public void checkPointsToGraphDelta(GraphDelta delta) {

@@ -102,6 +102,11 @@ public class LocalToFieldStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean mayKillNode() {
+        return true;
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         ReferenceVariableReplica receiverReplica = new ReferenceVariableReplica(context, receiver, g.getHaf());
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());

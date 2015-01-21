@@ -99,6 +99,15 @@ public abstract class PointsToStatement {
     }
 
     /**
+     * !@!
+     * 
+     * @return
+     */
+    public boolean mayKillNode() {
+        return false;
+    }
+
+    /**
      * Return the field that this statement may kill.
      *
      * @return

@@ -162,14 +162,22 @@ public abstract class CallStatement extends PointsToStatement {
         return changed;
     }
 
+    @Override
+    public boolean mayKillNode() {
+        return result.isFlowSensitive();
+    }
+
     /**
      * The result node is killed after the call
      */
-
     @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, result.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, result, g.getHaf()) : null);
+        if (!result.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      result,
+                                                                                                      g.getHaf()));
     }
 
     /**

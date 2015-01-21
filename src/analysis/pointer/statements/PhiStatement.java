@@ -75,9 +75,18 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean mayKillNode() {
+        return assignee.isFlowSensitive();
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
-        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, assignee.isFlowSensitive()
-                ? new ReferenceVariableReplica(context, assignee, g.getHaf()) : null);
+        if (!assignee.isFlowSensitive()) {
+            return null;
+        }
+        return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ReferenceVariableReplica(context,
+                                                                                                      assignee,
+                                                                                                      g.getHaf()));
     }
 
     @Override
