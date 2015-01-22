@@ -20,7 +20,7 @@ import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
@@ -38,13 +38,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
      */
-    ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = AnalysisUtil.makeConcurrentIntMap();
+    ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * An allocation dependency from InstanceKeyRecency ikr to StmtAndContext sac exists when a modification to the
      * program points set that allocate ikr requires reevaluation of sac.
      */
-    private ConcurrentIntMap<Set<AllocationDepender>> allocationDepedencies = AnalysisUtil.makeConcurrentIntMap();
+    private ConcurrentIntMap<Set<AllocationDepender>> allocationDepedencies = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * Useful handle to pass around.

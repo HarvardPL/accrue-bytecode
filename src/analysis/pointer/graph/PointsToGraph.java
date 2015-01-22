@@ -72,8 +72,10 @@ public final class PointsToGraph {
     /* ***************************************************************************
      *
      * Fields for managing integer dictionaries.
-     * That is, for efficiency we map InstanceKeys and PointsToGraphNode to ints, and
-     * these fields help us manage those mappings.
+     * That is, for efficiency we map InstanceKeys,
+     * call graph nodes, call-site replicas,
+     * and PointsToGraphNode to ints, and these
+     * fields help us manage those mappings.
      */
 
     /**
@@ -84,7 +86,7 @@ public final class PointsToGraph {
     /**
      * Dictionary for mapping ints to InstanceKeys.
      */
-    private ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = AnalysisUtil.makeConcurrentIntMap();
+    private ConcurrentIntMap<InstanceKeyRecency> instanceKeyDictionary = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * Dictionary for mapping InstanceKeys to ints
@@ -94,7 +96,7 @@ public final class PointsToGraph {
     /**
      * Dictionary to record the concrete type of instance keys.
      */
-    ConcurrentIntMap<IClass> concreteTypeDictionary = AnalysisUtil.makeConcurrentIntMap();
+    private ConcurrentIntMap<IClass> concreteTypeDictionary = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * GraphNode counter, for unique integers for GraphNodes
@@ -109,13 +111,43 @@ public final class PointsToGraph {
     /**
      * Dictionary for mapping PointsToGraphNodes to ints
      */
-    private ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = AnalysisUtil.makeConcurrentIntMap();
+    private ConcurrentIntMap<PointsToGraphNode> graphNodeDictionary = AnalysisUtil.createConcurrentIntMap();
+
+    /**
+     * Call graph node counter, for mapping unique integers for call graph nodes
+     */
+    private final AtomicInteger callGraphNodeCounter = new AtomicInteger(0);
+
+    /**
+     * Dictionary for mapping ints to call graph nodes, {method, context} pairs.
+     */
+    private ConcurrentIntMap<OrderedPair<IMethod, Context>> callGraphNodeDictionary = AnalysisUtil.createConcurrentIntMap();
+
+    /**
+     * Dictionary for mapping {method, context} pairs (call graph nodes) to ints
+     */
+    private ConcurrentMap<OrderedPair<IMethod, Context>, Integer> reverseCallGraphNodeDictionary = AnalysisUtil.createConcurrentHashMap();
+
+    /**
+     * Call site replica counter, for mapping unique integers for call site replicas ({callsite, context} pairs)
+     */
+    private final AtomicInteger callSiteReplicaCounter = new AtomicInteger(0);
+
+    /**
+     * Dictionary for mapping ints to call site replicas.
+     */
+    private ConcurrentIntMap<ProgramPointReplica> callSiteReplicaDictionary = AnalysisUtil.createConcurrentIntMap();
+
+    /**
+     * Dictionary for mapping call site replicas to ints
+     */
+    private ConcurrentMap<ProgramPointReplica, Integer> reverseCallSiteReplicaDictionary = AnalysisUtil.createConcurrentHashMap();
 
     /* ***************************************************************************
      *
      * Record allocation sites of an InstanceKeyRecency.
      */
-    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = AnalysisUtil.makeConcurrentIntMap();
+    final ConcurrentIntMap<Set<ProgramPointReplica>> allocationSites = AnalysisUtil.createConcurrentIntMap();
 
     /* ***************************************************************************
      *
@@ -134,14 +166,14 @@ public final class PointsToGraph {
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints). These are the flow-insensitive facts, i.e., they hold true at all program points.
      */
-    private ConcurrentIntMap<MutableIntSet> pointsToFI = AnalysisUtil.makeConcurrentIntMap();
+    private ConcurrentIntMap<MutableIntSet> pointsToFI = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * Map from PointsToGraphNode to InstanceKeys, including the program points (actually, the interprogrampoint
      * replicas) at which they are valid. These are the flow sensitive points to information. if (s,t,ps) \in deltaFS,
      * and p \in ps, then s points to t at program point p.
      */
-    private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = AnalysisUtil.makeConcurrentIntMap();
+    private final ConcurrentIntMap<ConcurrentIntMap<ProgramPointSetClosure>> pointsToFS = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * If "a isUnfilteredSubsetOf b" then the points to set of a is always a subset of the points to set of b.
@@ -223,14 +255,22 @@ public final class PointsToGraph {
     /**
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
+     * <p>
+     * Map from the integer representing the {callsite, context} pair to the set of (integers representing the) callee
+     * call graph nodes ({method, context} pairs) called from that call site
      */
-    private ConcurrentMap<OrderedPair<CallSiteProgramPoint, Context>, Set<OrderedPair<IMethod, Context>>> callGraphMap = AnalysisUtil.createConcurrentHashMap();
+    // ConcurrentMap<ProgramPointReplica, Set<OrderedPair<IMethod, Context>>>
+    private ConcurrentIntMap<MutableIntSet> callGraphMap = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
+     * <p>
+     * Map from the integer representing the {method, context} pair for a callee to the set of (integers representing
+     * the) {callsite, context} pairs for the callers.
      */
-    private final ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<CallSiteProgramPoint, Context>>> callGraphReverseMap = AnalysisUtil.createConcurrentHashMap();
+    // ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointReplica>>
+    private final ConcurrentIntMap<MutableIntSet> callGraphReverseMap = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * Call graph.
@@ -418,6 +458,67 @@ public final class PointsToGraph {
             if (existing != null) {
                 // Someone beat us to it. Clean up graphNodeDictionary
                 this.graphNodeDictionary.remove(n);
+                return existing;
+            }
+        }
+        return n;
+    }
+
+    OrderedPair<IMethod, Context> lookupCallGraphNodeDictionary(int key) {
+        assert this.callGraphNodeDictionary.containsKey(key);
+        return this.callGraphNodeDictionary.get(key);
+    }
+
+    int lookupCallGraphNodeDictionary(OrderedPair<IMethod, Context> key) {
+        Integer n = this.reverseCallGraphNodeDictionary.get(key);
+        if (n == null) {
+            // not in the dictionary
+            if (this.graphFinished) {
+                return -1;
+            }
+            n = callGraphNodeCounter.getAndIncrement();
+
+            // Put the mapping into callGraphNodeDictionary
+            // Note that it is important to do this before putting it into reverseGraphNodeDictionary
+            // to avoid a race (i.e., someone looking up node in reverseGraphNodeDictionary, getting
+            // int n, yet getting null when trying graphNodeDictionary.get(n).)
+            // Note that we can do a put instead of a putIfAbsent, since n is guaranteed unique.
+            this.callGraphNodeDictionary.put(n, key);
+            Integer existing = this.reverseCallGraphNodeDictionary.putIfAbsent(key, n);
+            if (existing != null) {
+                // Someone beat us to it. Clean up graphNodeDictionary
+                this.callGraphNodeDictionary.remove(n);
+                return existing;
+            }
+        }
+        return n;
+    }
+
+    ProgramPointReplica lookupCallSiteReplicaDictionary(int key) {
+        assert this.callSiteReplicaDictionary.containsKey(key);
+        return this.callSiteReplicaDictionary.get(key);
+    }
+
+    int lookupCallSiteReplicaDictionary(ProgramPointReplica key) {
+        assert key.getPP() instanceof CallSiteProgramPoint : key + " is not a call site replica.";
+        Integer n = this.reverseCallSiteReplicaDictionary.get(key);
+        if (n == null) {
+            // not in the dictionary yet
+            if (this.graphFinished) {
+                return -1;
+            }
+            n = callSiteReplicaCounter.getAndIncrement();
+
+            // Put the mapping into graphNodeDictionary
+            // Note that it is important to do this before putting it into reverseGraphNodeDictionary
+            // to avoid a race (i.e., someone looking up node in reverseGraphNodeDictionary, getting
+            // int n, yet getting null when trying graphNodeDictionary.get(n).)
+            // Note that we can do a put instead of a putIfAbsent, since n is guaranteed unique.
+            this.callSiteReplicaDictionary.put(n, key);
+            Integer existing = this.reverseCallSiteReplicaDictionary.putIfAbsent(key, n);
+            if (existing != null) {
+                // Someone beat us to it. Clean up graphNodeDictionary
+                this.callSiteReplicaDictionary.remove(n);
                 return existing;
             }
         }
@@ -889,13 +990,13 @@ public final class PointsToGraph {
      * @param calleeContext analyis context for the callee
      */
     public boolean addCall(CallSiteProgramPoint callSite, Context callerContext, IMethod callee, Context calleeContext) {
-        OrderedPair<CallSiteProgramPoint, Context> callerPair = new OrderedPair<>(callSite, callerContext);
-        OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
+        int callerPair = lookupCallSiteReplicaDictionary(callSite.getReplica(callerContext));
+        int calleePair = lookupCallGraphNodeDictionary(new OrderedPair<>(callee, calleeContext));
 
-        Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
+        MutableIntSet s = this.callGraphMap.get(callerPair);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentSet();
-            Set<OrderedPair<IMethod, Context>> existing = this.callGraphMap.putIfAbsent(callerPair, s);
+            s = AnalysisUtil.createConcurrentIntSet();
+            MutableIntSet existing = this.callGraphMap.putIfAbsent(callerPair, s);
 
             if (existing != null) {
                 s = existing;
@@ -906,11 +1007,10 @@ public final class PointsToGraph {
         this.recordReachableContext(callee, calleeContext);
 
         // set up reverse call graph map.
-        Set<OrderedPair<CallSiteProgramPoint, Context>> t = this.callGraphReverseMap.get(calleePair);
+        MutableIntSet t = this.callGraphReverseMap.get(calleePair);
         if (t == null) {
-            t = AnalysisUtil.createConcurrentSet();
-            Set<OrderedPair<CallSiteProgramPoint, Context>> existing = this.callGraphReverseMap.putIfAbsent(calleePair,
-                                                                                                            t);
+            t = AnalysisUtil.createConcurrentIntSet();
+            MutableIntSet existing = this.callGraphReverseMap.putIfAbsent(calleePair, t);
             if (existing != null) {
                 t = existing;
             }
@@ -920,7 +1020,7 @@ public final class PointsToGraph {
         if (changed) {
             // we added a new edge in the call graph.
             // Let the pp reach know.
-            this.ppReach.addCallGraphEdge(callSite, callerContext, callee, calleeContext);
+            this.ppReach.addCallGraphEdge(callerPair, calleePair);
         }
         return changed;
     }
@@ -954,7 +1054,7 @@ public final class PointsToGraph {
     static MutableIntSet getOrCreateIntSet(int key, ConcurrentIntMap<MutableIntSet> map) {
         MutableIntSet set = map.get(key);
         if (set == null) {
-            set = AnalysisUtil.makeConcurrentIntSet();
+            set = AnalysisUtil.createConcurrentIntSet();
             MutableIntSet ex = map.putIfAbsent(key, set);
             if (ex != null) {
                 set = ex;
@@ -967,7 +1067,7 @@ public final class PointsToGraph {
     private static <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);
         if (set == null) {
-            set = AnalysisUtil.makeConcurrentIntMap();
+            set = AnalysisUtil.createConcurrentIntMap();
             ConcurrentIntMap<T> existing = map.putIfAbsent(key, set);
             if (existing != null) {
                 set = existing;
@@ -1037,12 +1137,17 @@ public final class PointsToGraph {
         HafCallGraph callGraph = new HafCallGraph(this.haf);
         this.callGraph = callGraph;
         try {
-            for (OrderedPair<CallSiteProgramPoint, Context> callerPair : this.callGraphMap.keySet()) {
-                CallSiteProgramPoint caller = callerPair.fst();
-                Context callerContext = callerPair.snd();
+            IntIterator iter = this.callGraphMap.keyIterator();
+            while (iter.hasNext()) {
+                int callerCallSite = iter.next();
+                ProgramPointReplica callerPair = lookupCallSiteReplicaDictionary(callerCallSite);
+                CallSiteProgramPoint caller = (CallSiteProgramPoint) callerPair.getPP();
+                Context callerContext = callerPair.getContext();
                 CGNode src = callGraph.findOrCreateNode(caller.containingProcedure(), callerContext);
-                Set<OrderedPair<IMethod, Context>> s = this.callGraphMap.get(callerPair);
-                for (OrderedPair<IMethod, Context> calleePair : s) {
+
+                IntIterator calleeIter = this.callGraphMap.get(callerCallSite).intIterator();
+                while (calleeIter.hasNext()) {
+                    OrderedPair<IMethod, Context> calleePair = lookupCallGraphNodeDictionary(calleeIter.next());
                     IMethod callee = calleePair.fst();
                     Context calleeContext = calleePair.snd();
 
@@ -1672,7 +1777,7 @@ public final class PointsToGraph {
         assert !isFlowSensitivePointsToGraphNode(n);
         MutableIntSet s = this.pointsToFI.get(n);
         if (s == null && !graphFinished) {
-            s = AnalysisUtil.makeConcurrentIntSet();
+            s = AnalysisUtil.createConcurrentIntSet();
             MutableIntSet ex = this.pointsToFI.putIfAbsent(n, s);
             if (ex != null) {
                 // someone beat us to it!
@@ -2093,18 +2198,21 @@ public final class PointsToGraph {
     }
 
     /**
-     * Get the call sites within the given method.
+     * Get the call sites within the given method (in a given context).
      *
      * @param caller
      * @return
      */
-    public Set<ProgramPointReplica> getCallSitesWithinMethod(OrderedPair<IMethod, Context> cgnode) {
-        assert !cgnode.fst().isClinit() || cgnode.snd().equals(haf.initialContext()) : " Class inits such as, "
-                + PrettyPrinter.methodString(cgnode.fst()) + " should be analyzed in the initial context not "
-                + cgnode.snd();
-        Set<ProgramPointReplica> callSites = new LinkedHashSet<>();
-        for (CallSiteProgramPoint cs : this.registrar.getCallSitesWithinMethod(cgnode.fst())) {
-            callSites.add(cs.getReplica(cgnode.snd()));
+    public/*Set<ProgramPointReplica>*/IntSet getCallSitesWithinMethod(/*OrderedPair<IMethod, Context>*/int cgnode) {
+        OrderedPair<IMethod, Context> callGraphNode = lookupCallGraphNodeDictionary(cgnode);
+        Set<CallSiteProgramPoint> s = this.registrar.getCallSitesWithinMethod(callGraphNode.fst());
+        if (s.size() == 0) {
+            return EmptyIntSet.INSTANCE;
+        }
+
+        MutableIntSet callSites = MutableSparseIntSet.createMutableSparseIntSet(s.size());
+        for (CallSiteProgramPoint cs : this.registrar.getCallSitesWithinMethod(callGraphNode.fst())) {
+            callSites.add(lookupCallSiteReplicaDictionary(cs.getReplica(callGraphNode.snd())));
         }
         return callSites;
     }
@@ -2116,15 +2224,12 @@ public final class PointsToGraph {
      * @return
      */
 
-    public Set<OrderedPair<IMethod, Context>> getCalleesOf(ProgramPointReplica callSite) {
-        OrderedPair<CallSiteProgramPoint, Context> callSiteNode = new OrderedPair<>((CallSiteProgramPoint) callSite.getPP(),
-                                                                                    callSite.getContext());
-        Set<OrderedPair<IMethod, Context>> calleeCallGraphNodes = this.callGraphMap.get(callSiteNode);
+    public/*Set<OrderedPair<IMethod, Context>>*/IntSet getCalleesOf(/*ProgramPointReplica*/int callSite) {
+        IntSet calleeCallGraphNodes = this.callGraphMap.get(callSite);
         if (calleeCallGraphNodes != null) {
             return calleeCallGraphNodes;
         }
-        return Collections.emptySet();
-
+        return EmptyIntSet.INSTANCE;
     }
 
     /**
@@ -2133,12 +2238,12 @@ public final class PointsToGraph {
      * @param callee
      * @return
      */
-    public Set<OrderedPair<CallSiteProgramPoint, Context>> getCallersOf(OrderedPair<IMethod, Context> callee) {
-        Set<OrderedPair<CallSiteProgramPoint, Context>> callerCallGraphNodes = this.callGraphReverseMap.get(callee);
+    public/*Set<ProgramPointReplica>*/IntSet getCallersOf(/*OrderedPair<IMethod, Context>*/int callee) {
+        IntSet callerCallGraphNodes = this.callGraphReverseMap.get(callee);
         if (callerCallGraphNodes != null) {
             return callerCallGraphNodes;
         }
-        return Collections.emptySet();
+        return EmptyIntSet.INSTANCE;
     }
 
     /**
@@ -2467,16 +2572,21 @@ public final class PointsToGraph {
         int contextCount = 0;
         Map<Context, Integer> contextID = new HashMap<>();
 
-        for (OrderedPair<CallSiteProgramPoint, Context> n : callGraphMap.keySet()) {
-            IMethod caller = n.fst().containingProcedure();
-            Integer context = contextID.get(n.snd());
+        IntIterator callSiteIter = callGraphMap.keyIterator();
+        while (callSiteIter.hasNext()) {
+            int callSite = callSiteIter.next();
+            ProgramPointReplica n = lookupCallSiteReplicaDictionary(callSite);
+            IMethod caller = n.getPP().containingProcedure();
+            Integer context = contextID.get(n.getContext());
             if (context == null) {
                 contextCount++;
                 context = contextCount;
-                contextID.put(n.snd(), context);
+                contextID.put(n.getContext(), context);
             }
             String callerString = PrettyPrinter.methodString(caller) + "-" + context;
-            for (OrderedPair<IMethod, Context> calleeCG : callGraphMap.get(n)) {
+            IntIterator calleeIter = callGraphMap.get(callSite).intIterator();
+            while (calleeIter.hasNext()) {
+                OrderedPair<IMethod, Context> calleeCG = lookupCallGraphNodeDictionary(calleeIter.next());
                 IMethod callee = calleeCG.fst();
                 Integer contextCallee = contextID.get(calleeCG.snd());
                 if (contextCallee == null) {

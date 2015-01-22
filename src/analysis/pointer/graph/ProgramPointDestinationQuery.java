@@ -19,6 +19,7 @@ import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 import analysis.pointer.statements.ProgramPoint.PostProgramPoint;
 import analysis.pointer.statements.ProgramPoint.PreProgramPoint;
+import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -79,7 +80,7 @@ public final class ProgramPointDestinationQuery {
     /**
      * Set of call graph nodes that are relevent to the current subquery
      */
-    private Set<OrderedPair<IMethod, Context>> relevantNodes;
+    private/*Set<OrderedPair<IMethod, Context>>*/IntSet relevantNodes;
     /**
      * Sub-query that is currently being processed
      */
@@ -112,9 +113,8 @@ public final class ProgramPointDestinationQuery {
      * @param g points-to graph
      * @param ppr thread-safe class which manages dependencies and the submission of queries by the points-to analysis
      */
-    ProgramPointDestinationQuery(InterProgramPointReplica destination,
-    /*Set<PointsToGraphNode>*/IntSet noKill,
-    /*Set<InstanceKeyRecency>*/IntSet noAlloc, Set<InterProgramPointReplica> forbidden, PointsToGraph g,
+    ProgramPointDestinationQuery(InterProgramPointReplica destination, /* Set<PointsToGraphNode> */IntSet noKill,
+    /* Set<InstanceKeyRecency> */IntSet noAlloc, Set<InterProgramPointReplica> forbidden, PointsToGraph g,
                                  ProgramPointReachability ppr) {
         this.dest = destination;
         this.noKill = noKill;
@@ -125,80 +125,14 @@ public final class ProgramPointDestinationQuery {
     }
 
     /**
-     * Work items stored in the global queue and used to search within a single method
-     */
-    private static class WorkItem {
-        /**
-         * Node to search from
-         */
-        final InterProgramPointReplica src;
-        /**
-         * If true then the source is the entry program point for a method that came from a known call-site, from which
-         * the search will continue when an exit program point is found
-         * <p>
-         * If false then when the search finds an exit program point it must continue from all possible call-sites
-         */
-        final boolean isFromCallSite;
-
-        /**
-         * Work queue item containing the source node of a search and whether the search was triggered from a known call
-         * site
-         *
-         * @param src node to begin the search from
-         * @param isFromCallSite whether the source is from a known call site (if so the source must be a method entry
-         *            program point)
-         */
-        public WorkItem(InterProgramPointReplica src, boolean isFromCallSite) {
-            assert src != null;
-            assert !isFromCallSite || src.getInterPP().getPP().isEntrySummaryNode();
-            this.src = src;
-            this.isFromCallSite = isFromCallSite;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + (this.isFromCallSite ? 1231 : 1237);
-            result = prime * result + this.src.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            WorkItem other = (WorkItem) obj;
-            if (this.isFromCallSite != other.isFromCallSite) {
-                return false;
-            }
-            if (!this.src.equals(other.src)) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "(" + src + ", " + isFromCallSite + ")";
-        }
-    }
-
-    /**
      * Execute a subquery for a single source
      *
      * @param src source to search from
      * @param relevantNodes call graph nodes that must be inspected and cannot be summarized
      * @return whether the destination was found
      */
-    public boolean executeSubQuery(InterProgramPointReplica src, Set<OrderedPair<IMethod, Context>> relevantNodes) {
+    public boolean executeSubQuery(InterProgramPointReplica src, /*Set<OrderedPair<IMethod, Context>>*/
+                                   IntSet relevantNodes) {
         this.currentSubQuery = new ProgramPointSubQuery(src, this.dest, this.noKill, this.noAlloc, this.forbidden);
 
         if (DEBUG) {
@@ -216,7 +150,9 @@ public final class ProgramPointDestinationQuery {
                 System.err.println("\t" + i + " " + g.lookupPointsToGraphNodeDictionary(i));
             }
             System.err.println("Relevant call graph nodes: ");
-            for (OrderedPair<IMethod, Context> n : relevantNodes) {
+            IntIterator nodeIter = relevantNodes.intIterator();
+            while (nodeIter.hasNext()) {
+                OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(nodeIter.next());
                 System.err.println("\t" + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
             }
         }
@@ -262,7 +198,8 @@ public final class ProgramPointDestinationQuery {
         InterProgramPointReplica src = wi.src;
         IMethod currentMethod = src.getContainingProcedure();
         Context currentContext = src.getContext();
-        OrderedPair<IMethod, Context> currentCGNode = new OrderedPair<>(currentMethod, currentContext);
+        /*OrderedPair<IMethod, Context>*/int currentCGNode = g.lookupCallGraphNodeDictionary(new OrderedPair<>(currentMethod,
+                                                                                                                currentContext));
 
         // Is the destination node in the same node as the source
         boolean inSameMethod = this.dest.getContainingProcedure().equals(currentMethod);
@@ -482,20 +419,25 @@ public final class ProgramPointDestinationQuery {
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
 
         // This is a method call! Register the dependency.
-        ppr.addCalleeDependency(this.currentSubQuery, pp.getReplica(ippr.getContext()));
+        ppr.addCalleeDependency(this.currentSubQuery,
+                                g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext())));
 
-        Set<OrderedPair<IMethod, Context>> calleeSet = g.getCalleesOf(pp.getReplica(ippr.getContext()));
+        /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext()));
+        /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
         if (DEBUG && calleeSet.isEmpty()) {
             System.err.println("\t\t\tNO CALLEES for " + pp);
         }
 
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
-        for (OrderedPair<IMethod, Context> callee : calleeSet) {
+        IntIterator calleeIter = calleeSet.intIterator();
+        while (calleeIter.hasNext()) {
+            /*OrderedPair<IMethod, Context>*/int calleeInt = calleeIter.next();
+            OrderedPair<IMethod, Context> callee = g.lookupCallGraphNodeDictionary(calleeInt);
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
             ReachabilityResult res = ReachabilityResult.UNREACHABLE;
-            if (relevantNodes.contains(callee)) {
+            if (relevantNodes.contains(calleeInt)) {
                 // this is a relevant node get the results for the callee
                 res = getResults(calleeEntryIPPR, true, trigger);
                 if (res == ReachabilityResult.FOUND) {
@@ -506,8 +448,8 @@ public final class ProgramPointDestinationQuery {
 
             // If both exit types are not already accounted for then get summary results for the irrelevent callee
             else if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
-                ppr.addMethodDependency(this.currentSubQuery, callee);
-                MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(callee.fst(), callee.snd());
+                ppr.addMethodDependency(this.currentSubQuery, calleeInt);
+                MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
                 KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
                                                                      calleeSummary.getNormalExitPP()
                                                                                   .pre()
@@ -620,7 +562,7 @@ public final class ProgramPointDestinationQuery {
      * @param src source of the work item currently being processed
      * @return true if the destination program point was found
      */
-    private boolean handleMethodExitToUnknownCallSite(OrderedPair<IMethod, Context> currentCallGraphNode,
+    private boolean handleMethodExitToUnknownCallSite(/*OrderedPair<IMethod, Context>*/int currentCallGraphNode,
                                                       boolean isExceptionExit, WorkItem src) {
         if (DEBUG2) {
             System.err.println("\t\t\tHANDLING UNKNOWN EXIT " + currentCallGraphNode + " EX? " + isExceptionExit);
@@ -628,24 +570,27 @@ public final class ProgramPointDestinationQuery {
         // Register a dependency i.e., the query may need to be rerun if a new caller is added
         ppr.addCallerDependency(this.currentSubQuery, currentCallGraphNode);
 
-        Set<OrderedPair<CallSiteProgramPoint, Context>> callers = g.getCallersOf(currentCallGraphNode);
+        /*Set<OrderedPair<CallSiteProgramPoint, Context>>*/IntSet callers = g.getCallersOf(currentCallGraphNode);
         if (callers == null) {
             // no callers
             return false;
         }
 
-        for (OrderedPair<CallSiteProgramPoint, Context> callerSite : callers) {
-            CallSiteProgramPoint cspp = callerSite.fst();
-            OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSite.fst().getContainingProcedure(),
-                                                                     callerSite.snd());
+        /*Iterator<OrderedPair<CallSiteProgramPoint, Context>>*/IntIterator callerIter = callers.intIterator();
+        while (callerIter.hasNext()) {
+            ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callerIter.next());
+            CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
+            /*OrderedPair<IMethod, Context>*/int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(cspp.getContainingProcedure(),
+                                                                                                             callerSite.getContext()));
+
             if (relevantNodes.contains(caller)) {
                 // this is a relevant node, and we need to dig into it.
                 InterProgramPointReplica callerSiteReplica;
                 if (isExceptionExit) {
-                    callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.snd());
+                    callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());
                 }
                 else {
-                    callerSiteReplica = cspp.getNormalExit().post().getReplica(callerSite.snd());
+                    callerSiteReplica = cspp.getNormalExit().post().getReplica(callerSite.getContext());
                 }
 
                 // let's explore the caller now.
@@ -852,6 +797,73 @@ public final class ProgramPointDestinationQuery {
                 return true;
             }
             return false;
+        }
+    }
+
+    /**
+     * Work items stored in the global queue and used to search within a single method
+     */
+    private static class WorkItem {
+        /**
+         * Node to search from
+         */
+        final InterProgramPointReplica src;
+        /**
+         * If true then the source is the entry program point for a method that came from a known call-site, from which
+         * the search will continue when an exit program point is found
+         * <p>
+         * If false then when the search finds an exit program point it must continue from all possible call-sites
+         */
+        final boolean isFromCallSite;
+
+        /**
+         * Work queue item containing the source node of a search and whether the search was triggered from a known call
+         * site
+         *
+         * @param src node to begin the search from
+         * @param isFromCallSite whether the source is from a known call site (if so the source must be a method entry
+         *            program point)
+         */
+        public WorkItem(InterProgramPointReplica src, boolean isFromCallSite) {
+            assert src != null;
+            assert !isFromCallSite || src.getInterPP().getPP().isEntrySummaryNode();
+            this.src = src;
+            this.isFromCallSite = isFromCallSite;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + (this.isFromCallSite ? 1231 : 1237);
+            result = prime * result + this.src.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            WorkItem other = (WorkItem) obj;
+            if (this.isFromCallSite != other.isFromCallSite) {
+                return false;
+            }
+            if (!this.src.equals(other.src)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + src + ", " + isFromCallSite + ")";
         }
     }
 }

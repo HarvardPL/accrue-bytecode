@@ -12,8 +12,8 @@ import com.ibm.wala.util.intset.IntIterator;
  * Representation of a relation on ints.
  */
 public abstract class AnnotatedIntRelation<T> {
-    private final ConcurrentIntMap<ConcurrentIntMap<T>> forwardReln = AnalysisUtil.makeConcurrentIntMap();
-    private final ConcurrentIntMap<ConcurrentIntMap<T>> backReln = AnalysisUtil.makeConcurrentIntMap();
+    private final ConcurrentIntMap<ConcurrentIntMap<T>> forwardReln = AnalysisUtil.createConcurrentIntMap();
+    private final ConcurrentIntMap<ConcurrentIntMap<T>> backReln = AnalysisUtil.createConcurrentIntMap();
 
     public boolean addAnnotation(int from, int to, T annotation) {
         boolean changed = createOrMergeAnnotation(from, true, to, annotation);
@@ -62,7 +62,7 @@ public abstract class AnnotatedIntRelation<T> {
 
         ConcurrentIntMap<T> s = m.get(n);
         if (s == null) {
-            s = AnalysisUtil.makeConcurrentIntMap();
+            s = AnalysisUtil.createConcurrentIntMap();
             ConcurrentIntMap<T> existing = m.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;

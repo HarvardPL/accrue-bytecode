@@ -12,8 +12,8 @@ import com.ibm.wala.util.intset.MutableIntSet;
  * Representation of a relation on ints.
  */
 public final class IntRelation {
-    private final ConcurrentIntMap<MutableIntSet> forwardReln = AnalysisUtil.makeConcurrentIntMap();
-    private final ConcurrentIntMap<MutableIntSet> backReln = AnalysisUtil.makeConcurrentIntMap();
+    private final ConcurrentIntMap<MutableIntSet> forwardReln = AnalysisUtil.createConcurrentIntMap();
+    private final ConcurrentIntMap<MutableIntSet> backReln = AnalysisUtil.createConcurrentIntMap();
 
     boolean add(int from, int to) {
         boolean changed = getOrCreateSet(from, true).add(to);
@@ -26,7 +26,7 @@ public final class IntRelation {
 
         MutableIntSet s = m.get(n);
         if (s == null) {
-            s = AnalysisUtil.makeConcurrentIntSet();
+            s = AnalysisUtil.createConcurrentIntSet();
             MutableIntSet existing = m.putIfAbsent(n, s);
             if (existing != null) {
                 s = existing;

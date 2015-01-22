@@ -6,7 +6,7 @@ import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.RelevantNodes;
+import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
 
 /**
@@ -54,7 +54,7 @@ public interface PointsToAnalysisHandle {
      *
      * @param mr
      */
-    void submitRelevantNodesQuery(RelevantNodes.RelevantNodesQuery rq);
+    void submitRelevantNodesQuery(RelevantNodesQuery rq);
 
     /**
      * Request a source node query starting at the given source

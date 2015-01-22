@@ -440,11 +440,11 @@ public class AnalysisUtil {
         return Collections.newSetFromMap(AnalysisUtil.<T, Boolean> createConcurrentHashMap());
     }
 
-    public static MutableIntSet makeConcurrentIntSet() {
+    public static MutableIntSet createConcurrentIntSet() {
         return new ConcurrentIntHashSet(16, 0.75f, numThreads);
     }
 
-    public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
+    public static <T> ConcurrentIntMap<T> createConcurrentIntMap() {
         return new ConcurrentIntHashMap<>(16, 0.75f, numThreads);
     }
 
