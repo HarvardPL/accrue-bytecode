@@ -581,6 +581,9 @@ public final class ProgramPointDestinationQuery {
         }
         else {
             // The statement should not be able to kill a node.
+            ppr.removeKillDependency(this.currentSubQuery,
+                                     stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+
             assert stmt.killsNode(currentContext, g) == null
                     || (stmt.killsNode(currentContext, g).fst() == true && stmt.killsNode(currentContext, g).snd() == null);
         }

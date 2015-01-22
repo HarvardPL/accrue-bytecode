@@ -689,6 +689,8 @@ public final class ProgramPointReachability {
                         }
                         else {
                             // The statement should not be able to kill a node.
+                            removeKillDependency(m, context, stmt.getReadDependencyForKillField(context, g.getHaf()));
+
                             assert stmt.killsNode(context, g) == null
                                     || (stmt.killsNode(context, g).fst() == true && stmt.killsNode(context, g).snd() == null);
                         }
