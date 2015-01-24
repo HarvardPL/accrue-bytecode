@@ -293,7 +293,7 @@ public final class PointsToGraph {
      */
     private boolean graphFinished = false;
 
-    private boolean DEBUG;
+    public static boolean DEBUG;
 
     public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf,
                          DependencyRecorder depRecorder, PointsToAnalysisHandle analysisHandle) {
@@ -728,6 +728,7 @@ public final class PointsToGraph {
                                       MutableIntSet currentlyAdding,
                                       IntStack currentlyAddingStack, Stack<Set<TypeFilter>> filterStack,
                                       Stack<ExplicitProgramPointSet> programPointStack) {
+
         assert !targetIsFlowSensitive ? (targetPoints == null || targetPoints.isEmpty()) : true : "If target is not flow sensitive then targetPoints must be null";
 
         IntSet added = this.addToSet(changed, target, targetIsFlowSensitive, targetPoints, toAdd, toAddSetSizeGuess);
@@ -1491,9 +1492,7 @@ public final class PointsToGraph {
                 int i = this.iter.next();
                 ProgramPointSetClosure pps;
                 if (ippr == null
-                        || ((pps = ppmap.get(i)) != null && pps.contains(ippr,
-                                                                         originMaker.makeOrigin(-1, i, ippr),
-                                                                         newAllocationSites))) {
+                        || ((pps = ppmap.get(i)) != null && pps.contains(ippr, originMaker.makeOrigin(-1, i, ippr)))) {
                     this.next = i;
                 }
             }
@@ -1828,12 +1827,11 @@ public final class PointsToGraph {
 
         if (!toAdd.hasNext()) {
             // nothing to do...
-            DEBUG = false;
             return added;
         }
 
         if (DEBUG) {
-            System.err.println("\n%%%%%%%%%%%%%%%%%%%%%%");
+            System.err.println("\nPTG%%%%%%%%%%%%%%%%%%%%%%");
             System.err.println(n + " " + lookupPointsToGraphNodeDictionary(n) + " --> ");
         }
 
@@ -1846,7 +1844,7 @@ public final class PointsToGraph {
                 int next = toAdd.next();
                 if (graphSet.add(next)) {
                     if (DEBUG) {
-                        System.err.println("\t" + next + " " + lookupInstanceKeyDictionary(next));
+                        System.err.println("PTG%%\t" + next + " " + lookupInstanceKeyDictionary(next));
                         System.err.print("");
                     }
 
@@ -1883,7 +1881,7 @@ public final class PointsToGraph {
 
             }
             if (DEBUG) {
-                System.err.println("%%%%%%%%%%%%%%%%%%%%%%\n");
+                System.err.println("PTG%%%%%%%%%%%%%%%%%%%%%%\n");
             }
             DEBUG = false;
             return added;
@@ -1898,7 +1896,7 @@ public final class PointsToGraph {
             // could be more efficient here, and check that we do not already have a relationship for n --> to.
             if (this.addProgramPoints(graphMap, n, to, ppsToAdd)) {
                 if (DEBUG) {
-                    System.err.println("\t" + to + " " + lookupInstanceKeyDictionary(to));
+                    System.err.println("PTG%%\t" + to + " " + lookupInstanceKeyDictionary(to));
                     System.err.print("");
                 }
 
@@ -1919,9 +1917,8 @@ public final class PointsToGraph {
             }
         }
         if (DEBUG) {
-            System.err.println("%%%%%%%%%%%%%%%%%%%%%%\n");
+            System.err.println("PTG%%%%%%%%%%%%%%%%%%%%%%\n");
         }
-        DEBUG = false;
         return added;
     }
 

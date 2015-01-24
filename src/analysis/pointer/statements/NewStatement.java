@@ -99,8 +99,8 @@ public class NewStatement extends PointsToStatement {
             }
         }
 
-        //        // add the allocation site to delta
-        //        d.addAllocationSite(newHeapContext, ppr);
+        // add the allocation site to delta
+        d.addAllocationSite(newHeapContext, ppr);
 
         return d;
     }
