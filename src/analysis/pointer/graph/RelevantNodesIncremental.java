@@ -50,7 +50,7 @@ public final class RelevantNodesIncremental {
     /**
      * Cache containing the results of computing the relevant nodes for a given source and destination
      */
-    private final ConcurrentMap<RelevantNodesQuery, /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet> relevantCache = AnalysisUtil.createConcurrentHashMap();
+    private ConcurrentMap<RelevantNodesQuery, /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet> relevantCache = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Program point queries that depend on the findRelevantNodes queries
@@ -59,7 +59,7 @@ public final class RelevantNodesIncremental {
     /**
      * Cache of results containing the results of finding dependencies starting at a particular call graph node
      */
-    private final ConcurrentMap<SourceRelevantNodesQuery, SourceQueryResults> sourceQueryCache = AnalysisUtil.createConcurrentHashMap();
+    private ConcurrentMap<SourceRelevantNodesQuery, SourceQueryResults> sourceQueryCache = AnalysisUtil.createConcurrentHashMap();
     /**
      * Map from a source node query CGNode to the items to use as initial workqueue items the next time that source
      * query is run
@@ -782,7 +782,7 @@ public final class RelevantNodesIncremental {
         totalTime.addAndGet(System.currentTimeMillis() - start);
         totalSize.addAndGet(relevant.size());
 
-        if (PRINT_DIAGNOSTICS && computedResponses.get() % 1000 == 0) {
+        if (PRINT_DIAGNOSTICS && computedResponses.get() % 10000 == 0) {
             printDiagnostics();
         }
 
@@ -996,7 +996,8 @@ public final class RelevantNodesIncremental {
         double size = totalSize.get();
         System.err.println("Total: " + analysisTime + "s;");
         System.err.println("RELEVANT NODES QUERY EXECUTION");
-        System.err.println("    computeRelevantNodes: " + relevantTime + "s; RATIO: " + (relevantTime / analysisTime));
+        System.err.println("    computeRelevantNodes: " + relevantTime + "s; RATIO: "
+                + (relevantTime / (analysisTime * analysisHandle.numThreads())));
         System.err.println("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: "
                 + (recordRelTime / relevantTime));
         System.err.println("    size: " + size + " average: " + size / computedResponses.get());
@@ -1006,7 +1007,8 @@ public final class RelevantNodesIncremental {
                 / computedResponses.get());
 
         System.err.println("SOURCE QUERY EXECUTION");
-        System.err.println("    computeSourceDependencies: " + sourceTime + "s; RATIO: " + (sourceTime / analysisTime));
+        System.err.println("    computeSourceDependencies: " + sourceTime + "s; RATIO: "
+                + (sourceTime / (analysisTime * analysisHandle.numThreads())));
         System.err.println("    addSourceQueryCalleeDependency: " + calleeTime + "s; RATIO: "
                 + (calleeTime / sourceTime));
         System.err.println("    addSourceQueryCallerDependency: " + callerTime + "s; RATIO: "
@@ -1091,5 +1093,13 @@ public final class RelevantNodesIncremental {
             return "Source: " + g.lookupCallGraphNodeDictionary(this.sourceCGNode) + " Dest: "
                     + g.lookupCallGraphNodeDictionary(this.destCGNode);
         }
+    }
+
+    /**
+     * Clear query and relevant node caches
+     */
+    void clearCaches() {
+        this.relevantCache = AnalysisUtil.createConcurrentHashMap();
+        this.sourceQueryCache = AnalysisUtil.createConcurrentHashMap();
     }
 }

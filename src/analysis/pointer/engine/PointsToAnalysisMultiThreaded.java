@@ -53,7 +53,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     /**
      * Number of threads to use for the points-to analysis
      */
-    private int numThreads;
+    final int numThreads;
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf, int numThreads) {
         super(haf);
@@ -192,6 +192,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             System.err.println("########################");
             g.ppReach.clearCaches();
+            System.err.println("Start garbage collection");
+            System.gc();
+            System.err.println("Finished garbage collection");
             this.processAllStatements(g, registrar);
             System.err.println("CHECKED all statements.");
             System.err.println("########################");
@@ -741,6 +744,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         public void handleChanges(GraphDelta changes) {
             PointsToAnalysisMultiThreaded.this.handleChanges(changes, execService);
         }
-    }
 
+
+        @Override
+        public int numThreads() {
+            return numThreads;
+        }
+    }
 }

@@ -76,4 +76,11 @@ public interface PointsToAnalysisHandle {
      * @param delta
      */
     void handleChanges(GraphDelta delta);
+
+    /**
+     * Get the number of threads used by the points-to analysis
+     *
+     * @return number of threads
+     */
+    int numThreads();
 }

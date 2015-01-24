@@ -749,6 +749,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         public void submitSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
             sourceRelevantNodesQueryQueue.add(sq);
         }
-    }
 
+        @Override
+        public int numThreads() {
+            return 1;
+        }
+    }
 }
