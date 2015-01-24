@@ -33,7 +33,7 @@ public final class RelevantNodesIncremental {
     /**
      * Print a ton for each run, such as the elements pulled off the queue
      */
-    private boolean DEBUG = false;
+    public static boolean DEBUG = false;
     /**
      * Print diagnostic information about timing and numbers intermittently, this shouldn't affect performance too much
      */
@@ -104,7 +104,7 @@ public final class RelevantNodesIncremental {
 
         if (relevantNodes == null) {
             if (DEBUG) {
-                System.err.println("COMPUTE RELEVANT needed");
+                System.err.println("RNI%% COMPUTE RELEVANT needed");
             }
 
             relevantNodes = computeRelevantNodes(relevantQuery);
@@ -129,7 +129,7 @@ public final class RelevantNodesIncremental {
     SourceQueryResults computeSourceDependencies(SourceRelevantNodesQuery query) {
         /*OrderedPair<IMethod, Context>*/int sourceCGNode = query.sourceCGNode;
         if (DEBUG) {
-            System.err.println("%% SOURCE QUERY for " + g.lookupCallGraphNodeDictionary(sourceCGNode));
+            System.err.println("RNI%% SOURCE QUERY for " + g.lookupCallGraphNodeDictionary(sourceCGNode));
         }
 
         totalSourceRequests.incrementAndGet();
@@ -170,9 +170,9 @@ public final class RelevantNodesIncremental {
         Set<WorkItem> initial = this.startItems.replace(query, AnalysisUtil.<WorkItem> createConcurrentSet());
         assert initial != null : "Null start items for " + query;
         if (DEBUG) {
-            System.err.println("%% INITIAL");
+            System.err.println("RNI%% INITIAL");
             for (WorkItem wi : initial) {
-                System.err.println("%%\t" + wi.toString(g));
+                System.err.println("RNI%%\t" + wi.toString(g));
             }
         }
 
@@ -183,7 +183,7 @@ public final class RelevantNodesIncremental {
             // There are no new items to process the previous results will suffice
             cachedSourceResponses.incrementAndGet();
             if (DEBUG) {
-                System.err.println("%%\tUSING PREVIOUS");
+                System.err.println("RNI%%\tUSING PREVIOUS");
             }
             return previous;
         }
@@ -193,7 +193,7 @@ public final class RelevantNodesIncremental {
         while (!q.isEmpty()) {
             WorkItem p = q.poll();
             if (DEBUG) {
-                System.err.println("%%\tQ " + p.toString(g));
+                System.err.println("RNI%%\tQ " + p.toString(g));
             }
             count++;
             if (count % 100000 == 0) {
@@ -214,8 +214,8 @@ public final class RelevantNodesIncremental {
                     // if callerCGNode becomes relevant in the future, then cgNode will also be relevant.
                     resultsChanged |= addToMapSet(relevanceDependencies, callerCGNode, cgNode);
                     if (DEBUG) {
-                        System.err.println("%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
-                        System.err.println("%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callerCGNode));
+                        System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
+                        System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callerCGNode));
                     }
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
@@ -251,8 +251,8 @@ public final class RelevantNodesIncremental {
                         // if callee becomes relevant in the future, then cgNode will also be relevant.
                         resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
                         if (DEBUG) {
-                            System.err.println("%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
-                            System.err.println("%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
+                            System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
+                            System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
                         }
 
                         // We are exploring only the callees of cgNode, so when we explore callee
@@ -277,8 +277,8 @@ public final class RelevantNodesIncremental {
                     // if callee becomes relevant in the future, then cgNode will also be relevant.
                     resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
                     if (DEBUG) {
-                        System.err.println("%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
-                        System.err.println("%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
+                        System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
+                        System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
                     }
 
                     // We are exploring only the callees of the call-site, so when we explore callee
@@ -745,12 +745,12 @@ public final class RelevantNodesIncremental {
             System.err.println("UNREACHABLE " + relevantQuery.toString(g));
         }
         if (DEBUG) {
-            System.err.println("%% PROCESSING DEPENDENCIES");
+            System.err.println("RNI%% PROCESSING DEPENDENCIES");
         }
         while (!newlyRelevant.isEmpty()) {
             /*OrderedPair<IMethod, Context>*/int cg = newlyRelevant.poll();
             if (DEBUG) {
-                System.err.println("%%\tnewly relevant " + g.lookupCallGraphNodeDictionary(cg));
+                System.err.println("RNI%%\tnewly relevant " + g.lookupCallGraphNodeDictionary(cg));
             }
             if (relevant.add(cg)) {
                 // cg has become relevant, so use relevanceDependencies to figure out
@@ -760,11 +760,11 @@ public final class RelevantNodesIncremental {
                     if (s != null) {
                         /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator iter = s.intIterator();
                         while (iter.hasNext()) {
-                            System.err.println("%%\t\tdep " + g.lookupCallGraphNodeDictionary(iter.next()));
+                            System.err.println("RNI%%\t\tdep " + g.lookupCallGraphNodeDictionary(iter.next()));
                         }
                     }
                     else {
-                        System.err.println(("%%\t\tNO DEPS"));
+                        System.err.println(("RNI%%\t\tNO DEPS"));
                     }
                 }
                 if (s != null) {

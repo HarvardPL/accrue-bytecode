@@ -163,6 +163,20 @@ public final class ProgramPointReachability {
         assert allMostRecent(noAlloc);
         assert allInSameMethodAndContext(forbidden, sources, destination);
 
+        // Uncomment for debugging output for a particular destination
+        //        if (destination.toString().contains("**17558_pre**")) {
+        //            DEBUG = true;
+        //            DEBUG2 = true;
+        //        }
+
+        if (DEBUG && sources.isEmpty()) {
+            System.err.println("PPR%%NO SOURCES " + " -> " + destination);
+            System.err.println("PPR%%\tNO KILL " + noKill);
+            System.err.println("PPR%%\tNO ALLOC " + noAlloc);
+            System.err.println("PPR%%\tforbidden " + forbidden);
+            System.err.println("PPR%%\tORIGIN " + origin);
+        }
+
         // check the caches
         List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
         for (InterProgramPointReplica src : sources) {
@@ -174,6 +188,9 @@ public final class ProgramPointReachability {
             addDependency(mr, origin);
             if (this.negativeCache.contains(mr)) {
                 // We know it's a negative result for this one, keep looking
+                if (DEBUG) {
+                    System.err.println("PPR%%negative cache " + src + " -> " + destination);
+                }
             }
             else {
                 unknown.add(src);
@@ -182,6 +199,13 @@ public final class ProgramPointReachability {
 
         if (unknown.isEmpty()) {
             // all were negative!
+            if (DEBUG) {
+                System.err.println("PPR%%\t" + " -> " + destination);
+                System.err.println("PPR%%\torigin " + origin);
+                System.err.println("PPR%%\tfalse because cache all negative");
+            }
+            DEBUG = false;
+            DEBUG2 = false;
             return false;
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
@@ -246,13 +270,40 @@ public final class ProgramPointReachability {
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
                                  Set<InterProgramPointReplica> forbidden) {
-
+        // Uncomment for debugging output for a particular destination
+        //        if (destination.toString().contains("**17558_pre**")) {
+        //            DEBUG = true;
+        //            DEBUG2 = true;
+        //        }
         ProgramPointDestinationQuery prq = new ProgramPointDestinationQuery(destination,
                                                                             noKill,
                                                                             noAlloc,
                                                                             forbidden,
                                                                             g,
                                                                             this);
+
+        if (DEBUG) {
+            // Uncomment if only want output for a particular source
+            //            boolean reallyDEBUG = false;
+            //            for (InterProgramPointReplica src : sources) {
+            //                if (src.toString().contains("**17567_post**")) {
+            //                    reallyDEBUG = true;
+            //                    break;
+            //                }
+            //            }
+            //
+            //            if (!reallyDEBUG) {
+            //                prq.DEBUG = false;
+            //                prq.DEBUG2 = false;
+            //                DEBUG = false;
+            //                DEBUG2 = false;
+            //            }
+
+            prq.DEBUG = DEBUG;
+            prq.DEBUG2 = DEBUG2;
+        }
+
+
 
         // try to solve it for each source.
         for (InterProgramPointReplica src : sources) {
@@ -275,7 +326,17 @@ public final class ProgramPointReachability {
                 // this path isn't possible.
                 if (recordQueryResult(query, false)) {
                     // We computed false, but the cache already had true
+                    if (DEBUG) {
+                        System.err.println("PPR%%\t" + src + " -> " + destination);
+                        System.err.println("PPR%%\ttrue because cache already had true");
+                    }
+                    DEBUG = false;
+                    DEBUG2 = false;
                     return true;
+                }
+                if (DEBUG) {
+                    System.err.println("PPR%%\t" + src + " -> " + destination);
+                    System.err.println("PPR%%\tfalse because no relevant nodes");
                 }
                 continue;
             }
@@ -283,14 +344,36 @@ public final class ProgramPointReachability {
             // Now try a search starting at the source
             if (prq.executeSubQuery(src, relevantNodes)) {
                 recordQueryResult(query, true);
+                if (DEBUG) {
+                    System.err.println("PPR%%\t" + src + " -> " + destination);
+                    System.err.println("PPR%%\ttrue because query returned true");
+                }
+                DEBUG = false;
+                DEBUG2 = false;
                 return true;
+            }
+            if (DEBUG) {
+                System.err.println("PPR%%\t" + src + " -> " + destination);
+                System.err.println("PPR%%\tfalse because query returned false");
             }
             if (recordQueryResult(query, false)) {
                 // We computed false, but the cache already had true
+                if (DEBUG) {
+                    System.err.println("PPR%%\t" + src + " -> " + destination);
+                    System.err.println("PPR%%\ttrue because cache already had true (2)");
+                }
+                DEBUG = false;
+                DEBUG2 = false;
                 return true;
             }
         }
         // we didn't find it.
+        if (DEBUG) {
+            System.err.println("PPR%%\t" + " -> " + destination);
+            System.err.println("PPR%%\tAll sources false");
+        }
+        DEBUG = false;
+        DEBUG2 = false;
         return false;
     }
 
@@ -341,7 +424,6 @@ public final class ProgramPointReachability {
         }
         return true;
     }
-
 
     /* *****************************************************************************
     *
@@ -477,21 +559,22 @@ public final class ProgramPointReachability {
     MethodSummaryKillAndAlloc getReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
         if (DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
-            System.err.println("METHOD " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
+            System.err.println("PPR%% METHOD " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
         }
         MethodSummaryKillAndAlloc res = methodSummaryMemoization.get(cgNode);
         if (res != null) {
             if (DEBUG) {
-                System.err.println("\tCACHED");
+                System.err.println("PPR%% \tCACHED");
                 for (InterProgramPointReplica src : res.getAllSources()) {
                     for (InterProgramPointReplica target : res.getTargetMap(src).keySet()) {
-                        System.err.println("\t\t" + src + " -> " + target + " " + res.getTargetMap(src).get(target));
+                        System.err.println("PPR%% \t\t" + src + " -> " + target + " "
+                                + res.getTargetMap(src).get(target));
                         MutableIntSet alloced = res.getTargetMap(src).get(target).getAlloced();
                         IntIterator iter;
                         if (alloced != null) {
                             iter = alloced.intIterator();
                             while (iter.hasNext()) {
-                                System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                                System.err.println("PPR%% \t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
                             }
                         }
                     }
@@ -505,14 +588,14 @@ public final class ProgramPointReachability {
         if (existing != null) {
             // someone beat us to it, and is currently working on the results.
             if (DEBUG) {
-                System.err.println("\tBEATEN");
+                System.err.println("PPR%% \tBEATEN");
                 for (InterProgramPointReplica src : existing.getAllSources()) {
                     for (InterProgramPointReplica target : existing.getTargetMap(src).keySet()) {
-                        System.err.println("\t\t" + src + " -> " + target + " "
+                        System.err.println("PPR%% \t\t" + src + " -> " + target + " "
                                 + existing.getTargetMap(src).get(target));
                         IntIterator iter = existing.getTargetMap(src).get(target).getAlloced().intIterator();
                         while (iter.hasNext()) {
-                            System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                            System.err.println("PPR%% \t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
                         }
                     }
                 }
@@ -523,15 +606,15 @@ public final class ProgramPointReachability {
         MethodSummaryKillAndAlloc rr = computeReachabilityForMethod(cgNode);
         if (DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
-            System.err.println("\tCOMPUTED " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
+            System.err.println("PPR%% \tCOMPUTED " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
             for (InterProgramPointReplica src : rr.getAllSources()) {
                 for (InterProgramPointReplica target : rr.getTargetMap(src).keySet()) {
-                    System.err.println("\t\t" + src + " -> " + target + " " + rr.getTargetMap(src).get(target));
+                    System.err.println("PPR%% \t\t" + src + " -> " + target + " " + rr.getTargetMap(src).get(target));
                     MutableIntSet alloced = rr.getTargetMap(src).get(target).getAlloced();
                     if (alloced != null) {
                         IntIterator iter = alloced.intIterator();
                         while (iter.hasNext()) {
-                            System.err.println("\t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
+                            System.err.println("PPR%% \t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
                         }
                     }
                 }
@@ -553,7 +636,7 @@ public final class ProgramPointReachability {
         OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
         Context context = n.snd();
         if (DEBUG) {
-            System.err.println("COMPUTING FOR " + PrettyPrinter.methodString(n.fst()) + " in " + context);
+            System.err.println("PPR%% COMPUTING FOR " + PrettyPrinter.methodString(n.fst()) + " in " + context);
         }
 
         // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
@@ -573,7 +656,7 @@ public final class ProgramPointReachability {
                 continue;
             }
             if (DEBUG) {
-                System.err.println("\tQ " + ipp);
+                System.err.println("PPR%% \tQ " + ipp);
             }
             ProgramPoint pp = ipp.getPP();
             assert pp.getContainingProcedure().equals(n.fst());
@@ -591,7 +674,7 @@ public final class ProgramPointReachability {
                     if (calleeSet.isEmpty()) {
                         // no callees, so nothing to do
                         if (DEBUG) {
-                            System.err.println("\t\tno callees " + ipp);
+                            System.err.println("PPR%% \t\tno callees " + ipp);
                         }
                         continue;
                     }
@@ -632,7 +715,7 @@ public final class ProgramPointReachability {
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // not much to do here. The results will be copied once the work queue finishes.
                     if (DEBUG2) {
-                        System.err.println("\t\tEXIT " + pp);
+                        System.err.println("PPR%% \t\tEXIT " + pp);
                     }
                     continue;
                 } // end ExitSummaryNode
@@ -649,7 +732,7 @@ public final class ProgramPointReachability {
                             if (killed != null) {
                                 if (!killed.fst()) {
                                     if (DEBUG2) {
-                                        System.err.println("\t\tCould Kill "
+                                        System.err.println("PPR%% \t\tCould Kill "
                                                 + stmt.getReadDependencyForKillField(context, g.getHaf()));
                                     }
                                     // not enough info available yet.
@@ -660,7 +743,7 @@ public final class ProgramPointReachability {
                                 }
                                 else if (killed.snd() != null) {
                                     if (DEBUG2) {
-                                        System.err.println("\t\tDoes Kill "
+                                        System.err.println("PPR%% \t\tDoes Kill "
                                                 + stmt.getReadDependencyForKillField(context, g.getHaf()) + " "
                                                 + g.lookupDictionary(killed.snd()));
                                     }
@@ -690,7 +773,7 @@ public final class ProgramPointReachability {
                             if (g.isMostRecentObject(justAllocatedKey)
                                     && g.isTrackingMostRecentObject(justAllocatedKey)) {
                                 if (DEBUG2) {
-                                    System.err.println("\t\tDoes Alloc " + justAllocatedKey);
+                                    System.err.println("PPR%% \t\tDoes Alloc " + justAllocatedKey);
                                 }
                                 current.addAlloced(justAllocatedKey);
                             }
@@ -726,7 +809,6 @@ public final class ProgramPointReachability {
         recordMethodReachability(cgNode, rr);
         return rr;
     }
-
 
     /* *****************************************************************************
      *
@@ -1046,11 +1128,20 @@ public final class ProgramPointReachability {
         // Let's save some memory by removing the set of dependent SaCs.
         Set<ReachabilityQueryOrigin> deps = this.queryDependencies.remove(mr);
         if (deps == null) {
+            if (DEBUG) {
+                System.err.println("NO DEPS " + mr);
+            }
             // nothing to do.
             return;
         }
         // immediately execute the tasks that depended on this.
+        if (DEBUG) {
+            System.err.println("DEPS " + mr);
+        }
         for (ReachabilityQueryOrigin task : deps) {
+            if (DEBUG) {
+                System.err.println("\tDEP: " + task);
+            }
             task.trigger(this.analysisHandle);
         }
     }
