@@ -1230,9 +1230,13 @@ public final class ProgramPointReachability {
         this.relevantNodesIncrementalComputation.computeSourceDependencies(sq);
     }
 
+    /**
+     * Clear caches containing results for queries that have already been computed
+     */
     public void clearCaches() {
         System.err.println("Clearing reachability cache.");
         positiveCache = AnalysisUtil.createConcurrentSet();
         negativeCache = AnalysisUtil.createConcurrentSet();
+        relevantNodesIncrementalComputation.clearCaches();
     }
 }
