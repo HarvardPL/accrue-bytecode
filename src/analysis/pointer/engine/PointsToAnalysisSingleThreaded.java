@@ -521,48 +521,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     /**
-     * Loop through and process all the points-to statements in the registrar.
-     *
-     * @param g points-to graph (may be modified)
-     * @param registrar points-to statement registrar
-     * @return true if the points-to graph changed
-     */
-    private boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
-        boolean changed = false;
-        System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
-                + registrar.getRegisteredMethods().size() + " methods");
-        int failcount = 0;
-        int successcount = 0;
-        for (IMethod m : registrar.getRegisteredMethods()) {
-            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
-                for (Context c : g.getContexts(s.getMethod())) {
-                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
-                    if (d == null) {
-                        throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
-                    }
-                    changed |= !d.isEmpty();
-                    if (!d.isEmpty()) {
-                        System.err.println("\nuhoh Failed on " + s + "\nDELTA: " + d);
-
-                        failcount++;
-                        if (failcount > 10) {
-                            System.err.println("\nThere may be more failures, but exiting now...");
-                            System.exit(1);
-                        }
-                    }
-                    else {
-                        successcount++;
-                        if (successcount % 10000 == 0) {
-                            System.err.println("PROCESSED " + successcount);
-                        }
-                    }
-                }
-            }
-        }
-        return changed;
-    }
-
-    /**
      * Get any (statement,context) pairs that depend on the given points-to graph node
      *
      * @param n node to get the dependencies for

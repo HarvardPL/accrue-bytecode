@@ -2,10 +2,12 @@ package analysis.pointer.engine;
 
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
+import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.PointsToStatement;
 
+import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
 /**
@@ -133,4 +135,45 @@ public abstract class PointsToAnalysis {
     }
 
     abstract public PointsToGraph solveAndRegister(StatementRegistrar registrar);
+
+    /**
+     * Loop through and process all the points-to statements in the registrar.
+     *
+     * @param g points-to graph (may be modified)
+     * @param registrar points-to statement registrar
+     * @return true if the points-to graph changed
+     */
+    protected boolean processAllStatements(PointsToGraph g, StatementRegistrar registrar) {
+        boolean changed = false;
+        System.err.println("Processing all statements for good luck: " + registrar.size() + " from "
+                + registrar.getRegisteredMethods().size() + " methods");
+        int failcount = 0;
+        int successcount = 0;
+        for (IMethod m : registrar.getRegisteredMethods()) {
+            for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    GraphDelta d = s.process(c, this.haf, g, null, registrar, new StmtAndContext(s, c));
+                    if (d == null) {
+                        throw new RuntimeException("s returned null " + s.getClass() + " : " + s);
+                    }
+                    changed |= !d.isEmpty();
+                    if (!d.isEmpty()) {
+                        System.err.println("uhoh Failed on (" + s.getClass() + ")" + s + "\n    Delta is " + d);
+                        failcount++;
+                        if (failcount > 10) {
+                            System.err.println("\nThere may be more failures, but exiting now...");
+                            System.exit(1);
+                        }
+                    }
+                    else {
+                        successcount++;
+                        if (successcount % 1000 == 0) {
+                            System.err.println("PROCESSED " + successcount);
+                        }
+                    }
+                }
+            }
+        }
+        return changed;
+    }
 }
