@@ -282,7 +282,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                     Iterator<RelevantNodesQuery> iter = relevantNodesQueryQueue.iterator();
                                     RelevantNodesQuery rq = iter.next();
                                     assert incrementCounter(rq);
-                                    assert relevantNodesQueryQueue.remove(rq) : "Query should have been removed " + rq;
+                                    boolean removed = relevantNodesQueryQueue.remove(rq);
+                                    assert removed : "Query should have been removed " + rq;
                                     numRelevantNodesQuery++;
                                     g.ppReach.processRelevantNodesQuery(rq);
                                 }
@@ -291,7 +292,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                                     Iterator<SourceRelevantNodesQuery> iter = sourceRelevantNodesQueryQueue.iterator();
                                     SourceRelevantNodesQuery sq = iter.next();
                                     assert incrementCounter(sq);
-                                    assert sourceRelevantNodesQueryQueue.remove(sq) : "Query should be removed " + sq;
+                                    boolean removed = sourceRelevantNodesQueryQueue.remove(sq);
+                                    assert removed : "Query should be removed " + sq;
                                     numSourceRelevantNodesQuery++;
                                     g.ppReach.processSourceRelevantNodesQuery(sq);
                                 }
