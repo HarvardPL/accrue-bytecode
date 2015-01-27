@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import util.OrderedPair;
 import util.WorkQueue;
@@ -18,6 +20,7 @@ import util.intset.EmptyIntSet;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
@@ -42,6 +45,11 @@ import com.ibm.wala.util.intset.MutableIntSet;
  * smartly.
  */
 public final class ProgramPointReachability {
+    /**
+     * Whether to incrementally print diagnostic timing and count information
+     */
+    private boolean PRINT_DIAGNOSTICS = true;
+
     /**
      * Print debug info
      */
@@ -160,6 +168,7 @@ public final class ProgramPointReachability {
     private boolean reachableImpl(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
                                   Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
+        totalRequests.incrementAndGet();
         assert allMostRecent(noAlloc);
         assert allInSameMethodAndContext(forbidden, sources, destination);
 
@@ -183,6 +192,7 @@ public final class ProgramPointReachability {
             ProgramPointSubQuery mr = new ProgramPointSubQuery(src, destination, noKill, noAlloc, forbidden);
             if (this.positiveCache.contains(mr)) {
                 // We have already computed that the destination is reachable from src
+                cachedResponses.incrementAndGet();
                 return true;
             }
             addDependency(mr, origin);
@@ -206,9 +216,11 @@ public final class ProgramPointReachability {
             }
             DEBUG = false;
             DEBUG2 = false;
+            cachedResponses.incrementAndGet();
             return false;
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
+        this.reachabilityRequests.incrementAndGet();
         return computeQuery(unknown, destination, noKill, noAlloc, forbidden);
     }
 
@@ -275,6 +287,14 @@ public final class ProgramPointReachability {
         //            DEBUG = true;
         //            DEBUG2 = true;
         //        }
+
+        this.destinations.add(destination);
+        int resp = this.computedResponses.incrementAndGet();
+        if (PRINT_DIAGNOSTICS && (resp % 10000) == 0) {
+            printDiagnostics();
+        }
+        this.totalDestQueries.add(new DestQuery(destination, noKill, noAlloc, forbidden));
+        long start = System.currentTimeMillis();
         ProgramPointDestinationQuery prq = new ProgramPointDestinationQuery(destination,
                                                                             noKill,
                                                                             noAlloc,
@@ -308,10 +328,14 @@ public final class ProgramPointReachability {
         // try to solve it for each source.
         for (InterProgramPointReplica src : sources) {
             ProgramPointSubQuery query = new ProgramPointSubQuery(src, destination, noKill, noAlloc, forbidden);
+            totalDestQuery.incrementAndGet();
+
             if (positiveCache.contains(query)) {
                 // The result was computed by another thread before this thread ran
+                cachedDestQuery.incrementAndGet();
                 return true;
             }
+            this.sources.add(src);
 
             // First check the call graph to find the set of call graph nodes that must be searched directly
             // (i.e. the effects for these nodes cannot be summarized).
@@ -319,8 +343,11 @@ public final class ProgramPointReachability {
                                                                                                              query.source.getContext()));
             /*OrderedPair<IMethod, Context>*/int dest = g.lookupCallGraphNodeDictionary(new OrderedPair<>(query.destination.getContainingProcedure(),
                                                                                                            query.destination.getContext()));
-            /*Set<OrderedPair<IMethod, Context>>*/IntSet relevantNodes;
-            relevantNodes = this.relevantNodesIncrementalComputation.relevantNodes(source, dest, query);
+            long startRelevant = System.currentTimeMillis();
+            /*Set<OrderedPair<IMethod, Context>>*/IntSet relevantNodes = this.relevantNodesIncrementalComputation.relevantNodes(source,
+                                                                                                                                 dest,
+                                                                                                                                 query);
+            relevantNodesTime.addAndGet(System.currentTimeMillis() - startRelevant);
 
             if (relevantNodes.isEmpty()) {
                 // this path isn't possible.
@@ -332,6 +359,7 @@ public final class ProgramPointReachability {
                     }
                     DEBUG = false;
                     DEBUG2 = false;
+                    totalTime.addAndGet(System.currentTimeMillis() - start);
                     return true;
                 }
                 if (DEBUG) {
@@ -342,7 +370,11 @@ public final class ProgramPointReachability {
             }
 
             // Now try a search starting at the source
-            if (prq.executeSubQuery(src, relevantNodes)) {
+            long startDest = System.currentTimeMillis();
+            boolean found = prq.executeSubQuery(src, relevantNodes);
+            destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
+            computedDestQuery.incrementAndGet();
+            if (found) {
                 recordQueryResult(query, true);
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + src + " -> " + destination);
@@ -350,6 +382,7 @@ public final class ProgramPointReachability {
                 }
                 DEBUG = false;
                 DEBUG2 = false;
+                totalTime.addAndGet(System.currentTimeMillis() - start);
                 return true;
             }
             if (DEBUG) {
@@ -364,6 +397,7 @@ public final class ProgramPointReachability {
                 }
                 DEBUG = false;
                 DEBUG2 = false;
+                totalTime.addAndGet(System.currentTimeMillis() - start);
                 return true;
             }
         }
@@ -374,6 +408,7 @@ public final class ProgramPointReachability {
         }
         DEBUG = false;
         DEBUG2 = false;
+        totalTime.addAndGet(System.currentTimeMillis() - start);
         return false;
     }
 
@@ -389,12 +424,15 @@ public final class ProgramPointReachability {
      *         the cache already has a positive result.
      */
     private boolean recordQueryResult(ProgramPointSubQuery query, boolean b) {
+        long start = System.currentTimeMillis();
+        totalQueries.add(query);
         if (b) {
             positiveCache.add(query);
             if (negativeCache.remove(query)) {
                 // we previously thought it was negative.
                 queryResultChanged(query);
             }
+            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
         }
 
@@ -403,8 +441,10 @@ public final class ProgramPointReachability {
         if (positiveCache.contains(query)) {
             this.negativeCache.remove(query);
             // A positive result has already been computed return it
+            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
         }
+        recordResultsTime.addAndGet(System.currentTimeMillis() - start);
         return false;
     }
 
@@ -433,123 +473,6 @@ public final class ProgramPointReachability {
     * entire method.
     */
 
-    /**
-     * A ReachabilityResult records the reachability results of a single method in a context, that is, which for a
-     * subset of the source and destination pairs of InterProgramPointReplica in the method and context, what are the
-     * KilledAndAlloced sets that summarize all paths from the source to the destination.
-     *
-     * This object must be thread safe.
-     */
-    static class MethodSummaryKillAndAlloc {
-        /**
-         * Map from source iipr to target ippr with a pair of killed and allocated. Note that all source and target
-         * ipprs in m should be from the same method.
-         *
-         * If (s, t, _, _) is not in the map, then it means that t is not reachable from s (or at least we haven't found
-         * out that it is, or are not interested in recording that fact).
-         *
-         * If (s, t, killed, alloced) is in the map, then this means that t is reachable from s, but all paths from s to
-         * t will kill the PointsToGraphNodes in killed, and allocate the InstanceKeyRecencys in alloced.
-         */
-        final ConcurrentMap<InterProgramPointReplica, ConcurrentMap<InterProgramPointReplica, KilledAndAlloced>> m = AnalysisUtil.createConcurrentHashMap();
-
-        private MethodSummaryKillAndAlloc() {
-            // Intentionally left blank
-        }
-
-        /**
-         * Create a result in which every result is unreachable
-         *
-         * @return
-         */
-        public static MethodSummaryKillAndAlloc createInitial() {
-            return new MethodSummaryKillAndAlloc();
-        }
-
-        public KilledAndAlloced getResult(InterProgramPointReplica source, InterProgramPointReplica target) {
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> s = m.get(source);
-            if (s == null) {
-                return KilledAndAlloced.createUnreachable();
-            }
-            KilledAndAlloced p = s.get(target);
-            if (p == null) {
-                return KilledAndAlloced.createUnreachable();
-            }
-            return p;
-        }
-
-        public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
-            assert target != null;
-            assert source.getContainingProcedure().equals(target.getContainingProcedure());
-            assert source.getContext().equals(target.getContext());
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
-            if (res != null) {
-                KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
-                assert existing == null;
-            }
-            else {
-                // we are putting in null, i.e., the target is not reachable from the source.
-                assert !thisTargetMap.containsKey(target);
-                //thisTargetMap.remove(target);
-            }
-        }
-
-        Set<InterProgramPointReplica> getAllSources() {
-            return this.m.keySet();
-        }
-
-        ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> tm = this.m.get(s);
-            if (tm == null) {
-                tm = AnalysisUtil.createConcurrentHashMap();
-                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> existing = this.m.putIfAbsent(s, tm);
-                if (existing != null) {
-                    tm = existing;
-                }
-            }
-            return tm;
-        }
-
-        @Override
-        public int hashCode() {
-            return m.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof MethodSummaryKillAndAlloc)) {
-                return false;
-            }
-            MethodSummaryKillAndAlloc other = (MethodSummaryKillAndAlloc) obj;
-            if (m == null) {
-                if (other.m != null) {
-                    return false;
-                }
-            }
-            else if (!m.equals(other.m)) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            for (InterProgramPointReplica s : m.keySet()) {
-                for (InterProgramPointReplica t : m.get(s).keySet()) {
-                    sb.append(s + " -> " + t + "\n\t" + m.get(s).get(t));
-                }
-            }
-            return sb.toString();
-        }
-    }
-
     // ConcurrentMap<OrderedPair<IMethod, Context>, MethodSummaryKillAndAlloc>
     private final ConcurrentIntMap<MethodSummaryKillAndAlloc> methodSummaryMemoization = AnalysisUtil.createConcurrentIntMap();
 
@@ -557,6 +480,7 @@ public final class ProgramPointReachability {
      * Get the reachability results for a method.
      */
     MethodSummaryKillAndAlloc getReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
+        totalMethodReach.incrementAndGet();
         if (DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
             System.err.println("PPR%% METHOD " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
@@ -580,6 +504,7 @@ public final class ProgramPointReachability {
                     }
                 }
             }
+            cachedMethodReach.incrementAndGet();
             return res;
         }
         // no results yet.
@@ -600,6 +525,7 @@ public final class ProgramPointReachability {
                     }
                 }
             }
+            cachedMethodReach.incrementAndGet();
             return existing;
         }
 
@@ -620,18 +546,22 @@ public final class ProgramPointReachability {
                 }
             }
         }
+        computedMethodReach.incrementAndGet();
         return rr;
     }
 
     private void recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, MethodSummaryKillAndAlloc res) {
+        long start = System.currentTimeMillis();
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.put(cgnode, res);
         if (existing != null && !existing.equals(res)) {
             // trigger update for dependencies.
             methodSummaryChanged(cgnode);
         }
+        recordMethodTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     private MethodSummaryKillAndAlloc computeReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
+        long start = System.currentTimeMillis();
         // XXX at the moment we will just record from the start node.
         OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
         Context context = n.snd();
@@ -807,7 +737,125 @@ public final class ProgramPointReachability {
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
         recordMethodReachability(cgNode, rr);
+        methodReachTime.addAndGet(System.currentTimeMillis() - start);
         return rr;
+    }
+
+    /**
+     * A ReachabilityResult records the reachability results of a single method in a context, that is, which for a
+     * subset of the source and destination pairs of InterProgramPointReplica in the method and context, what are the
+     * KilledAndAlloced sets that summarize all paths from the source to the destination.
+     *
+     * This object must be thread safe.
+     */
+    static class MethodSummaryKillAndAlloc {
+        /**
+         * Map from source iipr to target ippr with a pair of killed and allocated. Note that all source and target
+         * ipprs in m should be from the same method.
+         *
+         * If (s, t, _, _) is not in the map, then it means that t is not reachable from s (or at least we haven't found
+         * out that it is, or are not interested in recording that fact).
+         *
+         * If (s, t, killed, alloced) is in the map, then this means that t is reachable from s, but all paths from s to
+         * t will kill the PointsToGraphNodes in killed, and allocate the InstanceKeyRecencys in alloced.
+         */
+        final ConcurrentMap<InterProgramPointReplica, ConcurrentMap<InterProgramPointReplica, KilledAndAlloced>> m = AnalysisUtil.createConcurrentHashMap();
+
+        private MethodSummaryKillAndAlloc() {
+            // Intentionally left blank
+        }
+
+        /**
+         * Create a result in which every result is unreachable
+         *
+         * @return
+         */
+        public static MethodSummaryKillAndAlloc createInitial() {
+            return new MethodSummaryKillAndAlloc();
+        }
+
+        public KilledAndAlloced getResult(InterProgramPointReplica source, InterProgramPointReplica target) {
+            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> s = m.get(source);
+            if (s == null) {
+                return KilledAndAlloced.createUnreachable();
+            }
+            KilledAndAlloced p = s.get(target);
+            if (p == null) {
+                return KilledAndAlloced.createUnreachable();
+            }
+            return p;
+        }
+
+        public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
+            assert target != null;
+            assert source.getContainingProcedure().equals(target.getContainingProcedure());
+            assert source.getContext().equals(target.getContext());
+            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
+            if (res != null) {
+                KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
+                assert existing == null;
+            }
+            else {
+                // we are putting in null, i.e., the target is not reachable from the source.
+                assert !thisTargetMap.containsKey(target);
+                //thisTargetMap.remove(target);
+            }
+        }
+
+        Set<InterProgramPointReplica> getAllSources() {
+            return this.m.keySet();
+        }
+
+        ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
+            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> tm = this.m.get(s);
+            if (tm == null) {
+                tm = AnalysisUtil.createConcurrentHashMap();
+                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> existing = this.m.putIfAbsent(s, tm);
+                if (existing != null) {
+                    tm = existing;
+                }
+            }
+            return tm;
+        }
+
+        @Override
+        public int hashCode() {
+            return m.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof MethodSummaryKillAndAlloc)) {
+                return false;
+            }
+            MethodSummaryKillAndAlloc other = (MethodSummaryKillAndAlloc) obj;
+            if (m == null) {
+                if (other.m != null) {
+                    return false;
+                }
+            }
+            else if (!m.equals(other.m)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            for (InterProgramPointReplica s : m.keySet()) {
+                for (InterProgramPointReplica t : m.get(s).keySet()) {
+                    sb.append(s + " -> " + t + "\n\t" + m.get(s).get(t));
+                }
+            }
+            return sb.toString();
+        }
     }
 
     /* *****************************************************************************
@@ -883,6 +931,7 @@ public final class ProgramPointReachability {
      * @param callSite
      */
     void addCalleeDependency(ProgramPointSubQuery query, /*ProgramPointReplica*/int callSite) {
+        long start = System.currentTimeMillis();
         Set<ProgramPointSubQuery> s = calleeQueryDependencies.get(callSite);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
@@ -892,6 +941,7 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
+        calleeDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     /**
@@ -901,6 +951,7 @@ public final class ProgramPointReachability {
      * @param callGraphNode
      */
     void addCallerDependency(ProgramPointSubQuery query, /*OrderedPair<IMethod, Context>*/int callGraphNode) {
+        long start = System.currentTimeMillis();
         Set<ProgramPointSubQuery> s = callerQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
@@ -910,6 +961,7 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
+        callerDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     /**
@@ -920,6 +972,7 @@ public final class ProgramPointReachability {
      * @param callGraphNode
      */
     void addMethodDependency(ProgramPointSubQuery query, /*OrderedPair<IMethod, Context>*/int callGraphNode) {
+        long start = System.currentTimeMillis();
         Set<ProgramPointSubQuery> s = methodQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
@@ -929,9 +982,11 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
+        methodDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     void addKillDependency(ProgramPointSubQuery query, ReferenceVariableReplica readDependencyForKillField) {
+        long start = System.currentTimeMillis();
         if (readDependencyForKillField == null) {
             return;
         }
@@ -945,9 +1000,11 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
+        killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     void removeKillDependency(ProgramPointSubQuery query, ReferenceVariableReplica readDependencyForKillField) {
+        long start = System.currentTimeMillis();
         if (readDependencyForKillField == null) {
             return;
         }
@@ -957,9 +1014,11 @@ public final class ProgramPointReachability {
         if (s != null) {
             s.remove(query);
         }
+        killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     private void addCalleeDependency(/*OrderedPair<IMethod, Context>*/int callee, /*ProgramPointReplica*/int callSite) {
+        long start = System.currentTimeMillis();
         /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet s = calleeMethodDependencies.get(callSite);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -969,6 +1028,7 @@ public final class ProgramPointReachability {
             }
         }
         s.add(callee);
+        methodCalleeDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     /**
@@ -979,6 +1039,7 @@ public final class ProgramPointReachability {
      */
     private void addMethodDependency(/*OrderedPair<IMethod, Context>*/int dependee,
     /*OrderedPair<IMethod, Context>*/int callGraphNode) {
+        long start = System.currentTimeMillis();
         /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet s = methodMethodDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -988,10 +1049,12 @@ public final class ProgramPointReachability {
             }
         }
         s.add(dependee);
+        methodCallerDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     private void addKillDependency(/*OrderedPair<IMethod, Context>*/int callGraphNode,
                                    ReferenceVariableReplica readDependencyForKillField) {
+        long start = System.currentTimeMillis();
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1006,10 +1069,12 @@ public final class ProgramPointReachability {
             }
         }
         s.add(callGraphNode);
+        killCallerDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     private void removeKillDependency(/*OrderedPair<IMethod, Context>*/int callGraphNode,
                                       ReferenceVariableReplica readDependencyForKillField) {
+        long start = System.currentTimeMillis();
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1019,6 +1084,7 @@ public final class ProgramPointReachability {
         if (s != null) {
             s.remove(callGraphNode);
         }
+        killCallerDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     /**
@@ -1045,6 +1111,7 @@ public final class ProgramPointReachability {
             Iterator<ProgramPointSubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
                 ProgramPointSubQuery mr = iter.next();
+                calleeQueryRequests.incrementAndGet();
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1068,6 +1135,7 @@ public final class ProgramPointReachability {
             Iterator<ProgramPointSubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
                 ProgramPointSubQuery mr = iter.next();
+                callerQueryRequests.incrementAndGet();
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1093,6 +1161,7 @@ public final class ProgramPointReachability {
             Iterator<ProgramPointSubQuery> iter = queries.iterator();
             while (iter.hasNext()) {
                 ProgramPointSubQuery mr = iter.next();
+                methodQueryRequests.incrementAndGet();
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1108,8 +1177,10 @@ public final class ProgramPointReachability {
      * @param mr
      */
     boolean requestRerunQuery(ProgramPointSubQuery mr) {
+        totalRequests.incrementAndGet();
         if (this.positiveCache.contains(mr)) {
             // the query is already guaranteed to be true.
+            cachedResponses.incrementAndGet();
             return false;
         }
         this.analysisHandle.submitReachabilityQuery(mr);
@@ -1167,6 +1238,7 @@ public final class ProgramPointReachability {
      * @param originatingSaC
      */
     private void addDependency(ProgramPointSubQuery query, ReachabilityQueryOrigin origin) {
+        long start = System.currentTimeMillis();
         if (origin == null) {
             // nothing to do
             return;
@@ -1180,7 +1252,7 @@ public final class ProgramPointReachability {
             }
         }
         deps.add(origin);
-
+        queryDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
     /**
@@ -1208,6 +1280,7 @@ public final class ProgramPointReachability {
                 Iterator<ProgramPointSubQuery> iter = queries.iterator();
                 while (iter.hasNext()) {
                     ProgramPointSubQuery mr = iter.next();
+                    killQueryRequests.incrementAndGet();
                     // need to re-run the query of mr
                     if (!requestRerunQuery(mr)) {
                         // whoops, no need to rerun this anymore.
@@ -1238,5 +1311,206 @@ public final class ProgramPointReachability {
         positiveCache = AnalysisUtil.createConcurrentSet();
         negativeCache = AnalysisUtil.createConcurrentSet();
         relevantNodesIncrementalComputation.clearCaches();
+    }
+
+    //***********************
+    // Diagnostic info
+    //***********************
+
+    /**
+     * Description of a single source program point reachability query.
+     */
+    private static final class DestQuery {
+        final InterProgramPointReplica destination;
+        final/*Set<PointsToGraphNode>*/IntSet noKill;
+        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
+        final Set<InterProgramPointReplica> forbidden;
+
+        /**
+         * Create a new sub query from source to destination
+         *
+         * @param source program point to search from
+         * @param destination program point to find
+         * @param noKill points-to graph nodes that must not be killed on a valid path from source to destination
+         * @param noAlloc instance key that must not be allocated on a valid path from source to destination
+         * @param forbidden program points that must not be traversed on a valid path from source to destination
+         */
+        DestQuery(InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+                             IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
+                             Set<InterProgramPointReplica> forbidden) {
+            this.destination = destination;
+            this.noKill = noKill;
+            this.noAlloc = noAlloc;
+            this.forbidden = forbidden;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = destination.hashCode();
+            result = prime * result + noAlloc.size();
+            result = prime * result + noKill.size();
+            result = prime * result + forbidden.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof DestQuery)) {
+                return false;
+            }
+            DestQuery other = (DestQuery) obj;
+            if (!destination.equals(other.destination)) {
+                return false;
+            }
+            if (noAlloc.isEmpty() != other.noAlloc.isEmpty()) {
+                return false;
+            }
+            if (!noAlloc.sameValue(other.noAlloc)) {
+                return false;
+            }
+            if (noKill.isEmpty() != other.noKill.isEmpty()) {
+                return false;
+            }
+            if (!noKill.sameValue(other.noKill)) {
+                return false;
+            }
+            if (!forbidden.equals(other.forbidden)) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private Set<InterProgramPointReplica> destinations = AnalysisUtil.createConcurrentSet();
+    private Set<InterProgramPointReplica> sources = AnalysisUtil.createConcurrentSet();
+    private Set<ProgramPointSubQuery> totalQueries = AnalysisUtil.createConcurrentSet();
+    private Set<DestQuery> totalDestQueries = AnalysisUtil.createConcurrentSet();
+
+    // Times
+    private AtomicLong queryDepTime = new AtomicLong(0);
+    private AtomicLong relevantNodesTime = new AtomicLong(0);
+    private AtomicLong recordResultsTime = new AtomicLong(0);
+    private AtomicLong totalTime = new AtomicLong(0);
+    private AtomicLong destQueryTime = new AtomicLong(0);
+    private AtomicLong recordMethodTime = new AtomicLong(0);
+    private AtomicLong methodReachTime = new AtomicLong(0);
+    private AtomicLong calleeDepTime = new AtomicLong(0);
+    private AtomicLong callerDepTime = new AtomicLong(0);
+    private AtomicLong methodDepTime = new AtomicLong(0);
+    private AtomicLong killQueryDepTime = new AtomicLong(0);
+    private AtomicLong killCallerDepTime = new AtomicLong(0);
+    private AtomicLong methodCalleeDepTime = new AtomicLong(0);
+    private AtomicLong methodCallerDepTime = new AtomicLong(0);
+
+    // Reachability counts
+    private AtomicInteger totalRequests = new AtomicInteger(0);
+    private AtomicInteger cachedResponses = new AtomicInteger(0);
+    private AtomicInteger computedResponses = new AtomicInteger(0);
+    // Method reachability counts
+    private AtomicInteger totalMethodReach = new AtomicInteger(0);
+    private AtomicInteger cachedMethodReach = new AtomicInteger(0);
+    private AtomicInteger computedMethodReach = new AtomicInteger(0);
+    // Destination query counts
+    private AtomicInteger totalDestQuery = new AtomicInteger(0);
+    private AtomicInteger cachedDestQuery = new AtomicInteger(0);
+    private AtomicInteger computedDestQuery = new AtomicInteger(0);
+    // Dependency counts
+    private AtomicInteger calleeQueryRequests = new AtomicInteger(0);
+    private AtomicInteger callerQueryRequests = new AtomicInteger(0);
+    private AtomicInteger killQueryRequests = new AtomicInteger(0);
+    private AtomicInteger methodQueryRequests = new AtomicInteger(0);
+    private AtomicInteger reachabilityRequests = new AtomicInteger(0);
+    AtomicInteger relevantRequests = new AtomicInteger(0);
+
+    private void printDiagnostics() {
+        StringBuffer sb = new StringBuffer();
+        sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
+        sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses
+                + " computed (" + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue()))
+                + "% hit rate)\n");
+        sb.append("Total method requests: " + totalMethodReach + "  ;  " + cachedMethodReach + "  cached "
+                + computedMethodReach + " computed ("
+                + (int) (100 * (cachedMethodReach.floatValue() / totalMethodReach.floatValue())) + "% hit rate)\n");
+        sb.append("Total dest subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  cached "
+                + computedDestQuery + " computed ("
+                + (int) (100 * (cachedDestQuery.floatValue() / totalDestQuery.floatValue())) + "% hit rate)\n");
+
+        double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
+        double total = totalTime.get() / 1000.0;
+        double relevantNodes = relevantNodesTime.get() / 1000.0;
+        double methodReach = methodReachTime.get() / 1000.0;
+        double destQuery = destQueryTime.get() / 1000.0;
+
+        double recordResults = recordResultsTime.get() / 1000.0;
+        double recordMethod = recordMethodTime.get() / 1000.0;
+
+        double queryDep = queryDepTime.get() / 1000.0;
+        double calleeDep = calleeDepTime.get() / 1000.0;
+        double callerDep = callerDepTime.get() / 1000.0;
+        double methodDep = methodDepTime.get() / 1000.0;
+        double killQueryDep = killQueryDepTime.get() / 1000.0;
+        double killCallerDep = killCallerDepTime.get() / 1000.0;
+        double methodCalleeDep = methodCalleeDepTime.get() / 1000.0;
+        double methodCallerDep = methodCallerDepTime.get() / 1000.0;
+
+        double sourceCount = sources.size();
+        double destCount = destinations.size();
+        double queryCount = totalQueries.size();
+        double destQueryCount = totalDestQueries.size();
+        double calleeQueryRequestCount = calleeQueryRequests.get();
+        double callerQueryRequestCount = callerQueryRequests.get();
+        double killQueryRequestCount = killQueryRequests.get();
+        double methodQueryRequestCount = methodQueryRequests.get();
+        double relevantRequestCount = relevantRequests.get();
+        double reachabilityRequestCount = reachabilityRequests.get();
+
+        sb.append("REACHABILITY QUERY EXECUTION\n");
+        sb.append("\tTotal: " + analysisTime + "s;\n");
+        // Multiply by the number of threads to get the right ratios
+        analysisTime *= analysisHandle.numThreads();
+        sb.append("\tReachability: " + total + "s; RATIO: " + total / analysisTime + "\n");
+        sb.append("\tRelevant: " + relevantNodes + "s; RATIO: " + relevantNodes / analysisTime + "\n");
+        sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
+        sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
+        sb.append("\tTotal sources: " + sourceCount + " " + (sourceCount / computedDestQuery.get())
+                + " per computed sub query\n");
+        sb.append("\tTotal destinations: " + destCount + " " + (destCount / computedDestQuery.get())
+                + " per computed sub query\n");
+        sb.append("\tTotal sub queries: " + queryCount + " " + (queryCount / computedDestQuery.get())
+                + " per computed sub query\n");
+        sb.append("\tTotal queries with same dest noKill etc: " + destQueryCount + " "
+                + (destQueryCount / computedDestQuery.get())
+                + " per computed sub query\n");
+        sb.append("RECORD RESULTS" + "\n");
+        sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
+        sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");
+        sb.append("RECORD DEPENDENCIES" + "\n");
+        sb.append("\tQuery deps: " + queryDep + "s; RATIO: " + queryDep / analysisTime + "\n");
+        sb.append("\tCallee deps: " + calleeDep + "s; RATIO: " + calleeDep / analysisTime + "\n");
+        sb.append("\tCaller deps: " + callerDep + "s; RATIO: " + callerDep / analysisTime + "\n");
+        sb.append("\tMethod deps: " + methodDep + "s; RATIO: " + methodDep / analysisTime + "\n");
+        sb.append("\tKill query deps: " + killQueryDep + "s; RATIO: " + killQueryDep / analysisTime + "\n");
+        sb.append("\tKill caller deps: " + killCallerDep + "s; RATIO: " + killCallerDep / analysisTime + "\n");
+        sb.append("\tMethod callee deps: " + methodCalleeDep + "s; RATIO: " + methodCalleeDep / analysisTime + "\n");
+        sb.append("\tMethod caller deps: " + methodCallerDep + "s; RATIO: " + methodCallerDep / analysisTime + "\n");
+        sb.append("TRIGGERED DEPENDENCIES" + "\n");
+        sb.append("\tcalleeQueryRequests: " + calleeQueryRequestCount + " RATIO: "
+                + (calleeQueryRequestCount / totalRequests.get()) + "\n");
+        sb.append("\tcallerQueryRequests: " + callerQueryRequestCount + " RATIO: "
+                + (callerQueryRequestCount / totalRequests.get()) + "\n");
+        sb.append("\tkillQueryRequests: " + killQueryRequestCount + " RATIO: "
+                + (killQueryRequestCount / totalRequests.get()) + "\n");
+        sb.append("\tmethodQueryRequests: " + methodQueryRequestCount + " RATIO: "
+                + (methodQueryRequestCount / totalRequests.get()) + "\n");
+        sb.append("\treachabilityRequests: " + reachabilityRequestCount + " RATIO: "
+                + (reachabilityRequestCount / totalRequests.get()) + "\n");
+        sb.append("\trelevantNodeRequests: " + relevantRequestCount + " RATIO: "
+                + (relevantRequestCount / totalRequests.get()) + "\n");
+        sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println(sb.toString());
     }
 }

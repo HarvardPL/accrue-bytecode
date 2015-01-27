@@ -37,7 +37,7 @@ public final class RelevantNodesIncremental {
     /**
      * Print diagnostic information about timing and numbers intermittently, this shouldn't affect performance too much
      */
-    private boolean PRINT_DIAGNOSTICS = true;
+    private boolean PRINT_DIAGNOSTICS = false;
 
     private final PointsToGraph g;
     private final ProgramPointReachability programPointReachability;
@@ -345,6 +345,7 @@ public final class RelevantNodesIncremental {
             Iterator<ProgramPointSubQuery> iter = deps.iterator();
             while (iter.hasNext()) {
                 ProgramPointSubQuery mr = iter.next();
+                this.programPointReachability.relevantRequests.incrementAndGet();
                 // need to re-run the query
                 if (!this.programPointReachability.requestRerunQuery(mr)) {
                     // no need to rerun this anymore, it was true
