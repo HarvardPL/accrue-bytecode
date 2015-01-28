@@ -924,18 +924,18 @@ public final class ProgramPointReachability {
     private final ConcurrentIntMap<MutableIntSet> killMethodDependencies = AnalysisUtil.createConcurrentIntMap();
 
     /**
-     * Record the fact that the result of query depends on the callees of callSite, and thus, if the callees change,
-     * then query may need to be reevaluated.
+     * Record the fact that the result of query depends on the callees of caller, and thus, if the callees change, then
+     * query may need to be reevaluated.
      *
      * @param query
-     * @param callSite
+     * @param caller
      */
-    void addCalleeDependency(ProgramPointSubQuery query, /*ProgramPointReplica*/int callSite) {
+    void addCalleeDependency(ProgramPointSubQuery query, /*OrderedPair<IMethod, Context>*/int caller) {
         long start = System.currentTimeMillis();
-        Set<ProgramPointSubQuery> s = calleeQueryDependencies.get(callSite);
+        Set<ProgramPointSubQuery> s = calleeQueryDependencies.get(caller);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<ProgramPointSubQuery> existing = calleeQueryDependencies.putIfAbsent(callSite, s);
+            Set<ProgramPointSubQuery> existing = calleeQueryDependencies.putIfAbsent(caller, s);
             if (existing != null) {
                 s = existing;
             }
@@ -1106,7 +1106,10 @@ public final class ProgramPointReachability {
             }
         }
 
-        Set<ProgramPointSubQuery> queries = calleeQueryDependencies.get(callSite);
+        ProgramPointReplica callSiteRep = g.lookupCallSiteReplicaDictionary(callSite);
+        int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(callSiteRep.getPP().getContainingProcedure(),
+                                                                       callSiteRep.getContext()));
+        Set<ProgramPointSubQuery> queries = calleeQueryDependencies.get(caller);
         if (queries != null) {
             Iterator<ProgramPointSubQuery> iter = queries.iterator();
             while (iter.hasNext()) {

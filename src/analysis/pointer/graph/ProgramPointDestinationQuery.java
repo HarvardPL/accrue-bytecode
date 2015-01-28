@@ -300,6 +300,7 @@ public final class ProgramPointDestinationQuery {
                         continue;
                     }
 
+                    ppr.addCalleeDependency(currentSubQuery, currentCGNode);
                     ReachabilityResult res = handleCall(ippr, wi);
                     if (res == ReachabilityResult.FOUND) {
                         return true;
@@ -419,9 +420,10 @@ public final class ProgramPointDestinationQuery {
 
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
 
-        // This is a method call! Register the dependency.
-        ppr.addCalleeDependency(this.currentSubQuery,
-                                g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext())));
+        // XXX dependencies are recorded for the caller rather than here this results in fewer dependencies
+        //        // This is a method call! Register the dependency.
+        //        ppr.addCalleeDependency(this.currentSubQuery,
+        //                                g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext())));
 
         /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext()));
         /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
