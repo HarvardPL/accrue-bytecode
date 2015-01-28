@@ -365,7 +365,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void submitTask(ProgramPointSubQuery sq) {
-            // XXX make sure we add sq to the current pendingPPSubQuery set,
+            // make sure we add it to the current pending set,
             // by looping until we know that we added it to the set that is in the reference.
             Set<ProgramPointSubQuery> s;
             do {
@@ -375,6 +375,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void submitTask(RelevantNodesQuery rq) {
+            // make sure we add it to the current pending set,
+            // by looping until we know that we added it to the set that is in the reference.
             Set<RelevantNodesQuery> s;
             do {
                 s = this.pendingRelevantNodesQuery.get();
@@ -383,6 +385,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void submitTask(SourceRelevantNodesQuery sq) {
+            // make sure we add it to the current pending set,
+            // by looping until we know that we added it to the set that is in the reference.
             Set<SourceRelevantNodesQuery> s;
             do {
                 s = this.pendingSourceRelevantNodesQuery.get();
@@ -392,6 +396,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         public void submitTask(AddNonMostRecentOrigin task) {
+            // make sure we add it to the current pending set,
+            // by looping until we know that we added it to the set that is in the reference.
             Set<AddNonMostRecentOrigin> s;
             do {
                 s = this.pendingAddNonMostRecentOrigin.get();
@@ -401,6 +407,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
         public void submitTask(AddToSetOrigin task) {
+            // make sure we add it to the current pending set,
+            // by looping until we know that we added it to the set that is in the reference.
             Set<AddToSetOrigin> s;
             do {
                 s = this.pendingAddToSetOrigin.get();
@@ -416,95 +424,117 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             // Check if we should add any pending tasks.
             int bound = (int) (exec.getParallelism() * 1.5);
-            long numRemainingTasks = this.numRemainingTasks.get();
-            if (numRemainingTasks <= bound) {
+            if (this.numRemainingTasks.get() <= bound) {
                 // the number of remaining tasks is below the threshold, so possibly we want to empty
                 // the pending queues.
                 boolean otherThreadAdding = this.isSomeThreadEmptyingQueues.getAndSet(true);
-                if (!otherThreadAdding || numRemainingTasks == 1) {
-                    // either no other thread is trying to empty the pending queues, or we are the last executing task.
-                    // either way, start emptying the pending queues.
+                if (!otherThreadAdding) {
+                    checkPendingQueues(bound);
 
-                    executePendingAddToSetOrigin();
-                    if (this.numRemainingTasks.get() <= bound) {
-                        executePendingAddNonMostRecentOrigin();
-                        if (this.numRemainingTasks.get() <= bound) {
-                            executePendingSourceRelevantNodesQuery();
-                            if (this.numRemainingTasks.get() <= bound) {
-                                executePendingRelevantNodesQuery();
-                                if (this.numRemainingTasks.get() <= bound) {
-                                    executePendingPPSubQuery();
-                                }
-                            }
-                        }
-                    }
-                    if (!otherThreadAdding) {
-                        // we were the thread designated to do the adding
-                        boolean b = this.isSomeThreadEmptyingQueues.getAndSet(false);
-                        assert b : "Concurrency protocol went awry...";
-
-                    }
+                    // we were the thread designated to do the adding
+                    boolean b = this.isSomeThreadEmptyingQueues.getAndSet(false);
+                    assert b : "Concurrency protocol went awry...";
                 }
             }
             // Now that we have finished adding pending tasks,
             // decrement the number of remaining tasks, and see if we are
             // ready to shutdown.
             if (this.numRemainingTasks.decrementAndGet() == 0) {
-                // this was the last task.
-                // we have finished!
-                // Notify anyone that was waiting.
-                synchronized (this) {
-                    this.notifyAll();
+                // this was the last task. Check if there's anything in the pending queues.
+                if (!checkPendingQueues(bound)) {
+                    // we have finished!
+                    // Notify anyone that was waiting.
+                    synchronized (this) {
+                        this.notifyAll();
+                    }
                 }
             }
         }
 
-        private void executePendingAddToSetOrigin() {
+        /**
+         * Check if the number of remaining tasks is less than the bound, and if so, add tasks from the pending queues,
+         * in the appropriate priority order.
+         *
+         * @return whether we added anything
+         */
+        private boolean checkPendingQueues(int bound) {
+            boolean changed = false;
+            if (this.numRemainingTasks.get() <= bound) {
+                changed |= executePendingAddToSetOrigin();
+                if (this.numRemainingTasks.get() <= bound) {
+                    changed |= executePendingAddNonMostRecentOrigin();
+                    if (this.numRemainingTasks.get() <= bound) {
+                        changed |= executePendingSourceRelevantNodesQuery();
+                        if (this.numRemainingTasks.get() <= bound) {
+                            changed |= executePendingRelevantNodesQuery();
+                            if (this.numRemainingTasks.get() <= bound) {
+                                changed |= executePendingPPSubQuery();
+                            }
+                        }
+                    }
+                }
+            }
+            return changed;
+        }
+
+        private boolean executePendingAddToSetOrigin() {
             Set<AddToSetOrigin> s = pendingAddToSetOrigin.getAndSet(AnalysisUtil.<AddToSetOrigin> createConcurrentSet());
+            boolean changed = false;
             for (AddToSetOrigin t : s) {
+                changed = true;
                 this.numRemainingTasks.incrementAndGet();
                 this.totalAddToSetTasks.incrementAndGet();
                 exec.execute(new RunnablePointsToTask(t));
             }
+            return changed;
         }
 
-        private void executePendingAddNonMostRecentOrigin() {
+        private boolean executePendingAddNonMostRecentOrigin() {
             Set<AddNonMostRecentOrigin> s = pendingAddNonMostRecentOrigin.getAndSet(AnalysisUtil.<AddNonMostRecentOrigin> createConcurrentSet());
+            boolean changed = false;
             for (AddNonMostRecentOrigin t : s) {
+                changed = true;
                 this.numRemainingTasks.incrementAndGet();
                 this.totalAddNonMostRecentOriginTasks.incrementAndGet();
                 exec.execute(new RunnablePointsToTask(t));
             }
+            return changed;
         }
 
-        private void executePendingSourceRelevantNodesQuery() {
+        private boolean executePendingSourceRelevantNodesQuery() {
             Set<SourceRelevantNodesQuery> s = pendingSourceRelevantNodesQuery.getAndSet(AnalysisUtil.<SourceRelevantNodesQuery> createConcurrentSet());
-
+            boolean changed = false;
             for (SourceRelevantNodesQuery sq : s) {
+                changed = true;
                 this.numRemainingTasks.incrementAndGet();
                 this.totalSourceRelevantNodesQueryTasks.incrementAndGet();
                 exec.execute(new RunnablePointsToTask(new SourceRelevantNodesQueryTask(sq)));
             }
+            return changed;
         }
 
-        private void executePendingRelevantNodesQuery() {
+        private boolean executePendingRelevantNodesQuery() {
             Set<RelevantNodesQuery> s = pendingRelevantNodesQuery.getAndSet(AnalysisUtil.<RelevantNodesQuery> createConcurrentSet());
-
+            boolean changed = false;
             for (RelevantNodesQuery rq : s) {
+                changed = true;
                 this.numRemainingTasks.incrementAndGet();
                 this.totalRelevantNodesQueryTasks.incrementAndGet();
                 exec.execute(new RunnablePointsToTask(new RelevantNodesQueryTask(rq)));
             }
+            return changed;
         }
 
-        private void executePendingPPSubQuery() {
+        private boolean executePendingPPSubQuery() {
             Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
-
+            boolean changed = false;
             for (ProgramPointSubQuery sq : s) {
+                changed = true;
                 this.numRemainingTasks.incrementAndGet();
                 this.totalPPSubQueryTasks.incrementAndGet();
                 exec.execute(new RunnablePointsToTask(new PPSubQueryTask(sq)));
             }
+            return changed;
         }
 
 
