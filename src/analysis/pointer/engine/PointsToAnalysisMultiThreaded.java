@@ -418,9 +418,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             int bound = (int) (exec.getParallelism() * 1.5);
             long numRemainingTasks = this.numRemainingTasks.get();
             if (numRemainingTasks <= bound) {
+                // the number of remaining tasks is below the threshold, so possibly we want to empty
+                // the pending queues.
                 boolean otherThreadAdding = this.isSomeThreadEmptyingQueues.getAndSet(true);
                 if (!otherThreadAdding || numRemainingTasks == 1) {
-                    // either no other thread is trying to add remaining tasks, or we are the last thread.
+                    // either no other thread is trying to empty the pending queues, or we are the last executing task.
                     // either way, start emptying the pending queues.
 
                     executePendingAddToSetOrigin();
