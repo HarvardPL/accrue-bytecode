@@ -51,25 +51,9 @@ import com.ibm.wala.types.TypeReference;
  */
 public abstract class TestFlowSensitivePointer extends TestCase {
 
-    //
+    // Method to run the test. Should be overridden by RunTestxxx methods which extends this abstract class
     @Test(timeout = 100000)
     public abstract void test() throws ClassHierarchyException, IOException, JSONException;
-
-
-    // TESTS
-    /*
-
-    @Test(timeout = 100000)
-    public static void testDiamondCallGraph() throws ClassHierarchyException, IOException, JSONException {
-        runTest("test/flowsenspointer/DiamondCallGraph", false);
-    }
-
-    @Test(timeout = 100000)
-    public static void testDiamondCallGraph2MT() throws ClassHierarchyException, IOException, JSONException {
-        runTest("test/flowsenspointer/DiamondCallGraph", true);
-    }
-
-    */
 
     // Names of interesting methods
     private static final String MOST_RECENT = "mostRecent";
