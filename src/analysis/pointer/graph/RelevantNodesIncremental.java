@@ -4,7 +4,6 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -55,7 +54,8 @@ public final class RelevantNodesIncremental {
     /**
      * Program point queries that depend on the findRelevantNodes queries
      */
-    private final ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
+    // ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>>
+    private final ConcurrentMap<RelevantNodesQuery, MutableIntSet> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
     /**
      * Cache of results containing the results of finding dependencies starting at a particular call graph node
      */
@@ -93,7 +93,7 @@ public final class RelevantNodesIncremental {
      * @return set of nodes that must be searched deeply when executing the program point query
      */
     /*Set<OrderedPair<IMethod, Context>>*/IntSet relevantNodes(/*OrderedPair<IMethod, Context>*/int source,
-    /*OrderedPair<IMethod, Context>*/int dest, ProgramPointSubQuery query) {
+    /*OrderedPair<IMethod, Context>*/int dest, /*ProgramPointSubQuery*/int query) {
         RelevantNodesQuery relevantQuery = new RelevantNodesQuery(source, dest);
 
         // add a dependency
@@ -337,20 +337,27 @@ public final class RelevantNodesIncremental {
 
         if (s.addAll(results)) {
             // rerun queries that depend on the results of the relevant nodes query
-            Set<ProgramPointSubQuery> deps = relevantNodesDependencies.get(relevantQuery);
+            MutableIntSet deps = relevantNodesDependencies.get(relevantQuery);
             if (deps == null) {
                 return;
             }
 
-            Iterator<ProgramPointSubQuery> iter = deps.iterator();
+            IntIterator iter = deps.intIterator();
+            MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
             while (iter.hasNext()) {
-                ProgramPointSubQuery mr = iter.next();
+                int mr = iter.next();
                 this.programPointReachability.relevantRequests.incrementAndGet();
                 // need to re-run the query
                 if (!this.programPointReachability.requestRerunQuery(mr)) {
                     // no need to rerun this anymore, it was true
-                    iter.remove();
+                    toRemove.add(mr);
                 }
+            }
+
+            // Now remove all the unneeded queries
+            IntIterator removeIter = toRemove.intIterator();
+            while (removeIter.hasNext()) {
+                deps.remove(removeIter.next());
             }
         }
         recordRelevantTime.addAndGet(System.currentTimeMillis() - start);
@@ -362,13 +369,13 @@ public final class RelevantNodesIncremental {
      * @param query query that depends on the relevant nodes
      * @param relevantQuery query for relevant nodes from a source to a destination
      */
-    private void addRelevantNodesDependency(ProgramPointSubQuery query, RelevantNodesQuery relevantQuery) {
+    private void addRelevantNodesDependency(/*ProgramPointSubQuery*/int query, RelevantNodesQuery relevantQuery) {
         long start = System.currentTimeMillis();
 
-        Set<ProgramPointSubQuery> s = relevantNodesDependencies.get(relevantQuery);
+        MutableIntSet s = relevantNodesDependencies.get(relevantQuery);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentSet();
-            Set<ProgramPointSubQuery> existing = relevantNodesDependencies.putIfAbsent(relevantQuery, s);
+            s = AnalysisUtil.createConcurrentIntSet();
+            MutableIntSet existing = relevantNodesDependencies.putIfAbsent(relevantQuery, s);
             if (existing != null) {
                 s = existing;
             }

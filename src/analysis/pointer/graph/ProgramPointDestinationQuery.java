@@ -84,7 +84,7 @@ public final class ProgramPointDestinationQuery {
     /**
      * Sub-query that is currently being processed
      */
-    private ProgramPointSubQuery currentSubQuery;
+    private int currentSubQuery;
     /**
      * Cache of results for the current subquery
      */
@@ -133,7 +133,11 @@ public final class ProgramPointDestinationQuery {
      */
     public boolean executeSubQuery(InterProgramPointReplica src, /*Set<OrderedPair<IMethod, Context>>*/
                                    IntSet relevantNodes) {
-        this.currentSubQuery = new ProgramPointSubQuery(src, this.dest, this.noKill, this.noAlloc, this.forbidden);
+        this.currentSubQuery = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
+                                                                                              this.dest,
+                                                                                              this.noKill,
+                                                                                              this.noAlloc,
+                                                                                              this.forbidden));
         if (DEBUG) {
             System.err.println("PPDQ%% \nEXECUTING " + this.currentSubQuery);
             IntIterator iter = this.noAlloc.intIterator();
@@ -311,7 +315,7 @@ public final class ProgramPointDestinationQuery {
                     if (!addedCalleeDependency) {
                         // we haven't already registered the dependency, so do so now.
                         addedCalleeDependency = true;
-                        ppr.addCalleeDependency(currentSubQuery, currentCGNode);
+                        ppr.addCalleeQueryDependency(currentSubQuery, currentCGNode);
                     }
                     ReachabilityResult res = handleCall(ippr, wi);
                     if (res == ReachabilityResult.FOUND) {
@@ -367,7 +371,7 @@ public final class ProgramPointDestinationQuery {
                     if (!addedCallerDependency) {
                         // we haven't already registered the dependency, so do so now.
                         addedCallerDependency = true;
-                        ppr.addCallerDependency(this.currentSubQuery, currentCGNode);
+                        ppr.addCallerQueryDependency(this.currentSubQuery, currentCGNode);
                     }
 
                     boolean found = handleMethodExitToUnknownCallSite(currentCGNode,
@@ -471,7 +475,7 @@ public final class ProgramPointDestinationQuery {
 
             // If both exit types are not already accounted for then get summary results for the irrelevent callee
             else if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
-                ppr.addMethodDependency(this.currentSubQuery, calleeInt);
+                ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
                 MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
                 KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
                                                                      calleeSummary.getNormalExitPP()
@@ -514,7 +518,8 @@ public final class ProgramPointDestinationQuery {
     private boolean handlePossibleKill(PointsToStatement stmt, Context currentContext) {
         if (stmt.mayKillNode(currentContext, g)) {
             // record the dependency before we call stmt.killsNode
-            ppr.addKillDependency(this.currentSubQuery, stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+            ppr.addKillQueryDependency(this.currentSubQuery,
+                                       stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
 
             OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
             if (killed != null) {
@@ -536,7 +541,7 @@ public final class ProgramPointDestinationQuery {
                 }
                 else if (killed.snd() == null) {
                     // we have enough information to know that this statement does not kill a node we care about
-                    ppr.removeKillDependency(this.currentSubQuery,
+                    ppr.removeKillQueryDependency(this.currentSubQuery,
                                              stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
                 }
                 // we have enough information to determine whether this statement kills a field, and it does not
@@ -546,7 +551,7 @@ public final class ProgramPointDestinationQuery {
         }
         else {
             // The statement should not be able to kill a node.
-            ppr.removeKillDependency(this.currentSubQuery,
+            ppr.removeKillQueryDependency(this.currentSubQuery,
                                      stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
 
             assert stmt.killsNode(currentContext, g) == null
