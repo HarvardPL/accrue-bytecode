@@ -219,6 +219,10 @@ public final class ProgramPointDestinationQuery {
         // callees are added to currentCGNode?
         boolean addedCalleeDependency = false;
 
+        // Have we added a dependency for currentSubQuery to be re-run when new
+        // callers are added to currentCGNode?
+        boolean addedCallerDependency = false;
+
         boolean onDelayed = false; // are we processing the delayed nodes?
         q.add(src);
         while (!q.isEmpty() || !delayedQ.isEmpty()) {
@@ -358,6 +362,14 @@ public final class ProgramPointDestinationQuery {
                     }
 
                     // We do not know the call-site we are returning to perform searches from all possible caller-sites
+
+                    // Register a dependency i.e., the query may need to be rerun if a new caller is added
+                    if (!addedCallerDependency) {
+                        // we haven't already registered the dependency, so do so now.
+                        addedCallerDependency = true;
+                        ppr.addCallerDependency(this.currentSubQuery, currentCGNode);
+                    }
+
                     boolean found = handleMethodExitToUnknownCallSite(currentCGNode,
                                                                       pp.isExceptionExitSummaryNode(),
                                                                       wi);
@@ -579,8 +591,6 @@ public final class ProgramPointDestinationQuery {
         if (DEBUG2) {
             System.err.println("PPDQ%% \t\t\tHANDLING UNKNOWN EXIT " + currentCallGraphNode + " EX? " + isExceptionExit);
         }
-        // Register a dependency i.e., the query may need to be rerun if a new caller is added
-        ppr.addCallerDependency(this.currentSubQuery, currentCallGraphNode);
 
         /*Set<OrderedPair<CallSiteProgramPoint, Context>>*/IntSet callers = g.getCallersOf(currentCallGraphNode);
         if (callers == null) {
