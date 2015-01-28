@@ -9,7 +9,7 @@ import com.ibm.wala.types.MethodReference;
 /**
  * Description of a (statically) unique method call site
  */
-public class CallSiteProgramPoint extends ProgramPoint {
+public final class CallSiteProgramPoint extends ProgramPoint {
     /**
      * Call site in the caller
      */

@@ -105,7 +105,7 @@ public class ProgramPoint {
     }
 
     @Override
-    public int hashCode() {
+    public final int hashCode() {
         return id;
     }
 
@@ -130,15 +130,16 @@ public class ProgramPoint {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public final boolean equals(Object o) {
         return (this == o);
     }
 
-    public static class PreProgramPoint implements InterProgramPoint {
-        ProgramPoint pp;
+    public final static class PreProgramPoint implements InterProgramPoint {
+        final ProgramPoint pp;
 
-        public PreProgramPoint(ProgramPoint pp) {
+        private PreProgramPoint(ProgramPoint pp) {
             this.pp = pp;
+            assert pp != null;
         }
 
         @Override
@@ -149,33 +150,13 @@ public class ProgramPoint {
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((pp == null) ? 0 : pp.hashCode());
-            return result;
+            return pp.hashCode() ^ 9;
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof PreProgramPoint)) {
-                return false;
-            }
-            PreProgramPoint other = (PreProgramPoint) obj;
-            if (pp == null) {
-                if (other.pp != null) {
-                    return false;
-                }
-            }
-            else if (!pp.equals(other.pp)) {
-                return false;
-            }
-            return true;
+            // object equality
+            return this == obj;
         }
 
         @Override
@@ -190,11 +171,12 @@ public class ProgramPoint {
 
     }
 
-    public static class PostProgramPoint implements InterProgramPoint {
-        ProgramPoint pp;
+    public final static class PostProgramPoint implements InterProgramPoint {
+        final ProgramPoint pp;
 
-        public PostProgramPoint(ProgramPoint pp) {
+        private PostProgramPoint(ProgramPoint pp) {
             this.pp = pp;
+            assert pp != null;
         }
 
         @Override
@@ -204,34 +186,14 @@ public class ProgramPoint {
         }
 
         @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((pp == null) ? 0 : pp.hashCode());
-            return result;
+        public final int hashCode() {
+            return pp.hashCode() ^ 45;
         }
 
         @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof PostProgramPoint)) {
-                return false;
-            }
-            PostProgramPoint other = (PostProgramPoint) obj;
-            if (pp == null) {
-                if (other.pp != null) {
-                    return false;
-                }
-            }
-            else if (!pp.equals(other.pp)) {
-                return false;
-            }
-            return true;
+        public final boolean equals(Object obj) {
+            // object equality
+            return this == obj;
         }
 
         @Override
@@ -246,15 +208,13 @@ public class ProgramPoint {
 
     }
 
-    public static class ProgramPointReplica {
-        private ProgramPoint pp;
-        private Context cc;
+    public final static class ProgramPointReplica {
+        private final ProgramPoint pp;
+        private final Context cc;
 
         public static ProgramPointReplica create(Context context, ProgramPoint pp) {
             // XXX!@! we will eventually do memoization here.
-            if (pp == null) {
-                throw new IllegalArgumentException("Null pp");
-            }
+            assert pp != null && context != null;
             return new ProgramPointReplica(context, pp);
         }
 
@@ -270,11 +230,7 @@ public class ProgramPoint {
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((cc == null) ? 0 : cc.hashCode());
-            result = prime * result + ((pp == null) ? 0 : pp.hashCode());
-            return result;
+            return cc.hashCode() + 31 * pp.hashCode();
         }
 
         public Context getContext() {
@@ -305,20 +261,10 @@ public class ProgramPoint {
                 return false;
             }
             ProgramPointReplica other = (ProgramPointReplica) obj;
-            if (cc == null) {
-                if (other.cc != null) {
-                    return false;
-                }
-            }
-            else if (!cc.equals(other.cc)) {
+            if (!pp.equals(other.pp)) {
                 return false;
             }
-            if (pp == null) {
-                if (other.pp != null) {
-                    return false;
-                }
-            }
-            else if (!pp.equals(other.pp)) {
+            if (!cc.equals(other.cc)) {
                 return false;
             }
             return true;
@@ -330,22 +276,20 @@ public class ProgramPoint {
         public InterProgramPointReplica getReplica(Context context);
     }
 
-    public static class InterProgramPointReplica {
+    public final static class InterProgramPointReplica {
         private InterProgramPoint ipp;
         private Context cc;
 
         public static InterProgramPointReplica create(Context context,
                 InterProgramPoint ipp) {
             // XXX!@! we will eventually do memoization here.
-            if (ipp == null) {
-                throw new IllegalArgumentException("Null pp");
-            }
             return new InterProgramPointReplica(context, ipp);
         }
 
         private InterProgramPointReplica(Context cc, InterProgramPoint ipp) {
             this.ipp = ipp;
             this.cc = cc;
+            assert cc != null && ipp != null;
         }
 
         @Override
@@ -355,11 +299,7 @@ public class ProgramPoint {
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((cc == null) ? 0 : cc.hashCode());
-            result = prime * result + ((ipp == null) ? 0 : ipp.hashCode());
-            return result;
+            return cc.hashCode() + 31 * ipp.hashCode();
         }
 
         public Context getContext() {
@@ -395,20 +335,10 @@ public class ProgramPoint {
                 return false;
             }
             InterProgramPointReplica other = (InterProgramPointReplica) obj;
-            if (cc == null) {
-                if (other.cc != null) {
-                    return false;
-                }
-            }
-            else if (!cc.equals(other.cc)) {
+            if (!ipp.equals(other.ipp)) {
                 return false;
             }
-            if (ipp == null) {
-                if (other.ipp != null) {
-                    return false;
-                }
-            }
-            else if (!ipp.equals(other.ipp)) {
+            if (!cc.equals(other.cc)) {
                 return false;
             }
             return true;
