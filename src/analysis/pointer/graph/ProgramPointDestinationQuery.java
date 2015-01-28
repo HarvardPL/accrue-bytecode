@@ -195,14 +195,14 @@ public final class ProgramPointDestinationQuery {
                     + PrettyPrinter.methodString(dest.getContainingProcedure())
                     + " in " + dest.getContext());
         }
-        InterProgramPointReplica src = wi.src;
-        IMethod currentMethod = src.getContainingProcedure();
-        Context currentContext = src.getContext();
-        /*OrderedPair<IMethod, Context>*/int currentCGNode = g.lookupCallGraphNodeDictionary(new OrderedPair<>(currentMethod,
+        final InterProgramPointReplica src = wi.src;
+        final IMethod currentMethod = src.getContainingProcedure();
+        final Context currentContext = src.getContext();
+        final/*OrderedPair<IMethod, Context>*/int currentCGNode = g.lookupCallGraphNodeDictionary(new OrderedPair<>(currentMethod,
                                                                                                                 currentContext));
 
         // Is the destination node in the same node as the source
-        boolean inSameMethod = this.dest.getContainingProcedure().equals(currentMethod);
+        final boolean inSameMethod = this.dest.getContainingProcedure().equals(currentMethod);
 
         // try searching forward from src, carefully handling calls.
         WorkQueue<InterProgramPointReplica> q = new WorkQueue<>();
@@ -214,6 +214,16 @@ public final class ProgramPointDestinationQuery {
 
         // Record the exits that are reachable within the method containing the source
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
+
+        boolean addedCalleeDependency = false;
+
+        if (src.getInterPP().getPP().isEntrySummaryNode()) {
+            // just pre-emptively register this for all call sites of the current method,
+            // that is, if any call site within this method gets a new callee added, then
+            // re-evaluate currentSubQuery.
+            addedCalleeDependency = true;
+            ppr.addCalleeDependency(currentSubQuery, currentCGNode);
+        }
 
         boolean onDelayed = false; // are we processing the delayed nodes?
         q.add(src);
@@ -300,7 +310,11 @@ public final class ProgramPointDestinationQuery {
                         continue;
                     }
 
-                    ppr.addCalleeDependency(currentSubQuery, currentCGNode);
+                    if (!addedCalleeDependency) {
+                        // we haven't already registered the dependency, so do so now.
+                        addedCalleeDependency = true;
+                        ppr.addCalleeDependency(currentSubQuery, currentCGNode);
+                    }
                     ReachabilityResult res = handleCall(ippr, wi);
                     if (res == ReachabilityResult.FOUND) {
                         return true;
