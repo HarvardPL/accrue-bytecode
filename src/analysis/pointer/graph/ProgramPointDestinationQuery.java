@@ -215,15 +215,9 @@ public final class ProgramPointDestinationQuery {
         // Record the exits that are reachable within the method containing the source
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
 
+        // Have we added a dependency for currentSubQuery to be re-run when new
+        // callees are added to currentCGNode?
         boolean addedCalleeDependency = false;
-
-        if (src.getInterPP().getPP().isEntrySummaryNode()) {
-            // just pre-emptively register this for all call sites of the current method,
-            // that is, if any call site within this method gets a new callee added, then
-            // re-evaluate currentSubQuery.
-            addedCalleeDependency = true;
-            ppr.addCalleeDependency(currentSubQuery, currentCGNode);
-        }
 
         boolean onDelayed = false; // are we processing the delayed nodes?
         q.add(src);
