@@ -182,8 +182,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         if (!AccrueAnalysisMain.testMode) {
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
-            System.gc();
             System.err.println("   Memory utilization     : "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.gc();
+            System.err.println("   Memory utilization post GC: "
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
 
