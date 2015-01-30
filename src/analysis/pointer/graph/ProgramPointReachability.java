@@ -294,7 +294,7 @@ public final class ProgramPointReachability {
 
         this.destinations.add(destination);
         int resp = this.computedResponses.incrementAndGet();
-        if (PRINT_DIAGNOSTICS && (resp % 10000) == 0) {
+        if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
             printDiagnostics();
         }
         this.totalDestQueries.add(new DestQuery(destination, noKill, noAlloc, forbidden));
