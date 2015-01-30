@@ -40,6 +40,7 @@ public final class RelevantNodesIncremental {
 
     private final PointsToGraph g;
     private final ProgramPointReachability programPointReachability;
+    static final AtomicInteger calleesProcessed = new AtomicInteger(0);
 
     /**
      * A reference to allow us to submit a query for reprocessing
@@ -234,6 +235,10 @@ public final class RelevantNodesIncremental {
                             q.add(singleCalleeWorkItem);
                         }
                     }
+                    //                    WorkItem calleesWorkItem = new WorkItem(callerCGNode, CGEdgeType.CALLEES);
+                    //                    if (allVisited.add(calleesWorkItem)) {
+                    //                        q.add(calleesWorkItem);
+                    //                    }
                 }
                 break;
             case CALLEES:
@@ -250,6 +255,7 @@ public final class RelevantNodesIncremental {
                         /*OrderedPair<IMethod, Context>*/int callee = calleeIter.next();
                         // if callee becomes relevant in the future, then cgNode will also be relevant.
                         resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
+                        calleesProcessed.incrementAndGet();
                         if (DEBUG) {
                             System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
                             System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
@@ -276,6 +282,7 @@ public final class RelevantNodesIncremental {
                     int callee = calleeIter.next();
                     // if callee becomes relevant in the future, then cgNode will also be relevant.
                     resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
+                    calleesProcessed.incrementAndGet();
                     if (DEBUG) {
                         System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
                         System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
@@ -980,7 +987,7 @@ public final class RelevantNodesIncremental {
     private AtomicLong totalSourceTime = new AtomicLong(0);
     private AtomicLong recordSourceQueryTime = new AtomicLong(0);
 
-    private void printDiagnostics() {
+    void printDiagnostics() {
         System.err.println("\n%%%%%%%%%%%%%%%%% RELEVANT NODE STATISTICS %%%%%%%%%%%%%%%%%");
         System.err.println("\nTotal relevent requests: " + totalRequests + "  ;  " + cachedResponses + "  cached "
                 + computedResponses + " computed ("
@@ -1002,31 +1009,31 @@ public final class RelevantNodesIncremental {
         double sourceTime = totalSourceTime.get() / 1000.0;
 
         double size = totalSize.get();
-        System.err.println("Total: " + analysisTime + "s;");
-        System.err.println("RELEVANT NODES QUERY EXECUTION");
-        System.err.println("    computeRelevantNodes: " + relevantTime + "s; RATIO: "
-                + (relevantTime / (analysisTime * analysisHandle.numThreads())));
-        System.err.println("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: "
-                + (recordRelTime / relevantTime));
-        System.err.println("    size: " + size + " average: " + size / computedResponses.get());
-        System.err.println("    sources: " + sources.size() + " sources/computed: " + ((double) sources.size())
-                / computedResponses.get());
-        System.err.println("    targets: " + targets.size() + " targets/computed: " + ((double) targets.size())
-                / computedResponses.get());
+        StringBuffer sb = new StringBuffer();
+        sb.append("Total: " + analysisTime + "s;" + "\n");
+        sb.append("RELEVANT NODES QUERY EXECUTION" + "\n");
+        sb.append("    computeRelevantNodes: " + relevantTime + "s; RATIO: "
+                + (relevantTime / (analysisTime * analysisHandle.numThreads())) + "\n");
+        sb.append("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: " + (recordRelTime / relevantTime)
+                + "\n");
+        sb.append("    size: " + size + " average: " + size / computedResponses.get() + "\n");
+        sb.append("    sources: " + sources.size() + " sources/computed: " + ((double) sources.size())
+                / computedResponses.get() + "\n");
+        sb.append("    targets: " + targets.size() + " targets/computed: " + ((double) targets.size())
+                / computedResponses.get() + "\n");
 
-        System.err.println("SOURCE QUERY EXECUTION");
-        System.err.println("    computeSourceDependencies: " + sourceTime + "s; RATIO: "
-                + (sourceTime / (analysisTime * analysisHandle.numThreads())));
-        System.err.println("    addSourceQueryCalleeDependency: " + calleeTime + "s; RATIO: "
-                + (calleeTime / sourceTime));
-        System.err.println("    addSourceQueryCallerDependency: " + callerTime + "s; RATIO: "
-                + (callerTime / sourceTime));
-        System.err.println("    addStartItems: " + startItem + "s; RATIO: " + (startItem / sourceTime));
-        System.err.println("    addRelevantNodesSourceQueryDependency: " + queryTime + "s; RATIO: "
-                + (queryTime / sourceTime));
-        System.err.println("    recordSourceQueryResults: " + recordSourceTime + "s; RATIO: "
-                + (recordSourceTime / sourceTime) + ";");
-        System.err.println("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        sb.append("SOURCE QUERY EXECUTION" + "\n");
+        sb.append("    computeSourceDependencies: " + sourceTime + "s; RATIO: "
+                + (sourceTime / (analysisTime * analysisHandle.numThreads())) + "\n");
+        sb.append("    addSourceQueryCalleeDependency: " + calleeTime + "s; RATIO: " + (calleeTime / sourceTime) + "\n");
+        sb.append("    addSourceQueryCallerDependency: " + callerTime + "s; RATIO: " + (callerTime / sourceTime) + "\n");
+        sb.append("    addStartItems: " + startItem + "s; RATIO: " + (startItem / sourceTime) + "\n");
+        sb.append("    addRelevantNodesSourceQueryDependency: " + queryTime + "s; RATIO: " + (queryTime / sourceTime)
+                + "\n");
+        sb.append("    recordSourceQueryResults: " + recordSourceTime + "s; RATIO: " + (recordSourceTime / sourceTime)
+                + ";" + "\n");
+        sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" + "\n");
+        System.err.println(sb.toString());
     }
 
     /**

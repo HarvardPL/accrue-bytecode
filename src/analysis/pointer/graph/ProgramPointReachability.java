@@ -1468,7 +1468,7 @@ public final class ProgramPointReachability {
     private AtomicInteger reachabilityRequests = new AtomicInteger(0);
     AtomicInteger relevantRequests = new AtomicInteger(0);
 
-    private void printDiagnostics() {
+    public void printDiagnostics() {
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
         sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses
@@ -1526,6 +1526,7 @@ public final class ProgramPointReachability {
                 + " per computed sub query\n");
         sb.append("\tTotal queries with same dest noKill etc: " + destQueryCount + " "
                 + (destQueryCount / computedDestQuery.get()) + " per computed sub query\n");
+        sb.append("\tCallees processed (in relevant) " + RelevantNodesIncremental.calleesProcessed + "\n");
         sb.append("RECORD RESULTS" + "\n");
         sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
         sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");
@@ -1553,5 +1554,6 @@ public final class ProgramPointReachability {
                 + (relevantRequestCount / totalRequests.get()) + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
         System.err.println(sb.toString());
+        relevantNodesIncrementalComputation.printDiagnostics();
     }
 }

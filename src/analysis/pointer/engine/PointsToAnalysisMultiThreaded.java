@@ -175,6 +175,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (AccrueAnalysisMain.testMode) {
             System.out.println(totalTime / 1000.0);
         }
+        g.ppReach.printDiagnostics();
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads);
