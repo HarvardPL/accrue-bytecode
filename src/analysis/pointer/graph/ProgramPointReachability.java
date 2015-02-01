@@ -73,7 +73,7 @@ public final class ProgramPointReachability {
     /**
      * A reference to an object that will find us relevant nodes for reachability queries.
      */
-    private final RelevantNodesIncremental relevantNodesIncrementalComputation;
+    private final RelevantNodesEfficient relevantNodesIncrementalComputation;
 
     /**
      * Create a new reachability query engine
@@ -85,7 +85,8 @@ public final class ProgramPointReachability {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
-        this.relevantNodesIncrementalComputation = new RelevantNodesIncremental(g, analysisHandle, this);
+        this.relevantNodesIncrementalComputation = new RelevantNodesEfficient(g, analysisHandle, this);
+        //this.relevantNodesIncrementalComputation = new RelevantNodesIncremental(g, analysisHandle, this);
     }
 
     /**
