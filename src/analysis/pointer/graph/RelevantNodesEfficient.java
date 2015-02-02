@@ -67,6 +67,7 @@ public final class RelevantNodesEfficient {
      * Cache of results containing the results of finding dependencies starting at a particular call graph node
      */
     private ConcurrentMap<SourceRelevantNodesQuery, SourceQueryResults> sourceQueryCache = AnalysisUtil.createConcurrentHashMap();
+
     /**
      * Map from a source node query CGNode to the items to use as initial workqueue items the next time that source
      * query is run
@@ -855,36 +856,8 @@ public final class RelevantNodesEfficient {
 
         // Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
         ConcurrentIntMap<MutableIntSet> deps = sqr.relevanceDependencies;
-
-        /******* Handle the callee dependencies *******/
-        IntMap<MutableIntSet> calleeDeps = new SparseIntMap<>();
-        if (!sqr.callees.isEmpty()) {
-            IntIterator calleeIter = sqr.callees.intIterator();
-            final Deque</*OrderedPair<IMethod, Context>*/Integer> cgNodeQ = new ArrayDeque<>();
-            final MutableIntSet visited = MutableSparseIntSet.createMutableSparseIntSet(sqr.callees.size());
-            while (calleeIter.hasNext()) {
-                int callee = calleeIter.next();
-                visited.add(callee);
-                cgNodeQ.add(callee);
-            }
-
-            while (!cgNodeQ.isEmpty()) {
-                int cgNode = cgNodeQ.poll();
-                addRelevantQueryCallGraphNodeCalleeDependency(relevantQuery, cgNode);
-                IntIterator callSiteIter = g.getCallSitesWithinMethod(cgNode).intIterator();
-                while (callSiteIter.hasNext()) {
-                    IntIterator callSiteCallees = g.getCalleesOf(callSiteIter.next()).intIterator();
-                    while (callSiteCallees.hasNext()) {
-                        int callSiteCallee = callSiteCallees.next();
-                        addToMapSet(calleeDeps, callSiteCallee, cgNode);
-                        if (visited.add(callSiteCallee)) {
-                            cgNodeQ.add(callSiteCallee);
-                        }
-                    }
-                }
-            }
-        }
-        /******* End handle the callee dependencies *******/
+        // Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
+        IntMap<? extends IntSet> calleeDeps = computeCalleeDeps(sqr.callees, relevantQuery);
 
         /*
          * The set of relevant cg nodes, ie., an overapproximation of nodes that are on
@@ -1006,6 +979,51 @@ public final class RelevantNodesEfficient {
         return relevant;
     }
 
+    /**
+     * Compute the dependencies that arise due to callee relationships starting with the set of callees computed by
+     * <code>computeSourceDependencies</code>
+     *
+     * @param callees callees to start with
+     * @param relevantQuery query the callee dependencies are being computed for
+     * @return map from call graph node to the set of call graph nodes that become relevant when that one does
+     */
+    // Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
+    private IntMap<? extends IntSet> computeCalleeDeps(/*Set<OrderedPair<IMethod, Context>*/MutableIntSet callees,
+                                                       RelevantNodesQuery relevantQuery) {
+        long startCallee = System.currentTimeMillis();
+        // Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
+        IntMap<MutableIntSet> calleeDeps = new SparseIntMap<>();
+        if (!callees.isEmpty()) {
+            // Iterator<OrderedPair<IMethod, Context>>
+            IntIterator calleeIter = callees.intIterator();
+            final Deque</*OrderedPair<IMethod, Context>*/Integer> cgNodeQ = new ArrayDeque<>();
+            final MutableIntSet visited = MutableSparseIntSet.createMutableSparseIntSet(callees.size());
+            while (calleeIter.hasNext()) {
+                int callee = calleeIter.next();
+                visited.add(callee);
+                cgNodeQ.add(callee);
+            }
+
+            while (!cgNodeQ.isEmpty()) {
+                int cgNode = cgNodeQ.poll();
+                addRelevantQueryCallGraphNodeCalleeDependency(relevantQuery, cgNode);
+                IntIterator callSiteIter = g.getCallSitesWithinMethod(cgNode).intIterator();
+                while (callSiteIter.hasNext()) {
+                    IntIterator callSiteCallees = g.getCalleesOf(callSiteIter.next()).intIterator();
+                    while (callSiteCallees.hasNext()) {
+                        int callSiteCallee = callSiteCallees.next();
+                        addToMapSet(calleeDeps, callSiteCallee, cgNode);
+                        if (visited.add(callSiteCallee)) {
+                            cgNodeQ.add(callSiteCallee);
+                        }
+                    }
+                }
+            }
+        }
+        this.calleeProcessingTime.addAndGet(System.currentTimeMillis() - startCallee);
+        return calleeDeps;
+    }
+
     /////////////////////////
     // Dependencies
     ////////////////////////
@@ -1039,11 +1057,11 @@ public final class RelevantNodesEfficient {
     private final ConcurrentIntMap<Set<RelevantNodesQuery>> relevantQueryCallGraphNodeCalleeDependencies = AnalysisUtil.createConcurrentIntMap();
 
     /**
-     * Record a dependency of sourceCGNode on the callees from callerCGNode. If the callees of calleeCGNode change then
-     * recompute the query
+     * Record a dependency of relevant query on the callees from callerCGNode. If the callees of calleeCGNode change
+     * then recompute the query
      *
-     * @param query query starting at a particular source that computes dependencies
-     * @param callerCGNode CG node the source query dependends on
+     * @param query query computing relevant nodes from a source call graph node to a destination call graph node
+     * @param callerCGNode CG node the query dependends on
      */
     private void addRelevantQueryCallGraphNodeCalleeDependency(RelevantNodesQuery query, /*OrderedPair<IMethod, Context>*/
                                                               int callerCGNode) {
@@ -1215,6 +1233,7 @@ public final class RelevantNodesEfficient {
     private AtomicLong totalTime = new AtomicLong(0);
     private AtomicLong queryDepTime = new AtomicLong(0);
     private AtomicLong recordRelevantTime = new AtomicLong(0);
+    private AtomicLong calleeProcessingTime = new AtomicLong(0);
 
     // Timing information for source queries
     private AtomicLong startItemTime = new AtomicLong(0);
@@ -1245,6 +1264,7 @@ public final class RelevantNodesEfficient {
         double recordRelTime = recordRelevantTime.get() / 1000.0;
         double recordSourceTime = recordSourceQueryTime.get() / 1000.0;
         double sourceTime = totalSourceTime.get() / 1000.0;
+        double calleeProcessing = calleeProcessingTime.get() / 1000.0;
 
         double size = totalSize.get();
         StringBuffer sb = new StringBuffer();
@@ -1252,6 +1272,8 @@ public final class RelevantNodesEfficient {
         analysisTime *= analysisHandle.numThreads();
         sb.append("RELEVANT NODES QUERY EXECUTION" + "\n");
         sb.append("    computeRelevantNodes: " + relevantTime + "s; RATIO: " + (relevantTime / analysisTime) + "\n");
+        sb.append("    calleeProcessingTime: " + calleeProcessing + "s; RATIO: " + (calleeProcessing / analysisTime)
+                + "\n");
         sb.append("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: " + (recordRelTime / analysisTime)
                 + "\n");
         sb.append("    size: " + size + " average: " + size / computedResponses.get() + "\n");
