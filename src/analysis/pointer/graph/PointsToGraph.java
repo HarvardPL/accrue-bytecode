@@ -495,7 +495,7 @@ public final class PointsToGraph {
     }
 
     ProgramPointReplica lookupCallSiteReplicaDictionary(int key) {
-        assert this.callSiteReplicaDictionary.containsKey(key);
+        assert this.callSiteReplicaDictionary.containsKey(key) : "No replica for " + key;
         return this.callSiteReplicaDictionary.get(key);
     }
 

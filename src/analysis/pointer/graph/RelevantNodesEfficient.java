@@ -22,10 +22,10 @@ import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
-import analysis.pointer.graph.RelevantNodesIncremental.CGEdgeType;
+import analysis.pointer.graph.RelevantNodesIncremental.OldCGEdgeType;
 import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.WorkItem;
+import analysis.pointer.graph.RelevantNodesIncremental.OldWorkItem;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -72,7 +72,7 @@ public final class RelevantNodesEfficient {
      * Map from a source node query CGNode to the items to use as initial workqueue items the next time that source
      * query is run
      */
-    private final ConcurrentMap<SourceRelevantNodesQuery, Set<WorkItem>> startItems = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<SourceRelevantNodesQuery, Set<OldWorkItem>> startItems = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Algorithm for computing which nodes are relevant to a given program point reachability query. Relevant nodes must
@@ -209,7 +209,7 @@ public final class RelevantNodesEfficient {
         if (previous == null) {
             // No previous results initialize the visited and relevant sets
             previous = new SourceQueryResults(AnalysisUtil.<MutableIntSet> createConcurrentIntMap(),
-                                              AnalysisUtil.<WorkItem> createConcurrentSet(),
+                                              AnalysisUtil.<OldWorkItem> createConcurrentSet(),
                                               AnalysisUtil.createConcurrentIntSet());
             SourceQueryResults existing = sourceQueryCache.putIfAbsent(query, previous);
             if (existing != null) {
@@ -228,16 +228,16 @@ public final class RelevantNodesEfficient {
 
         /*Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>*/
         ConcurrentIntMap<MutableIntSet> relevanceDependencies = previous.relevanceDependencies;
-        Set<WorkItem> allVisited = previous.alreadyVisited;
+        Set<OldWorkItem> allVisited = previous.alreadyVisited;
         MutableIntSet callees = previous.callees;
 
-        Deque<WorkItem> q = new ArrayDeque<>();
+        Deque<OldWorkItem> q = new ArrayDeque<>();
         // Atomically pull out the set of new items to be processed and replace it with an empty set
-        Set<WorkItem> initial = this.startItems.replace(query, AnalysisUtil.<WorkItem> createConcurrentSet());
+        Set<OldWorkItem> initial = this.startItems.replace(query, AnalysisUtil.<OldWorkItem> createConcurrentSet());
         assert initial != null : "Null start items for " + query;
         if (DEBUG) {
             System.err.println("RNI%% INITIAL");
-            for (WorkItem wi : initial) {
+            for (OldWorkItem wi : initial) {
                 System.err.println("RNI%%\t" + wi.toString(g));
             }
         }
@@ -258,7 +258,7 @@ public final class RelevantNodesEfficient {
         int count = 0;
 
         while (!q.isEmpty()) {
-            WorkItem p = q.poll();
+            OldWorkItem p = q.poll();
             if (DEBUG) {
                 System.err.println("RNI%%\tQ " + p.toString(g));
             }
@@ -287,7 +287,7 @@ public final class RelevantNodesEfficient {
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
                     // we want to visit both the callers and the callees of callerCGNode.
-                    WorkItem callersWorkItem = new WorkItem(callerCGNode, CGEdgeType.CALLERS);
+                    OldWorkItem callersWorkItem = new OldWorkItem(callerCGNode, OldCGEdgeType.CALLERS);
                     if (allVisited.add(callersWorkItem)) {
                         q.add(callersWorkItem);
                     }
@@ -296,7 +296,7 @@ public final class RelevantNodesEfficient {
                     ProgramPointReplica caller = g.lookupCallSiteReplicaDictionary(callerInt);
                     Set<CallSiteProgramPoint> after = getCallsitesAfter((CallSiteProgramPoint) caller.getPP());
                     for (CallSiteProgramPoint cspp : after) {
-                        WorkItem singleCalleeWorkItem = new WorkItem(cspp, callerCGNode);
+                        OldWorkItem singleCalleeWorkItem = new OldWorkItem(cspp, callerCGNode);
                         if (allVisited.add(singleCalleeWorkItem)) {
                             q.add(singleCalleeWorkItem);
                         }
@@ -357,8 +357,8 @@ public final class RelevantNodesEfficient {
 
                     // We are exploring only the callees of the call-site, so when we explore callee
                     // we only need to explore its callees (not its callers).
-                    if (allVisited.add(new WorkItem(callee, CGEdgeType.CALLEES))) {
-                        q.add(new WorkItem(callee, CGEdgeType.CALLEES));
+                    if (allVisited.add(new OldWorkItem(callee, OldCGEdgeType.CALLEES))) {
+                        q.add(new OldWorkItem(callee, OldCGEdgeType.CALLEES));
                     }
                 }
                 break;
@@ -470,7 +470,7 @@ public final class RelevantNodesEfficient {
         if (queries != null) {
             // New work item that needs to be processed when the query is rerun
             CallSiteProgramPoint cspp = (CallSiteProgramPoint) g.lookupCallSiteReplicaDictionary(callSite).getPP();
-            Set<WorkItem> newItem = Collections.singleton(new WorkItem(cspp, getCGNodeForCallSiteReplica(callSite)));
+            Set<OldWorkItem> newItem = Collections.singleton(new OldWorkItem(cspp, getCGNodeForCallSiteReplica(callSite)));
             for (SourceRelevantNodesQuery query : queries) {
                 addStartItems(query, newItem);
 
@@ -502,7 +502,7 @@ public final class RelevantNodesEfficient {
         Set<SourceRelevantNodesQuery> queries = sourceQueryCallerDependencies.get(calleeCallGraphNode);
         if (queries != null) {
             // New work item that needs to be proccessed when the query is rerun
-            Set<WorkItem> newItem = Collections.singleton(new WorkItem(calleeCallGraphNode, CGEdgeType.CALLERS));
+            Set<OldWorkItem> newItem = Collections.singleton(new OldWorkItem(calleeCallGraphNode, OldCGEdgeType.CALLERS));
             for (SourceRelevantNodesQuery query : queries) {
                 addStartItems(query, newItem);
 
@@ -518,15 +518,15 @@ public final class RelevantNodesEfficient {
      * @param query start node of the source query
      * @param startItems items to add to the initial queue
      */
-    private void addStartItems(SourceRelevantNodesQuery query, Set<WorkItem> newItems) {
+    private void addStartItems(SourceRelevantNodesQuery query, Set<OldWorkItem> newItems) {
         long start = System.currentTimeMillis();
 
-        Set<WorkItem> s;
+        Set<OldWorkItem> s;
         do {
             s = startItems.get(query);
             if (s == null) {
                 s = AnalysisUtil.createConcurrentSet();
-                Set<WorkItem> existing = startItems.putIfAbsent(query, s);
+                Set<OldWorkItem> existing = startItems.putIfAbsent(query, s);
                 if (existing != null) {
                     s = existing;
                 }
@@ -741,14 +741,14 @@ public final class RelevantNodesEfficient {
         // ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
         final ConcurrentIntMap<MutableIntSet> relevanceDependencies;
 
-        final Set<WorkItem> alreadyVisited;
+        final Set<OldWorkItem> alreadyVisited;
 
         final MutableIntSet callees;
 
         private final int hashcode;
 
         public SourceQueryResults(/*ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>*/ConcurrentIntMap<MutableIntSet> relevanceDependencies,
-                                  Set<WorkItem> allVisited, /*Set<OrderedPair<IMethod, Context>*/
+                                  Set<OldWorkItem> allVisited, /*Set<OrderedPair<IMethod, Context>*/
                                   MutableIntSet callees) {
             this.relevanceDependencies = relevanceDependencies;
             this.alreadyVisited = allVisited;
@@ -845,9 +845,9 @@ public final class RelevantNodesEfficient {
         SourceQueryResults sqr = sourceQueryCache.get(sourceQuery);
         if (sqr == null) {
             // This is the first time computing this query include the source in the initial work queue
-            Set<WorkItem> initialQ = new HashSet<>();
-            initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLEES));
-            initialQ.add(new WorkItem(relevantQuery.sourceCGNode, CGEdgeType.CALLERS));
+            Set<OldWorkItem> initialQ = new HashSet<>();
+            initialQ.add(new OldWorkItem(relevantQuery.sourceCGNode, OldCGEdgeType.CALLEES));
+            initialQ.add(new OldWorkItem(relevantQuery.sourceCGNode, OldCGEdgeType.CALLERS));
             addStartItems(sourceQuery, initialQ);
         }
         else {

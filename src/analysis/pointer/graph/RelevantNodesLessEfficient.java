@@ -16,7 +16,13 @@ import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
+import analysis.pointer.graph.RelevantNodesIncremental.OldCGEdgeType;
+import analysis.pointer.graph.RelevantNodesIncremental.OldWorkItem;
+import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -27,7 +33,7 @@ import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 import com.ibm.wala.util.intset.MutableSparseIntSet;
 
-public final class RelevantNodesIncremental {
+public final class RelevantNodesLessEfficient {
 
     /**
      * Print a ton for each run, such as the elements pulled off the queue
@@ -37,10 +43,12 @@ public final class RelevantNodesIncremental {
      * Print diagnostic information about timing and numbers intermittently, this shouldn't affect performance too much
      */
     private boolean PRINT_DIAGNOSTICS = false;
+    private static boolean CHECK_OLD = false;
 
     private final PointsToGraph g;
     private final ProgramPointReachability programPointReachability;
     static final AtomicInteger calleesProcessed = new AtomicInteger(0);
+    private final RelevantNodesIncremental oldRelevantComputation;
 
     /**
      * A reference to allow us to submit a query for reprocessing
@@ -53,19 +61,15 @@ public final class RelevantNodesIncremental {
     private ConcurrentMap<RelevantNodesQuery, /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet> relevantCache = AnalysisUtil.createConcurrentHashMap();
 
     /**
-     * Program point queries that depend on the findRelevantNodes queries
-     */
-    // ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>>
-    private final ConcurrentMap<RelevantNodesQuery, MutableIntSet> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
-    /**
      * Cache of results containing the results of finding dependencies starting at a particular call graph node
      */
     private ConcurrentMap<SourceRelevantNodesQuery, SourceQueryResults> sourceQueryCache = AnalysisUtil.createConcurrentHashMap();
+
     /**
      * Map from a source node query CGNode to the items to use as initial workqueue items the next time that source
      * query is run
      */
-    private final ConcurrentMap<SourceRelevantNodesQuery, Set<OldWorkItem>> startItems = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<SourceRelevantNodesQuery, Set<WorkItem>> startItems = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Algorithm for computing which nodes are relevant to a given program point reachability query. Relevant nodes must
@@ -76,11 +80,68 @@ public final class RelevantNodesIncremental {
      * @param analysisHandle handle for submitting queries to the points-to analysis
      * @param programPointReachability reachability query from one program point to another
      */
-    RelevantNodesIncremental(PointsToGraph g, PointsToAnalysisHandle analysisHandle,
-                             ProgramPointReachability programPointReachability) {
+    RelevantNodesLessEfficient(PointsToGraph g, final PointsToAnalysisHandle analysisHandle,
+                               ProgramPointReachability programPointReachability) {
         this.g = g;
         this.analysisHandle = analysisHandle;
+        //        CHECK_OLD = this.analysisHandle.numThreads() == 1;
         this.programPointReachability = programPointReachability;
+        PointsToAnalysisHandle nonHandle = new PointsToAnalysisHandle() {
+
+            @Override
+            public void submitStmtAndContext(StmtAndContext sac, GraphDelta delta) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public void submitStmtAndContext(StmtAndContext sac) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public void submitSourceRelevantNodesQuery(SourceRelevantNodesQuery source) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public void submitRelevantNodesQuery(RelevantNodesQuery rq) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public void submitReachabilityQuery(ProgramPointSubQuery mr) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public void submitAddToSetTask(AddToSetOrigin task) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public void submitAddNonMostRecentTask(AddNonMostRecentOrigin task) {
+                // Auto-generated method stub
+            }
+
+            @Override
+            public PointsToGraph pointsToGraph() {
+                // Auto-generated method stub
+                return null;
+            }
+
+            @Override
+            public int numThreads() {
+                // Auto-generated method stub
+                return analysisHandle.numThreads();
+            }
+
+            @Override
+            public void handleChanges(GraphDelta delta) {
+                // Auto-generated method stub
+            }
+        };
+        this.oldRelevantComputation = new RelevantNodesIncremental(g, nonHandle, programPointReachability);
+        //        oldRelevantComputation.DEBUG = true;
     }
 
     /**
@@ -146,7 +207,7 @@ public final class RelevantNodesIncremental {
         if (previous == null) {
             // No previous results initialize the visited and relevant sets
             previous = new SourceQueryResults(AnalysisUtil.<MutableIntSet> createConcurrentIntMap(),
-                                              AnalysisUtil.<OldWorkItem> createConcurrentSet());
+                                              AnalysisUtil.<WorkItem> createConcurrentSet());
             SourceQueryResults existing = sourceQueryCache.putIfAbsent(query, previous);
             if (existing != null) {
                 // someone beat us!
@@ -164,15 +225,15 @@ public final class RelevantNodesIncremental {
 
         /*Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>*/
         ConcurrentIntMap<MutableIntSet> relevanceDependencies = previous.relevanceDependencies;
-        Set<OldWorkItem> allVisited = previous.alreadyVisited;
+        Set<WorkItem> allVisited = previous.alreadyVisited;
 
-        Deque<OldWorkItem> q = new ArrayDeque<>();
+        Deque<WorkItem> q = new ArrayDeque<>();
         // Atomically pull out the set of new items to be processed and replace it with an empty set
-        Set<OldWorkItem> initial = this.startItems.replace(query, AnalysisUtil.<OldWorkItem> createConcurrentSet());
+        Set<WorkItem> initial = this.startItems.replace(query, AnalysisUtil.<WorkItem> createConcurrentSet());
         assert initial != null : "Null start items for " + query;
         if (DEBUG) {
             System.err.println("RNI%% INITIAL");
-            for (OldWorkItem wi : initial) {
+            for (WorkItem wi : initial) {
                 System.err.println("RNI%%\t" + wi.toString(g));
             }
         }
@@ -193,7 +254,7 @@ public final class RelevantNodesIncremental {
         int count = 0;
 
         while (!q.isEmpty()) {
-            OldWorkItem p = q.poll();
+            WorkItem p = q.poll();
             if (DEBUG) {
                 System.err.println("RNI%%\tQ " + p.toString(g));
             }
@@ -203,10 +264,10 @@ public final class RelevantNodesIncremental {
                 System.err.println("Searching relevant from " + sourceCGNode);
                 System.err.println("Processed " + count + " work items latest: " + p);
             }
-            /*OrderedPair<IMethod, Context>*/int cgNode = p.cgNode;
-            switch (p.type) {
-            case CALLERS:
+            if (p.cgNode >= 0) { // case CALLERS:
                 // explore the callers of this cg node
+                int cgNode = p.cgNode;
+                // This dependency ensures that the source query is rerun if the callers of the given CG node change
                 this.addSourceQueryCallerDependency(query, cgNode);
                 /*Iterator<ProgramPointReplica>*/IntIterator callers = g.getCallersOf(cgNode).intIterator();
                 while (callers.hasNext()) {
@@ -222,81 +283,63 @@ public final class RelevantNodesIncremental {
 
                     // since we are exploring the callers of cgNode, for each caller of cgNode, callerCGNode,
                     // we want to visit both the callers and the callees of callerCGNode.
-                    OldWorkItem callersWorkItem = new OldWorkItem(callerCGNode, OldCGEdgeType.CALLERS);
+                    WorkItem callersWorkItem = WorkItem.createCallerWorkItem(callerCGNode);
                     if (allVisited.add(callersWorkItem)) {
+                        // Don't need to mark results changed here since the relevant node query
+                        //       does not rely on the CALLER items in the visited set
                         q.add(callersWorkItem);
                     }
 
                     // Only add the callees in the caller that are after the return site
-                    ProgramPointReplica caller = g.lookupCallSiteReplicaDictionary(callerInt);
-                    Set<CallSiteProgramPoint> after = getCallsitesAfter((CallSiteProgramPoint) caller.getPP());
+                    ProgramPointReplica returnSite = g.lookupCallSiteReplicaDictionary(callerInt);
+                    Set<CallSiteProgramPoint> after = getCallsitesAfter((CallSiteProgramPoint) returnSite.getPP());
+                    Context context = returnSite.getContext();
                     for (CallSiteProgramPoint cspp : after) {
-                        OldWorkItem singleCalleeWorkItem = new OldWorkItem(cspp, callerCGNode);
+                        int callSiteAfter = g.lookupCallSiteReplicaDictionary(cspp.getReplica(context));
+                        WorkItem singleCalleeWorkItem = WorkItem.createCallSiteWorkItem(callSiteAfter);
                         if (allVisited.add(singleCalleeWorkItem)) {
+                            // Relevant node queries depend on the visited set of callees so this is a change that affects dependencies
+                            resultsChanged = true;
                             q.add(singleCalleeWorkItem);
                         }
                     }
-                    //                    WorkItem calleesWorkItem = new WorkItem(callerCGNode, CGEdgeType.CALLEES);
-                    //                    if (allVisited.add(calleesWorkItem)) {
-                    //                        q.add(calleesWorkItem);
-                    //                    }
-                }
-                break;
-            case CALLEES:
-                // explore the callees of this cg node
-                /*Iterator<ProgramPointReplica>*/IntIterator callSites = g.getCallSitesWithinMethod(cgNode)
-                                                                           .intIterator();
-                while (callSites.hasNext()) {
-                    /*ProgramPointReplica*/int callSiteInt = callSites.next();
-                    this.addSourceQueryCalleeDependency(query, callSiteInt);
+                } // End of loop through caller return sites
+            } // End of handling CALLERS
+            else { // case CALL_SITE:
+                   // handle callees from a particular call site
 
-                    /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator calleeIter = g.getCalleesOf(callSiteInt)
-                                                                                          .intIterator();
-                    while (calleeIter.hasNext()) {
-                        /*OrderedPair<IMethod, Context>*/int callee = calleeIter.next();
-                        // if callee becomes relevant in the future, then cgNode will also be relevant.
-                        resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
-                        calleesProcessed.incrementAndGet();
-                        if (DEBUG) {
-                            System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
-                            System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
-                        }
+                /*ProgramPointReplica*/int callSiteReplica = p.callSite;
 
-                        // We are exploring only the callees of cgNode, so when we explore callee
-                        // we only need to explore its callees (not its callers).
-                        OldWorkItem calleeWorkItem = new OldWorkItem(callee, OldCGEdgeType.CALLEES);
-                        if (allVisited.add(calleeWorkItem)) {
-                            q.add(calleeWorkItem);
-                        }
-                    }
-                }
-                break;
-            case PRECISE_CALLEE:
-                // This is a precise call site add callees for any possible targets to the queue
-                assert p.callSite != null;
-                Context c = g.lookupCallGraphNodeDictionary(p.cgNode).snd();
-                /*ProgramPointReplica*/int callSiteReplica = g.lookupCallSiteReplicaDictionary(p.callSite.getReplica(c));
+                // This dependency ensures that the source query is rerun if callees from the given call site change
                 this.addSourceQueryCalleeDependency(query, callSiteReplica);
                 /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator calleeIter = g.getCalleesOf(callSiteReplica)
                                                                                       .intIterator();
                 while (calleeIter.hasNext()) {
-                    int callee = calleeIter.next();
-                    // if callee becomes relevant in the future, then cgNode will also be relevant.
-                    resultsChanged |= addToMapSet(relevanceDependencies, callee, cgNode);
+                    /*OrderedPair<IMethod, Context>*/int callee = calleeIter.next();
                     calleesProcessed.incrementAndGet();
-                    if (DEBUG) {
-                        System.err.println("RNI%%\t\t" + g.lookupCallGraphNodeDictionary(cgNode));
-                        System.err.println("RNI%%\t\tDEPENDS ON " + g.lookupCallGraphNodeDictionary(callee));
-                    }
 
                     // We are exploring only the callees of the call-site, so when we explore callee
                     // we only need to explore its callees (not its callers).
-                    if (allVisited.add(new OldWorkItem(callee, OldCGEdgeType.CALLEES))) {
-                        q.add(new OldWorkItem(callee, OldCGEdgeType.CALLEES));
+                    //      XXX              addSourceQueryCallGraphNodeCalleeDependency(query, callee);
+                    /*Iterator<ProgramPointReplica*/IntIterator calleeCallSites = g.getCallSitesWithinMethod(callee)
+                                                                                    .intIterator();
+
+                    if (!calleeCallSites.hasNext()) {
+                        // Add the callee to the visited set if there are no call-sites that will be added
+                        // This records that the callee is reachable, which will be used in computeRelevantNodes
+                        resultsChanged |= allVisited.add(WorkItem.createCalleeWorkItem(callee));
                     }
-                }
-                break;
-            } // end handling a single work item
+
+                    while (calleeCallSites.hasNext()) {
+                        WorkItem callSiteItem = WorkItem.createCallSiteWorkItem(calleeCallSites.next());
+                        if (allVisited.add(callSiteItem)) {
+                            // Relevant node queries depend on the visited set of callees so this is a change that affects dependencies
+                            resultsChanged = true;
+                            q.add(callSiteItem);
+                        }
+                    }
+                } // End of loop through
+            } // End handling call sites
         } // Queue is empty
 
         // Record the results and rerun any dependencies
@@ -305,7 +348,6 @@ public final class RelevantNodesIncremental {
             recordSourceQueryResultsChanged(query);
         }
         totalSourceTime.addAndGet(System.currentTimeMillis() - start);
-
         return sqr;
     }
 
@@ -403,15 +445,28 @@ public final class RelevantNodesIncremental {
         Set<SourceRelevantNodesQuery> queries = sourceQueryCalleeDependencies.get(callSite);
         if (queries != null) {
             // New work item that needs to be processed when the query is rerun
-            CallSiteProgramPoint cspp = (CallSiteProgramPoint) g.lookupCallSiteReplicaDictionary(callSite).getPP();
-            Set<OldWorkItem> newItem = Collections.singleton(new OldWorkItem(cspp, getCGNodeForCallSiteReplica(callSite)));
+            WorkItem newItem = WorkItem.createCallSiteWorkItem(callSite);
             for (SourceRelevantNodesQuery query : queries) {
-                addStartItems(query, newItem);
+                addStartItem(query, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
                 this.analysisHandle.submitSourceRelevantNodesQuery(query);
             }
         }
+
+        // XXX Rerun source queries that depend on call-sites contained withing the method the call-site was added to
+        //        /*OrderedPair<IMethod, Context>*/int cgNode = getCGNodeForCallSiteReplica(callSite);
+        //        Set<SourceRelevantNodesQuery> calleeQueries = sourceQueryCallGraphNodeCalleeDependencies.get(cgNode);
+        //        if (calleeQueries != null) {
+        //            // New work item that needs to be processed when the query is rerun
+        //            WorkItem newItem = WorkItem.createCallSiteWorkItem(callSite);
+        //            for (SourceRelevantNodesQuery query : calleeQueries) {
+        //                addStartItem(query, newItem);
+        //
+        //                // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
+        //                this.analysisHandle.submitSourceRelevantNodesQuery(query);
+        //            }
+        //        }
     }
 
     /**
@@ -426,9 +481,9 @@ public final class RelevantNodesIncremental {
         Set<SourceRelevantNodesQuery> queries = sourceQueryCallerDependencies.get(calleeCallGraphNode);
         if (queries != null) {
             // New work item that needs to be proccessed when the query is rerun
-            Set<OldWorkItem> newItem = Collections.singleton(new OldWorkItem(calleeCallGraphNode, OldCGEdgeType.CALLERS));
+            WorkItem newItem = WorkItem.createCallerWorkItem(calleeCallGraphNode);
             for (SourceRelevantNodesQuery query : queries) {
-                addStartItems(query, newItem);
+                addStartItem(query, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
                 this.analysisHandle.submitSourceRelevantNodesQuery(query);
@@ -442,15 +497,15 @@ public final class RelevantNodesIncremental {
      * @param query start node of the source query
      * @param startItems items to add to the initial queue
      */
-    void addStartItems(SourceRelevantNodesQuery query, Set<OldWorkItem> newItems) {
+    private void addStartItems(SourceRelevantNodesQuery query, Set<WorkItem> newItems) {
         long start = System.currentTimeMillis();
 
-        Set<OldWorkItem> s;
+        Set<WorkItem> s;
         do {
             s = startItems.get(query);
             if (s == null) {
                 s = AnalysisUtil.createConcurrentSet();
-                Set<OldWorkItem> existing = startItems.putIfAbsent(query, s);
+                Set<WorkItem> existing = startItems.putIfAbsent(query, s);
                 if (existing != null) {
                     s = existing;
                 }
@@ -458,50 +513,110 @@ public final class RelevantNodesIncremental {
             s.addAll(newItems);
         } while (s != startItems.get(query));
         startItemTime.addAndGet(System.currentTimeMillis() - start);
+        if (CHECK_OLD) {
+            // Have to change the type of the WorkItems
+            Set<OldWorkItem> oldNewItems = new HashSet<>();
+            for (WorkItem wi : newItems) {
+                OldWorkItem oldWI;
+                if (wi.cgNode >= 0) {
+                    oldWI = new OldWorkItem(wi.cgNode, OldCGEdgeType.CALLERS);
+                }
+                else if (wi.callSite >= 0) {
+                    ProgramPointReplica ppr = g.lookupCallSiteReplicaDictionary(wi.callSite);
+                    int cgNode = g.lookupCallGraphNodeDictionary(new OrderedPair<>(ppr.getPP().getContainingProcedure(),
+                                                                                   ppr.getContext()));
+                    oldWI = new OldWorkItem((CallSiteProgramPoint) ppr.getPP(), cgNode);
+                }
+                else {
+                    continue;
+                }
+                oldNewItems.add(oldWI);
+            }
+            oldRelevantComputation.addStartItems(query, oldNewItems);
+        }
+    }
+
+    /**
+     * Add work item to the initial queue for a source query
+     *
+     * @param query start node of the source query
+     * @param startItem item to add to the initial queue
+     */
+    private void addStartItem(SourceRelevantNodesQuery query, WorkItem newItem) {
+        long start = System.currentTimeMillis();
+
+        Set<WorkItem> s;
+        do {
+            s = startItems.get(query);
+            if (s == null) {
+                s = AnalysisUtil.createConcurrentSet();
+                Set<WorkItem> existing = startItems.putIfAbsent(query, s);
+                if (existing != null) {
+                    s = existing;
+                }
+            }
+            s.add(newItem);
+        } while (s != startItems.get(query));
+        startItemTime.addAndGet(System.currentTimeMillis() - start);
+        if (CHECK_OLD) {
+            // Have to change the type of the WorkItems
+            OldWorkItem oldWI;
+            if (newItem.cgNode >= 0) {
+                oldWI = new OldWorkItem(newItem.cgNode, OldCGEdgeType.CALLERS);
+            }
+            else {
+                ProgramPointReplica ppr = g.lookupCallSiteReplicaDictionary(newItem.callSite);
+                int cgNode = g.lookupCallGraphNodeDictionary(new OrderedPair<>(ppr.getPP().getContainingProcedure(),
+                                                                               ppr.getContext()));
+                oldWI = new OldWorkItem((CallSiteProgramPoint) ppr.getPP(), cgNode);
+            }
+            oldRelevantComputation.addStartItems(query, Collections.singleton(oldWI));
+        }
     }
 
     /**
      * Work queue element of work, indicates which call graph edges to process next
      */
-    static class OldWorkItem {
-        final OldCGEdgeType type;
+    private static class WorkItem {
         final/*OrderedPair<IMethod, Context>*/int cgNode;
-        final CallSiteProgramPoint callSite;
+        final/*ProgramPointReplica*/int callSite;
+        // XXX temporary cheat to find "visited" callees with no call sites
+        final/*OrderedPair<IMethod, Context>*/int callee;
+        private final int memoizedHashCode;
 
-        /**
-         * Create a callers or callees work item that will process all edges entering or leaving a call graph node
-         * respectively
-         *
-         * @param cgNode current call graph node (for which the callees or callers should be processed)
-         * @param type Either CALLEES or CALLERS indicating which type of edges should be processed
-         */
-        OldWorkItem(/*OrderedPair<IMethod, Context>*/int cgNode, OldCGEdgeType type) {
-            assert type != OldCGEdgeType.PRECISE_CALLEE;
-            this.type = type;
-            this.cgNode = cgNode;
-            this.callSite = null;
+        public static WorkItem createCallSiteWorkItem(/*ProgramPointReplica*/int callSite) {
+            return new WorkItem(-1, callSite, -1);
+        }
+
+        public static WorkItem createCallerWorkItem(/*OrderedPair<IMethod, Context>*/int cgNode) {
+            return new WorkItem(cgNode, -1, -1);
+        }
+
+        public static WorkItem createCalleeWorkItem(/*OrderedPair<IMethod, Context>*/int callee) {
+            return new WorkItem(-1, -1, callee);
         }
 
         /**
-         * Create a work item for a particular call-site rather than processing all callees within an entire method
+         * Create a work item that will process all edges leaving a call graph node or leaving a call site
          *
-         * @param callSite precise call site
-         * @param cgNode node containing the call site
+         * @param cgNode call graph node for which the callers should be processed, -1 if this is a CALLSITE work item
+         * @param callSite call site for which the callees should be processed, -1 if this is a CALLER work item
          */
-        OldWorkItem(CallSiteProgramPoint callSite, /*OrderedPair<IMethod, Context>*/int cgNode) {
-            this.type = OldCGEdgeType.PRECISE_CALLEE;
+        private WorkItem(/*OrderedPair<IMethod, Context>*/int cgNode, /*ProgramPointReplica*/int callSite, /*OrderedPair<IMethod, Context>*/
+                         int callee) {
             this.cgNode = cgNode;
             this.callSite = callSite;
+            this.callee = callee;
+            this.memoizedHashCode = computeHashCode();
         }
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((this.callSite == null) ? 0 : this.callSite.hashCode());
-            result = prime * result + this.cgNode;
-            result = prime * result + ((this.type == null) ? 0 : this.type.hashCode());
-            return result;
+            return memoizedHashCode;
+        }
+
+        public int computeHashCode() {
+            return 13 * this.callSite + 17 * this.cgNode + 23 * this.callee;
         }
 
         @Override
@@ -515,19 +630,14 @@ public final class RelevantNodesIncremental {
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            OldWorkItem other = (OldWorkItem) obj;
+            WorkItem other = (WorkItem) obj;
             if (this.cgNode != other.cgNode) {
                 return false;
             }
-            if (this.type != other.type) {
+            if (this.callSite != other.callSite) {
                 return false;
             }
-            if (this.callSite == null) {
-                if (other.callSite != null) {
-                    return false;
-                }
-            }
-            else if (!this.callSite.equals(other.callSite)) {
+            if (this.callee != other.callee) {
                 return false;
             }
             return true;
@@ -535,8 +645,7 @@ public final class RelevantNodesIncremental {
 
         @Override
         public String toString() {
-            return "WorkItem\n\t\ttype=" + this.type + "\n\t\tcgNode=" + this.cgNode + "\n\t\tcallSite="
-                    + this.callSite;
+            return "cgNode=" + this.cgNode + " callSite=" + this.callSite + " callee=" + this.callee;
         }
 
         /**
@@ -546,28 +655,18 @@ public final class RelevantNodesIncremental {
          * @return more verbose string representation for "this"
          */
         public String toString(PointsToGraph g) {
-            return "WorkItem\n\t\ttype=" + this.type + "\n\t\tcgNode=" + g.lookupCallGraphNodeDictionary(this.cgNode)
-                    + "\n\t\tcallSite="
-                    + this.callSite;
+            StringBuilder sb = new StringBuilder();
+            if (cgNode != -1) {
+                sb.append("cgNode=" + g.lookupCallGraphNodeDictionary(this.cgNode));
+            }
+            if (callSite != -1) {
+                sb.append("callSite=" + g.lookupCallSiteReplicaDictionary(this.callSite));
+            }
+            if (callee != -1) {
+                sb.append("callee=" + g.lookupCallGraphNodeDictionary(this.callee));
+            }
+            return sb.toString();
         }
-    }
-
-    /**
-     * Indication of which type of edges to inspect while finding relevant nodes
-     */
-    static enum OldCGEdgeType {
-        /**
-         * Callee edges (i.e. edges in the call graph _from_ a given call graph node)
-         */
-        CALLEES,
-        /**
-         * Caller edges (i.e. edges in the call graph _to_ a given call graph node)
-         */
-        CALLERS,
-        /**
-         * Edge for a paricular call site
-         */
-        PRECISE_CALLEE;
     }
 
     /**
@@ -625,9 +724,8 @@ public final class RelevantNodesIncremental {
     private void recordSourceQueryResultsChanged(SourceRelevantNodesQuery query) {
         long start = System.currentTimeMillis();
 
-
         // results changed! rerun relevant queries that depend on the results of the relevant nodes query
-        Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependency.get(query);
+        Set<RelevantNodesQuery> deps = relevantNodeSourceQueryDependencies.get(query);
         if (deps == null) {
             return;
         }
@@ -646,16 +744,23 @@ public final class RelevantNodesIncremental {
         // ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
         final ConcurrentIntMap<MutableIntSet> relevanceDependencies;
 
-        final Set<OldWorkItem> alreadyVisited;
+        final Set<WorkItem> alreadyVisited;
+
+        private final int hashcode;
 
         public SourceQueryResults(/*ConcurrentMap<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>*/ConcurrentIntMap<MutableIntSet> relevanceDependencies,
-                                  Set<OldWorkItem> allVisited) {
+                                  Set<WorkItem> allVisited) {
             this.relevanceDependencies = relevanceDependencies;
             this.alreadyVisited = allVisited;
+            this.hashcode = computeHashCode();
         }
 
         @Override
         public int hashCode() {
+            return hashcode;
+        }
+
+        public int computeHashCode() {
             final int prime = 31;
             int result = 1;
             result = prime * result + ((this.alreadyVisited == null) ? 0 : this.alreadyVisited.hashCode());
@@ -676,6 +781,9 @@ public final class RelevantNodesIncremental {
                 return false;
             }
             SourceQueryResults other = (SourceQueryResults) obj;
+            if (this.hashcode != other.hashcode) {
+                return false;
+            }
             if (this.alreadyVisited == null) {
                 if (other.alreadyVisited != null) {
                     return false;
@@ -724,13 +832,18 @@ public final class RelevantNodesIncremental {
         SourceRelevantNodesQuery sourceQuery = new SourceRelevantNodesQuery(relevantQuery.sourceCGNode);
         addRelevantNodeSourceQueryDependency(relevantQuery, sourceQuery);
 
-
         SourceQueryResults sqr = sourceQueryCache.get(sourceQuery);
         if (sqr == null) {
-            // This is the first time computing this query include the source in the initial work queue
-            Set<OldWorkItem> initialQ = new HashSet<>();
-            initialQ.add(new OldWorkItem(relevantQuery.sourceCGNode, OldCGEdgeType.CALLEES));
-            initialQ.add(new OldWorkItem(relevantQuery.sourceCGNode, OldCGEdgeType.CALLERS));
+            // This is the first time computing this query include the source node callers and call-sites
+            // in the initial work queue
+            Set<WorkItem> initialQ = new HashSet<>();
+            initialQ.add(WorkItem.createCallerWorkItem(relevantQuery.sourceCGNode));
+            //          XXX  addSourceQueryCallGraphNodeCalleeDependency(sourceQuery, relevantQuery.sourceCGNode);
+            IntIterator callSites = g.getCallSitesWithinMethod(relevantQuery.sourceCGNode).intIterator();
+            while (callSites.hasNext()) {
+                initialQ.add(WorkItem.createCallSiteWorkItem(callSites.next()));
+            }
+            initialQ.add(WorkItem.createCalleeWorkItem(relevantQuery.sourceCGNode));
             addStartItems(sourceQuery, initialQ);
         }
         else {
@@ -740,6 +853,7 @@ public final class RelevantNodesIncremental {
 
         // Map<OrderedPair<IMethod, Context>, Set<OrderedPair<IMethod, Context>>>
         ConcurrentIntMap<MutableIntSet> deps = sqr.relevanceDependencies;
+        Set<WorkItem> visited = sqr.alreadyVisited;
 
         /*
          * The set of relevant cg nodes, ie., an overapproximation of nodes that are on
@@ -752,7 +866,7 @@ public final class RelevantNodesIncremental {
             newlyRelevant.add(relevantQuery.sourceCGNode);
         }
 
-        if (deps.get(relevantQuery.destCGNode) != null) {
+        if (deps.get(relevantQuery.destCGNode) != null || haveVisited(visited, relevantQuery.destCGNode)) {
             // The destination is reachable from the source
             // The destination is relevant
             newlyRelevant.add(relevantQuery.destCGNode);
@@ -772,6 +886,7 @@ public final class RelevantNodesIncremental {
                 // cg has become relevant, so use relevanceDependencies to figure out
                 // what other nodes are now relevant.
                 /*Set<OrderedPair<IMethod, Context>>*/IntSet s = deps.get(cg);
+                /*Set<OrderedPair<IMethod, Context>>*/IntSet callers = getVisitedCallers(cg, visited);
                 if (DEBUG) {
                     if (s != null) {
                         /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator iter = s.intIterator();
@@ -782,16 +897,32 @@ public final class RelevantNodesIncremental {
                     else {
                         System.err.println(("RNI%%\t\tNO DEPS"));
                     }
+                    if (callers != null) {
+                        /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator iter2 = callers.intIterator();
+                        while (iter2.hasNext()) {
+                            System.err.println("RNI%%\t\tdep " + g.lookupCallGraphNodeDictionary(iter2.next()));
+                        }
+                    }
+                    else {
+                        System.err.println(("RNI%%\t\tNO CALLEE DEPS"));
+                    }
                 }
+
                 if (s != null) {
                     /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator iter = s.intIterator();
                     while (iter.hasNext()) {
                         newlyRelevant.add(iter.next());
                     }
                 }
+                if (callers != null) {
+                    /*Iterator<OrderedPair<IMethod, Context>>*/IntIterator iter2 = callers.intIterator();
+                    while (iter2.hasNext()) {
+                        newlyRelevant.add(iter2.next());
+                    }
+                }
             }
         }
-        assert relevant.isEmpty() || relevant.contains(relevantQuery.sourceCGNode);
+        assert relevant.isEmpty() || relevant.contains(relevantQuery.sourceCGNode) : "If there are any relevant nodes the source must be relevant.";
 
         // Record the results and rerun any dependencies if they changed
         recordRelevantNodesResults(relevantQuery, relevant);
@@ -803,8 +934,57 @@ public final class RelevantNodesIncremental {
         }
 
         // Reset the DEBUG variable after each call to this method
-        DEBUG = false;
+        if (CHECK_OLD) {
+            //        System.err.println("!!!!!!!!!!!!! CHECKING");
+            oldRelevantComputation.clearCaches();
+            IntSet relevant2 = oldRelevantComputation.computeRelevantNodes(relevantQuery);
+
+            //        System.err.println("!!!!!!!!!!!!! CHECKED");
+            if (!relevant.sameValue(relevant2)) {
+                System.err.println("Not the same :(");
+                System.err.println(relevantQuery);
+                System.err.println("OLD: " + relevant2);
+                System.err.println("NEW: " + relevant);
+                throw new RuntimeException("FAILED CHECK");
+            }
+        }
         return relevant;
+    }
+
+    private boolean haveVisited(Set<WorkItem> visited, int destCGNode) {
+        IntIterator sites = g.getCallSitesWithinMethod(destCGNode).intIterator();
+        while (sites.hasNext()) {
+            int cs = sites.next();
+            WorkItem wi = WorkItem.createCallSiteWorkItem(cs);
+            if (visited.contains(wi)) {
+                // A call site of the destination has been visited
+                return true;
+            }
+        }
+
+        if (visited.contains(WorkItem.createCalleeWorkItem(destCGNode))) {
+            return true;
+        }
+        return false;
+    }
+
+    private IntSet getVisitedCallers(int cg, Set<WorkItem> visited) {
+        long start = System.currentTimeMillis();
+        /*Iterator<ProgramPointReplica>*/IntIterator callers = g.getCallersOf(cg).intIterator();
+        if (!callers.hasNext()) {
+            // No callers
+            return new com.ibm.wala.util.intset.EmptyIntSet();
+        }
+        MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
+        while (callers.hasNext()) {
+            // Check the specific call sites
+            /*ProgramPointReplica*/int callSite = callers.next();
+            if (visited.contains(WorkItem.createCallSiteWorkItem(callSite))) {
+                s.add(getCGNodeForCallSiteReplica(callSite));
+            }
+        }
+        calleeProcessingTime.addAndGet(System.currentTimeMillis() - start);
+        return s;
     }
 
     /////////////////////////
@@ -815,18 +995,24 @@ public final class RelevantNodesIncremental {
      * Dependencies: if the callers of the key CGNode change then recompute the source queries in the set mapped to that
      * key
      */
-    ConcurrentIntMap<Set<SourceRelevantNodesQuery>> sourceQueryCallerDependencies = AnalysisUtil.createConcurrentIntMap();
+    // ConcurrentMap<OrderedPair<IMethod, Context>, Set<SourceRelevantNodesQuery>>
+    private final ConcurrentIntMap<Set<SourceRelevantNodesQuery>> sourceQueryCallerDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
      * Dependencies: if the callees for the key call-site change then recompute the source queries in the set mapped to
      * that key
      */
     // ConcurrentMap<ProgramPointReplica, Set<SourceRelevantNodesQuery>>
-    ConcurrentIntMap<Set<SourceRelevantNodesQuery>> sourceQueryCalleeDependencies = AnalysisUtil.createConcurrentIntMap();
+    private final ConcurrentIntMap<Set<SourceRelevantNodesQuery>> sourceQueryCalleeDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
      * Dependencies: if the results for the source query starting at a key changes then recompute the relevant nodes
      * queries mapped to that key
      */
-    ConcurrentMap<SourceRelevantNodesQuery, Set<RelevantNodesQuery>> relevantNodeSourceQueryDependency = AnalysisUtil.createConcurrentHashMap();
+    private final ConcurrentMap<SourceRelevantNodesQuery, Set<RelevantNodesQuery>> relevantNodeSourceQueryDependencies = AnalysisUtil.createConcurrentHashMap();
+    /**
+     * Program point queries that depend on the findRelevantNodes queries
+     */
+    // ConcurrentMap<RelevantNodesQuery, Set<ProgramPointSubQuery>>
+    private final ConcurrentMap<RelevantNodesQuery, MutableIntSet> relevantNodesDependencies = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Record a dependency of sourceCGNode on the callers of calleeCGNode. If the callers of calleeCGNode change then
@@ -880,13 +1066,14 @@ public final class RelevantNodesIncremental {
      * @param relevantQuery relevant node query that depends on the results of a source query
      * @param sourceQuery query that computes dependencies starting at a particular source
      */
-    private void addRelevantNodeSourceQueryDependency(RelevantNodesQuery relevantQuery, SourceRelevantNodesQuery sourceQuery) {
+    private void addRelevantNodeSourceQueryDependency(RelevantNodesQuery relevantQuery,
+                                                      SourceRelevantNodesQuery sourceQuery) {
         long start = System.currentTimeMillis();
 
-        Set<RelevantNodesQuery> s = relevantNodeSourceQueryDependency.get(sourceQuery);
+        Set<RelevantNodesQuery> s = relevantNodeSourceQueryDependencies.get(sourceQuery);
         if (s == null) {
             s = AnalysisUtil.createConcurrentSet();
-            Set<RelevantNodesQuery> existing = relevantNodeSourceQueryDependency.putIfAbsent(sourceQuery, s);
+            Set<RelevantNodesQuery> existing = relevantNodeSourceQueryDependencies.putIfAbsent(sourceQuery, s);
             if (existing != null) {
                 s = existing;
             }
@@ -896,65 +1083,65 @@ public final class RelevantNodesIncremental {
         queryDepTime.addAndGet(System.currentTimeMillis() - start);
     }
 
-    /**
-     * Query to compute relevant nodes dependencies from a source call graph node
-     */
-    public static class SourceRelevantNodesQuery {
-        /**
-         * Node to start the query from
-         */
-        final/*OrderedPair<IMethod, Context>*/int sourceCGNode;
-
-        /**
-         * Query that computes the dependencies needed to compute relevant node queries from a source node.
-         *
-         * @param sourceCGNode source node to run the query from
-         */
-        public SourceRelevantNodesQuery(/*OrderedPair<IMethod, Context>*/int sourceCGNode) {
-            this.sourceCGNode = sourceCGNode;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + this.sourceCGNode;
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            SourceRelevantNodesQuery other = (SourceRelevantNodesQuery) obj;
-            if (this.sourceCGNode != other.sourceCGNode) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "Source ID: " + sourceCGNode;
-        }
-
-        /**
-         * Lookup the call graph nodes for the source and destination and print them
-         *
-         * @param g points-to graph
-         * @return more verbose string representation for "this"
-         */
-        public String toString(PointsToGraph g) {
-            return "Source ID: " + g.lookupCallGraphNodeDictionary(sourceCGNode);
-        }
-    }
+    //    /**
+    //     * Query to compute relevant nodes dependencies from a source call graph node
+    //     */
+    //    public static class SourceRelevantNodesQuery {
+    //        /**
+    //         * Node to start the query from
+    //         */
+    //        final/*OrderedPair<IMethod, Context>*/int sourceCGNode;
+    //
+    //        /**
+    //         * Query that computes the dependencies needed to compute relevant node queries from a source node.
+    //         *
+    //         * @param sourceCGNode source node to run the query from
+    //         */
+    //        public SourceRelevantNodesQuery(/*OrderedPair<IMethod, Context>*/int sourceCGNode) {
+    //            this.sourceCGNode = sourceCGNode;
+    //        }
+    //
+    //        @Override
+    //        public int hashCode() {
+    //            final int prime = 31;
+    //            int result = 1;
+    //            result = prime * result + this.sourceCGNode;
+    //            return result;
+    //        }
+    //
+    //        @Override
+    //        public boolean equals(Object obj) {
+    //            if (this == obj) {
+    //                return true;
+    //            }
+    //            if (obj == null) {
+    //                return false;
+    //            }
+    //            if (getClass() != obj.getClass()) {
+    //                return false;
+    //            }
+    //            SourceRelevantNodesQuery other = (SourceRelevantNodesQuery) obj;
+    //            if (this.sourceCGNode != other.sourceCGNode) {
+    //                return false;
+    //            }
+    //            return true;
+    //        }
+    //
+    //        @Override
+    //        public String toString() {
+    //            return "Source ID: " + sourceCGNode;
+    //        }
+    //
+    //        /**
+    //         * Lookup the call graph nodes for the source and destination and print them
+    //         *
+    //         * @param g points-to graph
+    //         * @return more verbose string representation for "this"
+    //         */
+    //        public String toString(PointsToGraph g) {
+    //            return "Source ID: " + g.lookupCallGraphNodeDictionary(sourceCGNode);
+    //        }
+    //    }
 
     ////////////////////////////////////////
     ///Diagnostic information can be removed without affecting algorithm
@@ -980,6 +1167,7 @@ public final class RelevantNodesIncremental {
     private AtomicLong totalTime = new AtomicLong(0);
     private AtomicLong queryDepTime = new AtomicLong(0);
     private AtomicLong recordRelevantTime = new AtomicLong(0);
+    private AtomicLong calleeProcessingTime = new AtomicLong(0);
 
     // Timing information for source queries
     private AtomicLong startItemTime = new AtomicLong(0);
@@ -1008,14 +1196,17 @@ public final class RelevantNodesIncremental {
         double recordRelTime = recordRelevantTime.get() / 1000.0;
         double recordSourceTime = recordSourceQueryTime.get() / 1000.0;
         double sourceTime = totalSourceTime.get() / 1000.0;
+        double calleeProcessing = calleeProcessingTime.get() / 1000.0;
 
         double size = totalSize.get();
         StringBuffer sb = new StringBuffer();
         sb.append("Total: " + analysisTime + "s;" + "\n");
+        analysisTime *= analysisHandle.numThreads();
         sb.append("RELEVANT NODES QUERY EXECUTION" + "\n");
-        sb.append("    computeRelevantNodes: " + relevantTime + "s; RATIO: "
-                + (relevantTime / (analysisTime * analysisHandle.numThreads())) + "\n");
-        sb.append("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: " + (recordRelTime / relevantTime)
+        sb.append("    computeRelevantNodes: " + relevantTime + "s; RATIO: " + (relevantTime / analysisTime) + "\n");
+        sb.append("    calleeProcessingTime: " + calleeProcessing + "s; RATIO: " + (calleeProcessing / analysisTime)
+                + "\n");
+        sb.append("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: " + (recordRelTime / analysisTime)
                 + "\n");
         sb.append("    size: " + size + " average: " + size / computedResponses.get() + "\n");
         sb.append("    sources: " + sources.size() + " sources/computed: " + ((double) sources.size())
@@ -1024,92 +1215,93 @@ public final class RelevantNodesIncremental {
                 / computedResponses.get() + "\n");
 
         sb.append("SOURCE QUERY EXECUTION" + "\n");
-        sb.append("    computeSourceDependencies: " + sourceTime + "s; RATIO: "
-                + (sourceTime / (analysisTime * analysisHandle.numThreads())) + "\n");
-        sb.append("    addSourceQueryCalleeDependency: " + calleeTime + "s; RATIO: " + (calleeTime / sourceTime) + "\n");
-        sb.append("    addSourceQueryCallerDependency: " + callerTime + "s; RATIO: " + (callerTime / sourceTime) + "\n");
-        sb.append("    addStartItems: " + startItem + "s; RATIO: " + (startItem / sourceTime) + "\n");
-        sb.append("    addRelevantNodesSourceQueryDependency: " + queryTime + "s; RATIO: " + (queryTime / sourceTime)
+        sb.append("    computeSourceDependencies: " + sourceTime + "s; RATIO: " + (sourceTime / (analysisTime)) + "\n");
+        sb.append("    addSourceQueryCalleeDependency: " + calleeTime + "s; RATIO: " + (calleeTime / analysisTime)
                 + "\n");
-        sb.append("    recordSourceQueryResults: " + recordSourceTime + "s; RATIO: " + (recordSourceTime / sourceTime)
-                + ";" + "\n");
+        sb.append("    addSourceQueryCallerDependency: " + callerTime + "s; RATIO: " + (callerTime / analysisTime)
+                + "\n");
+        sb.append("    addStartItems: " + startItem + "s; RATIO: " + (startItem / analysisTime) + "\n");
+        sb.append("    addRelevantNodesSourceQueryDependency: " + queryTime + "s; RATIO: " + (queryTime / analysisTime)
+                + "\n");
+        sb.append("    recordSourceQueryResults: " + recordSourceTime + "s; RATIO: "
+                + (recordSourceTime / analysisTime) + ";" + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" + "\n");
         System.err.println(sb.toString());
     }
 
-    /**
-     * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
-     * program point in the destination call graph node
-     */
-    public static class RelevantNodesQuery {
-        /**
-         * Call graph node containing the source program point
-         */
-        final/*OrderedPair<IMethod, Context>*/int sourceCGNode;
-        /**
-         * Call graph node containing the destination program point
-         */
-        final/*OrderedPair<IMethod, Context>*/int destCGNode;
-
-        /**
-         * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
-         * program point in the destination call graph node
-         *
-         * @param sourceCGNode Call graph node containing the source program point
-         * @param destCGNode Call graph node containing the destination program point
-         */
-        public RelevantNodesQuery(/*OrderedPair<IMethod, Context>*/int sourceCGNode,
-        /*OrderedPair<IMethod, Context>*/int destCGNode) {
-            this.sourceCGNode = sourceCGNode;
-            this.destCGNode = destCGNode;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + this.destCGNode;
-            result = prime * result + this.sourceCGNode;
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            RelevantNodesQuery other = (RelevantNodesQuery) obj;
-            if (this.destCGNode != other.destCGNode) {
-                return false;
-            }
-            if (this.sourceCGNode != other.sourceCGNode) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "Source: " + this.sourceCGNode + " Dest: " + this.destCGNode;
-        }
-
-        /**
-         * Lookup the call graph nodes for the source and destination and print them
-         *
-         * @param g points-to graph
-         * @return more verbose string representation for "this"
-         */
-        public String toString(PointsToGraph g) {
-            return "Source: " + g.lookupCallGraphNodeDictionary(this.sourceCGNode) + " Dest: "
-                    + g.lookupCallGraphNodeDictionary(this.destCGNode);
-        }
-    }
+    //    /**
+    //     * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
+    //     * program point in the destination call graph node
+    //     */
+    //    public static class RelevantNodesQuery {
+    //        /**
+    //         * Call graph node containing the source program point
+    //         */
+    //        final/*OrderedPair<IMethod, Context>*/int sourceCGNode;
+    //        /**
+    //         * Call graph node containing the destination program point
+    //         */
+    //        final/*OrderedPair<IMethod, Context>*/int destCGNode;
+    //
+    //        /**
+    //         * Query to find nodes that are relevant for a query from a program point in the source call graph nodes to a
+    //         * program point in the destination call graph node
+    //         *
+    //         * @param sourceCGNode Call graph node containing the source program point
+    //         * @param destCGNode Call graph node containing the destination program point
+    //         */
+    //        public RelevantNodesQuery(/*OrderedPair<IMethod, Context>*/int sourceCGNode,
+    //        /*OrderedPair<IMethod, Context>*/int destCGNode) {
+    //            this.sourceCGNode = sourceCGNode;
+    //            this.destCGNode = destCGNode;
+    //        }
+    //
+    //        @Override
+    //        public int hashCode() {
+    //            final int prime = 31;
+    //            int result = 1;
+    //            result = prime * result + this.destCGNode;
+    //            result = prime * result + this.sourceCGNode;
+    //            return result;
+    //        }
+    //
+    //        @Override
+    //        public boolean equals(Object obj) {
+    //            if (this == obj) {
+    //                return true;
+    //            }
+    //            if (obj == null) {
+    //                return false;
+    //            }
+    //            if (getClass() != obj.getClass()) {
+    //                return false;
+    //            }
+    //            RelevantNodesQuery other = (RelevantNodesQuery) obj;
+    //            if (this.destCGNode != other.destCGNode) {
+    //                return false;
+    //            }
+    //            if (this.sourceCGNode != other.sourceCGNode) {
+    //                return false;
+    //            }
+    //            return true;
+    //        }
+    //
+    //        @Override
+    //        public String toString() {
+    //            return "Source: " + this.sourceCGNode + " Dest: " + this.destCGNode;
+    //        }
+    //
+    //        /**
+    //         * Lookup the call graph nodes for the source and destination and print them
+    //         *
+    //         * @param g points-to graph
+    //         * @return more verbose string representation for "this"
+    //         */
+    //        public String toString(PointsToGraph g) {
+    //            return "Source: " + g.lookupCallGraphNodeDictionary(this.sourceCGNode) + " Dest: "
+    //                    + g.lookupCallGraphNodeDictionary(this.destCGNode);
+    //        }
+    //    }
 
     /**
      * Clear query and relevant node caches
