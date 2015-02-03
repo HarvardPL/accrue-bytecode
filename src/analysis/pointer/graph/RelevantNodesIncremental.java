@@ -179,6 +179,7 @@ public final class RelevantNodesIncremental {
 
         // Add all the initial items to the work queue
         q.addAll(initial);
+        allVisited.addAll(initial);
 
         if (q.isEmpty()) {
             // There are no new items to process the previous results will suffice
@@ -485,7 +486,7 @@ public final class RelevantNodesIncremental {
          * Create a work item for a particular call-site rather than processing all callees within an entire method
          *
          * @param callSite precise call site
-         * @param context context for call-graph nodes the call-site appears in
+         * @param cgNode node containing the call site
          */
         WorkItem(CallSiteProgramPoint callSite, /*OrderedPair<IMethod, Context>*/int cgNode) {
             this.type = CGEdgeType.PRECISE_CALLEE;

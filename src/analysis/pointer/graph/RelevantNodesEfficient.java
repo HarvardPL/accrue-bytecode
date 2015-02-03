@@ -244,6 +244,7 @@ public final class RelevantNodesEfficient {
 
         // Add all the initial items to the work queue
         q.addAll(initial);
+        allVisited.addAll(initial);
 
         if (q.isEmpty()) {
             // There are no new items to process the previous results will suffice
