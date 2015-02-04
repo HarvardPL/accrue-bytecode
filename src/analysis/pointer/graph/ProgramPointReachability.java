@@ -21,8 +21,8 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
-import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -73,7 +73,7 @@ public final class ProgramPointReachability {
     /**
      * A reference to an object that will find us relevant nodes for reachability queries.
      */
-    private final RelevantNodesLessEfficient relevantNodesIncrementalComputation;
+    private final RelevantNodes relevantNodesIncrementalComputation;
 
     /**
      * Create a new reachability query engine
@@ -85,9 +85,7 @@ public final class ProgramPointReachability {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
-        this.relevantNodesIncrementalComputation = new RelevantNodesLessEfficient(g, analysisHandle, this);
-        //this.relevantNodesIncrementalComputation = new RelevantNodesEfficient(g, analysisHandle, this);
-        //this.relevantNodesIncrementalComputation = new RelevantNodesIncremental(g, analysisHandle, this);
+        this.relevantNodesIncrementalComputation = new RelevantNodes(g, analysisHandle, this);
     }
 
     /**
@@ -1528,7 +1526,6 @@ public final class ProgramPointReachability {
                 + " per computed sub query\n");
         sb.append("\tTotal queries with same dest noKill etc: " + destQueryCount + " "
                 + (destQueryCount / computedDestQuery.get()) + " per computed sub query\n");
-        sb.append("\tCallees processed (in relevant) " + RelevantNodesIncremental.calleesProcessed + "\n");
         sb.append("RECORD RESULTS" + "\n");
         sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
         sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");

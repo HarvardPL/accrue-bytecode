@@ -6,8 +6,8 @@ import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 
 /**
  * This interface provides a mechanism to submit StmtAndContexts to the PointsToAnalysis.
