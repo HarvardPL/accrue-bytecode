@@ -36,6 +36,7 @@ public class AbstractLocation {
      *            field this location represents
      */
     private AbstractLocation(InstanceKey receiverContext, IField field, boolean isArrayContents) {
+        assert receiverContext == null || receiverContext.getConcreteType() != null : "Cannot create a field on a null receiver";
         this.receiverContext = receiverContext;
         this.field = field;
         this.isArrayContents = isArrayContents;
@@ -50,6 +51,7 @@ public class AbstractLocation {
      *            field this location represents
      */
     public static AbstractLocation createNonStatic(InstanceKey receiverContext, FieldReference field) {
+        assert receiverContext.getConcreteType() != null : "Cannot create a field on a null receiver";
         IField f = AnalysisUtil.getClassHierarchy().resolveField(receiverContext.getConcreteType(), field);
         AbstractLocation a = new AbstractLocation(receiverContext, f, false);
         return a;
@@ -87,7 +89,7 @@ public class AbstractLocation {
 
     /**
      * Get the field (null for array contents)
-     * 
+     *
      * @return the field this location is for
      */
     public IField getField() {

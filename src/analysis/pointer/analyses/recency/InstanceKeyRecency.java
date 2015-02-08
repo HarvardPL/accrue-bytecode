@@ -91,7 +91,10 @@ public class InstanceKeyRecency implements InstanceKey {
 
     @Override
     public IClass getConcreteType() {
-        assert ik != null;
+        if (ik == null) {
+            // Give back null for the type when this is the instance key for "null"
+            return null;
+        }
         return ik.getConcreteType();
     }
 

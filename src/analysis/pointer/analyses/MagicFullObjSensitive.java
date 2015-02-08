@@ -53,7 +53,7 @@ public class MagicFullObjSensitive extends HeapAbstractionFactory {
      * @return true if <code>c</code> is one of the tracked classes
      */
     private static boolean isInteresting(IClass c) {
-        return c.getReference().toString().contains("bouncycastle");
+        return c != null && c.getReference().toString().contains("bouncycastle");
     }
 
     @SuppressWarnings("unchecked")

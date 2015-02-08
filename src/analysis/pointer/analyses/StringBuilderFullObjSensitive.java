@@ -56,6 +56,9 @@ public class StringBuilderFullObjSensitive extends HeapAbstractionFactory {
      * @return true if <code>c</code> is a string builder
      */
     private static boolean isStringBuilder(IClass c) {
+        if (c == null) {
+            return false;
+        }
         TypeReference abs = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
                                                        "Ljava/lang/AbstractStringBuilder");
         assert AnalysisUtil.getClassHierarchy().lookupClass(abs) != null : abs;

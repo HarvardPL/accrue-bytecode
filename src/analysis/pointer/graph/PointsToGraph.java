@@ -586,6 +586,7 @@ public final class PointsToGraph {
      */
     public GraphDelta copyEdgesForAllFields(InstanceKeyRecency newlyAllocated, ProgramPointReplica ppr) {
         assert !this.graphFinished;
+        assert !isNullInstanceKey(newlyAllocated) : "Null instance keys are never allocated";
         GraphDelta changed = new GraphDelta(this);
 
         int ikrecent = lookupDictionary(newlyAllocated);

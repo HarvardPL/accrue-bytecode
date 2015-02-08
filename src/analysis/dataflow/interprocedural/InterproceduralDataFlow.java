@@ -18,6 +18,7 @@ import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.AbstractValue;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -579,6 +580,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         while (pointsToIter.hasNext()) {
             InstanceKey o = pointsToIter.next();
+            if (ptg.isNullInstanceKey((InstanceKeyRecency) o)) {
+                // fields on null receiver doesn't correspond to a location
+                continue;
+            }
             AbstractLocation loc = AbstractLocation.createNonStatic(o, field);
             ret.add(loc);
         }
@@ -625,7 +630,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         Iterator<? extends InstanceKey> pointsToIter = ptg.pointsToIterator(getReplica(array, n), ippr);
         while (pointsToIter.hasNext()) {
             InstanceKey o = pointsToIter.next();
-            if (o.getConcreteType().isArrayClass()) {
+            if (o.getConcreteType() != null && o.getConcreteType().isArrayClass()) {
                 return true;
             }
         }
