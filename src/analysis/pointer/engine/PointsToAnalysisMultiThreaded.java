@@ -21,8 +21,8 @@ import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -175,6 +175,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (AccrueAnalysisMain.testMode) {
             System.out.println(totalTime / 1000.0);
         }
+        g.ppReach.printDiagnostics();
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
         System.err.println("   Number of threads used : " + this.numThreads);
@@ -182,8 +183,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         if (!AccrueAnalysisMain.testMode) {
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
-            System.gc();
             System.err.println("   Memory utilization     : "
+                    + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.gc();
+            System.err.println("   Memory utilization post GC: "
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
 

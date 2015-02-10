@@ -59,7 +59,7 @@ public class CollectionsTypeSensitive extends HeapAbstractionFactory {
      * @return true if <code>c</code> is in the java.util package
      */
     private static boolean isJavaUtil(IClass c) {
-        return c.toString().contains("Ljava/util");
+        return c != null && c.toString().contains("Ljava/util");
     }
 
     /**

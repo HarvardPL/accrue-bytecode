@@ -76,7 +76,8 @@ public class CrossProduct extends HeapAbstractionFactory {
 
         @Override
         public IClass getConcreteType() {
-            assert ik1.getConcreteType().equals(ik2.getConcreteType());
+            assert (ik1.getConcreteType() == null && ik2.getConcreteType() == null)
+                    || ik1.getConcreteType().equals(ik2.getConcreteType());
             return ik1.getConcreteType();
         }
 

@@ -495,7 +495,7 @@ public final class PointsToGraph {
     }
 
     ProgramPointReplica lookupCallSiteReplicaDictionary(int key) {
-        assert this.callSiteReplicaDictionary.containsKey(key);
+        assert this.callSiteReplicaDictionary.containsKey(key) : "No replica for " + key;
         return this.callSiteReplicaDictionary.get(key);
     }
 
@@ -586,6 +586,7 @@ public final class PointsToGraph {
      */
     public GraphDelta copyEdgesForAllFields(InstanceKeyRecency newlyAllocated, ProgramPointReplica ppr) {
         assert !this.graphFinished;
+        assert !isNullInstanceKey(newlyAllocated) : "Null instance keys are never allocated";
         GraphDelta changed = new GraphDelta(this);
 
         int ikrecent = lookupDictionary(newlyAllocated);

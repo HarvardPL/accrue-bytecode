@@ -219,6 +219,9 @@ public class KilledAndAlloced {
                 return false;
             }
         }
+        else if (other.alloced == null) {
+            return false;
+        }
         else if (!alloced.sameValue(other.alloced)) {
             return false;
         }

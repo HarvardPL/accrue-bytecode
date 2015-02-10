@@ -21,8 +21,8 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
-import analysis.pointer.graph.RelevantNodesIncremental.RelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodesIncremental.SourceRelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
+import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.PointsToStatement;
@@ -73,7 +73,7 @@ public final class ProgramPointReachability {
     /**
      * A reference to an object that will find us relevant nodes for reachability queries.
      */
-    private final RelevantNodesIncremental relevantNodesIncrementalComputation;
+    private final RelevantNodes relevantNodesIncrementalComputation;
 
     /**
      * Create a new reachability query engine
@@ -85,7 +85,7 @@ public final class ProgramPointReachability {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
-        this.relevantNodesIncrementalComputation = new RelevantNodesIncremental(g, analysisHandle, this);
+        this.relevantNodesIncrementalComputation = new RelevantNodes(g, analysisHandle, this);
     }
 
     /**
@@ -294,7 +294,7 @@ public final class ProgramPointReachability {
 
         this.destinations.add(destination);
         int resp = this.computedResponses.incrementAndGet();
-        if (PRINT_DIAGNOSTICS && (resp % 10000) == 0) {
+        if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
             printDiagnostics();
         }
         this.totalDestQueries.add(new DestQuery(destination, noKill, noAlloc, forbidden));
@@ -1468,7 +1468,7 @@ public final class ProgramPointReachability {
     private AtomicInteger reachabilityRequests = new AtomicInteger(0);
     AtomicInteger relevantRequests = new AtomicInteger(0);
 
-    private void printDiagnostics() {
+    public void printDiagnostics() {
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
         sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses
@@ -1553,5 +1553,6 @@ public final class ProgramPointReachability {
                 + (relevantRequestCount / totalRequests.get()) + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
         System.err.println(sb.toString());
+        relevantNodesIncrementalComputation.printDiagnostics();
     }
 }

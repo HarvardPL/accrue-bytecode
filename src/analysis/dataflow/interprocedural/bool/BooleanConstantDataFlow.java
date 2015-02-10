@@ -11,6 +11,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
 import analysis.dataflow.util.VarContext;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -207,6 +208,11 @@ public class BooleanConstantDataFlow extends InstructionDispatchDataFlow<VarCont
                 break;
             }
 
+            // Have to check for null first since that has no type
+            if (ptg.isNullInstanceKey((InstanceKeyRecency) hContext)) {
+                castAlwaysFails = false;
+                continue;
+            }
             IClass actual = hContext.getConcreteType();
             assert actual != null;
             if (checkedClass.isArrayClass() && actual.equals(AnalysisUtil.getObjectClass())) {

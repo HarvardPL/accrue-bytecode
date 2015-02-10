@@ -78,8 +78,8 @@ public class CallSiteSensitiveOutputStream extends HeapAbstractionFactory {
             assert printStreamClass != null;
         }
 
-        assert receiver.getConcreteType() != null;
-        if (callSite.isStatic() || !cha.isAssignableFrom(printStreamClass, receiver.getConcreteType())) {
+        if (receiver.getConcreteType() == null || callSite.isStatic()
+                || !cha.isAssignableFrom(printStreamClass, receiver.getConcreteType())) {
             callSite = null;
         }
         return ((ContextStack<CallSiteProgramPoint>) callerContext).push(callSite, sensitivity);
