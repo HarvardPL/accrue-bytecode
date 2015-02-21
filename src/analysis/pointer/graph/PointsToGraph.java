@@ -1061,96 +1061,11 @@ public final class PointsToGraph {
         }
     }
 
-
-    static Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> composeIterators(Set<PointsToGraphNode> unfilteredSet,
-                                                                                 Set<OrderedPair<PointsToGraphNode, TypeFilter>> filteredSet) {
-        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> unfilteredIterator = unfilteredSet == null
-                ? null : new LiftUnfilteredIterator(unfilteredSet.iterator());
-        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> filteredIterator = filteredSet == null
-                ? null : filteredSet.iterator();
-
-        Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> iter;
-        if (unfilteredIterator == null) {
-            if (filteredIterator == null) {
-                iter = Collections.<OrderedPair<PointsToGraphNode, TypeFilter>> emptyIterator();
-            }
-            else {
-                iter = filteredIterator;
-            }
-        }
-        else {
-            if (filteredIterator == null) {
-                iter = unfilteredIterator;
-            }
-            else {
-                iter = new ComposedIterators<>(unfilteredIterator,
-                        filteredIterator);
-            }
-        }
-        return iter;
-    }
-
     private IClass concreteType(/*InstanceKey*/int i) {
         if (this.concreteTypeDictionary != null) {
             return this.concreteTypeDictionary.get(i);
         }
         return this.instanceKeyDictionary.get(i).getConcreteType();
-    }
-
-    public static class ComposedIterators<T> implements Iterator<T> {
-        Iterator<T> iter1;
-        Iterator<T> iter2;
-
-        public ComposedIterators(Iterator<T> iter1, Iterator<T> iter2) {
-            this.iter1 = iter1;
-            this.iter2 = iter2;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return this.iter1 != null && this.iter1.hasNext()
-                    || this.iter2.hasNext();
-        }
-
-        @Override
-        public T next() {
-            if (this.iter1 != null) {
-                if (this.iter1.hasNext()) {
-                    return this.iter1.next();
-                }
-                this.iter1 = null;
-            }
-            return this.iter2.next();
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    public static class LiftUnfilteredIterator implements
-    Iterator<OrderedPair<PointsToGraphNode, TypeFilter>> {
-        private final Iterator<PointsToGraphNode> iter;
-
-        public LiftUnfilteredIterator(Iterator<PointsToGraphNode> iter) {
-            this.iter = iter;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return this.iter.hasNext();
-        }
-
-        @Override
-        public OrderedPair<PointsToGraphNode, TypeFilter> next() {
-            return new OrderedPair<>(this.iter.next(), (TypeFilter) null);
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
-        }
     }
 
     public class IntToInstanceKeyIterator implements Iterator<InstanceKey> {
