@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import util.print.PrettyPrinter;
-import analysis.dataflow.interprocedural.AnalysisResults;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
@@ -47,7 +46,7 @@ public class IntervalInterProceduralDataFlow extends InterproceduralDataFlow<Var
     }
 
     @Override
-    public AnalysisResults getAnalysisResults() {
+    public IntervalResults getAnalysisResults() {
         return results;
     }
 

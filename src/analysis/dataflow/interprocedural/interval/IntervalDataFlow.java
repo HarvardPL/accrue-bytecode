@@ -3,6 +3,7 @@ package analysis.dataflow.interprocedural.interval;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -795,5 +796,27 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                               ISSABasicBlock current) {
         // TODO Set up constant uses
         return super.flowInstruction(i, inItems, cfg, current);
+    }
+
+    @Override
+    protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
+                                  Map<ISSABasicBlock, VarContext<IntervalAbsVal>> outItems) {
+        IntervalResults results = ((IntervalInterProceduralDataFlow) interProc).getAnalysisResults();
+        for (SSAInstruction i : justProcessed) {
+            assert getAnalysisRecord(i) != null : "No analysis record for " + i + " in "
+                    + PrettyPrinter.cgNodeString(currentNode);
+            VarContext<IntervalAbsVal> input = confluence(getAnalysisRecord(i).getInput(), justProcessed);
+            Map<Integer, IntervalAbsVal> intervalMapLocals = new HashMap<>();
+            Map<AbstractLocation, IntervalAbsVal> intervalMapLocations = new HashMap<>();
+            for (Integer j : input.getLocals()) {
+                intervalMapLocals.put(j, input.getLocal(j));
+            }
+            for (AbstractLocation loc : input.getLocations()) {
+                intervalMapLocations.put(loc, input.getLocation(loc));
+            }
+            results.replaceIntervalMapForLocals(intervalMapLocals, i, currentNode);
+            results.replaceIntervalMapForLocations(intervalMapLocations, i, currentNode);
+        }
+        super.postBasicBlock(cfg, justProcessed, outItems);
     }
 }
