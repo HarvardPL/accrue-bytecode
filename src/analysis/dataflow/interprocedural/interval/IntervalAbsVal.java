@@ -6,6 +6,8 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
 
     protected double min;
     protected double max;
+
+    protected static final IntervalAbsVal ZERO = new IntervalAbsVal(0., 0.);
     protected static final IntervalAbsVal TOP_ELEMENT = new IntervalAbsVal(Double.NEGATIVE_INFINITY,
                                                                            Double.POSITIVE_INFINITY);
     protected static final IntervalAbsVal BOTTOM_ELEMENT = new IntervalAbsVal(Double.NaN, Double.NaN);
@@ -24,7 +26,7 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
         if (this == BOTTOM_ELEMENT || that == TOP_ELEMENT) {
             return true;
         }
-        return (this.min > that.min) && (this.max < that.max);
+        return (this.min >= that.min) && (this.max <= that.max);
     }
 
     @Override
@@ -51,6 +53,44 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
 
     public boolean containsZero() {
         return min <= 0. && max >= 0.;
+    }
+
+    /**
+     * Negation of the interval.
+     */
+    public IntervalAbsVal neg() {
+        if (this == TOP_ELEMENT) {
+            return TOP_ELEMENT;
+        }
+        return new IntervalAbsVal(-this.max, -this.min);
+    }
+
+    /**
+     * Constrain to be less than a number.
+     */
+    public IntervalAbsVal le(double n) {
+        // No prior information, add max constraint
+        if (this == BOTTOM_ELEMENT) {
+            return new IntervalAbsVal(Double.NEGATIVE_INFINITY, n);
+        }
+        if (n < this.min) {
+            return BOTTOM_ELEMENT;
+        }
+        return new IntervalAbsVal(this.min, Math.min(this.max, n));
+    }
+
+    /**
+     * Constrain to be greater than a number.
+     */
+    public IntervalAbsVal ge(double n) {
+        // No prior information, add min constraint
+        if (this == BOTTOM_ELEMENT) {
+            return new IntervalAbsVal(n, Double.POSITIVE_INFINITY);
+        }
+        if (n > this.max) {
+            return BOTTOM_ELEMENT;
+        }
+        return new IntervalAbsVal(Math.max(this.min, n), this.max);
     }
 
 }
