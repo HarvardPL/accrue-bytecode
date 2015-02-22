@@ -174,7 +174,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
         i++;
         iterations.put(n, i);
-        if (i >= 100) {
+        if (i >= 1000) {
             throw new RuntimeException("Analyzed the same CG node " + i + " times: " + PrettyPrinter.cgNodeString(n));
         }
         return i;
@@ -608,7 +608,10 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
 
         Set<AbstractLocation> ret = new LinkedHashSet<>();
         while (pointsToIter.hasNext()) {
-            InstanceKey o = pointsToIter.next();
+            InstanceKeyRecency o = (InstanceKeyRecency) pointsToIter.next();
+            if (ptg.isNullInstanceKey(o)) {
+                continue;
+            }
             AbstractLocation loc = AbstractLocation.createArrayContents(o);
             ret.add(loc);
         }
