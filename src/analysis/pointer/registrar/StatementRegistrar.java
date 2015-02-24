@@ -51,6 +51,7 @@ import com.ibm.wala.ssa.SSAArrayLoadInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSACFG;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
+import com.ibm.wala.ssa.SSAFieldAccessInstruction;
 import com.ibm.wala.ssa.SSAGetCaughtExceptionInstruction;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
@@ -298,6 +299,9 @@ public class StatementRegistrar {
                     insToPP.put(ins, insToPPSubGraph.get(ins).normalExit());
                 }
                 else if (ins instanceof SSAInvokeInstruction) {
+                    insToPP.put(ins, insToPPSubGraph.get(ins).entry());
+                }
+                else if (ins instanceof SSAFieldAccessInstruction) {
                     insToPP.put(ins, insToPPSubGraph.get(ins).entry());
                 }
             }

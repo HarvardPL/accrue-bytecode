@@ -15,7 +15,9 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
     protected static final IntervalAbsVal NEGATIVE = new IntervalAbsVal(Double.NEGATIVE_INFINITY, 0.);
 
     public IntervalAbsVal(double min, double max) {
-        assert min <= max;
+        if (!Double.isNaN(min) && !Double.isNaN(max)) {
+            assert min <= max : "min is " + min + " max is " + max;
+        }
         this.min = min;
         this.max = max;
     }
@@ -91,6 +93,11 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
             return BOTTOM_ELEMENT;
         }
         return new IntervalAbsVal(Math.max(this.min, n), this.max);
+    }
+
+    @Override
+    public String toString() {
+        return "[" + min + "," + max + "]";
     }
 
 }

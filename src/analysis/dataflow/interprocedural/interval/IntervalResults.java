@@ -1,12 +1,23 @@
 package analysis.dataflow.interprocedural.interval;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
+import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.AnalysisResults;
+import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.AbstractLocation;
 
+import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 
 public class IntervalResults implements AnalysisResults {
@@ -33,6 +44,93 @@ public class IntervalResults implements AnalysisResults {
         resultsForNode.replaceIntervalMapForLocations(intervalMap, i);
     }
 
+    /**
+     * Will write the results for the first context for the given method
+     *
+     * @param writer writer to write to
+     * @param m method to write the results for
+     *
+     * @throws IOException issues with the writer
+     */
+    public void writeResultsForMethod(Writer writer, String m, ReachabilityResults reachable) throws IOException {
+        for (CGNode n : allResults.keySet()) {
+            if (PrettyPrinter.methodString(n.getMethod()).contains(m)) {
+                writeResultsForNode(writer, n, reachable);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Write the results for each call graph node to the sepcified directory
+     *
+     * @param reachable results of a reachability analysis
+     * @param directory directory to print to
+     * @throws IOException file trouble
+     */
+    public void writeAllToFiles(ReachabilityResults reachable, String directory) throws IOException {
+        for (CGNode n : allResults.keySet()) {
+            String cgString = PrettyPrinter.cgNodeString(n);
+            if (cgString.length() > 200) {
+                cgString = cgString.substring(0, 200);
+            }
+            String fileName = directory + "/interval_" + cgString + ".dot";
+            try (Writer w = new FileWriter(fileName)) {
+                writeResultsForNode(w, n, reachable);
+                System.err.println("DOT written to " + fileName);
+            }
+        }
+    }
+
+    private void writeResultsForNode(Writer writer, final CGNode n, final ReachabilityResults reachable)
+                                                                                                        throws IOException {
+        final ResultsForNode results = allResults.get(n);
+
+        CFGWriter w = new CFGWriter(n.getIR()) {
+
+            PrettyPrinter pp = new PrettyPrinter(n.getIR());
+
+            @Override
+            public String getPrefix(SSAInstruction i) {
+                if (results == null) {
+                    // nothing is non-null
+                    return "[]\\l";
+                }
+
+                Set<String> strings = new HashSet<>();
+                Map<Integer, IntervalAbsVal> integerMapLocals = results.getIntervalMapForLocals(i);
+                Map<AbstractLocation, IntervalAbsVal> integerMapLocations = results.getIntervalMapForLocations(i);
+                for (Integer val : integerMapLocals.keySet()) {
+                    strings.add(pp.valString(val) + "->" + integerMapLocals.get(val).toString());
+                }
+                for (AbstractLocation loc : integerMapLocations.keySet()) {
+                    strings.add(loc.toString() + "->" + integerMapLocations.get(loc).toString());
+                }
+                return strings + "\\l";
+            }
+
+            @Override
+            protected Set<ISSABasicBlock> getUnreachableSuccessors(ISSABasicBlock bb,
+                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+                Set<ISSABasicBlock> unreachable = new LinkedHashSet<>();
+                for (ISSABasicBlock next : cfg.getNormalSuccessors(bb)) {
+                    if (reachable.isUnreachable(bb, next, n)) {
+                        unreachable.add(next);
+                    }
+                }
+
+                for (ISSABasicBlock next : cfg.getExceptionalSuccessors(bb)) {
+                    if (reachable.isUnreachable(bb, next, n)) {
+                        unreachable.add(next);
+                    }
+                }
+                return unreachable;
+            }
+        };
+
+        w.writeVerbose(writer, "", "\\l");
+    }
+
     private static class ResultsForNode {
         /**
          * Map from instruction to a map from variables to their value intervals.
@@ -47,20 +145,12 @@ public class IntervalResults implements AnalysisResults {
             // intentionally blank
         }
 
-        public IntervalAbsVal getInterval(int valNum, SSAInstruction i) {
-            Map<Integer, IntervalAbsVal> m = resultLocals.get(i);
-            if (m == null) {
-                return null;
-            }
-            return m.get(valNum);
+        public Map<Integer, IntervalAbsVal> getIntervalMapForLocals(SSAInstruction i) {
+            return resultLocals.get(i);
         }
 
-        public IntervalAbsVal getInterval(AbstractLocation loc, SSAInstruction i) {
-            Map<AbstractLocation, IntervalAbsVal> m = resultLocations.get(i);
-            if (m == null) {
-                return null;
-            }
-            return m.get(loc);
+        public Map<AbstractLocation, IntervalAbsVal> getIntervalMapForLocations(SSAInstruction i) {
+            return resultLocations.get(i);
         }
 
         public void replaceIntervalMapForLocals(Map<Integer, IntervalAbsVal> intervalMap, SSAInstruction i) {

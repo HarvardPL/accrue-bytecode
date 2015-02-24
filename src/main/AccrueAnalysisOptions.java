@@ -203,6 +203,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("nonnull")) {
                 return;
             }
+            if (value.equals("interval")) {
+                return;
+            }
             if (value.equals("bool")) {
                 return;
             }

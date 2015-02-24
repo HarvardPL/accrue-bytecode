@@ -22,6 +22,8 @@ import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.interval.IntervalInterProceduralDataFlow;
+import analysis.dataflow.interprocedural.interval.IntervalResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
@@ -216,6 +218,26 @@ public class AccrueAnalysisMain {
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
             NonNullResults nonNull = runNonNull(outputLevel, g, r, rvCache);
             nonNull.writeAllToFiles(r, outputDir);
+            break;
+        case "interval":
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            useSingleThreadedPointerAnalysis,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString,
+                                            singleWrappers,
+                                            simplePrint,
+                                            outputDir,
+                                            fileName,
+                                            numThreads);
+            g = results.fst();
+            rvCache = results.snd();
+            r = runReachability(otherOutputLevel, g, rvCache, null);
+            IntervalResults interval = runInterval(outputLevel, g, r, rvCache);
+            interval.writeAllToFiles(r, outputDir);
             break;
         case "precise-ex":
             results = generatePointsToGraph(outputLevel,
@@ -636,6 +658,23 @@ public class AccrueAnalysisMain {
                                              ReferenceVariableCache rvCache) {
         // XXX change true to false to be flow insensitive
         NonNullInterProceduralDataFlow analysis = new NonNullInterProceduralDataFlow(g, r, rvCache, true);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        return analysis.getAnalysisResults();
+    }
+
+    /**
+     * Run the interval analysis and return the results
+     *
+     * @param method method to print the results for
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @return the results of the non-null analysis
+     */
+    private static IntervalResults runInterval(int outputLevel, PointsToGraph g, ReachabilityResults r,
+                                             ReferenceVariableCache rvCache) {
+        // XXX change true to false to be flow insensitive
+        IntervalInterProceduralDataFlow analysis = new IntervalInterProceduralDataFlow(g, r, rvCache, true);
         analysis.setOutputLevel(outputLevel);
         analysis.runAnalysis();
         return analysis.getAnalysisResults();
