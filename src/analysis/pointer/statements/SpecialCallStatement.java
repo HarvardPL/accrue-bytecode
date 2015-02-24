@@ -39,7 +39,7 @@ public class SpecialCallStatement extends CallStatement {
 
     /**
      * Points-to statement for a special method invocation.
-     * 
+     *
      * @param callerPP Method call site
      * @param callee Method being called
      * @param result Node for the assignee if any (i.e. v in v = foo()), null if there is none or if it is a primitive
@@ -69,6 +69,11 @@ public class SpecialCallStatement extends CallStatement {
                 : delta.pointsToIterator(receiverRep, pre, originator);
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
+            assert recHeapCtxt != null : "Null instance key for " + this.callee + " at " + programPoint();
+            if (g.isNullInstanceKey(recHeapCtxt)) {
+                // The receiver points to null that is not a "real" call so there is nothing to process
+                continue;
+            }
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
         }
         return changed;

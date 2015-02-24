@@ -68,6 +68,10 @@ public class TypeSensitive extends HeapAbstractionFactory {
         }
 
         AllocationName<ContextStack<ClassWrapper>> rec = (AllocationName<ContextStack<ClassWrapper>>) receiver;
+        assert receiver != null : "Null receiver in merge. " + callSite + " context " + callerContext;
+        assert rec.getContext() != null : "Null context in merge. " + callSite + " context " + callerContext;
+        assert rec.getAllocationSite() != null : "Null allocation site in merge. " + callSite + " context "
+                + callerContext;
         return rec.getContext().push(new ClassWrapper(rec.getAllocationSite().getAllocatingClass()), n);
     }
 

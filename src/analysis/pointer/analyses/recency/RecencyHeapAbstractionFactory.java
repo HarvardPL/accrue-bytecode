@@ -33,6 +33,9 @@ public class RecencyHeapAbstractionFactory extends HeapAbstractionFactory {
     @Override
     public Context merge(CallSiteProgramPoint callSite, InstanceKey receiver, Context callerContext) {
         InstanceKeyRecency receiverRecency = (InstanceKeyRecency) receiver;
+        assert receiverRecency == null || receiverRecency.baseInstanceKey() != null : "Null base instance key for "
+                + receiverRecency + " at "
+                + callSite;
         return haf.merge(callSite, receiverRecency == null ? null : receiverRecency.baseInstanceKey(), callerContext);
     }
 

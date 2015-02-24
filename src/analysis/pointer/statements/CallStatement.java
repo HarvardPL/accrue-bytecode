@@ -69,6 +69,9 @@ public abstract class CallStatement extends PointsToStatement {
         assert calleeSummary != null;
         assert callee != null;
         assert calleeSummary != null;
+        assert programPoint().isStatic() || receiver != null : "Null receiver for non-static call at " + programPoint();
+        assert programPoint().isStatic() || receiver != null && receiver.baseInstanceKey() != null : "Null base instance key for non-static call at "
+                + programPoint();
         Context calleeContext = haf.merge(programPoint(), receiver, callerContext);
         GraphDelta changed = new GraphDelta(g);
 
