@@ -1695,7 +1695,7 @@ public class StatementRegistrar {
                 assert caughtType.equals(types.getType(catchIns.getException()));
 
                 IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
-                assert caughtClass != null;
+                assert caughtClass != null : "caughtType not found in class hierarchy";
                 boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
                 boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
 
