@@ -1472,14 +1472,15 @@ public final class ProgramPointReachability {
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
         sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses
-                + " computed (" + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue()))
+                + " computed ("
+                + (int) (100 * (cachedResponses.floatValue() / (cachedResponses.floatValue() + computedResponses.floatValue())))
                 + "% hit rate)\n");
         sb.append("Total method requests: " + totalMethodReach + "  ;  " + cachedMethodReach + "  cached "
                 + computedMethodReach + " computed ("
                 + (int) (100 * (cachedMethodReach.floatValue() / totalMethodReach.floatValue())) + "% hit rate)\n");
-        sb.append("Total dest subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  cached "
+        sb.append("Total subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  races "
                 + computedDestQuery + " computed ("
-                + (int) (100 * (cachedDestQuery.floatValue() / totalDestQuery.floatValue())) + "% hit rate)\n");
+                + (int) (100 * (cachedDestQuery.floatValue() / totalDestQuery.floatValue())) + "% race rate)\n");
 
         double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
         double total = totalTime.get() / 1000.0;
