@@ -1692,10 +1692,12 @@ public class StatementRegistrar {
                     CFGWriter.writeToFile(ir);
                     assert false;
                 }
-                assert caughtType.equals(types.getType(catchIns.getException()));
+                assert caughtType.equals(types.getType(catchIns.getException())) : caughtType
+                        + " not equal to type repository type: "
+                        + types.getType(catchIns.getException());
 
                 IClass caughtClass = AnalysisUtil.getClassHierarchy().lookupClass(caughtType);
-                assert caughtClass != null : "caughtType not found in class hierarchy";
+                assert caughtClass != null : caughtType + " not found in class hierarchy";
                 boolean definitelyCaught = TypeRepository.isAssignableFrom(caughtClass, thrownClass);
                 boolean maybeCaught = TypeRepository.isAssignableFrom(thrownClass, caughtClass);
 
