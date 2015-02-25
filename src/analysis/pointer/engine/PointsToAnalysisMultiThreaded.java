@@ -34,6 +34,7 @@ import com.ibm.wala.util.intset.IntIterator;
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     private static final boolean DELAY_OTHER_TASKS = true;
+    private static final boolean PRINT_ALL = false;
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
@@ -205,7 +206,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         g.constructionFinished();
-        if (!AccrueAnalysisMain.testMode) {
+        if (!AccrueAnalysisMain.testMode && PRINT_ALL) {
             registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
             g.dumpPointsToGraphToFile("tests/pointsToGraph");
             g.getCallGraph().dumpCallGraphToFile("tests/callGraph", false);
