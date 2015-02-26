@@ -292,12 +292,11 @@ public final class ProgramPointReachability {
         //            DEBUG2 = true;
         //        }
 
-        this.destinations.add(destination);
+        //        this.destinations.add(destination);
         int resp = this.computedResponses.incrementAndGet();
         if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
             printDiagnostics();
         }
-        this.totalDestQueries.add(new DestQuery(destination, noKill, noAlloc, forbidden));
         long start = System.currentTimeMillis();
         ProgramPointDestinationQuery prq = new ProgramPointDestinationQuery(destination,
                                                                             noKill,
@@ -341,7 +340,6 @@ public final class ProgramPointReachability {
                 cachedDestQuery.incrementAndGet();
                 return true;
             }
-            this.sources.add(src);
 
             // First check the call graph to find the set of call graph nodes that must be searched directly
             // (i.e. the effects for these nodes cannot be summarized).
@@ -431,7 +429,6 @@ public final class ProgramPointReachability {
      */
     private boolean recordQueryResult(/*ProgramPointSubQuery*/int query, boolean b) {
         long start = System.currentTimeMillis();
-        totalQueries.add(query);
         if (b) {
             positiveCache.add(query);
             if (negativeCache.remove(query)) {
@@ -1427,11 +1424,6 @@ public final class ProgramPointReachability {
         }
     }
 
-    private Set<InterProgramPointReplica> destinations = AnalysisUtil.createConcurrentSet();
-    private Set<InterProgramPointReplica> sources = AnalysisUtil.createConcurrentSet();
-    private MutableIntSet totalQueries = AnalysisUtil.createConcurrentIntSet();
-    private Set<DestQuery> totalDestQueries = AnalysisUtil.createConcurrentSet();
-
     // Times
     private AtomicLong queryDepTime = new AtomicLong(0);
     private AtomicLong relevantNodesTime = new AtomicLong(0);
@@ -1500,10 +1492,6 @@ public final class ProgramPointReachability {
         double methodCalleeDep = methodCalleeDepTime.get() / 1000.0;
         double methodCallerDep = methodCallerDepTime.get() / 1000.0;
 
-        double sourceCount = sources.size();
-        double destCount = destinations.size();
-        double queryCount = totalQueries.size();
-        double destQueryCount = totalDestQueries.size();
         double calleeQueryRequestCount = calleeQueryRequests.get();
         double callerQueryRequestCount = callerQueryRequests.get();
         double killQueryRequestCount = killQueryRequests.get();
@@ -1519,14 +1507,6 @@ public final class ProgramPointReachability {
         sb.append("\tRelevant: " + relevantNodes + "s; RATIO: " + relevantNodes / analysisTime + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
-        sb.append("\tTotal sources: " + sourceCount + " " + (sourceCount / computedDestQuery.get())
-                + " per computed sub query\n");
-        sb.append("\tTotal destinations: " + destCount + " " + (destCount / computedDestQuery.get())
-                + " per computed sub query\n");
-        sb.append("\tTotal sub queries: " + queryCount + " " + (queryCount / computedDestQuery.get())
-                + " per computed sub query\n");
-        sb.append("\tTotal queries with same dest noKill etc: " + destQueryCount + " "
-                + (destQueryCount / computedDestQuery.get()) + " per computed sub query\n");
         sb.append("RECORD RESULTS" + "\n");
         sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
         sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");

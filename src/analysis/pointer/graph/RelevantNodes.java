@@ -683,8 +683,6 @@ public final class RelevantNodes {
             recomputedResponses.incrementAndGet();
         }
         long start = System.currentTimeMillis();
-        sources.add(relevantQuery.sourceCGNode);
-        targets.add(relevantQuery.destCGNode);
 
         // Use the source query results to compute the relevant nodes
         SourceRelevantNodesQuery sourceQuery = new SourceRelevantNodesQuery(relevantQuery.sourceCGNode);
@@ -1029,9 +1027,6 @@ public final class RelevantNodes {
     ///Diagnostic information can be removed without affecting algorithm
     ///////////////////////////////////////
 
-    private final/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet sources = AnalysisUtil.createConcurrentIntSet();
-    private final/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet targets = AnalysisUtil.createConcurrentIntSet();
-
     // Counts for relevant node queries
     private AtomicInteger totalRequests = new AtomicInteger(0);
     private AtomicInteger cachedResponses = new AtomicInteger(0);
@@ -1091,10 +1086,6 @@ public final class RelevantNodes {
         sb.append("    recordRelevantNodesResults: " + recordRelTime + "s; RATIO: " + (recordRelTime / analysisTime)
                 + "\n");
         sb.append("    size: " + size + " average: " + size / computedResponses.get() + "\n");
-        sb.append("    sources: " + sources.size() + " sources/computed: " + ((double) sources.size())
-                / computedResponses.get() + "\n");
-        sb.append("    targets: " + targets.size() + " targets/computed: " + ((double) targets.size())
-                / computedResponses.get() + "\n");
 
         sb.append("SOURCE QUERY EXECUTION" + "\n");
         sb.append("    computeSourceDependencies: " + sourceTime + "s; RATIO: " + (sourceTime / (analysisTime)) + "\n");
