@@ -48,7 +48,7 @@ public final class ProgramPointReachability {
     /**
      * Whether to incrementally print diagnostic timing and count information
      */
-    private boolean PRINT_DIAGNOSTICS = true;
+    private boolean PRINT_DIAGNOSTICS = false;
 
     /**
      * Print debug info
