@@ -464,20 +464,26 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private boolean checkPendingQueues(int bound) {
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
+                System.err.println("*********** executePendingAddToSetOrigin");
                 changed |= executePendingAddToSetOrigin();
                 if (this.numRemainingTasks.get() <= bound) {
+                    System.err.println("*********** executePendingAddNonMostRecentOrigin");
                     changed |= executePendingAddNonMostRecentOrigin();
                     if (this.numRemainingTasks.get() <= bound) {
+                        System.err.println("*********** executePendingSourceRelevantNodesQuery");
                         changed |= executePendingSourceRelevantNodesQuery();
                         if (this.numRemainingTasks.get() <= bound) {
+                            System.err.println("*********** executePendingRelevantNodesQuery");
                             changed |= executePendingRelevantNodesQuery();
                             if (this.numRemainingTasks.get() <= bound) {
+                                System.err.println("*********** executePendingPPSubQuery");
                                 changed |= executePendingPPSubQuery();
                             }
                         }
                     }
                 }
             }
+            System.err.println("*********** FINISHED");
             return changed;
         }
 
