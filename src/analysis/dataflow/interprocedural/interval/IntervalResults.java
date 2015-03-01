@@ -102,6 +102,7 @@ public class IntervalResults implements AnalysisResults {
                 Map<AbstractLocation, IntervalAbsVal> integerMapLocations = results.getIntervalMapForLocations(i);
 
                 if (integerMapLocals != null) {
+                    System.err.println(n + ":" + integerMapLocals);
                     for (Integer val : integerMapLocals.keySet()) {
                         if (!pp.valString(val).contains("java.lang.String")) {
                             strings.add(pp.valString(val) + "->" + integerMapLocals.get(val));

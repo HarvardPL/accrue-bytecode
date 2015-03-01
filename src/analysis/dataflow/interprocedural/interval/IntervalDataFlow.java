@@ -113,7 +113,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         for (CGNode callee : targets) {
             Map<ExitType, VarContext<IntervalAbsVal>> out;
             int[] formals;
-            VarContext<IntervalAbsVal> initial = in/*.clearLocalsAndExits()*/;
+            VarContext<IntervalAbsVal> initial = in.clearLocalsAndExits();
 
             if (callee.getMethod().isNative() && !AnalysisUtil.hasSignature(callee.getMethod())) {
                 // Create fake formals so they can be restored at the end
@@ -346,11 +346,14 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
     protected VarContext<IntervalAbsVal> flowPhi(SSAPhiInstruction i, Set<VarContext<IntervalAbsVal>> previousItems,
                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                  ISSABasicBlock current) {
+
+        System.err.println(i);
+
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
 
         IntervalAbsVal val = null;
         for (int j = 0; j < i.getNumberOfUses(); j++) {
-            val = VarContext.safeJoinValues(val, in.getLocal(i.getUse(j)));
+            val = VarContext.safeJoinValues(val, getIntervalOfLocalOrNumber(in, i.getUse(j)));
         }
 
         if (val == null) {
@@ -370,7 +373,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         }
 
         AbstractLocation loc = AbstractLocation.createStatic(i.getDeclaredField());
-        IntervalAbsVal inVal = in.getLocal(i.getVal());
+        IntervalAbsVal inVal = getIntervalOfLocalOrNumber(in, i.getVal());
 
         // get program point
         InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
@@ -810,7 +813,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         VarContext<IntervalAbsVal> out = to;
         for (int j = 1; j < actuals.size(); j++) {
-            if (!isConstant(actuals.get(j))) {
+            if (!isConstant(actuals.get(j)) && newActualValues.get(j) != null) {
                 System.err.println("updating actuals " + actuals.get(j) + " : " + newActualValues.get(j));
                 out = out.setLocal(actuals.get(j), newActualValues.get(j));
             }
