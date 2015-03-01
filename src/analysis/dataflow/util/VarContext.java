@@ -137,7 +137,6 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
      * @return new variable context with the value for the variable replaced
      */
     public VarContext<T> setLocal(int valueNumber, T val) {
-
         if (val == null) {
             throw new RuntimeException("Null vallues are not allowed for locals in a VarContext.");
         }

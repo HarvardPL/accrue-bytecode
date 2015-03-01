@@ -564,7 +564,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                                 + pendingAddToSetOrigin.get().size() + "; pendingPPSubQuery: "
                                 + pendingPPSubQuery.get().size() + "; pendingRelevantNodesQuery: "
                                 + pendingRelevantNodesQuery.get().size() + "; pendingSourceRelevantNodesQuery: "
-                                + pendingSourceRelevantNodesQuery.get().size());
+                                + pendingSourceRelevantNodesQuery.get().size() + "; approxCGNodes: "
+                                + g.getApproxCallGraphSize());
                     }
                     catch (InterruptedException e) {
                         e.printStackTrace();
