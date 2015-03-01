@@ -48,7 +48,7 @@ public final class ProgramPointReachability {
     /**
      * Whether to incrementally print diagnostic timing and count information
      */
-    private boolean PRINT_DIAGNOSTICS = true;
+    private boolean PRINT_DIAGNOSTICS = false;
 
     /**
      * Print debug info
@@ -292,12 +292,11 @@ public final class ProgramPointReachability {
         //            DEBUG2 = true;
         //        }
 
-        this.destinations.add(destination);
+        //        this.destinations.add(destination);
         int resp = this.computedResponses.incrementAndGet();
         if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
             printDiagnostics();
         }
-        this.totalDestQueries.add(new DestQuery(destination, noKill, noAlloc, forbidden));
         long start = System.currentTimeMillis();
         ProgramPointDestinationQuery prq = new ProgramPointDestinationQuery(destination,
                                                                             noKill,
@@ -341,7 +340,6 @@ public final class ProgramPointReachability {
                 cachedDestQuery.incrementAndGet();
                 return true;
             }
-            this.sources.add(src);
 
             // First check the call graph to find the set of call graph nodes that must be searched directly
             // (i.e. the effects for these nodes cannot be summarized).
@@ -431,7 +429,6 @@ public final class ProgramPointReachability {
      */
     private boolean recordQueryResult(/*ProgramPointSubQuery*/int query, boolean b) {
         long start = System.currentTimeMillis();
-        totalQueries.add(query);
         if (b) {
             positiveCache.add(query);
             if (negativeCache.remove(query)) {
@@ -1338,11 +1335,11 @@ public final class ProgramPointReachability {
     }
 
     public void processRelevantNodesQuery(RelevantNodesQuery rq) {
-        this.relevantNodesIncrementalComputation.computeRelevantNodes(rq);
+        this.relevantNodesIncrementalComputation.computeRelevantNodes(RelevantNodesQuery.lookupDictionary(rq));
     }
 
     public void processSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
-        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq);
+        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq.sourceCGNode);
     }
 
     /**
@@ -1358,79 +1355,6 @@ public final class ProgramPointReachability {
     //***********************
     // Diagnostic info
     //***********************
-
-    /**
-     * Description of a single source program point reachability query.
-     */
-    private static final class DestQuery {
-        final InterProgramPointReplica destination;
-        final/*Set<PointsToGraphNode>*/IntSet noKill;
-        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
-        final Set<InterProgramPointReplica> forbidden;
-
-        /**
-         * Create a new sub query from source to destination
-         *
-         * @param source program point to search from
-         * @param destination program point to find
-         * @param noKill points-to graph nodes that must not be killed on a valid path from source to destination
-         * @param noAlloc instance key that must not be allocated on a valid path from source to destination
-         * @param forbidden program points that must not be traversed on a valid path from source to destination
-         */
-        DestQuery(InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
-                  IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                  Set<InterProgramPointReplica> forbidden) {
-            this.destination = destination;
-            this.noKill = noKill;
-            this.noAlloc = noAlloc;
-            this.forbidden = forbidden;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = destination.hashCode();
-            result = prime * result + noAlloc.size();
-            result = prime * result + noKill.size();
-            result = prime * result + forbidden.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (!(obj instanceof DestQuery)) {
-                return false;
-            }
-            DestQuery other = (DestQuery) obj;
-            if (!destination.equals(other.destination)) {
-                return false;
-            }
-            if (noAlloc.isEmpty() != other.noAlloc.isEmpty()) {
-                return false;
-            }
-            if (!noAlloc.sameValue(other.noAlloc)) {
-                return false;
-            }
-            if (noKill.isEmpty() != other.noKill.isEmpty()) {
-                return false;
-            }
-            if (!noKill.sameValue(other.noKill)) {
-                return false;
-            }
-            if (!forbidden.equals(other.forbidden)) {
-                return false;
-            }
-            return true;
-        }
-    }
-
-    private Set<InterProgramPointReplica> destinations = AnalysisUtil.createConcurrentSet();
-    private Set<InterProgramPointReplica> sources = AnalysisUtil.createConcurrentSet();
-    private MutableIntSet totalQueries = AnalysisUtil.createConcurrentIntSet();
-    private Set<DestQuery> totalDestQueries = AnalysisUtil.createConcurrentSet();
 
     // Times
     private AtomicLong queryDepTime = new AtomicLong(0);
@@ -1472,14 +1396,15 @@ public final class ProgramPointReachability {
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
         sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses
-                + " computed (" + (int) (100 * (cachedResponses.floatValue() / totalRequests.floatValue()))
+                + " computed ("
+                + (int) (100 * (cachedResponses.floatValue() / (cachedResponses.floatValue() + computedResponses.floatValue())))
                 + "% hit rate)\n");
         sb.append("Total method requests: " + totalMethodReach + "  ;  " + cachedMethodReach + "  cached "
                 + computedMethodReach + " computed ("
                 + (int) (100 * (cachedMethodReach.floatValue() / totalMethodReach.floatValue())) + "% hit rate)\n");
-        sb.append("Total dest subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  cached "
+        sb.append("Total subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  races "
                 + computedDestQuery + " computed ("
-                + (int) (100 * (cachedDestQuery.floatValue() / totalDestQuery.floatValue())) + "% hit rate)\n");
+                + (int) (100 * (cachedDestQuery.floatValue() / totalDestQuery.floatValue())) + "% race rate)\n");
 
         double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
         double total = totalTime.get() / 1000.0;
@@ -1499,10 +1424,6 @@ public final class ProgramPointReachability {
         double methodCalleeDep = methodCalleeDepTime.get() / 1000.0;
         double methodCallerDep = methodCallerDepTime.get() / 1000.0;
 
-        double sourceCount = sources.size();
-        double destCount = destinations.size();
-        double queryCount = totalQueries.size();
-        double destQueryCount = totalDestQueries.size();
         double calleeQueryRequestCount = calleeQueryRequests.get();
         double callerQueryRequestCount = callerQueryRequests.get();
         double killQueryRequestCount = killQueryRequests.get();
@@ -1518,14 +1439,6 @@ public final class ProgramPointReachability {
         sb.append("\tRelevant: " + relevantNodes + "s; RATIO: " + relevantNodes / analysisTime + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
-        sb.append("\tTotal sources: " + sourceCount + " " + (sourceCount / computedDestQuery.get())
-                + " per computed sub query\n");
-        sb.append("\tTotal destinations: " + destCount + " " + (destCount / computedDestQuery.get())
-                + " per computed sub query\n");
-        sb.append("\tTotal sub queries: " + queryCount + " " + (queryCount / computedDestQuery.get())
-                + " per computed sub query\n");
-        sb.append("\tTotal queries with same dest noKill etc: " + destQueryCount + " "
-                + (destQueryCount / computedDestQuery.get()) + " per computed sub query\n");
         sb.append("RECORD RESULTS" + "\n");
         sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
         sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");

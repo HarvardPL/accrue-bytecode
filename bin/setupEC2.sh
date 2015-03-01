@@ -1,15 +1,15 @@
 #####
 # This file contains commands needed to set up a fresh Amazon EC2 instance
 #
-# 1. Start a new instance
-#    The drive with the code is in Oregon region us-west-2a. Your instance should be here too.
+# 1. Start a new instance and volume (if you don't have one)
+#    Otherwise create a volume and instance in the same location
 # 
-# 2. Attach my volume
-#    On the console Volumes -> attach
+# 2. Attach the volume with the code
+#    On the console Volumes -> Actions -> attach Volume
 # 
 # 3. login 
 # ssh -i ~/.ssh/[KEYFILE_NAME].pem ec2-user@[DNS_NAME]
-# #### I aliased "ssh -i ~/.ssh/[KEYFILE_NAME].pem" to assh and use:
+# #### I aliased "ssh -i [KEYFILE_PATH_AND_NAME].pem" to assh and use:
 # assh ec2-user@[DNS_NAME]
 #
 # 4. Mount the code
@@ -27,5 +27,6 @@
 
 sudo yum -y install git ant ant-junit emacs
 export JAVA_HOME=/usr/lib/jvm/java-1.7.0-openjdk-1.7.0.75.x86_64/
+export ACCRUE_BYTECODE=/mnt/experiments/accrue-bytecode
 cd /mnt/experiments/accrue-bytecode
 git pull
