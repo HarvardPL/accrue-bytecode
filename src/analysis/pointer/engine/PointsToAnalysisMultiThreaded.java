@@ -467,33 +467,24 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 printDiagnostics();
                 System.err.println("*********** executePendingAddToSetOrigin");
                 changed |= executePendingAddToSetOrigin();
-                printDiagnostics();
                 if (this.numRemainingTasks.get() <= bound) {
-                    printDiagnostics();
                     System.err.println("*********** executePendingAddNonMostRecentOrigin");
                     changed |= executePendingAddNonMostRecentOrigin();
-                    printDiagnostics();
                     if (this.numRemainingTasks.get() <= bound) {
-                        printDiagnostics();
                         System.err.println("*********** executePendingSourceRelevantNodesQuery");
                         changed |= executePendingSourceRelevantNodesQuery();
-                        printDiagnostics();
                         if (this.numRemainingTasks.get() <= bound) {
-                            printDiagnostics();
                             System.err.println("*********** executePendingRelevantNodesQuery");
                             changed |= executePendingRelevantNodesQuery();
-                            printDiagnostics();
                             if (this.numRemainingTasks.get() <= bound) {
-                                printDiagnostics();
                                 System.err.println("*********** executePendingPPSubQuery");
                                 changed |= executePendingPPSubQuery();
-                                printDiagnostics();
                             }
                         }
                     }
                 }
             }
-            System.err.println("*********** FINISHED");
+            printDiagnostics();
             return changed;
         }
 
