@@ -92,7 +92,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         List<IntervalAbsVal> newNormalActualValues = new ArrayList<>(numParams);
         List<IntervalAbsVal> newExceptionActualValues = new ArrayList<>(numParams);
         for (int j = 0; j < numParams; j++) {
-            System.out.println(i + " --- " + i.getUse(j));
             actuals.add(i.getUse(j));
             newNormalActualValues.add(null);
             newExceptionActualValues.add(null);
@@ -172,7 +171,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             VarContext<IntervalAbsVal> normal = null;
             if (i.getNumberOfReturnValues() == 1 && calleeReturn != null) {
                 normal = in.setLocal(i.getReturnValue(0), calleeReturn);
-                System.out.println(actuals);
                 normal = updateActuals(newNormalActualValues, actuals, normal);
             }
             else {
@@ -235,13 +233,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                       ISSABasicBlock current) {
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         IntervalAbsVal interval1 = getIntervalOfLocalOrNumber(in, i.getUse(0));
-        if (interval1 == null) {
-            System.out.println(i);
-        }
         IntervalAbsVal interval2 = getIntervalOfLocalOrNumber(in, i.getUse(1));
-        if (interval1 == null) {
-            System.out.println(i);
-        }
 
         IBinaryOpInstruction.Operator op = (IBinaryOpInstruction.Operator) i.getOperator();
         IntervalAbsVal joined = null;
@@ -249,7 +241,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         switch (op) {
         case ADD:
             joined = new IntervalAbsVal(interval1.min + interval2.min, interval1.max + interval2.max);
-            System.err.println(joined.toString());
             break;
         case SUB:
             joined = new IntervalAbsVal(interval1.min - interval2.max, interval1.max - interval2.min);
@@ -346,9 +337,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
     protected VarContext<IntervalAbsVal> flowPhi(SSAPhiInstruction i, Set<VarContext<IntervalAbsVal>> previousItems,
                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                  ISSABasicBlock current) {
-
-        System.err.println(i);
-
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
 
         IntervalAbsVal val = null;
@@ -641,13 +629,11 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         TypeReference t = i.getConcreteType();
         Collection<IField> resolved = AnalysisUtil.getClassHierarchy().lookupClass(t).getAllFields();
         for (IField f : resolved) {
-            System.err.println(f.toString());
             Set<AbstractLocation> locs = interProc.getLocationsForNonStaticField(i.getDef(),
                                                                                  f.getReference(),
                                                                                  currentNode,
                                                                                  ippr);
             for (AbstractLocation loc : locs) {
-                System.err.println(f.toString() + " with abstract loc " + loc.toString());
                 normalOut = normalOut.setLocation(loc, IntervalAbsVal.ZERO);
             }
         }
@@ -662,8 +648,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                            Set<VarContext<IntervalAbsVal>> previousItems,
                                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                            ISSABasicBlock current) {
-        System.err.println(i.toString());
-
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         VarContext<IntervalAbsVal> normal = in;
 
@@ -814,7 +798,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         VarContext<IntervalAbsVal> out = to;
         for (int j = 1; j < actuals.size(); j++) {
             if (!isConstant(actuals.get(j)) && newActualValues.get(j) != null) {
-                System.err.println("updating actuals " + actuals.get(j) + " : " + newActualValues.get(j));
                 out = out.setLocal(actuals.get(j), newActualValues.get(j));
             }
         }
