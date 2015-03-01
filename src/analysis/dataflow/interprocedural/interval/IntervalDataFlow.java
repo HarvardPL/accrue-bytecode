@@ -419,12 +419,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                              Set<VarContext<IntervalAbsVal>> previousItems,
                                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                              ISSABasicBlock current) {
-        VarContext<IntervalAbsVal> in = confluence(previousItems, current);
-        VarContext<IntervalAbsVal> norm = in;
-        if (i.getElementType().isPrimitiveType()) {
-            norm = norm.setLocal(i.getValue(), IntervalAbsVal.TOP_ELEMENT);
-        }
-        return factsToMapWithExceptions(norm, in, current, cfg);
+        return mergeAndCreateMap(previousItems, current, cfg);
     }
 
     @Override
@@ -432,10 +427,16 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                                         Set<VarContext<IntervalAbsVal>> previousItems,
                                                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                                         ISSABasicBlock current) {
+        assert i.isPEI();
+
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         VarContext<IntervalAbsVal> vc = flowBinaryOp(i, previousItems, cfg, current);
         VarContext<IntervalAbsVal> norm = in.setLocal(i.getDef(), vc.getLocal(i.getDef()));
-        return factsToMapWithExceptions(norm, in, current, cfg);
+        VarContext<IntervalAbsVal> ae = in;
+        if (!isConstant(i.getUse(1))) {
+            ae = in.setLocal(i.getUse(1), IntervalAbsVal.ZERO);
+        }
+        return factsToMapWithExceptions(norm, ae, current, cfg);
     }
 
     @Override
