@@ -465,19 +465,24 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
                 printDiagnostics();
-                System.err.println("*********** executePendingAddToSetOrigin");
+                System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                        + " *********** executePendingAddToSetOrigin");
                 changed |= executePendingAddToSetOrigin();
                 if (this.numRemainingTasks.get() <= bound) {
-                    System.err.println("*********** executePendingAddNonMostRecentOrigin");
+                    System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                            + " *********** executePendingAddNonMostRecentOrigin");
                     changed |= executePendingAddNonMostRecentOrigin();
                     if (this.numRemainingTasks.get() <= bound) {
-                        System.err.println("*********** executePendingSourceRelevantNodesQuery");
+                        System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                                + " *********** executePendingSourceRelevantNodesQuery");
                         changed |= executePendingSourceRelevantNodesQuery();
                         if (this.numRemainingTasks.get() <= bound) {
-                            System.err.println("*********** executePendingRelevantNodesQuery");
+                            System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                                    + " *********** executePendingRelevantNodesQuery");
                             changed |= executePendingRelevantNodesQuery();
                             if (this.numRemainingTasks.get() <= bound) {
-                                System.err.println("*********** executePendingPPSubQuery");
+                                System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                                        + " *********** executePendingPPSubQuery");
                                 changed |= executePendingPPSubQuery();
                             }
                         }
