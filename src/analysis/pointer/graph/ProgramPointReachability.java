@@ -48,7 +48,7 @@ public final class ProgramPointReachability {
     /**
      * Whether to incrementally print diagnostic timing and count information
      */
-    private boolean PRINT_DIAGNOSTICS = false;
+    private boolean PRINT_DIAGNOSTICS = true;
 
     /**
      * Print debug info
@@ -294,7 +294,7 @@ public final class ProgramPointReachability {
 
         //        this.destinations.add(destination);
         int resp = this.computedResponses.incrementAndGet();
-        if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
+        if (PRINT_DIAGNOSTICS && (resp % 1000000) == 0) {
             printDiagnostics();
         }
         long start = System.currentTimeMillis();
