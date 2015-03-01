@@ -464,20 +464,32 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private boolean checkPendingQueues(int bound) {
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
+                printDiagnostics();
+                System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                        + " *********** executePendingAddToSetOrigin");
                 changed |= executePendingAddToSetOrigin();
                 if (this.numRemainingTasks.get() <= bound) {
+                    System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                            + " *********** executePendingAddNonMostRecentOrigin");
                     changed |= executePendingAddNonMostRecentOrigin();
                     if (this.numRemainingTasks.get() <= bound) {
+                        System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                                + " *********** executePendingSourceRelevantNodesQuery");
                         changed |= executePendingSourceRelevantNodesQuery();
                         if (this.numRemainingTasks.get() <= bound) {
+                            System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                                    + " *********** executePendingRelevantNodesQuery");
                             changed |= executePendingRelevantNodesQuery();
                             if (this.numRemainingTasks.get() <= bound) {
+                                System.err.println((System.currentTimeMillis() - startTime) / 1000.0
+                                        + " *********** executePendingPPSubQuery");
                                 changed |= executePendingPPSubQuery();
                             }
                         }
                     }
                 }
             }
+            printDiagnostics();
             return changed;
         }
 
@@ -558,20 +570,23 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     try {
                         // XXX could add timeout stuff here
                         this.wait(100000);
-                        System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
-                                + numRemainingTasks.get() + "; pendingAddNonMostRecentOrigin: "
-                                + pendingAddNonMostRecentOrigin.get().size() + "; pendingAddToSetOrigin: "
-                                + pendingAddToSetOrigin.get().size() + "; pendingPPSubQuery: "
-                                + pendingPPSubQuery.get().size() + "; pendingRelevantNodesQuery: "
-                                + pendingRelevantNodesQuery.get().size() + "; pendingSourceRelevantNodesQuery: "
-                                + pendingSourceRelevantNodesQuery.get().size() + "; approxCGNodes: "
-                                + g.getApproxCallGraphSize());
+                        printDiagnostics();
                     }
                     catch (InterruptedException e) {
                         e.printStackTrace();
                     }
                 }
             }
+        }
+
+        private void printDiagnostics() {
+            System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
+                    + numRemainingTasks.get() + "; pendingAddNonMostRecentOrigin: "
+                    + pendingAddNonMostRecentOrigin.get().size() + "; pendingAddToSetOrigin: "
+                    + pendingAddToSetOrigin.get().size() + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size()
+                    + "; pendingRelevantNodesQuery: " + pendingRelevantNodesQuery.get().size()
+                    + "; pendingSourceRelevantNodesQuery: " + pendingSourceRelevantNodesQuery.get().size()
+                    + "; approxCGNodes: " + g.getApproxCallGraphSize());
         }
 
         public class RunnablePointsToTask implements Runnable {
