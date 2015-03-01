@@ -100,12 +100,23 @@ public class IntervalResults implements AnalysisResults {
                 Set<String> strings = new HashSet<>();
                 Map<Integer, IntervalAbsVal> integerMapLocals = results.getIntervalMapForLocals(i);
                 Map<AbstractLocation, IntervalAbsVal> integerMapLocations = results.getIntervalMapForLocations(i);
-                for (Integer val : integerMapLocals.keySet()) {
-                    strings.add(pp.valString(val) + "->" + integerMapLocals.get(val).toString());
+
+                if (integerMapLocals != null) {
+                    for (Integer val : integerMapLocals.keySet()) {
+                        if (!pp.valString(val).contains("java.lang.String")) {
+                            strings.add(pp.valString(val) + "->" + integerMapLocals.get(val));
+                        }
+                    }
                 }
-                for (AbstractLocation loc : integerMapLocations.keySet()) {
-                    strings.add(loc.toString() + "->" + integerMapLocations.get(loc).toString());
+
+                if (integerMapLocations != null) {
+                    for (AbstractLocation loc : integerMapLocations.keySet()) {
+                        if (!loc.toString().contains("java.lang.String")) {
+                            strings.add(loc + "->" + integerMapLocations.get(loc));
+                        }
+                    }
                 }
+
                 return strings + "\\l";
             }
 

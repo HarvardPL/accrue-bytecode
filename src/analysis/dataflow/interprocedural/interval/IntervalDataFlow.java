@@ -92,6 +92,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         List<IntervalAbsVal> newNormalActualValues = new ArrayList<>(numParams);
         List<IntervalAbsVal> newExceptionActualValues = new ArrayList<>(numParams);
         for (int j = 0; j < numParams; j++) {
+            System.out.println(i + " --- " + i.getUse(j));
             actuals.add(i.getUse(j));
             newNormalActualValues.add(null);
             newExceptionActualValues.add(null);
@@ -112,7 +113,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         for (CGNode callee : targets) {
             Map<ExitType, VarContext<IntervalAbsVal>> out;
             int[] formals;
-            VarContext<IntervalAbsVal> initial = in.clearLocalsAndExits();
+            VarContext<IntervalAbsVal> initial = in/*.clearLocalsAndExits()*/;
 
             if (callee.getMethod().isNative() && !AnalysisUtil.hasSignature(callee.getMethod())) {
                 // Create fake formals so they can be restored at the end
@@ -126,11 +127,12 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
 
             for (int j = 0; j < numParams; j++) {
-                IntervalAbsVal actualVal = in.getLocal(actuals.get(j));
+                IntervalAbsVal actualVal = getIntervalOfLocalOrNumber(in, actuals.get(j));
                 if (actualVal != null) {
                     initial = initial.setLocal(formals[j], actualVal);
                 }
             }
+
             out = interProc.getResults(currentNode, callee, initial);
 
             // join the formals to the previous formals
@@ -142,7 +144,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 }
                 for (int j = 0; j < formals.length; j++) {
                     if (types.getType(i.getUse(j)).isPrimitiveType()) {
-                        IntervalAbsVal newVal = getLocal(formals[j], normal).join(newNormalActualValues.get(j));
+                        IntervalAbsVal newVal = getIntervalOfLocalOrNumber(normal, formals[j]).join(newNormalActualValues.get(j));
                         newNormalActualValues.set(j, newVal);
                     }
                 }
@@ -155,7 +157,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 // If the method can throw an exception record any changes to the arguments
                 for (int j = 0; j < formals.length; j++) {
                     if (types.getType(i.getUse(j)).isPrimitiveType()) {
-                        IntervalAbsVal newVal = exception.getLocal(formals[j]).join(newExceptionActualValues.get(j));
+                        IntervalAbsVal newVal = getIntervalOfLocalOrNumber(exception, formals[j]).join(newExceptionActualValues.get(j));
                         newExceptionActualValues.set(j, newVal);
                     }
                 }
@@ -168,8 +170,9 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         // Normal return
         if (canTerminateNormally) {
             VarContext<IntervalAbsVal> normal = null;
-            if (i.getNumberOfReturnValues() == 1) {
+            if (i.getNumberOfReturnValues() == 1 && calleeReturn != null) {
                 normal = in.setLocal(i.getReturnValue(0), calleeReturn);
+                System.out.println(actuals);
                 normal = updateActuals(newNormalActualValues, actuals, normal);
             }
             else {
@@ -207,11 +210,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         return ret;
     }
 
-    private IntervalAbsVal getLocal(int i, VarContext<IntervalAbsVal> normal) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
     @Override
     protected Map<ISSABasicBlock, VarContext<IntervalAbsVal>> guessResultsForMissingReceiver(SSAInvokeInstruction i,
                                                                                              VarContext<IntervalAbsVal> input,
@@ -237,7 +235,13 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                       ISSABasicBlock current) {
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         IntervalAbsVal interval1 = getIntervalOfLocalOrNumber(in, i.getUse(0));
+        if (interval1 == null) {
+            System.out.println(i);
+        }
         IntervalAbsVal interval2 = getIntervalOfLocalOrNumber(in, i.getUse(1));
+        if (interval1 == null) {
+            System.out.println(i);
+        }
 
         IBinaryOpInstruction.Operator op = (IBinaryOpInstruction.Operator) i.getOperator();
         IntervalAbsVal joined = null;
@@ -245,6 +249,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         switch (op) {
         case ADD:
             joined = new IntervalAbsVal(interval1.min + interval2.min, interval1.max + interval2.max);
+            System.err.println(joined.toString());
             break;
         case SUB:
             joined = new IntervalAbsVal(interval1.min - interval2.max, interval1.max - interval2.min);
@@ -469,11 +474,11 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         switch (op) {
         case EQ:
-            if (fst != null) {
+            if (fst != null && snd == null) {
                 // first argument is constant
                 trueContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst));
             }
-            else if (snd != null) {
+            else if (snd != null && fst == null) {
                 // second argument is constant
                 trueContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd));
             }
@@ -481,12 +486,12 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         case GE:
         case GT:
             //
-            if (fst != null) {
+            if (fst != null && snd == null) {
                 // first argument is constant
                 trueContext = in.setLocal(i.getUse(1), in.getLocal(i.getUse(1)).le(fst));
                 falseContext = in.setLocal(i.getUse(1), in.getLocal(i.getUse(1)).ge(fst));
             }
-            else if (snd != null) {
+            else if (snd != null && fst == null) {
                 // second argument is constant
                 trueContext = in.setLocal(i.getUse(0), in.getLocal(i.getUse(0)).ge(snd));
                 falseContext = in.setLocal(i.getUse(0), in.getLocal(i.getUse(0)).le(snd));
@@ -494,12 +499,12 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             break;
         case LE:
         case LT:
-            if (fst != null) {
+            if (fst != null && snd == null) {
                 // first argument is constant
                 trueContext = in.setLocal(i.getUse(1), in.getLocal(i.getUse(1)).ge(fst));
                 falseContext = in.setLocal(i.getUse(1), in.getLocal(i.getUse(1)).le(fst));
             }
-            else if (snd != null) {
+            else if (snd != null && fst == null) {
                 // second argument is constant
                 trueContext = in.setLocal(i.getUse(0), in.getLocal(i.getUse(0)).le(snd));
                 falseContext = in.setLocal(i.getUse(0), in.getLocal(i.getUse(0)).ge(snd));
@@ -682,7 +687,8 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         boolean strongUpdate = !receivers.hasNext();
 
-        IntervalAbsVal inVal = in.getLocal(i.getVal());
+        IntervalAbsVal inVal = getIntervalOfLocalOrNumber(in, i.getVal());
+
         for (AbstractLocation loc : locs) {
             if (strongUpdate) {
                 // strong update
@@ -703,7 +709,13 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                          Set<VarContext<IntervalAbsVal>> previousItems,
                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                          ISSABasicBlock current) {
-        return mergeAndCreateMap(previousItems, current, cfg);
+        VarContext<IntervalAbsVal> in = confluence(previousItems, current);
+
+        if (i.getNumberOfUses() > 0 && i.returnsPrimitiveType()) {
+            in = in.setReturnResult(getIntervalOfLocalOrNumber(in, i.getResult()));
+        }
+
+        return factToMap(in, current, cfg);
     }
 
     @Override
@@ -720,6 +732,18 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                         ISSABasicBlock current) {
         return mergeAndCreateMap(previousItems, current, cfg);
+    }
+
+    /**
+     * Return if is a constant.
+     */
+    private boolean isConstant(int var) {
+        IR ir = currentNode.getIR();
+        Value v = ir.getSymbolTable().getValue(var);
+        if (v instanceof ConstantValue) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -781,12 +805,15 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
      * @param to context to copy into
      * @return new context with values copied in
      */
-    private static VarContext<IntervalAbsVal> updateActuals(List<IntervalAbsVal> newActualValues,
+    private VarContext<IntervalAbsVal> updateActuals(List<IntervalAbsVal> newActualValues,
                                                             List<Integer> actuals, VarContext<IntervalAbsVal> to) {
 
         VarContext<IntervalAbsVal> out = to;
         for (int j = 1; j < actuals.size(); j++) {
-            out = out.setLocal(actuals.get(j), newActualValues.get(j));
+            if (!isConstant(actuals.get(j))) {
+                System.err.println("updating actuals " + actuals.get(j) + " : " + newActualValues.get(j));
+                out = out.setLocal(actuals.get(j), newActualValues.get(j));
+            }
         }
         return out;
     }
