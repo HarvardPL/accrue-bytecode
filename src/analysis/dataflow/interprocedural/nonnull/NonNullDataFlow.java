@@ -480,7 +480,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
         InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
         Iterator<? extends InstanceKey> iter = interProc.getPointsToGraph().pointsToIterator(fieldNode, ippr);
-        if (!iter.hasNext()) {
+        if (!iter.hasNext() && outputLevel > 0) {
             System.err.println("Nothing pointed to by points-to graph node " + fieldNode + " at " + ippr
                     + " assuming it could be null.");
         }
@@ -559,7 +559,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         PointsToGraphNode fieldRVR = new ReferenceVariableReplica(currentNode.getContext(), fieldRV, ptg.getHaf());
         Iterator<? extends InstanceKey> pti = ptg.pointsToIterator(fieldRVR, ippr);
         if (!pti.hasNext()) {
-            System.err.println("Nothing pointed to by static field " + f + " at " + ippr);
+            if (outputLevel > 0) {
+                System.err.println("Nothing pointed to by static field " + f + " at " + ippr);
+            }
             return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
         }
 
@@ -816,8 +818,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             newValue = VarContext.safeJoinValues(newValue, inLoc);
         }
         if (newValue == null) {
-            System.err.println("No locations found for field access " + i + " in "
+            if (outputLevel > 0) {
+                System.err.println("No locations found for field access " + i + " in "
                     + PrettyPrinter.cgNodeString(currentNode));
+            }
             newValue = NonNullAbsVal.MAY_BE_NULL;
         }
         normal = normal.setLocal(i.getDef(), newValue);
@@ -966,7 +970,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             }
             ObjectField of = new ObjectField(rec, i.getDeclaredField());
             Iterator<? extends InstanceKey> fieldPT = ptg.pointsToIterator(of, ippr);
-            if (!fieldPT.hasNext()) {
+            if (!fieldPT.hasNext() && outputLevel > 0) {
                 System.err.println("Nothing pointed to by nonstatic field " + of + " at " + ippr + " in " + i + " "
                         + PrettyPrinter.cgNodeString(currentNode));
             }
@@ -987,8 +991,10 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             strongUpdate = singletonPointsTo && (next.isRecent() || ptg.isNullInstanceKey(next));
         }
         else {
-            System.err.println("No locations found for field put " + i + " in "
-                    + PrettyPrinter.cgNodeString(currentNode));
+            if (outputLevel > 0) {
+                System.err.println("No locations found for field put " + i + " in "
+                        + PrettyPrinter.cgNodeString(currentNode));
+            }
             strongUpdate = false;
         }
 
