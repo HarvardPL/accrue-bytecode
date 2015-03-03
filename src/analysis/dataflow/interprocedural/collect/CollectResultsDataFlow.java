@@ -141,6 +141,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowArrayLength(SSAArrayLengthInstruction i, Set<Unit> previousItems,
                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                         ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getArrayRef(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -151,6 +152,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowArrayLoad(SSAArrayLoadInstruction i, Set<Unit> previousItems,
                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                       ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getArrayRef(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -161,6 +163,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowArrayStore(SSAArrayStoreInstruction i, Set<Unit> previousItems,
                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                        ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getArrayRef(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -171,7 +174,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowBinaryOpWithException(SSABinaryOpInstruction i, Set<Unit> previousItems,
                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                   ISSABasicBlock current) {
-
+        interproc().recordPossibleArithmeticException();
         // TODO record arithmetic exception
         //        if (interval.getInterval(i.getUse(1)).contains(0)) {
         //            interproc().recordArithmeticException();
@@ -183,12 +186,12 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowCheckCast(SSACheckCastInstruction i, Set<Unit> previousItems,
                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                       ISSABasicBlock current) {
+        interproc().recordCast();
         if (currentNode.getIR().getSymbolTable().isNullConstant(i.getVal())) {
-            // the cast value is null
+            // the cast value is "null"
             interproc().recordCastRemoval();
             return factToMap(Unit.VALUE, current, cfg);
         }
-
         // check whether cast will always succeed
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         TypeReference tr = i.getDeclaredResultTypes()[0];
@@ -225,6 +228,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowGetField(SSAGetInstruction i, Set<Unit> previousItems,
                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                      ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getRef(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -235,6 +239,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowInvokeInterface(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                             ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getReceiver(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -246,6 +251,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowInvokeSpecial(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getReceiver(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -265,6 +271,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowInvokeVirtual(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getReceiver(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -290,6 +297,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowMonitor(SSAMonitorInstruction i, Set<Unit> previousItems,
                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                     ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getRef(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -314,6 +322,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowPutField(SSAPutInstruction i, Set<Unit> previousItems,
                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                      ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getRef(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }
@@ -338,6 +347,7 @@ public class CollectResultsDataFlow extends IntraproceduralDataFlow<Unit> {
     protected Map<ISSABasicBlock, Unit> flowThrow(SSAThrowInstruction i, Set<Unit> previousItems,
                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                   ISSABasicBlock current) {
+        interproc().recordPossibleNullPointerException();
         if (!nonnull.isNonNull(i.getException(), i, currentNode, types)) {
             interproc().recordNullPointerException();
         }

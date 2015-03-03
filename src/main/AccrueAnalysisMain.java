@@ -215,8 +215,20 @@ public class AccrueAnalysisMain {
             cr.setOutputLevel(otherOutputLevel);
             cr.runAnalysis();
             CollectedResults cResults = (CollectedResults) cr.getAnalysisResults();
-            System.err.println("NPE: " + cResults.getNullPointerExceptionCount());
-            System.err.println("Casts Removed: " + cResults.getCastRemovalCount());
+            System.err.println("NPE: "
+                    + cResults.getNullPointerExceptionCount()
+                    + "/"
+                    + cResults.getPossibleNullPointerExceptionCount()
+                    + " = "
+                    + ((double) cResults.getNullPointerExceptionCount() / (double) cResults.getPossibleNullPointerExceptionCount()));
+            System.err.println("Casts Removed: " + cResults.getCastRemovalCount() + "/" + cResults.getTotalCastCount()
+                    + " = " + ((double) cResults.getCastRemovalCount() / (double) cResults.getTotalCastCount()));
+            System.err.println("Arithmetic: "
+                    + cResults.getArithmeticExceptionCount()
+                    + "/"
+                    + cResults.getPossibleArithmeticExceptionCount()
+                    + " = "
+                    + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
             break;
         case "precise-ex":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
