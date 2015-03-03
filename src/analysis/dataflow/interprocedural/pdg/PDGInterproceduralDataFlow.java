@@ -1,14 +1,10 @@
 package analysis.dataflow.interprocedural.pdg;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 
-import util.SingletonValueMap;
 import util.print.PrettyPrinter;
+import analysis.dataflow.interprocedural.AnalysisTriggerInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.ExitType;
-import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.dataflow.interprocedural.pdg.graph.PDGEdgeType;
@@ -24,16 +20,11 @@ import analysis.pointer.graph.ReferenceVariableCache;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.types.TypeReference;
 
-public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
+public class PDGInterproceduralDataFlow extends AnalysisTriggerInterproceduralDataFlow {
 
     private final ProgramDependenceGraph pdg;
     private final PreciseExceptionResults preciseEx;
     private final NonNullResults nonNull;
-    private static final Map<ExitType, Unit> UNIT_MAP = new HashMap<>();
-    static {
-        UNIT_MAP.put(ExitType.EXCEPTIONAL, Unit.VALUE);
-        UNIT_MAP.put(ExitType.NORMAL, Unit.VALUE);
-    }
 
     /**
      * Analysis that creates a program dependence graph for the entire program (with a call graph described by the
@@ -94,26 +85,6 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
         return UNIT_MAP;
     }
 
-    @Override
-    protected Map<ExitType, Unit> getDefaultOutput(Unit input) {
-        return UNIT_MAP;
-    }
-
-    @Override
-    protected Unit getInputForEntryPoint() {
-        return Unit.VALUE;
-    }
-
-    @Override
-    protected boolean outputChanged(Map<ExitType, Unit> previousOutput, Map<ExitType, Unit> currentOutput) {
-        return false;
-    }
-
-    @Override
-    protected boolean existingResultSuitable(Unit newInput, AnalysisRecord<Unit> existingResults) {
-        return existingResults.getOutput() != null;
-    }
-
     public PreciseExceptionResults getPreciseExceptionResults() {
         return preciseEx;
     }
@@ -125,20 +96,5 @@ public class PDGInterproceduralDataFlow extends InterproceduralDataFlow<Unit> {
     @Override
     public ProgramDependenceGraph getAnalysisResults() {
         return pdg;
-    }
-
-    /**
-     * Map from exit type to unit
-     */
-    private static final Map<ExitType, Unit> EXIT_MAP = new SingletonValueMap<>(new LinkedHashSet<>(
-                                    Arrays.asList(ExitType.values())), Unit.VALUE);
-
-    @Override
-    public Map<ExitType, Unit> getResults(CGNode caller, CGNode callee, Unit input) {
-        if (!currentlyProcessing.contains(callee) && !recordedResults.containsRecord(callee)) {
-            recordedResults.setInitialRecord(callee, new AnalysisRecord<>(Unit.VALUE, null, true));
-            processCallGraphNode(callee);
-        }
-        return EXIT_MAP;
     }
 }

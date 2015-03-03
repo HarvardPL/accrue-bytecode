@@ -20,6 +20,8 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
+import analysis.dataflow.interprocedural.collect.CollectResultsInterproceduralDataFlow;
+import analysis.dataflow.interprocedural.collect.CollectedResults;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.interval.IntervalInterProceduralDataFlow;
@@ -161,8 +163,9 @@ public class AccrueAnalysisMain {
                                             fileName,
                                             numThreads);
             g = results.fst();
-            g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
-
+            if (fileLevel > 0) {
+                g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
+            }
 //            System.err.println(g.getNodes().size() + " Nodes");
             int num = 0;
 //            for (PointsToGraphNode n : g.getNodes()) {
@@ -217,7 +220,20 @@ public class AccrueAnalysisMain {
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
             NonNullResults nonNull = runNonNull(outputLevel, g, r, rvCache);
-            nonNull.writeAllToFiles(r, outputDir);
+            if (fileLevel > 0) {
+                nonNull.writeAllToFiles(r, outputDir);
+            }
+
+            CollectResultsInterproceduralDataFlow cr = new CollectResultsInterproceduralDataFlow(g,
+                                                                                                 r,
+                                                                                                 rvCache,
+                                                                                                 nonNull,
+                                                                                                 null);
+            cr.setOutputLevel(otherOutputLevel);
+            cr.runAnalysis();
+            CollectedResults cResults = (CollectedResults) cr.getAnalysisResults();
+            System.err.println("NPE: " + cResults.getNullPointerExceptionCount());
+            System.err.println("Casts Removed: " + cResults.getCastRemovalCount());
             break;
         case "interval":
             results = generatePointsToGraph(outputLevel,
