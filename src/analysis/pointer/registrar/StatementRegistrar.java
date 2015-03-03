@@ -410,8 +410,7 @@ public class StatementRegistrar {
      */
     private void registerCheckCast(SSACheckCastInstruction i, IR ir, ReferenceVariableFactory rvFactory,
                                    TypeRepository types, PrettyPrinter pp) {
-        TypeReference valType = types.getType(i.getVal());
-        if (valType == TypeReference.Null) {
+        if (ir.getSymbolTable().isNullConstant(i.getVal())) {
             // the cast value is null so no effect on pointer analysis
             // note that cast to/from primitives are a different instruction (SSAConversionInstruction)
             return;
@@ -422,7 +421,7 @@ public class StatementRegistrar {
                                                           i.getDeclaredResultTypes()[0],
                                                           ir.getMethod(),
                                                           pp);
-        ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), valType, ir.getMethod(), pp);
+        ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), types.getType(i.getVal()), ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod()));
     }
 

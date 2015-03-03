@@ -1,5 +1,5 @@
 for BM in \
-  antlr bloat chart eclipse fop hsqldb jython luindex lusearch pmd xalan
+  antlr bloat eclipse fop hsqldb luindex lusearch pmd xalan #chart jython
 do \
 
 echo processing ${BM}...
