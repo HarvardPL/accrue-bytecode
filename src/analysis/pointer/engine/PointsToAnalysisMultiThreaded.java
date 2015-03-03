@@ -36,6 +36,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private static final boolean DELAY_OTHER_TASKS = true;
     private static final boolean PRINT_ALL = false;
     /**
+     * Should we print the type of tasks being added when we empty a particular type of queue
+     */
+    private static final boolean PRINT_QUEUE_SWAPS = false;
+
+    /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
@@ -464,33 +469,43 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private boolean checkPendingQueues(int bound) {
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
-                printDiagnostics();
-                System.err.println((System.currentTimeMillis() - startTime) / 1000.0
-                        + " *********** executePendingAddToSetOrigin");
+                if (PRINT_QUEUE_SWAPS) {
+                    printDiagnostics();
+                    printQueueSwap("executePendingAddToSetOrigin");
+                }
                 changed |= executePendingAddToSetOrigin();
                 if (this.numRemainingTasks.get() <= bound) {
-                    System.err.println((System.currentTimeMillis() - startTime) / 1000.0
-                            + " *********** executePendingAddNonMostRecentOrigin");
+                    printQueueSwap("executePendingAddNonMostRecentOrigin");
                     changed |= executePendingAddNonMostRecentOrigin();
                     if (this.numRemainingTasks.get() <= bound) {
-                        System.err.println((System.currentTimeMillis() - startTime) / 1000.0
-                                + " *********** executePendingSourceRelevantNodesQuery");
+                        printQueueSwap("executePendingSourceRelevantNodesQuery");
                         changed |= executePendingSourceRelevantNodesQuery();
                         if (this.numRemainingTasks.get() <= bound) {
-                            System.err.println((System.currentTimeMillis() - startTime) / 1000.0
-                                    + " *********** executePendingRelevantNodesQuery");
+                            printQueueSwap("executePendingRelevantNodesQuery");
                             changed |= executePendingRelevantNodesQuery();
                             if (this.numRemainingTasks.get() <= bound) {
-                                System.err.println((System.currentTimeMillis() - startTime) / 1000.0
-                                        + " *********** executePendingPPSubQuery");
+                                printQueueSwap("executePendingPPSubQuery");
                                 changed |= executePendingPPSubQuery();
                             }
                         }
                     }
                 }
             }
-            printDiagnostics();
+            if (PRINT_QUEUE_SWAPS) {
+                printDiagnostics();
+            }
             return changed;
+        }
+
+        /**
+         * If the PRINT_QUEUE_SWAPS constant is true then indicate the queue swap to the given queue
+         *
+         * @param s queue name
+         */
+        private void printQueueSwap(String s) {
+            if (PRINT_QUEUE_SWAPS) {
+                System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " *********** " + s);
+            }
         }
 
         private boolean executePendingAddToSetOrigin() {
