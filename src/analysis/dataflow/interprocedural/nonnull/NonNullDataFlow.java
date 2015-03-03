@@ -105,6 +105,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                                                      currentNode,
                                                                                      ippr);
                 for (AbstractLocation loc : locs) {
+                    assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode)
+                                                                                      .contains(loc) : "Missing location "
+                            + loc + " for " + currentNode;
                     initial = initial.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
                 }
             }
@@ -114,6 +117,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             Collection<IField> fields = currentNode.getMethod().getDeclaringClass().getAllFields();
             for (IField f : fields) {
                 if (f.isStatic()) {
+                    assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode)
+                                                                                      .contains(AbstractLocation.createStatic(f.getReference())) : "Missing location "
+                            + AbstractLocation.createStatic(f.getReference()) + " for " + currentNode;
                     initial = initial.setLocation(AbstractLocation.createStatic(f.getReference()),
                                                   NonNullAbsVal.MAY_BE_NULL);
                 }
@@ -224,7 +230,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 }
                 joinLocations(exceptionalLocations, exception);
             }
-        } // End of handling single callee
+        } // End of handling callees
 
         Map<ISSABasicBlock, VarContext<NonNullAbsVal>> ret = new LinkedHashMap<>();
 
@@ -241,7 +247,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
             }
 
-            normal = normal.replaceAllLocations(normalLocations);
+            normal = normal.setLocations(normalLocations);
             for (ISSABasicBlock normalSucc : getNormalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, normalSucc)) {
                     assert normal != null : "Should be non-null if there is a normal successor.";
@@ -262,7 +268,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         if (canThrowException) {
             VarContext<NonNullAbsVal> callerExContext = nonNull.setExceptionValue(NonNullAbsVal.NON_NULL);
             callerExContext = updateActuals(newExceptionActualValues, actuals, callerExContext);
-            callerExContext = callerExContext.replaceAllLocations(exceptionalLocations);
+            callerExContext = callerExContext.setLocations(exceptionalLocations);
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
                     if (npeSuccs != null && npeSuccs.contains(exSucc)) {
@@ -440,6 +446,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         }
 
         AbstractLocation loc = AbstractLocation.createStatic(i.getDeclaredField());
+        assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode).contains(loc) : "Missing location "
+                + loc + " for " + currentNode;
         NonNullAbsVal val = in.getLocation(loc);
         VarContext<NonNullAbsVal> out;
         if (val == null) {
@@ -539,6 +547,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         // Check whether the field is amenable to strong update
         AbstractLocation loc = AbstractLocation.createStatic(i.getDeclaredField());
+        assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode).contains(loc) : "Missing location "
+                + loc + " for " + currentNode;
 
         // Whether the input value could be null
         NonNullAbsVal inVal = getLocal(i.getVal(), in);
@@ -803,6 +813,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                                             i.getDeclaredField(),
                                                                             currentNode,
                                                                             ippr)) {
+            assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode).contains(loc) : "Missing location "
+                    + loc + " for " + currentNode;
             NonNullAbsVal inLoc = in.getLocation(loc);
             if (inLoc == null) {
                 // Haven't seen this field yet check whether it could point to null at this instruction
@@ -942,6 +954,12 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                                              i.getDeclaredField(),
                                                                              currentNode,
                                                                              ippr);
+        assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode).containsAll(locs) : "Missing location "
+                + locs
+                + " for "
+                + currentNode
+                + " was "
+                + ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode);
 
         // Whether the input value could be null
         NonNullAbsVal inVal = getLocal(i.getVal(), in);

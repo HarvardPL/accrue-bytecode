@@ -6,6 +6,7 @@ import java.util.Map;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
+import analysis.dataflow.interprocedural.accessible.AccessibleLocationResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
@@ -28,6 +29,10 @@ public class IntervalInterProceduralDataFlow extends InterproceduralDataFlow<Var
      * Results of the Analysis
      */
     private final IntervalResults results = new IntervalResults();
+    /**
+     * Abstract heap locations accessible from each call graph node
+     */
+    private final AccessibleLocationResults accessibleLocs;
 
     /**
      * should heap locations be tracked (flow-sensitively) in the var context
@@ -35,9 +40,11 @@ public class IntervalInterProceduralDataFlow extends InterproceduralDataFlow<Var
     private final boolean trackHeapLocations;
 
     public IntervalInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable,
-                                           ReferenceVariableCache rvCache, boolean trackHeapLocations) {
+                                           ReferenceVariableCache rvCache, boolean trackHeapLocations,
+                                           AccessibleLocationResults accessibleLocs) {
         super(ptg, reachable, rvCache);
         this.trackHeapLocations = trackHeapLocations;
+        this.accessibleLocs = accessibleLocs;
     }
 
     @Override
@@ -57,7 +64,7 @@ public class IntervalInterProceduralDataFlow extends InterproceduralDataFlow<Var
         }
         IntervalDataFlow df = new IntervalDataFlow(n, this);
         df.setOutputLevel(getOutputLevel());
-        return df.dataflow(input);
+        return df.dataflow(input.retainAllLocations(accessibleLocs.getResults(n)));
     }
 
     @Override

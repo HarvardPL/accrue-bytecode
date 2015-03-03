@@ -21,7 +21,7 @@ import com.ibm.wala.ssa.SSAInvokeInstruction;
 
 /**
  * Intra-procedural part of an inter-procedural data-flow analysis
- * 
+ *
  * @param <F>
  *            Type of the data-flow facts
  */
@@ -54,7 +54,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
 
     /**
      * Intra-procedural part of an inter-procedural data-flow analysis
-     * 
+     *
      * @param currentNode
      *            node this will analyze
      * @param interProc
@@ -72,7 +72,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
     /**
      * Kick off an intra-procedural data-flow analysis for the current call graph node with the given initial data-flow
      * fact, this will use the {@link InterproceduralDataFlow} to get results for calls to other call graph nodes.
-     * 
+     *
      * @param initial
      *            initial data-flow fact
      */
@@ -94,25 +94,21 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
 
     /**
      * Process a procedure invocation
-     * 
-     * @param inItems
-     *            data-flow facts on edges entering the call
-     * @param i
-     *            invocation instruction in the caller
-     * @param ir
-     *            caller IR
-     * @param cfg
-     *            caller control flow graph
-     * @param bb
-     *            caller basic block containing the call
+     *
+     * @param previousItems data-flow facts on edges entering the call
+     * @param i invocation instruction in the caller
+     * @param ir caller IR
+     * @param cfg caller control flow graph
+     * @param current caller basic block containing the call
      * @return Data-flow fact for each successor after processing the call
      */
-    protected abstract Map<ISSABasicBlock, F> call(SSAInvokeInstruction i, Set<F> inItems,
-                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock bb);
+    protected abstract Map<ISSABasicBlock, F> call(SSAInvokeInstruction i, Set<F> previousItems,
+                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                   ISSABasicBlock current);
 
     /**
      * Guess the results of running the analysis when there are not targets of a particular call
-     * 
+     *
      * @param input
      *            data-flow fact upon entering the call
      * @param i
@@ -130,15 +126,13 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
 
     /**
      * Join the given (non-empty) set of data-flow facts to get a new item
-     * 
-     * @param facts
-     *            non-empty set of data-flow facts to merge
-     * @param bb
-     *            Basic block we are merging for
+     *
+     * @param facts non-empty set of data-flow facts to merge
+     * @param current Basic block we are merging for
      * @return new data-flow item computed by merging the facts in the given set
      */
     // TODO change to varargs
-    protected abstract F confluence(Set<F> facts, ISSABasicBlock bb);
+    protected abstract F confluence(Set<F> facts, ISSABasicBlock current);
 
     @Override
     protected void post(IR ir) {
@@ -198,7 +192,7 @@ public abstract class IntraproceduralDataFlow<F extends AbstractValue<F>> extend
 
     /**
      * Merge given facts to create a new data-flow fact and map each successor node number to that fact.
-     * 
+     *
      * @param facts
      *            facts to merge
      * @param bb

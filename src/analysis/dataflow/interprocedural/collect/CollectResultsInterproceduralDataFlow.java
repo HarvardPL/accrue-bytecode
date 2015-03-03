@@ -1,6 +1,5 @@
 package analysis.dataflow.interprocedural.collect;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import util.print.PrettyPrinter;
@@ -21,7 +20,6 @@ public class CollectResultsInterproceduralDataFlow extends AnalysisTriggerInterp
     private final NonNullResults nonnull;
     private final IntervalResults interval;
     private final CollectedResults collectedResults;
-    private static final Map<ExitType, Unit> UNIT_MAP = new HashMap<>();
 
     public CollectResultsInterproceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable,
                                                  ReferenceVariableCache rvCache, NonNullResults nonnull,
@@ -68,5 +66,17 @@ public class CollectResultsInterproceduralDataFlow extends AnalysisTriggerInterp
 
     public void recordCastRemoval() {
         collectedResults.recordCastRemoval();
+    }
+
+    public void recordPossibleNullPointerException() {
+        collectedResults.recordPossibleNullPointerException();
+    }
+
+    public void recordPossibleArithmeticException() {
+        collectedResults.recordPossibleArithmeticException();
+    }
+
+    public void recordCast() {
+        collectedResults.recordCast();
     }
 }

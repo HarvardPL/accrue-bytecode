@@ -6,6 +6,7 @@ import java.util.Map;
 import util.print.PrettyPrinter;
 import analysis.dataflow.interprocedural.ExitType;
 import analysis.dataflow.interprocedural.InterproceduralDataFlow;
+import analysis.dataflow.interprocedural.accessible.AccessibleLocationResults;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.graph.PointsToGraph;
@@ -24,6 +25,10 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      */
     private final NonNullResults results = new NonNullResults();
     /**
+     * Abstract heap locations accessible from each call graph node
+     */
+    final AccessibleLocationResults accessibleLocs;
+    /**
      * should heap locations be tracked (flow-sensitively) in the var context
      */
     private final boolean trackHeapLocations;
@@ -40,9 +45,11 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
      * @param trackHeapLocations should heap locations be tracked (flow-sensitively) in the var context
      */
     public NonNullInterProceduralDataFlow(PointsToGraph ptg, ReachabilityResults reachable,
-                                          ReferenceVariableCache rvCache, boolean trackHeapLocations) {
+                                          ReferenceVariableCache rvCache, boolean trackHeapLocations,
+                                          AccessibleLocationResults accessibleLocs) {
         super(ptg, reachable, rvCache);
         this.trackHeapLocations = trackHeapLocations;
+        this.accessibleLocs = accessibleLocs;
     }
 
     @Override
@@ -57,7 +64,10 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
         }
         NonNullDataFlow df = new NonNullDataFlow(n, this);
         df.setOutputLevel(getOutputLevel());
-        return df.dataflow(input);
+        // only use the locations that are accessible from the call graph node
+        return df.dataflow(input.retainAllLocations(accessibleLocs.getResults(n)));
+        //        return df.dataflow(input);
+
     }
 
     @Override
