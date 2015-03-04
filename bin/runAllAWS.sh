@@ -1,7 +1,7 @@
 # bin/runAllAWS.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt                                                                                                                                                                          
 
 for BM in \
-  bloat eclipse fop hsqldb luindex lusearch pmd xalan antlr #chart jython                                                                                                                                                                   
+  antlr bloat eclipse fop hsqldb luindex lusearch pmd xalan #chart jython                                                                                                                                                                   
 do \
 
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
