@@ -171,18 +171,42 @@ public class VarContext<T extends AbstractValue<T>> implements AbstractValue<Var
     }
 
     /**
-     * Create a new context that is the same as this on with the locations swapped out for the new ones
-     *
-     * @param newLocations new locations
-     * @return new var context with the new locations
+     * Get a new variable context. Replace the current abstract value for the given locations.
+     * 
+     * @param updatedLocations map from abstract location to the new value for that location
+     * @return new variable context with the value for the locations replaced
      */
-    public VarContext<T> replaceAllLocations(Map<AbstractLocation, T> newLocations) {
-        if (!trackHeapLocations || newLocations.equals(this.locations)) {
+    public VarContext<T> setLocations(Map<AbstractLocation, T> updatedLocations) {
+        if (!trackHeapLocations || updatedLocations.isEmpty()) {
             return this;
         }
-        assert newLocations != null : "No null values for locations";
+
+        Map<AbstractLocation, T> newLocations = new LinkedHashMap<>(locations);
+        newLocations.putAll(updatedLocations);
         return new VarContext<>(locals,
                                 newLocations,
+                                returnResult,
+                                exceptionValue,
+                                trackHeapLocations,
+                                untrackedHeapLocationValue);
+    }
+
+    /**
+     * Create a var context identical to this but containing only the locations in the given set
+     *
+     * @param locs
+     * @return
+     */
+    public VarContext<T> retainAllLocations(Set<AbstractLocation> locs) {
+        if (!trackHeapLocations || locs.containsAll(this.locations.keySet())) {
+            return this;
+        }
+        assert locs != null : "No null values for retained locations";
+        Map<AbstractLocation, T> newLocs = new LinkedHashMap<>(this.locations);
+        boolean changed = newLocs.keySet().retainAll(locs);
+        assert changed : "Set didn't change, should have returned _this_";
+        return new VarContext<>(locals,
+                                newLocs,
                                 returnResult,
                                 exceptionValue,
                                 trackHeapLocations,

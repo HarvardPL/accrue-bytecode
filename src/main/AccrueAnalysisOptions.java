@@ -221,6 +221,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("cfg-for-class")) {
                 return;
             }
+            if (value.equals("accessible-locations")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);

@@ -314,18 +314,15 @@ public abstract class DataFlow<F> {
      * Get an unmodifiable mapping from each successor of the given basic block to a single data-flow fact. This is used
      * when analyzing a basic block that sends the same item to each of its successors.
      *
-     * @param fact
-     *            data-flow fact to associate with each successor
-     * @param bb
-     *            basic block to get the successors ids for
-     * @param cfg
-     *            control flow graph
+     * @param fact data-flow fact to associate with each successor
+     * @param current basic block to get the successors ids for
+     * @param cfg control flow graph
      * @return unmodifiable mapping from each successor to the single given value
      */
-    protected final Map<ISSABasicBlock, F> factToMap(F fact, ISSABasicBlock bb,
+    protected final Map<ISSABasicBlock, F> factToMap(F fact, ISSABasicBlock current,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Set<ISSABasicBlock> succs = new LinkedHashSet<>();
-        Iterator<ISSABasicBlock> iter = getSuccs(bb, cfg);
+        Iterator<ISSABasicBlock> iter = getSuccs(current, cfg);
         while (iter.hasNext()) {
             succs.add(iter.next());
         }
@@ -337,16 +334,16 @@ public abstract class DataFlow<F> {
      *
      * @param fact
      *            fact to associate with each successor
-     * @param bb
+     * @param current
      *            basic block to get the successors ids for
      * @param cfg
      *            control flow graph
      * @return modifiable mapping from each successor id to the single given value
      */
-    protected final Map<ISSABasicBlock, F> factToModifiableMap(F fact, ISSABasicBlock bb,
+    protected final Map<ISSABasicBlock, F> factToModifiableMap(F fact, ISSABasicBlock current,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<ISSABasicBlock, F> res = new LinkedHashMap<>();
-        Iterator<ISSABasicBlock> iter = getSuccs(bb, cfg);
+        Iterator<ISSABasicBlock> iter = getSuccs(current, cfg);
         while (iter.hasNext()) {
             res.put(iter.next(), fact);
         }
@@ -361,22 +358,22 @@ public abstract class DataFlow<F> {
      *            fact to associate with each normal successor
      * @param exceptionalItem
      *            fact to associate with each exceptional successor
-     * @param bb
+     * @param current
      *            basic block this computes the output for
      * @param cfg
      *            control flow graph
      * @return mapping from each successor to the corresponding data-flow fact
      */
-    protected final Map<ISSABasicBlock, F> factsToMapWithExceptions(F normalItem, F exceptionItem, ISSABasicBlock bb,
+    protected final Map<ISSABasicBlock, F> factsToMapWithExceptions(F normalItem, F exceptionItem, ISSABasicBlock current,
                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
         Map<ISSABasicBlock, F> ret = new LinkedHashMap<>();
-        for (ISSABasicBlock succ : getNormalSuccs(bb, cfg)) {
-            if (!isUnreachable(bb, succ)) {
+        for (ISSABasicBlock succ : getNormalSuccs(current, cfg)) {
+            if (!isUnreachable(current, succ)) {
                 ret.put(succ, normalItem);
             }
         }
-        for (ISSABasicBlock succ : getExceptionalSuccs(bb, cfg)) {
-            if (!isUnreachable(bb, succ)) {
+        for (ISSABasicBlock succ : getExceptionalSuccs(current, cfg)) {
+            if (!isUnreachable(current, succ)) {
                 ret.put(succ, exceptionItem);
             }
         }

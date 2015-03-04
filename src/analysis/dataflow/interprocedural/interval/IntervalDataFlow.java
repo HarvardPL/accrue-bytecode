@@ -177,7 +177,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             else {
                 normal = updateActuals(newNormalActualValues, actuals, in);
             }
-            normal = normal.replaceAllLocations(normalLocations);
+            normal = normal.setLocations(normalLocations);
 
             for (ISSABasicBlock normalSucc : getNormalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, normalSucc)) {
@@ -190,7 +190,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         // Exceptional return
         if (canThrowException) {
             VarContext<IntervalAbsVal> callerExContext = updateActuals(newExceptionActualValues, actuals, in);
-            callerExContext = callerExContext.replaceAllLocations(exceptionalLocations);
+            callerExContext = callerExContext.setLocations(exceptionalLocations);
 
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
