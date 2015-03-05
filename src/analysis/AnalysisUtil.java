@@ -398,6 +398,12 @@ public class AnalysisUtil {
         return Collections.newSetFromMap(AnalysisUtil.<T, Boolean> createConcurrentHashMap());
     }
 
+    public static <T> Set<T> createConcurrentSingletonSet(T t) {
+        Set<T> s = createConcurrentSet();
+        s.add(t);
+        return s;
+    }
+
     /**
      * Get the directory to put output files into
      *
