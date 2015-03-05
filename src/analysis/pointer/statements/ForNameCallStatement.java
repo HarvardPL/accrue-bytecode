@@ -67,11 +67,11 @@ public class ForNameCallStatement extends PointsToStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                   GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica resultRVR = new ReferenceVariableReplica(context, this.result, haf);
-        StringVariableReplica nameRVR = new StringVariableReplica(context, this.actuals.get(0));
+        StringVariableReplica nameSVR = new StringVariableReplica(context, this.actuals.get(0));
 
         GraphDelta changed = new GraphDelta(g);
-        PointsToIterable pti = (PointsToIterable) (delta == null ? g : delta);
-        StringInstanceKey nameSIK = pti.getSIKForSVR(nameRVR);
+        PointsToIterable pti = delta == null ? g : delta;
+        Optional<StringInstanceKey> nameSIK = pti.getAStringFor(nameSVR);
 
         //        Optional<Set<IClass>> classes = nameSIK.getStrings()
         //                .map(stringSet -> stringSet.stream()
@@ -80,23 +80,33 @@ public class ForNameCallStatement extends PointsToStatement {
         //                                                                      .orElse(Stream.empty()))
         //                                           .collect(Collectors.toSet()));
 
-        FiniteSet<String> strings = nameSIK.getFiniteStringSet();
-        FiniteSet<IClass> classes;
-        if (strings.isTop()) {
-            classes = FiniteSet.makeTop(MAX_STRING_SET_SIZE);
-        } else {
-            Set<IClass> classSet = new HashSet<>();
-            for(String string : strings.getSet()) {
-                Optional<IClass> maybeIClass = stringToIClass(string);
-                if(maybeIClass.isSome()) {
-                    classSet.add(maybeIClass.get());
-                }
-            }
-            classes = FiniteSet.makeFiniteSet(MAX_STRING_SET_SIZE, classSet);
+        if (nameSIK.isNone()) {
+            // XXX: What should we do if there's no known strings?
         }
+        else {
+            FiniteSet<String> strings = nameSIK.get().getFiniteStringSet();
+            FiniteSet<IClass> classes;
+            if (strings.isTop()) {
+                classes = FiniteSet.makeTop(MAX_STRING_SET_SIZE);
+            }
+            else {
+                Set<IClass> classSet = new HashSet<>();
+                for (String string : strings.getSet()) {
+                    Optional<IClass> maybeIClass = stringToIClass(string);
+                    if (maybeIClass.isSome()) {
+                        classSet.add(maybeIClass.get());
+                    }
+                }
+                classes = FiniteSet.makeFiniteSet(MAX_STRING_SET_SIZE, classSet);
+            }
 
-        AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, result, false);
-        changed.combine(g.addEdge(resultRVR, ClassInstanceKey.make(classes)));
+            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName",
+                                                                     JavaLangClassIClass,
+                                                                     caller,
+                                                                     result,
+                                                                     false);
+            changed.combine(g.addEdge(resultRVR, ClassInstanceKey.make(classes)));
+        }
         return changed;
     }
 

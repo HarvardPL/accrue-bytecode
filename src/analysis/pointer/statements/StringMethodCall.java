@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.ArrayList;
 import java.util.List;
 
+import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.StringInstanceKey;
@@ -61,6 +62,7 @@ public class StringMethodCall extends StringStatement {
                                                                                                                 appendStringBuilderDesc);
     public final static IMethod JavaLangStringBuilderAppendStringBuilderIMethod = AnalysisUtil.getClassHierarchy()
                                                                                               .resolveMethod(JavaLangStringBuilderAppendStringBuilder);
+    private static final int MAX_STRING_SET_SIZE = 5;
 
     private final CallSiteReference callSite;
     private final MethodEnum invokedMethod;
@@ -100,25 +102,32 @@ public class StringMethodCall extends StringStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica resultRVR = new StringVariableReplica(context, this.result);
-        StringVariableReplica receiverRVR = new StringVariableReplica(context, this.receiver);
+        StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
+        StringVariableReplica receiverSVR = new StringVariableReplica(context, this.receiver);
 //        List<StringVariableReplica> argumentRVRs = this.arguments.stream()
 //                                                                 .map(a -> new StringVariableReplica(context, a, haf))
 //                                                                 .collect(Collectors.toList());
-        List<StringVariableReplica> argumentRVRs = new ArrayList<>();
+        List<StringVariableReplica> argumentSVRs = new ArrayList<>();
         for(StringVariable argument : this.arguments) {
-            argumentRVRs.add(new StringVariableReplica(context, argument));
+            argumentSVRs.add(new StringVariableReplica(context, argument));
         }
-        PointsToIterable pti = (PointsToIterable) (delta == null ? g : delta);
+        PointsToIterable pti = delta == null ? g : delta;
 
         switch (this.invokedMethod) {
         case concatM: {
             GraphDelta newDelta = new GraphDelta(g);
 
-            assert argumentRVRs.size() == 1;
+            assert argumentSVRs.size() == 1;
 
-            StringInstanceKey newSIK = pti.getSIKForSVR(receiverRVR).concat(pti.getSIKForSVR(argumentRVRs.get(0)));
-            newDelta.combine(g.stringVariableReplicaJoinAr(resultRVR, newSIK));
+            Optional<StringInstanceKey> maybeReceiverAString = pti.getAStringFor(receiverSVR);
+            Optional<StringInstanceKey> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(0));
+
+            if (maybeReceiverAString.isNone() || maybeArgumentAString.isNone()) {
+                newDelta.combine(g.stringVariableReplicaJoinAr(resultSVR, StringInstanceKey.makeStringTop(MAX_STRING_SET_SIZE)));
+            } else {
+                StringInstanceKey newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
+                newDelta.combine(g.stringVariableReplicaJoinAr(resultSVR, newSIK));
+            }
             return newDelta;
         }
         case somethingElseM: {

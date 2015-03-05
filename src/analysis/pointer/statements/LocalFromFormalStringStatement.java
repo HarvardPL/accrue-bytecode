@@ -34,7 +34,7 @@ public class LocalFromFormalStringStatement extends StringStatement {
                                   GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica localRVR = new StringVariableReplica(context, this.local);
         PointsToGraphNode formalRVR = new ReferenceVariableReplica(context, this.formal, haf);
-        PointsToIterable pti = (PointsToIterable) (delta == null ? g : delta);
+        PointsToIterable pti = delta == null ? g : delta;
 
         GraphDelta newDelta = new GraphDelta(g);
 

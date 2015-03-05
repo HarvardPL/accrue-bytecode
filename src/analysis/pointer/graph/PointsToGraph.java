@@ -20,8 +20,10 @@ import util.intmap.IntMap;
 import util.intmap.ReadOnlyConcurrentIntMap;
 import util.intmap.SparseIntMap;
 import util.intset.EmptyIntSet;
+import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
@@ -48,7 +50,7 @@ import com.ibm.wala.util.intset.SparseIntSet;
  * Graph mapping local variables (in a particular context) and fields to
  * abstract heap locations (representing zero or more actual heap locations)
  */
-public final class PointsToGraph {
+public final class PointsToGraph implements PointsToIterable {
 
     public static final String ARRAY_CONTENTS = "[contents]";
 
@@ -86,7 +88,7 @@ public final class PointsToGraph {
      */
     private ConcurrentMap<PointsToGraphNode, Integer> reverseGraphNodeDictionary = new ConcurrentHashMap<>();
 
-
+    private final StringConstraints sc;
 
     /* ***************************************************************************
     *
@@ -185,6 +187,8 @@ public final class PointsToGraph {
         this.depRecorder = depRecorder;
 
         this.haf = haf;
+
+        this.sc = StringConstraints.make();
 
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
@@ -1374,6 +1378,41 @@ public final class PointsToGraph {
             return m.values();
         }
 
+    }
+
+    public StringConstraints getStringConstraints() {
+        return this.sc;
+    }
+
+    public GraphDelta stringVariableReplicaJoinAr(StringVariableReplica svr, StringInstanceKey shat) {
+        return new GraphDelta(this, this.sc.joinAt(svr, shat));
+    }
+
+    public GraphDelta stringVariableReplicaUpperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
+        return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
+    }
+
+    public Iterable<StringInstanceKey> stringsForInstanceKey(InstanceKey fIK) {
+        return Collections.emptySet();
+    }
+
+    public void ikDependsOnStringVariable(InstanceKey newIK, StringVariableReplica svr) {
+        /* XXX: implement interprocedural analysis */
+    }
+
+    @Override
+    public Iterable<InstanceKey> pointsToIterable(final PointsToGraphNode node, final StmtAndContext originator) {
+        return new Iterable<InstanceKey>() {
+            @Override
+            public Iterator<InstanceKey> iterator() {
+                return pointsToIterator(node, originator);
+            }
+        };
+    }
+
+    @Override
+    public Optional<StringInstanceKey> getAStringFor(StringVariableReplica x) {
+        return this.sc.getAStringFor(x);
     }
 
 }

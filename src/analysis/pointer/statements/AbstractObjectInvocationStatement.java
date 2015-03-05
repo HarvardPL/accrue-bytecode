@@ -55,7 +55,7 @@ public abstract class AbstractObjectInvocationStatement<MethodType> extends
                                                                                                            haf);
         ReferenceVariableReplica exceptionReplica = new ReferenceVariableReplica(context, this.exception, haf);
 
-        PointsToIterable pti = (PointsToIterable) (delta == null ? g : delta);
+        PointsToIterable pti = delta == null ? g : delta;
 
         Iterable<InstanceKey> receiverIKs = receiverReplica == null ? null : pti.pointsToIterable(receiverReplica, originator);
         Iterable<InstanceKey> resultIKs = receiverReplica == null ? null : pti.pointsToIterable(resultReplica, originator);

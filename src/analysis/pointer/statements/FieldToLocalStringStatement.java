@@ -39,7 +39,7 @@ public class FieldToLocalStringStatement extends StringStatement {
         StringVariableReplica vSVR = new StringVariableReplica(context, this.v);
         PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
 
-        PointsToIterable pti = (PointsToIterable) (delta == null ? g : delta);
+        PointsToIterable pti = delta == null ? g : delta;
 
         GraphDelta newDelta = new GraphDelta(g);
 

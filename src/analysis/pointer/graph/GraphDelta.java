@@ -6,6 +6,9 @@ import java.util.Iterator;
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import util.intset.IntSetUnion;
+import util.optional.Optional;
+import analysis.pointer.analyses.StringInstanceKey;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
@@ -21,8 +24,9 @@ import com.ibm.wala.util.intset.TunedMutableSparseIntSet;
  * operation made to a PointsToGraph, and also to allow more efficient processing of statements, which can focus just on
  * the changes to the graph since last time they were processed.
  */
-public final class GraphDelta {
+public final class GraphDelta implements PointsToIterable {
     private final PointsToGraph g;
+    private final StringConstraintDelta scd;
     /**
      * Map from PointsToGraphNode to sets of InstanceKeys (where PointsToGraphNodes and InstanceKeys are represented by
      * ints)
@@ -31,11 +35,19 @@ public final class GraphDelta {
 
     public GraphDelta(PointsToGraph g) {
         this.g = g;
+        this.scd = StringConstraintDelta.makeEmpty(this.g.getStringConstraints());
         // Map doesn't need to be thread safe, since when it is being modified it is thread local
         // and when it is shared, it is read only.
         this.delta = new SparseIntMap<MutableIntSet>();
     }
 
+    public GraphDelta(PointsToGraph g, StringConstraintDelta scd) {
+        this.g = g;
+        this.scd = scd;
+        // Map doesn't need to be thread safe, since when it is being modified it is thread local
+        // and when it is shared, it is read only.
+        this.delta = new SparseIntMap<MutableIntSet>();
+    }
 
     MutableIntSet getOrCreateSet(/*PointsToGraphNode*/int src,
             Integer initialSize) {
@@ -159,5 +171,20 @@ public final class GraphDelta {
         return delta.keyIterator();
     }
 
+
+    @Override
+    public Iterable<InstanceKey> pointsToIterable(final PointsToGraphNode node, StmtAndContext originator) {
+        return new Iterable<InstanceKey>() {
+            @Override
+            public Iterator<InstanceKey> iterator() {
+                return pointsToIterator(node);
+            }
+        };
+    }
+
+    @Override
+    public Optional<StringInstanceKey> getAStringFor(StringVariableReplica svr) {
+        return this.scd.getAStringFor(svr);
+    }
 
 }
