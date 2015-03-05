@@ -93,16 +93,4 @@ public class ClassInitStatement extends PointsToStatement {
     public List<ReferenceVariable> getUses() {
         return Collections.emptyList();
     }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.emptyList();
-    }
 }

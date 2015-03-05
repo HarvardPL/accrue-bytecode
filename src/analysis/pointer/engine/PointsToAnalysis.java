@@ -1,7 +1,5 @@
 package analysis.pointer.engine;
 
-import java.util.Collection;
-
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -76,14 +74,6 @@ public abstract class PointsToAnalysis {
         public StmtAndContext(PointsToStatement stmt, Context context) {
             this.stmt = stmt;
             this.context = context;
-        }
-
-        public Collection<?> getReadDependencies(HeapAbstractionFactory haf) {
-            return this.stmt.getReadDependencies(this.context, haf);
-        }
-
-        public Collection<?> getWriteDependencies(HeapAbstractionFactory haf) {
-            return this.stmt.getWriteDependencies(this.context, haf);
         }
 
         @Override

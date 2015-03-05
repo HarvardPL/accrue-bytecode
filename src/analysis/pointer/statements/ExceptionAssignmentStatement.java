@@ -134,38 +134,4 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         return this.caught;
     }
 
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-                                             HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r;
-        if (this.thrown.isSingleton()) {
-            // This was a generated exception and the flag was set in StatementRegistrar so that only one reference
-            // variable is created for each generated exception type
-            r = new ReferenceVariableReplica(haf.initialContext(), this.thrown, haf);
-        }
-        else {
-            r = new ReferenceVariableReplica(ctxt, this.thrown, haf);
-        }
-        return Collections.singleton(r);
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-                                              HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, this.caught, haf);
-        if (this.isToMethodSummaryVariable && !this.getMethod().isStatic()) {
-            List<Object> defs = new ArrayList<>(3);
-            defs.add(r);
-            defs.add(this.caught);
-            if (!this.getMethod().isPrivate()) {
-                // Add in a special object for the exceptional return, so that virtual call statements can
-                // have a read dependency on it...
-                defs.add(new OrderedPair<>(this.getMethod().getSelector(),
-                        "ex-return"));
-            }
-            return defs;
-        }
-        return Collections.singleton(r);
-    }
-
 }

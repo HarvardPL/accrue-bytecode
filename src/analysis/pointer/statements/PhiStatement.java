@@ -94,22 +94,4 @@ public class PhiStatement extends PointsToStatement {
         return assignee;
     }
 
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        List<ReferenceVariableReplica> l = new ArrayList<>(uses.size());
-        for (ReferenceVariable use : uses) {
-            ReferenceVariableReplica n =
- new ReferenceVariableReplica(ctxt, use, haf);
-            l.add(n);
-        }
-        return l;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, assignee, haf));
-    }
-
 }

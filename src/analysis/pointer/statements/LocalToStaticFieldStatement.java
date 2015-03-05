@@ -80,17 +80,4 @@ public class LocalToStaticFieldStatement extends PointsToStatement {
         // The static field is not a local
         return null;
     }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica r = new ReferenceVariableReplica(ctxt, local, haf);
-        return Collections.singleton(r);
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(haf.initialContext(), staticField, haf));
-    }
 }

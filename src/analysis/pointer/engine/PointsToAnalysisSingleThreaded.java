@@ -3,17 +3,13 @@ package analysis.pointer.engine;
 import java.util.AbstractQueue;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
-import java.util.Stack;
 
 import util.Histogram;
 import util.OrderedPair;
@@ -488,185 +484,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     /**
      *
      */
-    class SCCSortQueue extends AbstractQueue<StmtAndContext> {
-        //MutableIntSet current;
-        PriorityQueue<StmtAndContext> current;
-        Set<StmtAndContext> next = new HashSet<>();
-        Map<Object, Set<StmtAndContext>> readDependencies = new HashMap<>();
-
-        Map<StmtAndContext, Integer> indexMap = new HashMap<>();
-
-        //ArrayList<StmtAndContext> indexReverseMap = new ArrayList<>();
-
-        SCCSortQueue() {
-            Comparator<StmtAndContext> cmp = new Comparator<StmtAndContext>() {
-
-                @Override
-                public int compare(StmtAndContext o1, StmtAndContext o2) {
-                    int i1 = indexMap.get(o1);
-                    int i2 = indexMap.get(o2);
-                    if (i1 < i2) {
-                        return 1;
-                    }
-                    if (i1 > i2) {
-                        return -1;
-                    }
-                    return 0;
-                }
-            };
-            //this.current = MutableSparseIntSet.createMutableSparseIntSet(10000);
-            this.current = new PriorityQueue<>(10000, cmp);
-        }
-        @Override
-        public boolean offer(StmtAndContext sac) {
-            if (indexMap.containsKey(sac)) {
-                //                current.add(indexMap.get(sac));
-                current.add(sac);
-            }
-            else {
-                this.next.add(sac);
-                // register it
-                for (Object read : sac.getReadDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                    Set<StmtAndContext> set = this.readDependencies.get(read);
-                    if (set == null) {
-                        set = new HashSet<>();
-                        this.readDependencies.put(read, set);
-                    }
-                    set.add(sac);
-                }
-            }
-            return true;
-        }
-
-        @Override
-        public StmtAndContext poll() {
-            if (this.current.isEmpty()/* || this.next.size() > 2500*/) {
-                this.sccSortNextIntoCurrent();
-            }
-            //            int max = this.current.max();
-            //            this.current.remove(max);
-            //            return indexReverseMap.get(max);
-            return current.poll();
-        }
-
-        Set<StmtAndContext> visitingSet;
-        Stack<StmtAndContext> visiting;
-
-
-        /*
-         * Topo sort the array
-         */
-        private void sccSortNextIntoCurrent() {
-            long start = System.currentTimeMillis();
-            this.next.addAll(current);
-            //            this.current.foreach(new IntSetAction() {
-            //
-            //                @Override
-            //                public void act(int x) {
-            //                    next.add(indexReverseMap.get(x));
-            //                }
-            //            });
-            this.current.clear();
-
-            // reset the index counter.
-            this.index = 0;
-            this.indexMap.clear();
-            //            this.indexReverseMap.clear();
-            this.visitingSet = new HashSet<>();
-            this.visiting = new Stack<>();
-            for (StmtAndContext sac : this.next) {
-                if (!this.indexMap.containsKey(sac)) {
-                    this.visit(sac);
-                }
-            }
-
-            this.next.clear();
-            this.visitingSet = null;
-            this.visiting = null;
-
-            long end = System.currentTimeMillis();
-            PointsToAnalysisSingleThreaded.this.topoSortTime += end - start;
-
-        }
-
-        int index;
-
-        private int visit(StmtAndContext sac) {
-            int sacIndex = this.index;
-            int sacLowLink = this.index;
-            this.index++;
-
-            this.indexMap.put(sac, sacIndex);
-            //            this.indexReverseMap.add(sac);
-            //            assert this.indexReverseMap.size() == sacIndex;
-            this.visitingSet.add(sac);
-            this.visiting.push(sac);
-
-            for (StmtAndContext w : this.children(sac)) {
-                Integer childIndex = this.indexMap.get(w);
-                if (childIndex == null) {
-                    // successor child has not yet been visited. Recurse
-                    int childLowLink = this.visit(w);
-                    sacLowLink = Math.min(sacLowLink, childLowLink);
-
-                }
-                else if (this.visitingSet.contains(w)) {
-                    // child is in the stack, and hence in the current SCC
-                    sacLowLink = Math.min(sacLowLink, childIndex);
-                }
-            }
-
-            // If sac is a root node, pop the stack and generate an SCC
-            if (sacIndex == sacLowLink) {
-                // new strongly connected component!
-                StmtAndContext w;
-                do {
-                    w = this.visiting.pop();
-                    this.visitingSet.remove(w);
-                    if (this.next.contains(w)) {
-                        assert this.indexMap.containsKey(w);
-                        current.add(w);
-                        //                        current.add(indexMap.get(w));
-                    }
-                } while (w != sac);
-            }
-            return sacLowLink;
-        }
-
-        private Collection<StmtAndContext> children(StmtAndContext sac) {
-            // The children of sac are the StmtAndContexts that read a variable
-            // that sac writes.
-            HashSet<StmtAndContext> set = new HashSet<>();
-            for (Object written : sac.getWriteDependencies(PointsToAnalysisSingleThreaded.this.haf)) {
-                Set<StmtAndContext> v = this.readDependencies.get(written);
-                if (v != null) {
-                    set.addAll(v);
-                }
-            }
-            return set;
-        }
-
-        @Override
-        public StmtAndContext peek() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Iterator<StmtAndContext> iterator() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int size() {
-            return this.current.size() + this.next.size();
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return this.current.isEmpty() && this.next.isEmpty();
-        }
-    }
-
     static class PartitionedQueue extends AbstractQueue<StmtAndContext> {
         Queue<StmtAndContext> base =
         //new LinkedList<>();

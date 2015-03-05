@@ -1,11 +1,9 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -178,39 +176,6 @@ public class VirtualCallStatement extends CallStatement {
     @Override
     public ReferenceVariable getDef() {
         return this.getResult();
-    }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> uses = new ArrayList<>(this.getActuals().size() + 2);
-        uses.add(new ReferenceVariableReplica(ctxt, this.receiver, haf));
-        for (ReferenceVariable use : this.getActuals()) {
-            if (use != null) {
-                ReferenceVariableReplica n = new ReferenceVariableReplica(ctxt, use, haf);
-                uses.add(n);
-            }
-        }
-
-        // we use the exception value...
-        uses.add(new OrderedPair<>(this.callee.getSelector(), "ex-return"));
-
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        List<Object> defs = new ArrayList<>(3);
-
-        if (this.getResult() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getResult(), haf));
-        }
-        if (this.getException() != null) {
-            defs.add(new ReferenceVariableReplica(ctxt, this.getException(), haf));
-        }
-        // Add the callee Selector, so we can get dependences from this
-        // to the summary nodes of the callees.
-        defs.add(this.callee.getSelector());
-        return defs;
     }
 
 }
