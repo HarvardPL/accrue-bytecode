@@ -20,8 +20,8 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
         if (!Double.isNaN(min) && !Double.isNaN(max)) {
             assert min <= max : "min is " + min + " max is " + max;
         }
-        this.min = min < (-1) * BOUND ? Double.NEGATIVE_INFINITY : min;
-        this.max = max > BOUND ? Double.POSITIVE_INFINITY : max;
+        this.min = min > BOUND || min < (-1) * BOUND ? Double.NEGATIVE_INFINITY : min;
+        this.max = max > BOUND || max < (-1) * BOUND ? Double.POSITIVE_INFINITY : max;
     }
 
 
@@ -43,11 +43,11 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
         if (this == TOP_ELEMENT || that == TOP_ELEMENT) {
             return TOP_ELEMENT;
         }
-        else if (this == BOTTOM_ELEMENT) {
-            return that;
-        }
         else if (that == BOTTOM_ELEMENT || that == null) {
             return this;
+        }
+        else if (this == BOTTOM_ELEMENT) {
+            return that;
         }
 
         double minBoundary = this.min < that.min ? this.min : that.min;
@@ -65,6 +65,9 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
     public IntervalAbsVal neg() {
         if (this == TOP_ELEMENT) {
             return TOP_ELEMENT;
+        }
+        if (this == BOTTOM_ELEMENT) {
+            return BOTTOM_ELEMENT;
         }
         return new IntervalAbsVal(-this.max, -this.min);
     }
