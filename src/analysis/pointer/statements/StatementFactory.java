@@ -7,9 +7,11 @@ import java.util.Set;
 
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.pointer.registrar.FlowSensitiveStringVariableFactory;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.registrar.strings.StringVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -314,7 +316,6 @@ public class StatementFactory {
         return s;
     }
 
-
     /**
      * Get a points-to statement representing the allocation of an inner array of a multidimensional array
      *
@@ -540,10 +541,10 @@ public class StatementFactory {
      * @param rvFactory factory used to find callee summary nodes
      * @return statement to be processed during pointer analysis
      */
-    public VirtualCallStatement virtualCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
-                                            ReferenceVariable result, ReferenceVariable receiver,
-                                            List<ReferenceVariable> actuals, ReferenceVariable callerException,
-                                            ReferenceVariableFactory rvFactory) {
+    public PointsToStatement virtualCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
+                                         ReferenceVariable result, ReferenceVariable receiver,
+                                         List<ReferenceVariable> actuals, ReferenceVariable callerException,
+                                         ReferenceVariableFactory rvFactory) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
@@ -552,16 +553,160 @@ public class StatementFactory {
         assert callerException != null;
         assert rvFactory != null;
 
-        VirtualCallStatement s = new VirtualCallStatement(callSite,
-                                                          caller,
-                                                          callee,
-                                                          result,
-                                                          receiver,
-                                                          actuals,
-                                                          callerException,
-                                                          rvFactory);
+        PointsToStatement s;
+
+        if (ClassMethodInvocationStatement.isReflectiveMethod(callSite.getDeclaredTarget())) {
+            s = new ClassMethodInvocationStatement(callSite, caller, result, receiver, actuals, callerException);
+        }
+        else {
+            s = new VirtualCallStatement(callSite,
+                                         caller,
+                                         callee,
+                                         result,
+                                         receiver,
+                                         actuals,
+                                         callerException,
+                                         rvFactory);
+        }
         assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
         return s;
+    }
+
+    public StringStatement localFromFormalString(StringVariable param, ReferenceVariable formal, IMethod method,
+                                                 boolean rightIsMethodSummary) {
+        assert param != null;
+        assert formal != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(param, formal, method));
+
+        return new LocalFromFormalStringStatement(param, formal, method);
+    }
+
+    public StringStatement fieldToLocalString(StringVariable svv, ReferenceVariable o, FieldReference f, IMethod method) {
+        assert svv != null;
+        assert o != null;
+        assert f != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(svv, o, f, method, null, null, null));
+
+        return new FieldToLocalStringStatement(svv, o, f, method);
+    }
+
+    public StringStatement staticFieldToLocalString(StringVariable svv, StringVariable svf, IMethod method) {
+        assert svv != null;
+        assert svf != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(svv, svf, method));
+
+        return new StaticFieldToLocalStringStatement(svv, svf, method);
+    }
+
+    public StringStatement newString(StringVariable result, IMethod method) {
+        assert result != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(result, method));
+
+        return new NewStringStatement(result, method);
+    }
+
+    public StringStatement stringMethodCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
+                                            StringVariable svresult, StringVariable svreceiver,
+                                            List<StringVariable> svarguments,
+                                            FlowSensitiveStringVariableFactory stringVariableFactory) {
+        assert callSite != null;
+        assert method != null;
+        assert declaredTarget != null;
+        assert svresult != null;
+        assert svreceiver != null;
+        assert svarguments != null;
+        for (StringVariable svargument : svarguments) {
+            assert svargument != null;
+        }
+        assert stringVariableFactory != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(callSite,
+                                                                  method,
+                                                                  declaredTarget,
+                                                                  svresult,
+                                                                  svreceiver,
+                                                                  svarguments,
+                                                                  null));
+
+        return new StringMethodCall(callSite,
+                                    method,
+                                    declaredTarget,
+                                    svresult,
+                                    svreceiver,
+                                    svarguments,
+                                    stringVariableFactory);
+    }
+
+    public StringStatement phiToLocalString(StringVariable svassignee, List<StringVariable> svuses, IMethod method,
+                                            PrettyPrinter pp) {
+        assert svassignee != null;
+        assert svuses != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(svassignee, svuses, method));
+
+        return new PhiToLocalStringStatement(svassignee, svuses, method);
+    }
+
+    public StringStatement localToStaticFieldString(StringVariable svf, StringVariable svv, IMethod method) {
+        assert svf != null;
+        assert svv != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(svf, svv, method));
+
+        return new LocalToStaticFieldStringStatement(svf, svv, method);
+    }
+
+    public StringStatement returnString(StringVariable svv, ReferenceVariable summary, IMethod method) {
+        assert svv != null;
+        assert summary != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(svv, summary, method));
+
+        return new ReturnStringStatement(svv, summary, method);
+    }
+
+    public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
+                                       ReferenceVariable result, ReferenceVariable receiver,
+                                       List<StringVariable> actuals) {
+        assert callSite != null;
+        assert callee != null;
+        assert caller != null;
+        assert receiver != null;
+        assert actuals != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(callSite,
+                                                                  caller,
+                                                                  callee,
+                                                                  result,
+                                                                  receiver,
+                                                                  actuals,
+                                                                  null));
+
+        return new ForNameCallStatement(callSite, caller, callee, result, receiver, actuals);
+
+    }
+
+    /* void is the one element type, it only contains null */
+    private final Map<StatementKey, Void> stringStatementMap = new HashMap<>();
+
+    private boolean stringStatementNeverCreatedBefore(StatementKey statementKey) {
+        if (stringStatementMap.containsKey(statementKey)) {
+            return false;
+        }
+        else {
+            stringStatementMap.put(statementKey, null);
+            return true;
+        }
     }
 
     /**
