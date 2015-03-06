@@ -550,48 +550,47 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         assert ((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(currentNode).contains(loc) : "Missing location "
                 + loc + " for " + currentNode;
 
-        // Whether the input value could be null
+        // Can always perform strong update since static fields are always a single location
         NonNullAbsVal inVal = getLocal(i.getVal(), in);
-        if (!inVal.isNonnull()) {
-            // The value may be null there is no advantage to strong update
-            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
-        }
-
-        // Value is non-null
-        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
-        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
-
-        // Check whether this field can be strongly updated
-
-        // First check whether the points-to set for the field contains a single element
-        IField f = AnalysisUtil.getClassHierarchy().resolveField(i.getDeclaredField());
-        ReferenceVariable fieldRV = ptg.getRegistrar().getRvCache().getStaticField(f);
-        PointsToGraphNode fieldRVR = new ReferenceVariableReplica(currentNode.getContext(), fieldRV, ptg.getHaf());
-        Iterator<? extends InstanceKey> pti = ptg.pointsToIterator(fieldRVR, ippr);
-        if (!pti.hasNext()) {
-            if (outputLevel > 0) {
-                System.err.println("Nothing pointed to by static field " + f + " at " + ippr);
-            }
-            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
-        }
-
-        InstanceKeyRecency ikr = (InstanceKeyRecency) pti.next();
-        if (pti.hasNext() || (!ikr.isRecent() && !ptg.isNullInstanceKey(ikr))) {
-            // The points-to set has more than one element or the single element is not the most recent
-            //     cannot strongly update so join in the new value
-
-            if (couldFieldPointToNull(fieldRVR, i)) {
-                return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
-            }
-
-            NonNullAbsVal val = in.getLocation(loc);
-            return in.setLocation(loc, inVal.join(val));
-        }
-
-        // Can strongly update the value of the field since it
-        //     1. has a singleton points-to set
-        //     2. the singleton element is the most recent (or null)
         return in.setLocation(loc, inVal);
+
+        //        // Whether the input value could be null
+        //
+        //        if (!inVal.isNonnull()) {
+        //            // The value may be null there is no advantage to strong update
+        //            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+        //        }
+        //
+        //        // Value is non-null
+        //        InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
+        //        InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
+        //
+        //        // Check whether this field can be strongly updated
+        //
+        //        // First check whether the points-to set for the field contains a single element
+        //        IField f = AnalysisUtil.getClassHierarchy().resolveField(i.getDeclaredField());
+        //        ReferenceVariable fieldRV = ptg.getRegistrar().getRvCache().getStaticField(f);
+        //        PointsToGraphNode fieldRVR = new ReferenceVariableReplica(currentNode.getContext(), fieldRV, ptg.getHaf());
+        //        Iterator<? extends InstanceKey> pti = ptg.pointsToIterator(fieldRVR, ippr);
+        //        if (!pti.hasNext()) {
+        //            if (outputLevel > 0) {
+        //                System.err.println("Nothing pointed to by static field " + f + " at " + ippr);
+        //            }
+        //            return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+        //        }
+        //
+        //        InstanceKeyRecency ikr = (InstanceKeyRecency) pti.next();
+        //        if (pti.hasNext() || (!ikr.isRecent() && !ptg.isNullInstanceKey(ikr))) {
+        //            // The points-to set has more than one element or the single element is not the most recent
+        //            //     cannot strongly update so join in the new value
+        //
+        //            if (couldFieldPointToNull(fieldRVR, i)) {
+        //                return in.setLocation(loc, NonNullAbsVal.MAY_BE_NULL);
+        //            }
+        //
+        //            NonNullAbsVal val = in.getLocation(loc);
+        //            return in.setLocation(loc, inVal.join(val));
+        //        }
     }
 
     @Override
