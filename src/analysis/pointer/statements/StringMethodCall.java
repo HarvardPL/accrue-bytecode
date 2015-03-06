@@ -5,8 +5,8 @@ import java.util.List;
 
 import util.optional.Optional;
 import analysis.AnalysisUtil;
+import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -119,14 +119,14 @@ public class StringMethodCall extends StringStatement {
 
             assert argumentSVRs.size() == 1;
 
-            Optional<StringInstanceKey> maybeReceiverAString = pti.getAStringFor(receiverSVR);
-            Optional<StringInstanceKey> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(0));
+            Optional<AString> maybeReceiverAString = pti.getAStringFor(receiverSVR);
+            Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(0));
 
             if (maybeReceiverAString.isNone() || maybeArgumentAString.isNone()) {
-                newDelta.combine(g.stringVariableReplicaJoinAr(resultSVR, StringInstanceKey.makeStringTop(MAX_STRING_SET_SIZE)));
+                newDelta.combine(g.stringVariableReplicaJoinAt(resultSVR, AString.makeStringTop(MAX_STRING_SET_SIZE)));
             } else {
-                StringInstanceKey newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
-                newDelta.combine(g.stringVariableReplicaJoinAr(resultSVR, newSIK));
+                AString newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
+                newDelta.combine(g.stringVariableReplicaJoinAt(resultSVR, newSIK));
             }
             return newDelta;
         }

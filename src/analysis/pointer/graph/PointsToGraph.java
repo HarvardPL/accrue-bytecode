@@ -22,8 +22,8 @@ import util.intmap.SparseIntMap;
 import util.intset.EmptyIntSet;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
+import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
@@ -1384,7 +1384,7 @@ public final class PointsToGraph implements PointsToIterable {
         return this.sc;
     }
 
-    public GraphDelta stringVariableReplicaJoinAr(StringVariableReplica svr, StringInstanceKey shat) {
+    public GraphDelta stringVariableReplicaJoinAt(StringVariableReplica svr, AString shat) {
         return new GraphDelta(this, this.sc.joinAt(svr, shat));
     }
 
@@ -1392,7 +1392,7 @@ public final class PointsToGraph implements PointsToIterable {
         return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
     }
 
-    public Iterable<StringInstanceKey> stringsForInstanceKey(InstanceKey fIK) {
+    public Iterable<AString> stringsForInstanceKey(InstanceKey fIK) {
         return Collections.emptySet();
     }
 
@@ -1411,7 +1411,7 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     @Override
-    public Optional<StringInstanceKey> getAStringFor(StringVariableReplica x) {
+    public Optional<AString> getAStringFor(StringVariableReplica x) {
         return this.sc.getAStringFor(x);
     }
 

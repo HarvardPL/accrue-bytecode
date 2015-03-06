@@ -7,7 +7,7 @@ import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
 import util.intset.IntSetUnion;
 import util.optional.Optional;
-import analysis.pointer.analyses.StringInstanceKey;
+import analysis.pointer.analyses.AString;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.PointsToGraph.FilteredIntSet;
 
@@ -183,7 +183,7 @@ public final class GraphDelta implements PointsToIterable {
     }
 
     @Override
-    public Optional<StringInstanceKey> getAStringFor(StringVariableReplica svr) {
+    public Optional<AString> getAStringFor(StringVariableReplica svr) {
         return this.scd.getAStringFor(svr);
     }
 

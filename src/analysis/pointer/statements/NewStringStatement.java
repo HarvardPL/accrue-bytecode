@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
+import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -29,9 +29,9 @@ public class NewStringStatement extends StringStatement {
                                   StatementRegistrar registrar, StmtAndContext originator) {
         // XXX: This is an affront to software engineering. I'm baking in my notion of StringInstanceKey when it ought to be provided by the analysis.
         //      once I teach IHAFs to create the bottoms of StringInstanceKey's I'll be fine.
-        StringInstanceKey sik = StringInstanceKey.makeStringBottom(MAX_STRING_SET_SIZE);
+        AString sik = AString.makeStringBottom(MAX_STRING_SET_SIZE);
 
-        return g.stringVariableReplicaJoinAr(new StringVariableReplica(context, result), sik);
+        return g.stringVariableReplicaJoinAt(new StringVariableReplica(context, result), sik);
     }
 
     @Override

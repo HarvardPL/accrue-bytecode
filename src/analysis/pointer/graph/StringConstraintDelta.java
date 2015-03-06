@@ -4,7 +4,7 @@ import java.util.Set;
 
 import util.optional.Optional;
 import analysis.AnalysisUtil;
-import analysis.pointer.analyses.StringInstanceKey;
+import analysis.pointer.analyses.AString;
 
 public class StringConstraintDelta {
 
@@ -34,7 +34,7 @@ public class StringConstraintDelta {
 
     /* Logic */
 
-    public Optional<StringInstanceKey> getAStringFor(StringVariableReplica svr) {
+    public Optional<AString> getAStringFor(StringVariableReplica svr) {
         if (this.svrs.contains(svr)) {
             return this.sc.getAStringFor(svr);
         }

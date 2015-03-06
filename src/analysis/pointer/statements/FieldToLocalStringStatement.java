@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
+import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -47,8 +47,8 @@ public class FieldToLocalStringStatement extends StringStatement {
             ObjectField f = new ObjectField(oIK, this.field);
 
             for (InstanceKey fIK : pti.pointsToIterable(f, originator)) {
-                for (StringInstanceKey sik : g.stringsForInstanceKey(fIK)) {
-                    newDelta.combine(g.stringVariableReplicaJoinAr(vSVR, sik));
+                for (AString sik : g.stringsForInstanceKey(fIK)) {
+                    newDelta.combine(g.stringVariableReplicaJoinAt(vSVR, sik));
                 }
             }
         }

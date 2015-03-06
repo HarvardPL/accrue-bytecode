@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
+import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -39,8 +39,8 @@ public class LocalFromFormalStringStatement extends StringStatement {
         GraphDelta newDelta = new GraphDelta(g);
 
         for (InstanceKey formalIK : pti.pointsToIterable(formalRVR, originator)) {
-            for(StringInstanceKey sik : g.stringsForInstanceKey(formalIK)) {
-                newDelta.combine(g.stringVariableReplicaJoinAr(localRVR, sik));
+            for (AString sik : g.stringsForInstanceKey(formalIK)) {
+                newDelta.combine(g.stringVariableReplicaJoinAt(localRVR, sik));
             }
         }
         return newDelta;

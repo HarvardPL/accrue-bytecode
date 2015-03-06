@@ -4,11 +4,11 @@ import java.util.Map;
 
 import util.optional.Optional;
 import analysis.AnalysisUtil;
-import analysis.pointer.analyses.StringInstanceKey;
+import analysis.pointer.analyses.AString;
 
 public class StringConstraints {
 
-    private final Map<StringVariableReplica, StringInstanceKey> map;
+    private final Map<StringVariableReplica, AString> map;
 
     /* Factory Methods */
 
@@ -24,12 +24,12 @@ public class StringConstraints {
 
     /* Logic */
 
-    public Optional<StringInstanceKey> getAStringFor(StringVariableReplica svr) {
-        StringInstanceKey shat = this.map.get(svr);
-        return shat == null ? Optional.<StringInstanceKey> none() : Optional.some(shat);
+    public Optional<AString> getAStringFor(StringVariableReplica svr) {
+        AString shat = this.map.get(svr);
+        return shat == null ? Optional.<AString> none() : Optional.some(shat);
     }
 
-    public StringConstraintDelta joinAt(StringVariableReplica svr, StringInstanceKey shat) {
+    public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
         if (this.map.containsKey(svr)) {
             boolean changedp = this.map.get(svr).join(shat);
             return changedp ? StringConstraintDelta.make(this, svr) : StringConstraintDelta.makeEmpty(this);

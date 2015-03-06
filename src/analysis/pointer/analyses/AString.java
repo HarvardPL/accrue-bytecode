@@ -16,34 +16,34 @@ import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.collections.Pair;
 import com.ibm.wala.util.functions.Function;
 
-public final class StringInstanceKey {
+public final class AString {
     private static final IClass JavaLangStringIClass = AnalysisUtil.getClassHierarchy()
                                                                    .lookupClass(TypeReference.JavaLangString);
     private FiniteSet<String> fs;
     private IClass klass;
 
-    public static StringInstanceKey makeStringTop(int maxSize) {
-        return new StringInstanceKey(JavaLangStringIClass, FiniteSet.<String> makeTop(maxSize));
+    public static AString makeStringTop(int maxSize) {
+        return new AString(JavaLangStringIClass, FiniteSet.<String> makeTop(maxSize));
     }
 
-    public static StringInstanceKey makeStringBottom(int maxSize) {
-        return new StringInstanceKey(JavaLangStringIClass, FiniteSet.<String> makeBottom(maxSize));
+    public static AString makeStringBottom(int maxSize) {
+        return new AString(JavaLangStringIClass, FiniteSet.<String> makeBottom(maxSize));
     }
 
-    public static StringInstanceKey makeStringSet(int maxSize, Collection<String> c) {
-        return new StringInstanceKey(JavaLangStringIClass, FiniteSet.makeFiniteSet(maxSize, c));
+    public static AString makeStringSet(int maxSize, Collection<String> c) {
+        return new AString(JavaLangStringIClass, FiniteSet.makeFiniteSet(maxSize, c));
     }
 
-    public static StringInstanceKey makeString(int maxSize, Optional<? extends Collection<String>> c) {
-        return new StringInstanceKey(JavaLangStringIClass, FiniteSet.make(maxSize, c));
+    public static AString makeString(int maxSize, Optional<? extends Collection<String>> c) {
+        return new AString(JavaLangStringIClass, FiniteSet.make(maxSize, c));
     }
 
-    private StringInstanceKey(IClass c, FiniteSet<String> fs) {
+    private AString(IClass c, FiniteSet<String> fs) {
         this.klass = c;
         this.fs = fs;
     }
 
-    public boolean join(StringInstanceKey sik) {
+    public boolean join(AString sik) {
         return this.fs.union(sik.fs);
     }
 
@@ -71,7 +71,7 @@ public final class StringInstanceKey {
         return this.fs.isBottom();
     }
 
-    public StringInstanceKey concat(final StringInstanceKey that) {
+    public AString concat(final AString that) {
         // str1 -> that.fs.map(str2 -> str1.concat(str2))
         final Function<String, FiniteSet<String>> fOuter = new Function<String, FiniteSet<String>>() {
             @Override
@@ -89,7 +89,7 @@ public final class StringInstanceKey {
         System.err.print("Just concated, before: " + this.fs);
         FiniteSet<String> s = this.fs.flatMap(fOuter);
         System.err.println(", argument: " + that.fs + ", after: " + s);
-        return new StringInstanceKey(JavaLangStringIClass, s);
+        return new AString(JavaLangStringIClass, s);
     }
 
     @Override

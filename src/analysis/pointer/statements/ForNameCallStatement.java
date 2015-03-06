@@ -7,9 +7,9 @@ import java.util.Set;
 import util.FiniteSet;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
+import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.ClassInstanceKey;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.StringInstanceKey;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -71,7 +71,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         GraphDelta changed = new GraphDelta(g);
         PointsToIterable pti = delta == null ? g : delta;
-        Optional<StringInstanceKey> nameSIK = pti.getAStringFor(nameSVR);
+        Optional<AString> nameSIK = pti.getAStringFor(nameSVR);
 
         //        Optional<Set<IClass>> classes = nameSIK.getStrings()
         //                .map(stringSet -> stringSet.stream()
