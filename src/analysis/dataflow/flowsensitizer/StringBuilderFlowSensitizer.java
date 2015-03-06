@@ -45,10 +45,8 @@ import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.strings.Atom;
 
-public class StringBuilderFlowSensitizer extends
-        FunctionalInstructionDispatchDataFlow<FlowSensitizedVariableMap<Integer>> {
+public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDataFlow<FlowSensitizedVariableMap> {
 
-    private FlowSensitizedVariableMapFactory<Integer> factory;
     private static final TypeReference JavaLangStringBuilderTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
                                                                                                        TypeName.string2TypeName("Ljava/lang/StringBuilder"));
     public final static Atom appendAtom = Atom.findOrCreateUnicodeAtom("append");
@@ -73,28 +71,27 @@ public class StringBuilderFlowSensitizer extends
      */
 
     public static StringBuilderFlowSensitizer make(boolean forward) {
-        return new StringBuilderFlowSensitizer(forward, FlowSensitizedVariableMapFactory.<Integer> make());
+        return new StringBuilderFlowSensitizer(forward);
     }
 
     /*
      * Constructors
      */
-    private StringBuilderFlowSensitizer(boolean forward, FlowSensitizedVariableMapFactory<Integer> factory) {
+    private StringBuilderFlowSensitizer(boolean forward) {
         super(forward);
-        this.factory = factory;
     }
 
     /*
      * Helper Methods
      */
 
-    private FlowSensitizedVariableMap<Integer> joinMaps(Collection<FlowSensitizedVariableMap<Integer>> maps) {
-        return this.factory.joinCollection(maps);
+    private FlowSensitizedVariableMap joinMaps(Collection<FlowSensitizedVariableMap> c) {
+        return FlowSensitizedVariableMap.joinCollection(c);
     }
 
-    private Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
-                                                                                         FlowSensitizedVariableMap<Integer> fact) {
-        Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> m = Collections.emptyMap();
+    private Map<ISSABasicBlock, FlowSensitizedVariableMap> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
+                                                                                        FlowSensitizedVariableMap fact) {
+        Map<ISSABasicBlock, FlowSensitizedVariableMap> m = Collections.emptyMap();
 
         while (succNodes.hasNext()) {
             ISSABasicBlock succ = succNodes.next();
@@ -126,10 +123,10 @@ public class StringBuilderFlowSensitizer extends
      * @see analysis.pointer.reflective.dataflow.FunctionalInstructionDispatchDataFlow#runDataFlowAnalysis(com.ibm.wala.classLoader.IMethod)
      */
     @Override
-    public Map<SSAInstruction, AnalysisRecord<FlowSensitizedVariableMap<Integer>>> runDataFlowAnalysis(IMethod m) {
+    public Map<SSAInstruction, AnalysisRecord<FlowSensitizedVariableMap>> runDataFlowAnalysis(IMethod m) {
         IR ir = AnalysisUtil.getIR(m);
         this.dataflow(ir);
-        Map<SSAInstruction, AnalysisRecord<FlowSensitizedVariableMap<Integer>>> map = new HashMap<>();
+        Map<SSAInstruction, AnalysisRecord<FlowSensitizedVariableMap>> map = new HashMap<>();
         Iterator<SSAInstruction> it = ir.iterateAllInstructions();
         while (it.hasNext()) {
             SSAInstruction i = it.next();
@@ -158,9 +155,9 @@ public class StringBuilderFlowSensitizer extends
      * NOTE: don't mutate `fact`!!
      */
 
-    private Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowGenericInvoke(SSAInvokeInstruction i,
-                                                                                      Iterator<ISSABasicBlock> succNodes,
-                                                                                      FlowSensitizedVariableMap<Integer> fact) {
+    private Map<ISSABasicBlock, FlowSensitizedVariableMap> flowGenericInvoke(SSAInvokeInstruction i,
+                                                                             Iterator<ISSABasicBlock> succNodes,
+                                                                             FlowSensitizedVariableMap fact) {
         if (isNonStaticStringBuilderAppendMethod(i.getCallSite().getDeclaredTarget())) {
             // o1.append(o2)
             int arg = i.getUse(1);
@@ -175,241 +172,240 @@ public class StringBuilderFlowSensitizer extends
      */
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowBinaryOp(SSABinaryOpInstruction i,
-                                                              Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                              ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowBinaryOp(SSABinaryOpInstruction i,
+                                                     Set<FlowSensitizedVariableMap> previousItems,
+                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                     ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowComparison(SSAComparisonInstruction i,
-                                                                Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowComparison(SSAComparisonInstruction i,
+                                                       Set<FlowSensitizedVariableMap> previousItems,
+                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                       ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowConversion(SSAConversionInstruction i,
-                                                                Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowConversion(SSAConversionInstruction i,
+                                                       Set<FlowSensitizedVariableMap> previousItems,
+                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                       ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
-                                                                        Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                        ISSABasicBlock current) {
-        return joinMaps(previousItems);
-    }
-
-    @Override
-    protected FlowSensitizedVariableMap<Integer> flowGetStatic(SSAGetInstruction i,
-                                                               Set<FlowSensitizedVariableMap<Integer>> previousItems,
+    protected FlowSensitizedVariableMap flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
+                                                               Set<FlowSensitizedVariableMap> previousItems,
                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowInstanceOf(SSAInstanceofInstruction i,
-                                                                Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowGetStatic(SSAGetInstruction i,
+                                                      Set<FlowSensitizedVariableMap> previousItems,
+                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                      ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowPhi(SSAPhiInstruction i,
-                                                         Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                         ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowInstanceOf(SSAInstanceofInstruction i,
+                                                       Set<FlowSensitizedVariableMap> previousItems,
+                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                       ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowPutStatic(SSAPutInstruction i,
-                                                               Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                               ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowPhi(SSAPhiInstruction i, Set<FlowSensitizedVariableMap> previousItems,
+                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected FlowSensitizedVariableMap<Integer> flowUnaryNegation(SSAUnaryOpInstruction i,
-                                                                   Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                   ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowPutStatic(SSAPutInstruction i,
+                                                      Set<FlowSensitizedVariableMap> previousItems,
+                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                      ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowArrayLength(SSAArrayLengthInstruction i,
-                                                                                      Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                      ISSABasicBlock current) {
+    protected FlowSensitizedVariableMap flowUnaryNegation(SSAUnaryOpInstruction i,
+                                                          Set<FlowSensitizedVariableMap> previousItems,
+                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                          ISSABasicBlock current) {
+        return joinMaps(previousItems);
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowArrayLength(SSAArrayLengthInstruction i,
+                                                                             Set<FlowSensitizedVariableMap> previousItems,
+                                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                             ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowArrayLoad(SSAArrayLoadInstruction i,
-                                                                                    Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                    ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowArrayLoad(SSAArrayLoadInstruction i,
+                                                                           Set<FlowSensitizedVariableMap> previousItems,
+                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                           ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowArrayStore(SSAArrayStoreInstruction i,
-                                                                                     Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                     ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowArrayStore(SSAArrayStoreInstruction i,
+                                                                            Set<FlowSensitizedVariableMap> previousItems,
+                                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                            ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowBinaryOpWithException(SSABinaryOpInstruction i,
-                                                                                                Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                                ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                                                                       Set<FlowSensitizedVariableMap> previousItems,
+                                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                                       ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowCheckCast(SSACheckCastInstruction i,
-                                                                                    Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                    ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowCheckCast(SSACheckCastInstruction i,
+                                                                           Set<FlowSensitizedVariableMap> previousItems,
+                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                           ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowConditionalBranch(SSAConditionalBranchInstruction i,
-                                                                                            Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                            ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowGetField(SSAGetInstruction i,
-                                                                                   Set<FlowSensitizedVariableMap<Integer>> previousItems,
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowConditionalBranch(SSAConditionalBranchInstruction i,
+                                                                                   Set<FlowSensitizedVariableMap> previousItems,
                                                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                                    ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowInvokeInterface(SSAInvokeInstruction i,
-                                                                                          Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                          ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowGetField(SSAGetInstruction i,
+                                                                          Set<FlowSensitizedVariableMap> previousItems,
+                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                          ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowInvokeInterface(SSAInvokeInstruction i,
+                                                                                 Set<FlowSensitizedVariableMap> previousItems,
+                                                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                                 ISSABasicBlock current) {
         return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowInvokeSpecial(SSAInvokeInstruction i,
-                                                                                        Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                        ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowInvokeStatic(SSAInvokeInstruction i,
-                                                                                       Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                       ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowInvokeVirtual(SSAInvokeInstruction i,
-                                                                                        Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                        ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowGoto(SSAGotoInstruction i,
-                                                                               Set<FlowSensitizedVariableMap<Integer>> previousItems,
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowInvokeSpecial(SSAInvokeInstruction i,
+                                                                               Set<FlowSensitizedVariableMap> previousItems,
                                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                                ISSABasicBlock current) {
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowInvokeStatic(SSAInvokeInstruction i,
+                                                                              Set<FlowSensitizedVariableMap> previousItems,
+                                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                              ISSABasicBlock current) {
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowInvokeVirtual(SSAInvokeInstruction i,
+                                                                               Set<FlowSensitizedVariableMap> previousItems,
+                                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                               ISSABasicBlock current) {
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowGoto(SSAGotoInstruction i,
+                                                                      Set<FlowSensitizedVariableMap> previousItems,
+                                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                      ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowLoadMetadata(SSALoadMetadataInstruction i,
-                                                                                       Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                       ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowLoadMetadata(SSALoadMetadataInstruction i,
+                                                                              Set<FlowSensitizedVariableMap> previousItems,
+                                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                              ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowMonitor(SSAMonitorInstruction i,
-                                                                                  Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                  ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowMonitor(SSAMonitorInstruction i,
+                                                                         Set<FlowSensitizedVariableMap> previousItems,
+                                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                         ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowNewArray(SSANewInstruction i,
-                                                                                   Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                   ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowNewArray(SSANewInstruction i,
+                                                                          Set<FlowSensitizedVariableMap> previousItems,
+                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                          ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowNewObject(SSANewInstruction i,
-                                                                                    Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                    ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowNewObject(SSANewInstruction i,
+                                                                           Set<FlowSensitizedVariableMap> previousItems,
+                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                           ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowPutField(SSAPutInstruction i,
-                                                                                   Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                   ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowPutField(SSAPutInstruction i,
+                                                                          Set<FlowSensitizedVariableMap> previousItems,
+                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                          ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowReturn(SSAReturnInstruction i,
-                                                                                 Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                 ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowReturn(SSAReturnInstruction i,
+                                                                        Set<FlowSensitizedVariableMap> previousItems,
+                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                        ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowSwitch(SSASwitchInstruction i,
-                                                                                 Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                 ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowSwitch(SSASwitchInstruction i,
+                                                                        Set<FlowSensitizedVariableMap> previousItems,
+                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                        ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowThrow(SSAThrowInstruction i,
-                                                                                Set<FlowSensitizedVariableMap<Integer>> previousItems,
-                                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowThrow(SSAThrowInstruction i,
+                                                                       Set<FlowSensitizedVariableMap> previousItems,
+                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                       ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, FlowSensitizedVariableMap<Integer>> flowEmptyBlock(Set<FlowSensitizedVariableMap<Integer>> inItems,
-                                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                     ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, FlowSensitizedVariableMap> flowEmptyBlock(Set<FlowSensitizedVariableMap> inItems,
+                                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                            ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(inItems));
     }
 

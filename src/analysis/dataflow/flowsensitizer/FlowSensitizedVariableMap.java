@@ -7,14 +7,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-public class FlowSensitizedVariableMap<T> {
+public class FlowSensitizedVariableMap {
 
-    private final Map<T, Integer> map;
+    private final Map<Integer, Integer> map;
 
     /* Factory methods */
 
-    public static <T> FlowSensitizedVariableMap<T> makeEmpty() {
-        return new FlowSensitizedVariableMap<>();
+    public static FlowSensitizedVariableMap makeEmpty() {
+        return new FlowSensitizedVariableMap();
     }
 
     /**
@@ -25,14 +25,14 @@ public class FlowSensitizedVariableMap<T> {
      * @param s
      * @return
      */
-    public static <T> FlowSensitizedVariableMap<T> joinCollection(Collection<FlowSensitizedVariableMap<T>> s) {
+    public static FlowSensitizedVariableMap joinCollection(Collection<FlowSensitizedVariableMap> s) {
         if (s.size() == 0) {
             return makeEmpty();
         }
 
-        Iterator<FlowSensitizedVariableMap<T>> it = s.iterator();
+        Iterator<FlowSensitizedVariableMap> it = s.iterator();
 
-        FlowSensitizedVariableMap<T> t = it.next();
+        FlowSensitizedVariableMap t = it.next();
 
         if (s.size() == 1) {
             return t;
@@ -51,7 +51,7 @@ public class FlowSensitizedVariableMap<T> {
         this.map = new HashMap<>();
     }
 
-    private FlowSensitizedVariableMap(Map<T, Integer> map) {
+    private FlowSensitizedVariableMap(Map<Integer, Integer> map) {
         this.map = map;
     }
 
@@ -63,11 +63,11 @@ public class FlowSensitizedVariableMap<T> {
      * @param t a flow insensitive variable
      * @param l a source location
      */
-    public FlowSensitizedVariableMap<T> freshFlowSensitive(T t) {
-        Map<T, Integer> newMap = new HashMap<>();
+    public FlowSensitizedVariableMap freshFlowSensitive(Integer t) {
+        Map<Integer, Integer> newMap = new HashMap<>();
         // this.map.forEach((k, v) -> newMap.put(k, k.equals(t) ? v + 1 : v));
-        for (Entry<T, Integer> kv : this.map.entrySet()) {
-            T k = kv.getKey();
+        for (Entry<Integer, Integer> kv : this.map.entrySet()) {
+            Integer k = kv.getKey();
             Integer v = kv.getValue();
             if (k.equals(t)) {
                 newMap.put(k, v + 1);
@@ -76,26 +76,26 @@ public class FlowSensitizedVariableMap<T> {
                 newMap.put(k, v);
             }
         }
-        return new FlowSensitizedVariableMap<>(newMap);
+        return new FlowSensitizedVariableMap(newMap);
     }
 
     /**
      * Should be equivalent to
      *
-     * @{code IFlowSensitizedVariableMap<T> m = ...; for (T t : ts) { m = m.freshFlowSensitive(t); } return m;}
+     * @{code IFlowSensitizedVariableMapm = ...; for (Integer t : ts) { m = m.freshFlowSensitive(t); } return m;}
      *
      * @param t
      * @return
      */
-    public FlowSensitizedVariableMap<T> freshFlowSensitive(Set<T> ts) {
+    public FlowSensitizedVariableMap freshFlowSensitive(Set<Integer> ts) {
         // this.map.forEach((k, v) -> newMap.put(k, setOrMap(ts, t -> k.equals(t)) ? v + 1 : v));
-        Map<T, Integer> newMap = new HashMap<>();
-        for (Entry<T, Integer> kv : this.map.entrySet()) {
-            T k = kv.getKey();
+        Map<Integer, Integer> newMap = new HashMap<>();
+        for (Entry<Integer, Integer> kv : this.map.entrySet()) {
+            Integer k = kv.getKey();
             Integer v = kv.getValue();
 
             boolean acc = false;
-            for (T t : ts) {
+            for (Integer t : ts) {
                 acc = acc || k.equals(t);
                 if (acc) {
                     break;
@@ -109,14 +109,14 @@ public class FlowSensitizedVariableMap<T> {
                 newMap.put(k, v);
             }
         }
-        return new FlowSensitizedVariableMap<>(newMap);
+        return new FlowSensitizedVariableMap(newMap);
     }
 
-    public FlowSensitizedVariableMap<T> join(FlowSensitizedVariableMap<T> m) {
-        Map<T, Integer> newMap = new HashMap<>();
+    public FlowSensitizedVariableMap join(FlowSensitizedVariableMap m) {
+        Map<Integer, Integer> newMap = new HashMap<>();
         // this.map.forEach((k, v) -> newMap.put(k, v));
-        for(Entry<T, Integer> kv : this.map.entrySet()) {
-            T k = kv.getKey();
+        for(Entry<Integer, Integer> kv : this.map.entrySet()) {
+            Integer k = kv.getKey();
             Integer v = kv.getValue();
             newMap.put(k, v);
         }
@@ -127,8 +127,8 @@ public class FlowSensitizedVariableMap<T> {
 //                                                    + " " + m.getInsensitiveToFlowSensistiveMap());
 //                                        }));
 
-        for(Entry<T, Integer> kv : m.getInsensitiveToFlowSensistiveMap().entrySet()) {
-            T k = kv.getKey();
+        for(Entry<Integer, Integer> kv : m.getInsensitiveToFlowSensistiveMap().entrySet()) {
+            Integer k = kv.getKey();
             Integer v = kv.getValue();
             if (newMap.containsKey(k)) {
                 throw new RuntimeException("overlapping maps not allowed " + this.map
@@ -142,7 +142,7 @@ public class FlowSensitizedVariableMap<T> {
     /**
      * DO NOT MODIFY THIS MAP
      */
-    public Map<T, Integer> getInsensitiveToFlowSensistiveMap() {
+    public Map<Integer, Integer> getInsensitiveToFlowSensistiveMap() {
         return this.map;
     }
 
