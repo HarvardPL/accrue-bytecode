@@ -596,12 +596,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         private void printDiagnostics() {
             System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
-                    + numRemainingTasks.get() + "; pendingAddNonMostRecentOrigin: "
-                    + pendingAddNonMostRecentOrigin.get().size() + "; pendingAddToSetOrigin: "
-                    + pendingAddToSetOrigin.get().size() + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size()
-                    + "; pendingRelevantNodesQuery: " + pendingRelevantNodesQuery.get().size()
+                    + numRemainingTasks.get() + "; pendingAddToSetOrigin: " + pendingAddToSetOrigin.get().size()
+                    + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
                     + "; pendingSourceRelevantNodesQuery: " + pendingSourceRelevantNodesQuery.get().size()
+                    + "; pendingRelevantNodesQuery: " + pendingRelevantNodesQuery.get().size()
+                    + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size()
                     + "; approxCGNodes: " + g.getApproxCallGraphSize());
+
         }
 
         public class RunnablePointsToTask implements Runnable {
