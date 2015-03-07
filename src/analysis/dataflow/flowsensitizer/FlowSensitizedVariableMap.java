@@ -128,8 +128,8 @@ public class FlowSensitizedVariableMap {
         for(Entry<Integer, Integer> kv : m.getInsensitiveToFlowSensistiveMap().entrySet()) {
             Integer k = kv.getKey();
             Integer v = kv.getValue();
-            if (newMap.containsKey(k)) {
-                throw new RuntimeException("overlapping maps not allowed " + this.map
+            if (newMap.containsKey(k) && newMap.get(k) != v) {
+                throw new RuntimeException("Maps disagree on " + k + ": " + this.map
                                            + " " + m.getInsensitiveToFlowSensistiveMap());
             }
             newMap.put(k, v);
