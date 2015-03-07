@@ -2,6 +2,8 @@ package analysis.pointer.engine;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -17,6 +19,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ConstraintStatement;
@@ -37,6 +40,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    private final Map<StringVariableReplica, Set<StmtAndContext>> stringDependencies;
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
      * are no changes.
@@ -50,6 +54,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
         super(haf);
+        this.stringDependencies = new HashMap<>();
     }
 
     @Override
@@ -83,6 +88,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
+            public void recordStringRead(StringVariableReplica svr, StmtAndContext sac) {
+                addStringDependency(svr, sac);
+            }
+
+            @Override
             public void startCollapseNode(int n, int rep) {
                 // add the new dependencies.
                 Set<StmtAndContext> deps = interestingDepedencies.get(n);
@@ -110,6 +120,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 }
 
                 for (ConstraintStatement stmt : registrar.getStatementsForMethod(callee)) {
+                    StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
+                    execService.submitTask(newSaC);
+                }
+                for (ConstraintStatement stmt : registrar.getStringStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     execService.submitTask(newSaC);
                 }
@@ -425,6 +439,19 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
         return s.add(sac);
+    }
+
+    protected void addStringDependency(StringVariableReplica svr, StmtAndContext sac) {
+        if (this.stringDependencies.containsKey(svr)) {
+            this.stringDependencies.put(svr, AnalysisUtil.createConcurrentSingletonSet(sac));
+        }
+        else {
+            this.stringDependencies.get(svr).add(sac);
+        }
+    }
+
+    protected Set<StmtAndContext> getStringDependencies(StringVariableReplica svr) {
+        return this.stringDependencies.get(svr);
     }
 
     public static MutableIntSet makeConcurrentIntSet() {

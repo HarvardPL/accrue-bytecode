@@ -19,6 +19,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -58,6 +59,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
 
+    private final Map<StringVariableReplica, Set<StmtAndContext>> stringDependencies;
+
     /**
      * New pointer analysis engine
      *
@@ -65,6 +68,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
         super(haf);
+        this.stringDependencies = new HashMap<>();
     }
 
     @Override
@@ -137,6 +141,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
+            public void recordStringRead(StringVariableReplica svr, StmtAndContext sac) {
+                PointsToAnalysisSingleThreaded.this.addStringDependency(svr, sac);
+            }
+
+            @Override
             public void startCollapseNode(int n, int rep) {
                 // add the new dependencies.
                 Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
@@ -169,6 +178,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 updateLineCounter(callee);
 
                 for (ConstraintStatement stmt : registrar.getStatementsForMethod(callee)) {
+                    StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
+                    noDeltaQueue.add(newSaC);
+                }
+                for (ConstraintStatement stmt : registrar.getStringStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     noDeltaQueue.add(newSaC);
                 }
@@ -480,7 +493,18 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         return s.add(sac);
     }
 
+    protected void addStringDependency(StringVariableReplica svr, StmtAndContext sac) {
+        if (this.stringDependencies.containsKey(svr)) {
+            this.stringDependencies.put(svr, AnalysisUtil.createConcurrentSingletonSet(sac));
+        }
+        else {
+            this.stringDependencies.get(svr).add(sac);
+        }
+    }
 
+    protected Set<StmtAndContext> getStringDependencies(StringVariableReplica svr) {
+        return this.stringDependencies.get(svr);
+    }
 
     /**
      *

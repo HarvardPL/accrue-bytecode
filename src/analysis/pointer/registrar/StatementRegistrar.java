@@ -1068,6 +1068,21 @@ public class StatementRegistrar {
     }
 
     /**
+     * Get all the string statements for a particular method
+     *
+     * @param m method to get the statements for
+     * @return set of points-to statements for <code>m</code>
+     */
+    public Set<StringStatement> getStringStatementsForMethod(IMethod m) {
+        if (this.stringStatementsForMethod.containsKey(m)) {
+            return this.stringStatementsForMethod.get(m);
+        }
+        else {
+            return AnalysisUtil.createConcurrentSet();
+        }
+    }
+
+    /**
      * Set of all methods that have been registered
      *
      * @return set of methods
