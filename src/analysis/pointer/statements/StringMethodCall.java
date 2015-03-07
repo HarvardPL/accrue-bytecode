@@ -123,9 +123,11 @@ public class StringMethodCall extends StringStatement {
             Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(0));
 
             if (maybeReceiverAString.isNone() || maybeArgumentAString.isNone()) {
+                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + resultSVR + ", AString.makeStringTop(" + MAX_STRING_SET_SIZE + "))");
                 newDelta.combine(g.stringVariableReplicaJoinAt(resultSVR, AString.makeStringTop(MAX_STRING_SET_SIZE)));
             } else {
                 AString newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
+                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + resultSVR + ", " + newSIK + ")");
                 newDelta.combine(g.stringVariableReplicaJoinAt(resultSVR, newSIK));
             }
             return newDelta;
