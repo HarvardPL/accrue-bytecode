@@ -47,7 +47,7 @@ import com.ibm.wala.util.strings.Atom;
 
 public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDataFlow<FlowSensitizedVariableMap> {
 
-    private static final TypeReference JavaLangStringBuilderTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
+    private static final TypeReference JavaLangStringBuilderTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                        TypeName.string2TypeName("Ljava/lang/StringBuilder"));
     public final static Atom appendAtom = Atom.findOrCreateUnicodeAtom("append");
     public final static Descriptor appendStringBuilderDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
