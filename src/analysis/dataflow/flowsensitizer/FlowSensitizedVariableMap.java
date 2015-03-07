@@ -136,7 +136,7 @@ public class FlowSensitizedVariableMap {
             }
             newMap.put(k, v);
         }
-        return null;
+        return new FlowSensitizedVariableMap(newMap);
     }
 
     /**
