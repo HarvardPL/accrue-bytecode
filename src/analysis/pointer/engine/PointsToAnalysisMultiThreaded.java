@@ -19,6 +19,7 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
+import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -108,7 +109,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     registrar.registerMethod(callee);
                 }
 
-                for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
+                for (ConstraintStatement stmt : registrar.getStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     execService.submitTask(newSaC);
                 }
@@ -220,7 +221,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
     void processSaC(StmtAndContext sac, GraphDelta delta, ExecutorServiceCounter execService) {
-        PointsToStatement s = sac.stmt;
+        ConstraintStatement s = sac.stmt;
         Context c = sac.context;
 
         GraphDelta changes = s.process(c, this.haf, execService.g, delta, execService.registrar, sac);

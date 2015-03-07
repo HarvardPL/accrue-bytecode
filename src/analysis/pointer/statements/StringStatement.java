@@ -9,7 +9,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 
-public abstract class StringStatement {
+public abstract class StringStatement implements ConstraintStatement {
 
     protected final IMethod method;
 
@@ -17,6 +17,7 @@ public abstract class StringStatement {
         this.method = method;
     }
 
+    @Override
     public abstract GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                                        StatementRegistrar registrar, StmtAndContext originator);
 

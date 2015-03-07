@@ -39,7 +39,7 @@ import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
-import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.StatementFactory;
 import analysis.string.AbstractString;
 import analysis.string.StringAnalysisResults;
@@ -487,7 +487,7 @@ public class AccrueAnalysisMain {
         System.err.println("Registered statements: " + registrar.size());
         if (outputLevel >= 2) {
             for (IMethod m : registrar.getRegisteredMethods()) {
-                for (PointsToStatement s : registrar.getStatementsForMethod(m)) {
+                for (ConstraintStatement s : registrar.getStatementsForMethod(m)) {
                     System.err.println("\t" + s + " (" + s.getClass().getSimpleName() + ")");
                 }
             }

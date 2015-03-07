@@ -26,7 +26,7 @@ import com.ibm.wala.ipa.cha.IClassHierarchy;
 /**
  * Defines how to process points-to graph information for a particular statement
  */
-public abstract class PointsToStatement {
+public abstract class PointsToStatement implements ConstraintStatement {
 
     /**
      * method this statement was created in
@@ -53,20 +53,10 @@ public abstract class PointsToStatement {
         return m;
     }
 
-    /**
-     * Process this statement, modifying the points-to graph if necessary
-     *
-     * @param context current analysis context
-     * @param haf factory for creating new analysis contexts
-     * @param g points-to graph (may be modified)
-     * @param delta Changes to the graph relevant to this statement since the last time this stmt was processed. Maybe
-     *            null (e.g., if it is the first time the statement is processed, and may be used by the processing to
-     *            improve the performance of processing).
-     * @param registrar Points-to statement registrar
-     * @param originator TODO
-     * @param originator The SaC that caused this processing, i.e. the pair of this and context.
-     * @return Changes to the graph as a result of processing this statement. Must be non-null.
+    /* (non-Javadoc)
+     * @see analysis.pointer.statements.ConstraintStatement#process(com.ibm.wala.ipa.callgraph.Context, analysis.pointer.analyses.HeapAbstractionFactory, analysis.pointer.graph.PointsToGraph, analysis.pointer.graph.GraphDelta, analysis.pointer.registrar.StatementRegistrar, analysis.pointer.engine.PointsToAnalysis.StmtAndContext)
      */
+    @Override
     public abstract GraphDelta process(Context context,
             HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
             StatementRegistrar registrar, StmtAndContext originator);

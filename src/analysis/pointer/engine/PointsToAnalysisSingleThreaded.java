@@ -24,6 +24,7 @@ import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
+import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.ExceptionAssignmentStatement;
 import analysis.pointer.statements.FieldToLocalStatement;
 import analysis.pointer.statements.LocalToArrayStatement;
@@ -167,7 +168,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
                 updateLineCounter(callee);
 
-                for (PointsToStatement stmt : registrar.getStatementsForMethod(callee)) {
+                for (ConstraintStatement stmt : registrar.getStatementsForMethod(callee)) {
                     StmtAndContext newSaC = new StmtAndContext(stmt, calleeContext);
                     noDeltaQueue.add(newSaC);
                 }
@@ -359,7 +360,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             stmtcnt.put(sac, cnt);
         }
 
-        PointsToStatement s = sac.stmt;
+        ConstraintStatement s = sac.stmt;
         Context c = sac.context;
 
         if (outputLevel >= 3) {
@@ -513,7 +514,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
         @Override
         public boolean offer(StmtAndContext sac) {
-            PointsToStatement stmt = sac.stmt;
+            ConstraintStatement stmt = sac.stmt;
             if (stmt instanceof NewStatement) {
                 return base.offer(sac);
             }

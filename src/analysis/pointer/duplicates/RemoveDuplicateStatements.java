@@ -13,6 +13,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
+import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.ExceptionAssignmentStatement;
 import analysis.pointer.statements.FieldToLocalStatement;
 import analysis.pointer.statements.PhiStatement;
@@ -144,7 +145,7 @@ public class RemoveDuplicateStatements {
 
         if (DEBUG) {
             System.err.println("BEFORE:");
-            for (PointsToStatement s : statements) {
+            for (ConstraintStatement s : statements) {
                 System.err.println("\t" + s);
             }
         }
@@ -165,7 +166,7 @@ public class RemoveDuplicateStatements {
 
         if (DEBUG && startSize != analysis.allStatements.size()) {
             System.err.println("AFTER:");
-            for (PointsToStatement s : analysis.allStatements) {
+            for (ConstraintStatement s : analysis.allStatements) {
                 System.err.println("\t" + s);
             }
             System.err.println("Finished removing " + (startSize - analysis.allStatements.size()) + " duplicates: "

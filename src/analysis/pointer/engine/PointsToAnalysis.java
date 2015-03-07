@@ -3,7 +3,7 @@ package analysis.pointer.engine;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.registrar.StatementRegistrar;
-import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.ConstraintStatement;
 
 import com.ibm.wala.ipa.callgraph.Context;
 
@@ -61,7 +61,7 @@ public abstract class PointsToAnalysis {
         /**
          * Points-to statement
          */
-        final PointsToStatement stmt;
+        final ConstraintStatement stmt;
 
         /**
          * Combination of a points-to statement and a code context
@@ -71,7 +71,7 @@ public abstract class PointsToAnalysis {
          * @param context
          *            code context
          */
-        public StmtAndContext(PointsToStatement stmt, Context context) {
+        public StmtAndContext(ConstraintStatement stmt, Context context) {
             this.stmt = stmt;
             this.context = context;
         }
