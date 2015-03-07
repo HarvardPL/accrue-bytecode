@@ -102,6 +102,8 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
     }
 
     private static boolean isNonStaticStringBuilderAppendMethod(MethodReference m) {
+        System.err.println("[isNonStaticStringBuilderAppendMethod] Comparing " + m + " to "
+                + stringBuilderAppendStringMethod);
         return m.equals(stringBuilderAppendStringBuilderMethod) || m.equals(stringBuilderAppendStringMethod)
                 || m.equals(stringBuilderAppendObjectMethod);
     }
