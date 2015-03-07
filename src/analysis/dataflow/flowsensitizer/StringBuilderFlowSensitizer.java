@@ -1,7 +1,6 @@
 package analysis.dataflow.flowsensitizer;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -91,7 +90,7 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
 
     private Map<ISSABasicBlock, FlowSensitizedVariableMap> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
                                                                                         FlowSensitizedVariableMap fact) {
-        Map<ISSABasicBlock, FlowSensitizedVariableMap> m = Collections.emptyMap();
+        Map<ISSABasicBlock, FlowSensitizedVariableMap> m = new HashMap<>();
 
         while (succNodes.hasNext()) {
             ISSABasicBlock succ = succNodes.next();
