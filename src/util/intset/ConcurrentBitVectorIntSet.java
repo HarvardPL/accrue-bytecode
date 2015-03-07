@@ -9,8 +9,8 @@ import com.ibm.wala.util.intset.IntSetAction;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
- * A thread-safe implementation of a bit-vector int set. It has restricted functionality, and in particular can only
- * increase in size.
+ * A thread-safe lock-free implementation of a bit-vector int set. It has restricted functionality, and in particular,
+ * the set can only increase (there is no way to remove elements).
  */
 public final class ConcurrentBitVectorIntSet implements MutableIntSet {
 
@@ -20,12 +20,16 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
 
     protected final static int LOW_MASK = 0x1f;
 
+    private final static int SEGMENT_SIZE = 32; // a segment holds SEGMENT_SIZE * BITS_PER_UNIT elements
+    private final static int MIN_INITIAL_SPINE_SIZE = 16;
+
     // Unsafe mechanics
-    static final sun.misc.Unsafe UNSAFE;
+    private static final sun.misc.Unsafe UNSAFE;
     private static final long SPINEBASE;
     private static final int SPINESHIFT;
     private static final long SEGBASE;
     private static final int SEGSHIFT;
+    private static final long SPINEOFFSET;
 
     static {
         int segs, spines;
@@ -41,6 +45,8 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
             Class spinec = int[][].class;
             SPINEBASE = UNSAFE.arrayBaseOffset(spinec);
             spines = UNSAFE.arrayIndexScale(spinec);
+
+            SPINEOFFSET = UNSAFE.objectFieldOffset(ConcurrentBitVectorIntSet.class.getDeclaredField("spine"));
 
         }
         catch (Exception e) {
@@ -72,18 +78,17 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
      */
     private volatile int[][] spine;
 
-    private final static int SEGMENT_SIZE = 64; // a segment holds SEGMENT_SIZE * BITS_PER_UNIT = 2048 elements
-
     public ConcurrentBitVectorIntSet() {
         this(1);
     }
     public ConcurrentBitVectorIntSet(int initialCapacity) {
-        int spineSize = ((initialCapacity - 1) / SEGMENT_SIZE) + 1;
-        if (spineSize < 16) {
-            spineSize = 16;
+        int requestedSpineSize = (Math.max(initialCapacity - 1, 0) / SEGMENT_SIZE) + 1;
+
+        int[][] newSpine = new int[Math.max(requestedSpineSize, MIN_INITIAL_SPINE_SIZE)][];
+        // preallocate the segments for the initial capacity.
+        for (int i = 0; i < requestedSpineSize; i++) {
+            newSpine[i] = new int[SEGMENT_SIZE];
         }
-        int[][] newSpine = new int[spineSize][];
-        newSpine[0] = new int[SEGMENT_SIZE];
         this.spine = newSpine;
     }
 
@@ -95,6 +100,10 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
         }
         int[] segment = getSegment(spineSub);
 
+        if (segment == null) {
+            return false;
+        }
+
         int ss = segmentSubscript(i);
 
         int shiftBits = i & LOW_MASK;
@@ -102,12 +111,12 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
     }
 
     /**
-     * Get spine[spineSub], creating a segment if needed.
+     * Get spine[spineSub], with volatile semantics, creating a segment if needed.
      *
      * @param spineSub
      * @return
      */
-    private int[] getSegment(int spineSub) {
+    private int[] getOrCreateSegment(int spineSub) {
         long u = (spineSub << SPINESHIFT) + SPINEBASE;
         int[] seg = (int[]) UNSAFE.getObjectVolatile(this.spine, u);
         if (seg == null) {
@@ -125,7 +134,18 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
 
     }
 
-    // access segment[ss], but with volitile semantics
+    /**
+     * Get spine[spineSub], with volatile semantics.
+     *
+     * @param spineSub
+     * @return
+     */
+    private int[] getSegment(int spineSub) {
+        long u = (spineSub << SPINESHIFT) + SPINEBASE;
+        return (int[]) UNSAFE.getObjectVolatile(this.spine, u);
+    }
+
+    // access segment[ss], but with volatile semantics
     private static int intAt(int[] segment, int ss) {
         assert segment != null;
         long u = (ss << SEGSHIFT) + SEGBASE;
@@ -138,7 +158,7 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
         if (spineSub >= this.spine.length) {
             extendSpine(spineSub);
         }
-        int[] segment = getSegment(spineSub);
+        int[] segment = getOrCreateSegment(spineSub);
 
         int ss = segmentSubscript(i);
 
@@ -155,7 +175,7 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
                 return false;
             }
             if (UNSAFE.compareAndSwapInt(segment, u, existingVal, newVal)) {
-                // we succesfully updated the value
+                // we successfully updated the value
                 return true;
             }
             // we didn't get in there. Try again.
@@ -163,25 +183,26 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
     }
 
 
-    private final Object spineLock = new Object();
-
     private void extendSpine(int spineSub) {
         // need to extend the spine to at least spineSub.
-        // for the moment we will use a lock, since we think this will happen infrequently
-        synchronized (this.spineLock) {
-            if (this.spine.length <= spineSub) {
-                int[][] oldSpine = this.spine;
-                int[][] newSpine = new int[spineSub + 1][];
-                assert oldSpine.length < newSpine.length;
-                for (int i = 0; i < oldSpine.length; i++) {
-                    // force the creation of the other segments to avoid races.
-                    newSpine[i] = getSegment(i);
-                }
+        int[][] oldSpine;
+        while ((oldSpine = this.spine).length <= spineSub) {
+            int newSpineLength = oldSpine.length;
+            while ((newSpineLength *= 1.5) <= spineSub) {
+                ;
+            }
+            int[][] newSpine = new int[newSpineLength][];
+            for (int i = 0; i < oldSpine.length; i++) {
+                // force the creation of the other segments to avoid races.
+                newSpine[i] = getOrCreateSegment(i);
+            }
 
-                assert newSpine[spineSub] == null;
-                newSpine[spineSub] = new int[SEGMENT_SIZE];
+            assert newSpine[spineSub] == null;
+            newSpine[spineSub] = new int[SEGMENT_SIZE];
 
-                this.spine = newSpine;
+            if (UNSAFE.compareAndSwapObject(this, SPINEOFFSET, oldSpine, newSpine)) {
+                // successfully installed the new spine.
+                return;
             }
         }
     }
@@ -238,6 +259,12 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
         int spineSub = spineSubscript(start);
         while (spineSub < this.spine.length) {
             int[] segment = getSegment(spineSub);
+            if (segment == null) {
+                // the entire segment is null!
+                // Nothing stored in there, try the next segment.
+                start = (++spineSub) * (SEGMENT_SIZE * BITS_PER_UNIT);
+                continue;
+            }
             int segSub = segmentSubscript(start);
             while (segSub < SEGMENT_SIZE) {
                 int bit = (1 << (start & LOW_MASK));
@@ -379,9 +406,22 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
         while (iter.hasNext()) {
             int i = iter.next();
             if (i != (count++) * 3) {
-                throw new RuntimeException("expected");
+                throw new RuntimeException();
             }
         }
+
+        s = new ConcurrentBitVectorIntSet();
+        s.add(3);
+        s.add(30000000);
+        s.add(Integer.MAX_VALUE);
+        iter = s.intIterator();
+        while (iter.hasNext()) {
+            int i = iter.next();
+            if (!(i == 3 || i == 30000000 || i == Integer.MAX_VALUE)) {
+                throw new RuntimeException("" + i);
+            }
+        }
+
         System.out.println("OK!");
     }
 
