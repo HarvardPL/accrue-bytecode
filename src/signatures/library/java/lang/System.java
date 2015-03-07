@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.util.Properties;
 
 import signatures.SingletonExceptions;
 
@@ -26,16 +27,20 @@ public class System {
         // intentionally blank
     }
 
-    static {
-        registerNatives();
-    }
+
 
     public final static InputStream in = new MockInputStream();
     public final static PrintStream out = new MockPrintStream(new MockOutputStream());
     public final static PrintStream err = new MockPrintStream(new MockOutputStream());
 
-    @SuppressWarnings("unused")
-    private static volatile SecurityManager security = null;
+    private static volatile SecurityManager security = new SecurityManager();
+
+    private static Properties props = new Properties();
+
+    static {
+        registerNatives();
+        props.setProperty("foo", "bar");
+    }
 
     /**
      * Java implementation of {@link System#arraycopy(Object, int, Object, int, int)} used as an analysis signature

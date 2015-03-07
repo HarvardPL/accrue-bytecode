@@ -1262,7 +1262,17 @@ public class StatementRegistrar {
     @SuppressWarnings("unused")
     private void registerReflection(SSALoadMetadataInstruction i, IR ir, ProgramPoint pp,
                                     ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
-        // statement registrar not handling reflection yet
+        // This is a call like Object.class that returns a Class object, until we handle reflection just allocate a new class object every time
+        if (!i.getType().equals(TypeReference.JavaLangClass)) {
+            throw new RuntimeException("Load metadata with a non-class target " + i);
+        }
+
+        // Allocation of a new java.lang.Class object
+        ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(),
+                                                                TypeReference.JavaLangClass,
+                                                                ir.getMethod(),
+                                                                pprint);
+        this.registerAllocationForNative(ir.getMethod(), pp, TypeReference.JavaLangClass, assignee);
     }
 
     /**
@@ -1821,6 +1831,10 @@ public class StatementRegistrar {
 
         // Add the program points to the root method in the correct order
         for (ProgramPoint pp : pps) {
+            if (reqInit.getReference().equals(TypeReference.JavaLangSystem)) {
+                // System class init needs to go first since other classes rely on the fields therein
+                addEntryMethodProgramPoint(pp, true);
+            }
             addEntryMethodProgramPoint(pp, false);
         }
     }

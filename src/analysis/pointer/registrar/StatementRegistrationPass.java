@@ -25,6 +25,7 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.ssa.SSALoadMetadataInstruction;
 import com.ibm.wala.types.MethodReference;
 import com.ibm.wala.types.TypeReference;
 
@@ -175,6 +176,13 @@ public class StatementRegistrationPass {
                     List<IMethod> inits = ClassInitFinder.getClassInitializers(i);
                     if (!inits.isEmpty()) {
                         addClassInitializers(q, inits);
+                    }
+
+                    if (i instanceof SSALoadMetadataInstruction) {
+                        processInstanceClass(seenInstancesOf,
+                                             AnalysisUtil.getClassHierarchy().lookupClass(TypeReference.JavaLangClass),
+                                             waitingForInstances,
+                                             q);
                     }
 
                     if (!(i instanceof SSAInvokeInstruction)) {
