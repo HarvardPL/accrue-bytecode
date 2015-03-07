@@ -76,7 +76,7 @@ public class FlowSensitizedVariableMap {
                 newMap.put(k, v);
             }
         }
-        System.err.println("freshFlowSensitive(" + t + ") = new FlowSensitizedVariableMap(" + newMap + ")");
+        System.err.println("freshFlowSensitive(" + t + ") = " + new FlowSensitizedVariableMap(newMap));
         return new FlowSensitizedVariableMap(newMap);
     }
 
@@ -145,6 +145,11 @@ public class FlowSensitizedVariableMap {
      */
     public Map<Integer, Integer> getInsensitiveToFlowSensistiveMap() {
         return this.map;
+    }
+
+    @Override
+    public String toString() {
+        return "FlowSensitizedVariableMap(" + this.map + ")";
     }
 
 }
