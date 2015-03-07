@@ -6,22 +6,16 @@ import java.util.Map;
 import util.Triplet;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.StringAndReflectiveUtil;
 import analysis.pointer.registrar.strings.StringVariable;
 import analysis.pointer.registrar.strings.StringVariableFactory;
 
-import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
-import com.ibm.wala.types.ClassLoaderReference;
-import com.ibm.wala.types.Descriptor;
 import com.ibm.wala.types.FieldReference;
-import com.ibm.wala.types.MethodReference;
-import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
-import com.ibm.wala.util.strings.Atom;
 
 public final class FlowSensitiveStringVariableFactory {
 
@@ -108,40 +102,13 @@ public final class FlowSensitiveStringVariableFactory {
         }
     }
 
-    /* ******************************************************************** */
-    /* Static Method and Fields for Finding String-related Methods and Objects */
-
-    private static IClass typeReferenceToIClass(TypeReference tr) {
-        return AnalysisUtil.getClassHierarchy().lookupClass(tr);
-    }
-
-    private static final IClass JavaLangStringIClass = AnalysisUtil.getStringClass();
-    private static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
-                                                                                                               TypeName.string2TypeName("Ljava/lang/StringBuilder")));
-
     @SuppressWarnings("static-method")
     public boolean isStringType(TypeReference resultType) {
-        IClass iclass = typeReferenceToIClass(resultType);
-        return iclass.equals(JavaLangStringIClass) || iclass.equals(JavaLangStringBuilderIClass);
+        return StringAndReflectiveUtil.isStringType(resultType);
     }
-
-    private static IMethod methodReferenceToIMethod(MethodReference m) {
-        return AnalysisUtil.getClassHierarchy().resolveMethod(m);
-    }
-
-    public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
-                                                                                               TypeName.string2TypeName("Ljava/lang/String"));
-    public final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
-    public final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                            "(Ljava/lang/String;)Ljava/lang/String;");
-    public final static MethodReference JavaLangStringConcat = MethodReference.findOrCreate(JavaLangStringTypeReference,
-                                                                                            concatAtom,
-                                                                                            concatDesc);
-    public final static IMethod JavaLangStringConcatIMethod = methodReferenceToIMethod(JavaLangStringConcat);
 
     @SuppressWarnings("static-method")
     public boolean isStringLikeMethodInvocation(SSAInvokeInstruction i) {
-        IMethod imethod = methodReferenceToIMethod(i.getDeclaredTarget());
-        return imethod.equals(JavaLangStringConcatIMethod);
+        return StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget());
     }
 }

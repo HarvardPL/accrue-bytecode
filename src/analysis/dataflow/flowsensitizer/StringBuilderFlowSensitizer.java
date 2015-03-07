@@ -9,10 +9,10 @@ import java.util.Set;
 
 import util.OrderedPair;
 import analysis.AnalysisUtil;
+import analysis.StringAndReflectiveUtil;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
@@ -38,33 +38,9 @@ import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSASwitchInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
-import com.ibm.wala.types.ClassLoaderReference;
-import com.ibm.wala.types.Descriptor;
 import com.ibm.wala.types.MethodReference;
-import com.ibm.wala.types.TypeName;
-import com.ibm.wala.types.TypeReference;
-import com.ibm.wala.util.strings.Atom;
 
 public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDataFlow<FlowSensitizedVariableMap> {
-
-    private static final TypeReference JavaLangStringBuilderTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
-                                                                                                       TypeName.string2TypeName("Ljava/lang/StringBuilder"));
-    public final static Atom appendAtom = Atom.findOrCreateUnicodeAtom("append");
-    public final static Descriptor appendStringBuilderDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                         "(Ljava/lang/StringBuilder;)Ljava/lang/StringBuilder;");
-    public final static Descriptor appendStringDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                  "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
-    public final static Descriptor appendObjectDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                  "(Ljava/lang/Object;)Ljava/lang/StringBuilder;");
-    private static final MethodReference stringBuilderAppendStringBuilderMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                               appendAtom,
-                                                                                                               appendStringBuilderDesc);
-    private static final MethodReference stringBuilderAppendStringMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                        appendAtom,
-                                                                                                        appendStringDesc);
-    private static final MethodReference stringBuilderAppendObjectMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                        appendAtom,
-                                                                                                        appendObjectDesc);
 
     /*
      * Factory Methods
@@ -102,10 +78,7 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
     }
 
     private static boolean isNonStaticStringBuilderAppendMethod(MethodReference m) {
-        System.err.println("[isNonStaticStringBuilderAppendMethod] Comparing " + m + " to "
-                + stringBuilderAppendStringMethod);
-        return m.equals(stringBuilderAppendStringBuilderMethod) || m.equals(stringBuilderAppendStringMethod)
-                || m.equals(stringBuilderAppendObjectMethod);
+        return StringAndReflectiveUtil.isStringMethod(m);
     }
 
     /*
