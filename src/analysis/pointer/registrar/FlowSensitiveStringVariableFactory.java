@@ -116,7 +116,8 @@ public final class FlowSensitiveStringVariableFactory {
     }
 
     private static final IClass JavaLangStringIClass = AnalysisUtil.getStringClass();
-    private static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.JavaLangStringBuilder);
+    private static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                                               TypeName.string2TypeName("Ljava/lang/StringBuilder")));
 
     @SuppressWarnings("static-method")
     public boolean isStringType(TypeReference resultType) {
