@@ -66,15 +66,12 @@ public class FlowSensitizedVariableMap {
     public FlowSensitizedVariableMap freshFlowSensitive(Integer t) {
         Map<Integer, Integer> newMap = new HashMap<>();
         // this.map.forEach((k, v) -> newMap.put(k, k.equals(t) ? v + 1 : v));
-        for (Entry<Integer, Integer> kv : this.map.entrySet()) {
-            Integer k = kv.getKey();
-            Integer v = kv.getValue();
-            if (k.equals(t)) {
-                newMap.put(k, v + 1);
-            }
-            else {
-                newMap.put(k, v);
-            }
+        newMap.putAll(this.map);
+        if (newMap.containsKey(t)) {
+            newMap.put(t, newMap.get(t) + 1);
+        }
+        else {
+            newMap.put(t, 0);
         }
         System.err.println("freshFlowSensitive(" + t + ") = " + new FlowSensitizedVariableMap(newMap));
         return new FlowSensitizedVariableMap(newMap);
