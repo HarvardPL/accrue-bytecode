@@ -18,4 +18,12 @@ public abstract class Optional<T> {
 
     public abstract T get();
 
+    @Override
+    public abstract int hashCode();
+
+    @Override
+    public abstract boolean equals(Object that);
+
+    @Override
+    public abstract String toString();
 }
