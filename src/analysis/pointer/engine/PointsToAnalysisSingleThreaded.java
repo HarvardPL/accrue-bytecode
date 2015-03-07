@@ -28,6 +28,7 @@ import analysis.pointer.statements.ClassInitStatement;
 import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.ExceptionAssignmentStatement;
 import analysis.pointer.statements.FieldToLocalStatement;
+import analysis.pointer.statements.ForNameCallStatement;
 import analysis.pointer.statements.LocalToArrayStatement;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.LocalToLocalStatement;
@@ -37,6 +38,7 @@ import analysis.pointer.statements.PhiStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ReturnStatement;
 import analysis.pointer.statements.StaticFieldToLocalStatement;
+import analysis.pointer.statements.StringStatement;
 
 import com.ibm.wala.classLoader.IBytecodeMethod;
 import com.ibm.wala.classLoader.IMethod;
@@ -525,6 +527,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Queue<StmtAndContext> calls =
         //        new LinkedList<>();
         Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> stringsAndForName = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
 
         ArrayList<Queue<StmtAndContext>> ordered = new ArrayList<>();
 
@@ -534,6 +537,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             ordered.add(fieldWrites);
             ordered.add(base);
             ordered.add(calls);
+            ordered.add(stringsAndForName);
         }
 
         @Override
@@ -555,6 +559,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     || stmt instanceof PhiStatement || stmt instanceof ReturnStatement
                     || stmt instanceof StaticFieldToLocalStatement || stmt instanceof ExceptionAssignmentStatement) {
                 return localAssigns.offer(sac);
+            }
+            if (stmt instanceof StringStatement || stmt instanceof ForNameCallStatement) {
+                return stringsAndForName.offer(sac);
             }
             throw new IllegalArgumentException("Don't know how to handle a " + stmt.getClass());
         }
