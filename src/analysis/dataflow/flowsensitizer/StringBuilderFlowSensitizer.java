@@ -1,6 +1,7 @@
 package analysis.dataflow.flowsensitizer;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -89,7 +90,7 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
     }
 
     private Map<ISSABasicBlock, FlowSensitizedVariableMap> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
-                                                                                        FlowSensitizedVariableMap fact) {
+                                                                                FlowSensitizedVariableMap fact) {
         Map<ISSABasicBlock, FlowSensitizedVariableMap> m = new HashMap<>();
 
         while (succNodes.hasNext()) {
@@ -143,7 +144,10 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
         while (it.hasNext()) {
             SSAInstruction i = it.next();
             useMap.put(i, joinMaps(this.getAnalysisRecord(i).getInput()).getInsensitiveToFlowSensistiveMap());
-            defMap.put(i, joinMaps(this.getAnalysisRecord(i).getOutput().values()).getInsensitiveToFlowSensistiveMap());
+            Map<ISSABasicBlock, FlowSensitizedVariableMap> outputOrNull = this.getAnalysisRecord(i).getOutput();
+            defMap.put(i,
+                       outputOrNull == null ? Collections.<Integer, Integer> emptyMap()
+                               : joinMaps(outputOrNull.values()).getInsensitiveToFlowSensistiveMap());
         }
         return new OrderedPair<>(defMap, useMap);
     }
