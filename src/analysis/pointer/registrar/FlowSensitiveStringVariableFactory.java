@@ -128,7 +128,7 @@ public final class FlowSensitiveStringVariableFactory {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
     }
 
-    public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
+    public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                TypeName.string2TypeName("Ljava/lang/String"));
     public final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
     public final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
