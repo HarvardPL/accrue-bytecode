@@ -651,8 +651,8 @@ public final class RelevantNodes {
 
         public SourceQueryResults() {
             this.relevanceDependencies = AnalysisUtil.createConcurrentIntMap();
-            this.visitedCallers = AnalysisUtil.createConcurrentIntSet();
-            this.visitedCalleesNoCallSite = AnalysisUtil.createConcurrentIntSet();
+            this.visitedCallers = AnalysisUtil.createDenseConcurrentIntSet();
+            this.visitedCalleesNoCallSite = AnalysisUtil.createDenseConcurrentIntSet();
             this.visitedCallSites = AnalysisUtil.createConcurrentIntSet();
         }
 
@@ -921,7 +921,7 @@ public final class RelevantNodes {
 
         MutableIntSet s = sourceQueryCallerDependencies.get(calleeCGNode);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentIntSet();
+            s = AnalysisUtil.createDenseConcurrentIntSet();
             MutableIntSet existing = sourceQueryCallerDependencies.putIfAbsent(calleeCGNode, s);
             if (existing != null) {
                 s = existing;
@@ -944,7 +944,7 @@ public final class RelevantNodes {
 
         MutableIntSet s = sourceQueryCalleeDependencies.get(callSite);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentIntSet();
+            s = AnalysisUtil.createDenseConcurrentIntSet();
             MutableIntSet existing = sourceQueryCalleeDependencies.putIfAbsent(callSite, s);
             if (existing != null) {
                 s = existing;
