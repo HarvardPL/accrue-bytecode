@@ -621,6 +621,23 @@ public final class ProgramPointReachability {
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
 
                     /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
+                    if (getApproximateCallSites().isApproximate(callSite)) {
+                        if (!calleeSet.isEmpty()) {
+                            throw new RuntimeException("Approximating non-empty call site "
+                                    + g.lookupCallSiteReplicaDictionary(callSite));
+                        }
+                        // This is a call site with no callees that we approximate by assuming it returns normally
+                        // and kills nothing
+                        KilledAndAlloced postNormal = getOrCreate(results, cspp.getNormalExit().post());
+                        postNormal.setEmpty();
+                        q.add(cspp.getNormalExit().post());
+
+                        // Initialize exception successor to unreachable if it doesn't already exist
+                        getOrCreate(results, cspp.getExceptionExit().post());
+                        q.add(cspp.getExceptionExit().post());
+                        continue;
+                    }
+
                     if (calleeSet.isEmpty()) {
                         // no callees, so nothing to do
                         if (DEBUG) {
@@ -661,6 +678,7 @@ public final class ProgramPointReachability {
                     // Add the successor program points to the queue
                     q.add(cspp.getNormalExit().post());
                     q.add(cspp.getExceptionExit().post());
+                    continue;
                 } // end CallSiteProgramPoint
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // not much to do here. The results will be copied once the work queue finishes.
