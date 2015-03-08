@@ -1,4 +1,7 @@
 # bin/runAllAWS.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt                                                                                                                                                                          
+#
+# run in disconnected shell
+# nohup time bin/runAllAWS.sh &> wala$(date +"%Y.%m.%d.%H.%M.%S").txt &
 
 for BM in \
   antlr bloat eclipse fop hsqldb luindex lusearch pmd xalan #chart jython                                                                                                                                                                   
