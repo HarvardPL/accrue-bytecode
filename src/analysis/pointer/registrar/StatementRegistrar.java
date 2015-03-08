@@ -822,7 +822,7 @@ public class StatementRegistrar {
             return;
         case LOAD_METADATA:
             // Reflection
-            this.registerReflection((SSALoadMetadataInstruction) i, ir, pp, this.rvFactory, types, printer);
+            this.registerLoadMetadata((SSALoadMetadataInstruction) i, ir, pp, this.rvFactory, printer);
             return;
         case NEW_ARRAY:
             this.registerNewArray((SSANewInstruction) i, ir, pp, this.rvFactory, types, printer);
@@ -1190,34 +1190,7 @@ public class StatementRegistrar {
         TypeReference allocType = i.getNewSite().getDeclaredType();
         IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(allocType);
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
-        if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
-            // the newly allocated object is throwable, and we only want one allocation per throwable type
-            ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
-
-        }
-        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(allocType)) {
-            // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
-            ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
-        }
-        else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
-            // the newly allocated object is a string, and we only want one allocation for strings
-            ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
-
-        }
-        else if (useSingleAllocForSwing
-                && (klass.toString().contains("Ljavax/swing/") || klass.toString().contains("Lsun/swing/") || klass.toString()
-                                                                                                                   .contains("Lcom/sun/java/swing"))) {
-            swingClasses++;
-            ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
-        }
-        else if (klass.toString().contains("swing")) {
-            System.err.println("SWING CLASS: " + klass);
-        }
-        else {
+        if (!tryAllocateSingleton(klass, result, pp)) {
             this.addStatement(stmtFactory.newForNormalAlloc(result,
                                                             klass,
                                                             pp,
@@ -1257,22 +1230,22 @@ public class StatementRegistrar {
     }
 
     /**
-     * Load-metadata is used for reflective operations
+     * Load-metadata is used for .class access
      */
-    @SuppressWarnings("unused")
-    private void registerReflection(SSALoadMetadataInstruction i, IR ir, ProgramPoint pp,
-                                    ReferenceVariableFactory rvFactory, TypeRepository types, PrettyPrinter pprint) {
-        // This is a call like Object.class that returns a Class object, until we handle reflection just allocate a new class object every time
+    private void registerLoadMetadata(SSALoadMetadataInstruction i, IR ir, ProgramPoint pp,
+                                      ReferenceVariableFactory rvFactory, PrettyPrinter pprint) {
+        // This is a call like Object.class that returns a Class object, until we handle reflection just allocate a singleton
         if (!i.getType().equals(TypeReference.JavaLangClass)) {
             throw new RuntimeException("Load metadata with a non-class target " + i);
         }
 
-        // Allocation of a new java.lang.Class object
-        ReferenceVariable assignee = rvFactory.getOrCreateLocal(i.getDef(),
-                                                                TypeReference.JavaLangClass,
-                                                                ir.getMethod(),
-                                                                pprint);
-        this.registerAllocationForNative(ir.getMethod(), pp, TypeReference.JavaLangClass, assignee);
+        // Allocation of a singleton java.lang.Class object
+        ReferenceVariable rv = getOrCreateSingleton(TypeReference.JavaLangClass);
+        ReferenceVariable left = rvFactory.getOrCreateLocal(i.getDef(),
+                                                            TypeReference.JavaLangClass,
+                                                            ir.getMethod(),
+                                                            pprint);
+        this.addStatement(stmtFactory.localToLocal(left, rv, pp));
     }
 
     /**
@@ -1840,6 +1813,49 @@ public class StatementRegistrar {
     }
 
     /**
+     * Check whether the allocation should be a singleton (i.e. one object for the given type) if so then create the
+     * singleton allocation and return true. If the type should not be a singleton then return false and do nothing.
+     *
+     * @param klass class being allocated
+     * @param result local variable to assign the result of the allocation
+     * @param pp program point for the allocation
+     *
+     * @return true if a singleton allocation occurred
+     */
+    private boolean tryAllocateSingleton(IClass klass, ReferenceVariable result, ProgramPoint pp) {
+        TypeReference type = klass.getReference();
+        if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
+            // the newly allocated object is throwable, and we only want one allocation per throwable type
+            ReferenceVariable rv = getOrCreateSingleton(type);
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
+            return true;
+
+        }
+        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(type)) {
+            // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
+            ReferenceVariable rv = getOrCreateSingleton(type);
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
+            return true;
+        }
+        else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
+            // the newly allocated object is a string, and we only want one allocation for strings
+            ReferenceVariable rv = getOrCreateSingleton(type);
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
+            return true;
+
+        }
+        else if (useSingleAllocForSwing
+                && (klass.toString().contains("Ljavax/swing/") || klass.toString().contains("Lsun/swing/") || klass.toString()
+                                                                                                                   .contains("Lcom/sun/java/swing"))) {
+            swingClasses++;
+            ReferenceVariable rv = getOrCreateSingleton(type);
+            this.addStatement(stmtFactory.localToLocal(result, rv, pp));
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Add statements for the generated allocation of an exception or return object of a given type for a native method
      * with no signature.
      *
@@ -1848,9 +1864,11 @@ public class StatementRegistrar {
      * @param summary summary reference variable for method exception or return
      */
     private void registerAllocationForNative(IMethod m, ProgramPoint pp, TypeReference type, ReferenceVariable summary) {
-        IClass allocatedClass = AnalysisUtil.getClassHierarchy().lookupClass(type);
-        assert allocatedClass != null;
-        this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m, pp));
+        IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(type);
+        assert klass != null : "No class found for " + m;
+        if (!tryAllocateSingleton(klass, summary, pp)) {
+            this.addStatement(stmtFactory.newForNative(summary, klass, m, pp));
+        }
     }
 
     private void registerNative(IMethod m) {
