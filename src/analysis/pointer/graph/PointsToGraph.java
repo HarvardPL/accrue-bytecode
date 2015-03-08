@@ -1057,18 +1057,6 @@ public final class PointsToGraph {
         return PointsToGraph.<IMethod, Context> getOrCreateSet(callee, this.reachableContexts);
     }
 
-    static MutableIntSet getOrCreateIntSet(int key, ConcurrentIntMap<MutableIntSet> map) {
-        MutableIntSet set = map.get(key);
-        if (set == null) {
-            set = AnalysisUtil.createConcurrentIntSet();
-            MutableIntSet ex = map.putIfAbsent(key, set);
-            if (ex != null) {
-                set = ex;
-            }
-        }
-        return set;
-    }
-
     @SuppressWarnings("unused")
     private static <T> ConcurrentIntMap<T> getOrCreateIntMap(int key, ConcurrentIntMap<ConcurrentIntMap<T>> map) {
         ConcurrentIntMap<T> set = map.get(key);

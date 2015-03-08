@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import main.AccrueAnalysisMain;
 import util.intmap.ConcurrentIntMap;
 import util.print.CFGWriter;
+import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
@@ -25,6 +26,7 @@ import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
+import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -196,6 +198,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
 
+        }
+
+        for (StmtAndContext cs : CallStatement.noReceivers) {
+            CallStatement s = (CallStatement) cs.stmt;
+            System.err.println("NO RECEIVERS " + PrettyPrinter.methodString(s.getCallee()) + " from "
+                    + PrettyPrinter.methodString(s.getMethod()) + " in " + cs.context);
         }
 
         if (paranoidMode) {

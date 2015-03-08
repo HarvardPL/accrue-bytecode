@@ -11,6 +11,7 @@ import main.AccrueAnalysisMain;
 import signatures.Signatures;
 import util.intmap.ConcurrentIntHashMap;
 import util.intmap.ConcurrentIntMap;
+import util.intset.ConcurrentBitVectorIntSet;
 import util.intset.ConcurrentIntHashSet;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -442,6 +443,10 @@ public class AnalysisUtil {
 
     public static MutableIntSet createConcurrentIntSet() {
         return new ConcurrentIntHashSet(16, 0.75f, numThreads);
+    }
+
+    public static MutableIntSet createDenseConcurrentIntSet() {
+        return new ConcurrentBitVectorIntSet();
     }
 
     public static <T> ConcurrentIntMap<T> createConcurrentIntMap() {

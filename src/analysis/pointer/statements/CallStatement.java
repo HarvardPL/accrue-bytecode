@@ -2,10 +2,13 @@ package analysis.pointer.statements;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -35,6 +38,8 @@ public abstract class CallStatement extends PointsToStatement {
      * Node representing the exception thrown by this call (if any)
      */
     private final ReferenceVariable exception;
+
+    public static Set<StmtAndContext> noReceivers = AnalysisUtil.createConcurrentSet();
 
     /**
      * Points-to statement for a special method invocation.

@@ -174,7 +174,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         }
         i++;
         iterations.put(n, i);
-        if (i >= 1000) {
+        if (i >= 10000) {
             throw new RuntimeException("Analyzed the same CG node " + i + " times: " + PrettyPrinter.cgNodeString(n));
         }
         return i;

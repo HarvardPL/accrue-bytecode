@@ -69,6 +69,13 @@ public class VirtualCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
+        if (!iter.hasNext()) {
+            noReceivers.add(originator);
+        }
+        else {
+            noReceivers.remove(originator);
+        }
+
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();
 
