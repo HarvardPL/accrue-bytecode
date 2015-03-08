@@ -2,23 +2,7 @@ Flow sensitive issues
 
 - Remove duplicates needs looking into
 
-- Reachability is used even after the ptg is finished (i.e. to get the points-to sets during the non-null analysis)
-
-- Need to make sure "TypeReference.isPrimitiveType" is being used correctly in the main branch RE: null is a primitive type (NonNullResults.isNonNull, NonNullDataFlow.call)
-
-- Add clinits for singleton allocation sites
-
-- Interval analysis
-
-- Cast removal analysis
-
-- Is computing relevant nodes multiple times more expensive than searching through irrelevant nodes for some sources?
-
 - Some of the dependencies seem to be per DestinationQuery, it may be worth storing them there
-
-- What do we do about primitive fields? It seems like these might need their own program points even though they don't affect the points-to analysis
-
-- Is computing relevant nodes multiple times more expensive than searching through irrelevant nodes for some sources?
 
 - Need to make sure we never use the type inference results for exceptions thrown by callees, seems like it is always NPE for non-static and Throwable for static calls
 
@@ -27,3 +11,12 @@ Flow sensitive issues
 XXX Fix data-flow framework to correctly analyze the static initializers before the main method (before fakeroot?)
 
 XXX I don't think this will work for offline registration, consider that class init methods can be added to the fake root changing the program point graph
+
+
+Flow-insensitive fixes
+
+- handle loadMetadata in flow-insensitive
+
+- fix the allocation of singletons for native methods in the flow-insensitive analysis
+
+- Need to make sure "TypeReference.isPrimitiveType" is being used correctly in the main branch RE: null is a primitive type (NonNullResults.isNonNull, NonNullDataFlow.call)
