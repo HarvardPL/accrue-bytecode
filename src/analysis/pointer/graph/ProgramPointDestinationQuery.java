@@ -455,6 +455,15 @@ public final class ProgramPointDestinationQuery {
             System.err.println("PPDQ%% \t\t\tNO CALLEES for " + pp);
         }
 
+        if (ppr.getApproximateCallSites().isApproximate(callSite)) {
+            if (!calleeSet.isEmpty()) {
+                throw new RuntimeException("Approximating non-empty call site "
+                        + g.lookupCallSiteReplicaDictionary(callSite));
+            }
+            // This is a call site with no callees that we approximate by assuming it can terminate normally
+            return ReachabilityResult.NORMAL_EXIT;
+        }
+
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
         IntIterator calleeIter = calleeSet.intIterator();

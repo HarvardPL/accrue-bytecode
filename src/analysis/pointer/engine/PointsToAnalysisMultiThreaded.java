@@ -36,7 +36,7 @@ import com.ibm.wala.util.intset.IntIterator;
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     private static final boolean DELAY_OTHER_TASKS = true;
-    private static final boolean PRINT_ALL = false;
+    private static boolean PRINT_ALL = false;
     /**
      * Should we print the type of tasks being added when we empty a particular type of queue
      */
@@ -63,6 +63,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * Number of threads to use for the points-to analysis
      */
     final int numThreads;
+    /**
+     * Number of call sites that have no callees but are approximated as returning normally
+     */
+    int approximated;
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf, int numThreads) {
         super(haf);
@@ -200,6 +204,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         }
 
+        System.err.println("APPROXIMATED " + approximated);
+        System.err.println("NO RECEIVERS " + CallStatement.noReceivers.size());
         for (StmtAndContext cs : CallStatement.noReceivers) {
             CallStatement s = (CallStatement) cs.stmt;
             System.err.println("NO RECEIVERS " + PrettyPrinter.methodString(s.getCallee()) + " from "
@@ -475,6 +481,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          * @return whether we added anything
          */
         private boolean checkPendingQueues(int bound) {
+            if(this.numRemainingTasks.get() == 0) {
+                /*ProgramPointReplica*/int next = g.ppReach.getApproximateCallSites().findNextApproximateCallSite();
+                if (next == -1) {
+                    // The search found no more approximate call sites, the analysis is complete
+                    return false;
+                }
+                g.ppReach.addApproximateCallSite(next);
+                approximated++;
+            }
+
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
                 if (PRINT_QUEUE_SWAPS) {

@@ -76,6 +76,12 @@ public final class ProgramPointReachability {
     private final RelevantNodes relevantNodesIncrementalComputation;
 
     /**
+     * Call sites with no receivers that will be approximating as terminating normally for the purposes of program point
+     * reachability
+     */
+    private final ApproximateCallSites approx;
+
+    /**
      * Create a new reachability query engine
      *
      * @param g points to graph
@@ -86,6 +92,17 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.relevantNodesIncrementalComputation = new RelevantNodes(g, analysisHandle, this);
+        this.approx = new ApproximateCallSites(g);
+    }
+
+    /**
+     * Call sites with no receivers that will be approximating as terminating normally for the purposes of program point
+     * reachability
+     *
+     * @return approximated call sites and algorithm for finding more
+     */
+    public ApproximateCallSites getApproximateCallSites() {
+        return approx;
     }
 
     /**
@@ -888,18 +905,18 @@ public final class ProgramPointReachability {
     // ConcurrentMap<ProgramPointSubQuery, Set<ReachabilityQueryOrigin>>
     private final ConcurrentIntMap<Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Sub queries depend on the callers at particular call site (ProgramPointReplica)
+     * Sub queries depend on the callees from a particular call site (ProgramPointReplica)
      */
     // ConcurrentMap<ProgramPointReplica, Set<ProgramPointSubQuery>>
     private final ConcurrentIntMap<MutableIntSet> calleeQueryDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Method reachability queries (starting at a given call garph node) depend on the callers particular call site
+     * Method reachability queries (starting at a given call garph node) depend on the callees from particular call site
      * (ProgramPointReplica)
      */
     // ConcurrentMap<ProgramPointReplica, Set<OrderedPair<IMethod, Context>>>
     private final ConcurrentIntMap<MutableIntSet> calleeMethodDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Sub queries depend on the callees of a particular call graph node (OrderedPair<IMethod, Context>)
+     * Sub queries depend on the callers of a particular call graph node (OrderedPair<IMethod, Context>)
      */
     // ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointSubQuery>>
     private final ConcurrentIntMap<MutableIntSet> callerQueryDependencies = AnalysisUtil.createConcurrentIntMap();
@@ -1103,6 +1120,47 @@ public final class ProgramPointReachability {
      * @param callSite
      */
     private void calleeAddedTo(/*ProgramPointReplica*/int callSite) {
+        /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = calleeMethodDependencies.get(callSite);
+        if (meths != null) {
+            IntIterator methIter = meths.intIterator();
+            while (methIter.hasNext()) {
+                /*OrderedPair<IMethod, Context>*/int m = methIter.next();
+                // need to re-run the analysis of m
+                computeReachabilityForMethod(m);
+            }
+        }
+
+        ProgramPointReplica callSiteRep = g.lookupCallSiteReplicaDictionary(callSite);
+        int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(callSiteRep.getPP().getContainingProcedure(),
+                                                                       callSiteRep.getContext()));
+        MutableIntSet queries = calleeQueryDependencies.get(caller);
+        if (queries != null) {
+            IntIterator iter = queries.intIterator();
+            MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
+            while (iter.hasNext()) {
+                int mr = iter.next();
+                calleeQueryRequests.incrementAndGet();
+                // need to re-run the query of mr
+                if (!requestRerunQuery(mr)) {
+                    // whoops, no need to rerun this anymore.
+                    toRemove.add(mr);
+                }
+            }
+
+            // Now remove all the unneeded queries
+            IntIterator removeIter = toRemove.intIterator();
+            while (removeIter.hasNext()) {
+                queries.remove(removeIter.next());
+            }
+        }
+    }
+
+    /**
+     * Add a call site with no callees to be approximated as terminating normally
+     *
+     * @param callSite call site to be approximated
+     */
+    public void addApproximateCallSite(int callSite) {
         /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = calleeMethodDependencies.get(callSite);
         if (meths != null) {
             IntIterator methIter = meths.intIterator();
