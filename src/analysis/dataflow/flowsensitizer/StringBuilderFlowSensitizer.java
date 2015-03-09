@@ -139,8 +139,8 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
         System.err.println("flowGenericInvoke(" + i.getCallSite().getDeclaredTarget().getName() + ", " + succNodes
                 + ", " + fact + ")");
         if (isNonStaticStringBuilderAppendMethod(i.getCallSite().getDeclaredTarget())) {
-            // o1.append(o2)
-            int arg = i.getUse(1);
+            // o0.append(o1)
+            int arg = i.getUse(0);
             return sameForAllSuccessors(succNodes, fact.freshFlowSensitive(arg));
         }
 
