@@ -662,10 +662,14 @@ public class StatementRegistrar {
                                                                                     i.getReturnValue(0),
                                                                                     ir.getMethod(),
                                                                                     pp);
-                StringVariable svreceiver = stringVariableFactory.getOrCreateLocalUse(i,
-                                                                                      i.getReceiver(),
-                                                                                      ir.getMethod(),
-                                                                                      pp);
+                StringVariable svreceiverUse = stringVariableFactory.getOrCreateLocalUse(i,
+                                                                                         i.getReceiver(),
+                                                                                         ir.getMethod(),
+                                                                                         pp);
+                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i,
+                                                                                         i.getReceiver(),
+                                                                                         ir.getMethod(),
+                                                                                         pp);
                 List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
                 for (int j = 0; j < i.getNumberOfParameters(); ++j) {
                     svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), pp));
@@ -674,7 +678,8 @@ public class StatementRegistrar {
                                                                      ir.getMethod(),
                                                                      i.getDeclaredTarget(),
                                                                      svresult,
-                                                                     svreceiver,
+                                                                     svreceiverUse,
+                                                                     svreceiverDef,
                                                                      svarguments,
                                                                      stringVariableFactory));
             }

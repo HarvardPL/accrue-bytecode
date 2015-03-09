@@ -613,14 +613,15 @@ public class StatementFactory {
     }
 
     public StringStatement stringMethodCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
-                                            StringVariable svresult, StringVariable svreceiver,
-                                            List<StringVariable> svarguments,
+                                            StringVariable svresult, StringVariable svreceiverUse,
+                                            StringVariable svreceiverDef, List<StringVariable> svarguments,
                                             FlowSensitiveStringVariableFactory stringVariableFactory) {
         assert callSite != null;
         assert method != null;
         assert declaredTarget != null;
         assert svresult != null;
-        assert svreceiver != null;
+        assert svreceiverUse != null;
+        assert svreceiverDef != null;
         assert svarguments != null;
         for (StringVariable svargument : svarguments) {
             assert svargument != null;
@@ -631,15 +632,16 @@ public class StatementFactory {
                                                                   method,
                                                                   declaredTarget,
                                                                   svresult,
-                                                                  svreceiver,
-                                                                  svarguments,
-                                                                  null));
+                                                                  svreceiverUse,
+                                                                  svreceiverDef,
+                                                                  svarguments));
 
         return new StringMethodCall(callSite,
                                     method,
                                     declaredTarget,
                                     svresult,
-                                    svreceiver,
+                                    svreceiverUse,
+                                    svreceiverDef,
                                     svarguments,
                                     stringVariableFactory);
     }

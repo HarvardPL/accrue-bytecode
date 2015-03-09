@@ -68,7 +68,8 @@ public class StringMethodCall extends StringStatement {
     private final MethodEnum invokedMethod;
     private final IMethod invokingMethod;
     private final StringVariable result;
-    private StringVariable receiver;
+    private final StringVariable receiverUse;
+    private final StringVariable receiverDef;
     private final List<StringVariable> arguments;
     private final FlowSensitiveStringVariableFactory stringVariableFactory;
 
@@ -87,14 +88,15 @@ public class StringMethodCall extends StringStatement {
     }
 
     public StringMethodCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
-                            StringVariable svresult, StringVariable svreceiver, List<StringVariable> svarguments,
-                            FlowSensitiveStringVariableFactory stringVariableFactory) {
+                            StringVariable svresult, StringVariable svreceiverUse, StringVariable svreceiverDef,
+                            List<StringVariable> svarguments, FlowSensitiveStringVariableFactory stringVariableFactory) {
         super(method);
         this.callSite = callSite;
         this.invokedMethod = imethodToMethodEnum(AnalysisUtil.getClassHierarchy().resolveMethod(declaredTarget));
         this.invokingMethod = method;
         this.result = svresult;
-        this.receiver = svreceiver;
+        this.receiverUse = svreceiverUse;
+        this.receiverDef = svreceiverDef;
         this.arguments = svarguments;
         this.stringVariableFactory = stringVariableFactory;
     }
@@ -103,7 +105,8 @@ public class StringMethodCall extends StringStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
-        StringVariableReplica receiverSVR = new StringVariableReplica(context, this.receiver);
+        StringVariableReplica receiverUseSVR = new StringVariableReplica(context, this.receiverUse);
+        StringVariableReplica receiverDefSVR = new StringVariableReplica(context, this.receiverDef);
         //        List<StringVariableReplica> argumentRVRs = this.arguments.stream()
         //                                                                 .map(a -> new StringVariableReplica(context, a, haf))
         //                                                                 .collect(Collectors.toList());
@@ -121,10 +124,10 @@ public class StringMethodCall extends StringStatement {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
-            g.recordStringDependency(receiverSVR, originator);
+            g.recordStringDependency(receiverUseSVR, originator);
             g.recordStringDependency(argumentSVRs.get(1), originator);
 
-            Optional<AString> maybeReceiverAString = g.getAStringFor(receiverSVR);
+            Optional<AString> maybeReceiverAString = g.getAStringFor(receiverUseSVR);
             // XXX: This is broken, the graph should have a "GIMME THE VALUE" function
             assert maybeReceiverAString.isSome();
             Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(1));
@@ -133,8 +136,8 @@ public class StringMethodCall extends StringStatement {
 
             if (!maybeArgumentAString.isNone()) {
                 AString newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
-                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverSVR + ", " + newSIK + ")");
-                newDelta.combine(g.stringVariableReplicaJoinAt(receiverSVR, newSIK));
+                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverDefSVR + ", " + newSIK + ")");
+                newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
             }
             return newDelta;
         }
@@ -150,7 +153,8 @@ public class StringMethodCall extends StringStatement {
 
     @Override
     public String toString() {
-        return this.result + " = " + this.receiver + "." + this.invokedMethod + "(" + this.arguments + ")";
+        return "(" + this.result + ", " + this.receiverDef + ") <- " + this.receiverUse + "." + this.invokedMethod
+                + "(" + this.arguments + ")";
     }
 
 }
