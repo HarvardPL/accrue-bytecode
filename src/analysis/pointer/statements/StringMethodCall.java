@@ -121,6 +121,9 @@ public class StringMethodCall extends StringStatement {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
+            g.recordStringDependency(receiverSVR, originator);
+            g.recordStringDependency(argumentSVRs.get(1), originator);
+
             Optional<AString> maybeReceiverAString = g.getAStringFor(receiverSVR);
             // XXX: This is broken, the graph should have a "GIMME THE VALUE" function
             assert maybeReceiverAString.isSome();
