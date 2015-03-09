@@ -70,7 +70,7 @@ public class StringVariableReplica implements PointsToGraphNode {
 
     @Override
     public String toString() {
-        return "StringVariableReplica [context=" + context + ", local=" + local + "]";
+        return "(StringVariableReplica " + context + " " + local + ")";
     }
 
 }
