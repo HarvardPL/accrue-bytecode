@@ -58,7 +58,7 @@ public class StringAndReflectiveUtil {
     }
 
     public static boolean isStringMethod(MethodReference m) {
-        System.err.println("[isStringMethod] Comparing " + m + " to " + stringBuilderAppendStringMethod);
+        //        System.err.println("[isStringMethod] Comparing " + m + " to " + stringBuilderAppendStringMethod);
         return m.equals(stringBuilderAppendStringBuilderMethod) || m.equals(stringBuilderAppendStringMethod)
                 || m.equals(stringBuilderAppendObjectMethod);
     }
