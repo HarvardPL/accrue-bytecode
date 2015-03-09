@@ -513,7 +513,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
     }
 
     protected Set<StmtAndContext> getStringDependencies(StringVariableReplica svr) {
-        return this.stringDependencies.get(svr);
+        if (this.stringDependencies.containsKey(svr)) {
+            return this.stringDependencies.get(svr);
+        } else {
+            return AnalysisUtil.createConcurrentSet();
+        }
     }
 
     /**
