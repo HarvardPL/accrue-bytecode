@@ -146,7 +146,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                 // This is the program point for a field assignment
                 LocalToFieldStatement stmt = (LocalToFieldStatement) g.getRegistrar().getStmtAtPP(pp);
                 OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(current.getContext(), g);
-                if (!killed.fst()) {
+                if (!killed.fst() && !isApproximateKillSet(stmt, current.getContext())) {
                     // The receiver of the field access has an empty point-to set
                     // Previously we have _unsoundly_ assumed that it kills any field with the same name and type
                     // From now on we _soundly_ but _imprecisely_ assume that it kills nothing
