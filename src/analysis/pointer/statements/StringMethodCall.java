@@ -117,7 +117,7 @@ public class StringMethodCall extends StringStatement {
         case concatM: {
             GraphDelta newDelta = new GraphDelta(g);
 
-            assert argumentSVRs.size() == 1;
+            assert argumentSVRs.size() == 1 : argumentSVRs.size();
 
             Optional<AString> maybeReceiverAString = pti.getAStringFor(receiverSVR);
             Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(0));
