@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import main.AccrueAnalysisMain;
+import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -19,14 +20,18 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
 import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
+import analysis.pointer.graph.ApproximateCallSitesAndFieldAssignments.Approximation;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
+import analysis.pointer.graph.ProgramPointDestinationQuery;
 import analysis.pointer.graph.ProgramPointSubQuery;
+import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.CallStatement;
+import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -36,7 +41,7 @@ import com.ibm.wala.util.intset.IntIterator;
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     private static final boolean DELAY_OTHER_TASKS = true;
-    private static boolean PRINT_ALL = false;
+    private static boolean PRINT_ALL = true;
     /**
      * Should we print the type of tasks being added when we empty a particular type of queue
      */
@@ -66,7 +71,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     /**
      * Number of call sites that have no callees but are approximated as returning normally
      */
-    int approximated;
+    int approximatedCallSites;
+    /**
+     * Number of field assignments that have no receivers but are approximated as having an empty kill set
+     */
+    int approximatedFieldAssigns;
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf, int numThreads) {
         super(haf);
@@ -204,12 +213,24 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         }
 
-        System.err.println("APPROXIMATED " + approximated);
+        System.err.println("APPROXIMATED call sites " + approximatedCallSites);
+        System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
+        System.err.println("IMPRECISE KILLERS " + LocalToFieldStatement.impreciseKills.size());
+        System.err.println("IMPRECISE KILLED QUERIES " + ProgramPointDestinationQuery.impreciseKills.size());
         System.err.println("NO RECEIVERS " + CallStatement.noReceivers.size());
         for (StmtAndContext cs : CallStatement.noReceivers) {
             CallStatement s = (CallStatement) cs.stmt;
             System.err.println("NO RECEIVERS " + PrettyPrinter.methodString(s.getCallee()) + " from "
                     + PrettyPrinter.methodString(s.getMethod()) + " in " + cs.context);
+        }
+
+        for (OrderedPair<ReferenceVariableReplica, LocalToFieldStatement> kills : LocalToFieldStatement.impreciseKills) {
+            System.err.println("IMPRECISE KILL by " + kills.snd() + " for receiver " + kills.fst() + " in "
+                    + PrettyPrinter.methodString(kills.snd().getMethod()));
+        }
+
+        for (ProgramPointSubQuery q : ProgramPointDestinationQuery.impreciseKills) {
+            System.err.println("IMPRECISLY KILLLED " + q);
         }
 
         if (paranoidMode) {
@@ -482,13 +503,19 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private boolean checkPendingQueues(int bound) {
             if(this.numRemainingTasks.get() == 0) {
-                /*ProgramPointReplica*/int next = g.ppReach.getApproximateCallSites().findNextApproximateCallSite();
-                if (next == -1) {
-                    // The search found no more approximate call sites, the analysis is complete
+                Approximation next = g.ppReach.getApproximateCallSites().findNextApproximation();
+                if (next.callSite == -1 && next.fieldAssign == null) {
+                    // The search found no more approximations, the analysis is complete
                     return false;
                 }
-                g.ppReach.addApproximateCallSite(next);
-                approximated++;
+                if (next.callSite != -1) {
+                    g.ppReach.addApproximateCallSite(next.callSite);
+                    approximatedCallSites++;
+                }
+                if (next.fieldAssign != null) {
+                    g.ppReach.addApproximateFieldAssign(next.fieldAssign);
+                    approximatedFieldAssigns++;
+                }
             }
 
             boolean changed = false;

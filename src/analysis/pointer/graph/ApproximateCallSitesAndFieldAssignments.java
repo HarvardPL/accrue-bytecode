@@ -6,7 +6,10 @@ import util.OrderedPair;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.statements.CallSiteProgramPoint;
+import analysis.pointer.statements.LocalToFieldStatement;
+import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -17,17 +20,22 @@ import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
- * Call sites with no receiver that will be approximated by assuming that the call can terminate normally. This allows
- * program point reachability queries to succeed even in the presence of these calls. This may be imprecise if a call
- * site actually has no targets, but there are some instances (e.g. reflection) where unsoundness in the analysis causes
- * there to be no callee targets.
+ * Call sites with no non-null receiver that will be approximated by assuming that the call can terminate normally or
+ * field assignments with no receiver that are approximated by assuming they have an empty kill set. This allows program
+ * point reachability queries to succeed even in the presence of these calls or assignments. This may be imprecise if a
+ * call site or field access actually has no targets, but there are some instances (e.g. reflection) where unsoundness
+ * in the analysis causes this issue.
  */
-public class ApproximateCallSites {
+public class ApproximateCallSitesAndFieldAssignments {
 
     /**
      * All no-target call sites that have been approximated so far
      */
     private final/*Set<ProgramPointReplica>*/MutableIntSet approxCallSites = AnalysisUtil.createConcurrentIntSet();
+    /**
+     * All no-receiver field accesses that have been approximated so far
+     */
+    private final Set<StmtAndContext> approxFieldAssignments = AnalysisUtil.createConcurrentSet();
     /**
      * All program point replicas that have been visited by this algorithm
      */
@@ -50,7 +58,7 @@ public class ApproximateCallSites {
      *
      * @param g points-to graph
      */
-    public ApproximateCallSites(PointsToGraph g) {
+    public ApproximateCallSitesAndFieldAssignments(PointsToGraph g) {
         this.g = g;
     }
 
@@ -63,11 +71,11 @@ public class ApproximateCallSites {
     }
 
     /**
-     * Find the next call-site-program-point replica that must be approximated
+     * Find the next approximation
      *
-     * @return the next call-site to be processed
+     * @return the next approximation to be made
      */
-    public/*ProgramPointReplica*/int findNextApproximateCallSite() {
+    public Approximation findNextApproximation() {
         // XXX Reset the visited set and start from the beginning
         allVisited = AnalysisUtil.createConcurrentSet();
         lastVisited = -1;
@@ -86,6 +94,7 @@ public class ApproximateCallSites {
         while (!q.isEmpty()) {
             ProgramPointReplica current = q.poll();
             ProgramPoint pp = current.getPP();
+            int currentInt = g.lookupCallSiteReplicaDictionary(current);
             if (pp instanceof CallSiteProgramPoint) {
                 CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
                 if (cspp.isClinit() && !g.getClassInitializers().contains(cspp.getClinit())) {
@@ -100,7 +109,6 @@ public class ApproximateCallSites {
                     continue;
                 }
 
-                int currentInt = g.lookupCallSiteReplicaDictionary(current);
                 if (!isApproximate(currentInt)) {
                     /*Set<OrderedPair<IMethod,Context>>*/IntSet callees = g.getCalleesOf(currentInt);
                     if (callees.isEmpty()) {
@@ -112,7 +120,7 @@ public class ApproximateCallSites {
                         lastVisited = currentInt;
                         System.err.println("APPROXIMATING " + PrettyPrinter.methodString(cspp.getCallee()) + " from "
                                 + PrettyPrinter.methodString(cspp.getCaller()) + " in " + current.getContext());
-                        return currentInt;
+                        return Approximation.getCallSiteApproximation(currentInt);
                     }
 
                     // This is a call-site with callees continue the search in the callees
@@ -131,6 +139,21 @@ public class ApproximateCallSites {
                 ProgramPointReplica normalExit = cspp.getNormalExit().getReplica(current.getContext());
                 if (allVisited.add(normalExit)) {
                     q.add(normalExit);
+                }
+            } // end call site program point
+
+            if (g.getRegistrar().getStmtAtPP(pp) instanceof LocalToFieldStatement) {
+                // This is the program point for a field assignment
+                LocalToFieldStatement stmt = (LocalToFieldStatement) g.getRegistrar().getStmtAtPP(pp);
+                OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(current.getContext(), g);
+                if (!killed.fst()) {
+                    // The receiver of the field access has an empty point-to set
+                    // Previously we have _unsoundly_ assumed that it kills any field with the same name and type
+                    // From now on we _soundly_ but _imprecisely_ assume that it kills nothing
+                    System.err.println("APPROXIMATING kill set for " + stmt + " in " + current.getContext());
+                    approxFieldAssignments.add(new StmtAndContext(stmt, current.getContext()));
+                    lastVisited = currentInt;
+                    return Approximation.getFieldAssignApproximation(new OrderedPair<>(stmt, current.getContext()));
                 }
             }
 
@@ -189,7 +212,7 @@ public class ApproximateCallSites {
         } // The queue is empty
 
         finished = true;
-        return -1;
+        return Approximation.NONE;
     }
 
     /**
@@ -226,5 +249,54 @@ public class ApproximateCallSites {
      */
     public boolean isFinished() {
         return this.finished;
+    }
+
+    /**
+     * The statement in the given context is assumed to kill nothing
+     *
+     * @param stmt local-to-field points-to statement that may kill something
+     * @param context context we are approximating the kill set for
+     * @return true if the kill set should be approximated
+     */
+    public boolean isApproximateKillSet(PointsToStatement stmt, Context context) {
+        return approxFieldAssignments.contains(new StmtAndContext(stmt, context));
+    }
+
+    /**
+     * Approximation for call sites with no non-null receivers (approximated by assuming to terminate normally) or
+     * field assignment with no receivers (approximating the kill set as empty)
+     */
+    public static final class Approximation {
+        /**
+         * No approximation
+         */
+        public static final Approximation NONE = new Approximation(-1, null);
+        /**
+         * Call site being approximated or -1 if this is a field assignment approximation
+         */
+        public final int callSite;
+        /**
+         * Field assignment being approximated or "null" if this is a call site approximation
+         */
+        public final OrderedPair<LocalToFieldStatement, Context> fieldAssign;
+
+        /**
+         * Approximation for call site or field assignment
+         *
+         * @param callSite Call site being approximated or -1 if this is a field assignment approximation
+         * @param fieldAssign Field assignment being approximated or "null" if this is a call site approximation
+         */
+        private Approximation(int callSite, OrderedPair<LocalToFieldStatement, Context> fieldAssign) {
+            this.callSite = callSite;
+            this.fieldAssign = fieldAssign;
+        }
+
+        static Approximation getCallSiteApproximation(int callSite) {
+            return new Approximation(callSite, null);
+        }
+
+        static Approximation getFieldAssignApproximation(OrderedPair<LocalToFieldStatement, Context> orderedPair) {
+            return new Approximation(-1, orderedPair);
+        }
     }
 }

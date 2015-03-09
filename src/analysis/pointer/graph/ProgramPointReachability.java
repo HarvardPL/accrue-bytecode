@@ -25,6 +25,7 @@ import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
+import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
@@ -79,7 +80,7 @@ public final class ProgramPointReachability {
      * Call sites with no receivers that will be approximating as terminating normally for the purposes of program point
      * reachability
      */
-    private final ApproximateCallSites approx;
+    private final ApproximateCallSitesAndFieldAssignments approx;
 
     /**
      * Create a new reachability query engine
@@ -92,7 +93,7 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.relevantNodesIncrementalComputation = new RelevantNodes(g, analysisHandle, this);
-        this.approx = new ApproximateCallSites(g);
+        this.approx = new ApproximateCallSitesAndFieldAssignments(g);
     }
 
     /**
@@ -101,7 +102,7 @@ public final class ProgramPointReachability {
      *
      * @return approximated call sites and algorithm for finding more
      */
-    public ApproximateCallSites getApproximateCallSites() {
+    public ApproximateCallSitesAndFieldAssignments getApproximateCallSites() {
         return approx;
     }
 
@@ -1199,6 +1200,47 @@ public final class ProgramPointReachability {
             while (iter.hasNext()) {
                 int mr = iter.next();
                 calleeQueryRequests.incrementAndGet();
+                // need to re-run the query of mr
+                if (!requestRerunQuery(mr)) {
+                    // whoops, no need to rerun this anymore.
+                    toRemove.add(mr);
+                }
+            }
+
+            // Now remove all the unneeded queries
+            IntIterator removeIter = toRemove.intIterator();
+            while (removeIter.hasNext()) {
+                queries.remove(removeIter.next());
+            }
+        }
+    }
+
+    /**
+     * Add a field assignment with no receivers assumed to have an empty kill set
+     *
+     * @param fieldAssign field assignment to be approximated
+     */
+    public void addApproximateFieldAssign(OrderedPair<LocalToFieldStatement, Context> fieldAssign) {
+        ReferenceVariableReplica killDep = fieldAssign.fst().getReadDependencyForKillField(fieldAssign.snd(),
+                                                                                           g.getHaf());
+        int killDepInt = g.lookupDictionary(killDep);
+        /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.get(killDepInt);
+        if (meths != null) {
+            IntIterator methIter = meths.intIterator();
+            while (methIter.hasNext()) {
+                /*OrderedPair<IMethod, Context>*/int m = methIter.next();
+                // need to re-run the analysis of m
+                computeReachabilityForMethod(m);
+            }
+        }
+
+        MutableIntSet queries = killQueryDependencies.get(killDepInt);
+        if (queries != null) {
+            IntIterator iter = queries.intIterator();
+            MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
+            while (iter.hasNext()) {
+                int mr = iter.next();
+                killQueryRequests.incrementAndGet();
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
