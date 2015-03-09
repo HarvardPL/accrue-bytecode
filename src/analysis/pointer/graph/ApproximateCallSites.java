@@ -86,7 +86,6 @@ public class ApproximateCallSites {
         while (!q.isEmpty()) {
             ProgramPointReplica current = q.poll();
             ProgramPoint pp = current.getPP();
-
             if (pp instanceof CallSiteProgramPoint) {
                 CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
                 if (cspp.isClinit() && !g.getClassInitializers().contains(cspp.getClinit())) {
@@ -173,6 +172,11 @@ public class ApproximateCallSites {
                 while (callerIter.hasNext()) {
                     ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callerIter.next());
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
+                    if (cspp.isClinit()) {
+                        // The normal exit for a CLINIT is the call-site, add the successors instead
+                        addSuccs(callerSite, q);
+                        continue;
+                    }
                     ProgramPointReplica callerSiteReplica = cspp.getNormalExit().getReplica(callerSite.getContext());
                     if (allVisited.add(callerSiteReplica)) {
                         q.add(callerSiteReplica);
