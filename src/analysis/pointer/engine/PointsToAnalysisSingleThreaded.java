@@ -497,10 +497,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
 
     protected void addStringDependency(StringVariableReplica svr, StmtAndContext sac) {
         if (this.stringDependencies.containsKey(svr)) {
-            this.stringDependencies.put(svr, AnalysisUtil.createConcurrentSingletonSet(sac));
+            this.stringDependencies.get(svr).add(sac);
         }
         else {
-            this.stringDependencies.get(svr).add(sac);
+            this.stringDependencies.put(svr, AnalysisUtil.createConcurrentSingletonSet(sac));
         }
     }
 
