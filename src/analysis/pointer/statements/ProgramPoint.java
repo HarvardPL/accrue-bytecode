@@ -34,6 +34,7 @@ public class ProgramPoint {
         this(containingProcedure, debugInfo, false, false, false);
     }
 
+    @SuppressWarnings("synthetic-access")
     public ProgramPoint(IMethod containingProcedure, String debugInfo,
                         boolean isEntrySummaryNode,
                         boolean isNormalExitSummaryNode, boolean isExceptionExitSummaryNode) {

@@ -269,7 +269,12 @@ public final class GraphDelta {
         return iterators.get(0);
     }
 
-    public IntIterator domainIterator() {
+    /**
+     * Iterator for the points-to graph nodes in the domain of this graph delta
+     *
+     * @return iterator
+     */
+    public/*Iterator<PointsToGraphNode>*/IntIterator domainIterator() {
         return g.new SortedIntSetUnionIterator(deltaFI.keyIterator(), deltaFS.keyIterator());
     }
 

@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
@@ -116,8 +118,10 @@ public class LocalToFieldStatement extends PointsToStatement {
 
         if (!iter.hasNext()) {
             // the receiver currently point to nothing. Too early to tell if we kill a node
+            impreciseKills.add(new OrderedPair<>(receiverReplica, this));
             return new OrderedPair<>(Boolean.FALSE, null);
         }
+        impreciseKills.remove(new OrderedPair<>(receiverReplica, this));
         // the receiver point to at least one object.
         InstanceKeyRecency pointedTo = iter.next();
 
@@ -131,6 +135,8 @@ public class LocalToFieldStatement extends PointsToStatement {
         // either way, we don't kill the field.
         return new OrderedPair<>(Boolean.TRUE, null);
     }
+
+    public static Set<OrderedPair<ReferenceVariableReplica, LocalToFieldStatement>> impreciseKills = AnalysisUtil.createConcurrentSet();
 
     @Override
     public String toString() {
