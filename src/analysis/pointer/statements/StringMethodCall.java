@@ -117,10 +117,11 @@ public class StringMethodCall extends StringStatement {
         case concatM: {
             GraphDelta newDelta = new GraphDelta(g);
 
-            assert argumentSVRs.size() == 1 : argumentSVRs.size();
+            // the first argument is a copy of the "this" argument
+            assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
             Optional<AString> maybeReceiverAString = pti.getAStringFor(receiverSVR);
-            Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(0));
+            Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(1));
 
             if (maybeReceiverAString.isNone() || maybeArgumentAString.isNone()) {
                 System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + resultSVR + ", AString.makeStringTop(" + MAX_STRING_SET_SIZE + "))");
