@@ -303,7 +303,7 @@ public class StatementRegistrar {
         assert i.getNumberOfDefs() <= 2 : "More than two defs in instruction: " + i;
 
         // Add statements for any string literals in the instruction
-        this.findAndRegisterStringLiterals(i, ir, this.rvFactory, printer);
+        this.findAndRegisterStringLiterals(i, ir, this.rvFactory, stringVariableFactory, printer);
 
         // Add statements for any JVM-generated exceptions this instruction could throw (e.g. NullPointerException)
         this.findAndRegisterGeneratedExceptions(i, bb, ir, this.rvFactory, types, printer);
@@ -1099,6 +1099,7 @@ public class StatementRegistrar {
      * @param stringClass WALA representation of the java.lang.String class
      */
     private void findAndRegisterStringLiterals(SSAInstruction i, IR ir, ReferenceVariableFactory rvFactory,
+                                               FlowSensitiveStringVariableFactory stringVariableFactory,
                                                PrettyPrinter pp) {
         for (int j = 0; j < i.getNumberOfUses(); j++) {
             int use = i.getUse(j);
@@ -1118,6 +1119,15 @@ public class StatementRegistrar {
 
                 // add points to statements to simulate the allocation
                 this.registerStringLiteral(newStringLit, use, ir.getMethod(), pp);
+
+                String stringLiteralString = ir.getSymbolTable().getStringValue(use);
+                StringVariable stringLiteralVariable = stringVariableFactory.getOrCreateLocalUse(i,
+                                                                                                 use,
+                                                                                                 ir.getMethod(),
+                                                                                                 pp);
+                this.addStringStatement(new StringLiteralStatement(ir.getMethod(),
+                                                                   stringLiteralVariable,
+                                                                   stringLiteralString));
             }
         }
 
