@@ -422,6 +422,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
+        for (StringVariableReplica svr : changes.getChangedStringVariables()) {
+            for (StmtAndContext sac : this.getStringDependencies(svr)) {
+                queue.add(new OrderedPair<>(sac, changes));
+            }
+        }
+
     }
 
     /**
