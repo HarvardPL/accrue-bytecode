@@ -1,14 +1,16 @@
 package analysis.pointer.graph;
 
+import java.util.Collections;
 import java.util.Map;
 
-import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 
 public class StringConstraints {
 
     private final Map<StringVariableReplica, AString> map;
+    private static final int MAX_STRING_SET_SIZE = 5;
+    private static final AString INITIAL_STRING = AString.makeStringSet(MAX_STRING_SET_SIZE, Collections.singleton(""));
 
     /* Factory Methods */
 
@@ -24,9 +26,9 @@ public class StringConstraints {
 
     /* Logic */
 
-    public Optional<AString> getAStringFor(StringVariableReplica svr) {
+    public AString getAStringFor(StringVariableReplica svr) {
         AString shat = this.map.get(svr);
-        return shat == null ? Optional.<AString> none() : Optional.some(shat);
+        return shat == null ? INITIAL_STRING : shat;
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {

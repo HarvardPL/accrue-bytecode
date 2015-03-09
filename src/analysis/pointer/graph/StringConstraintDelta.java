@@ -36,7 +36,7 @@ public class StringConstraintDelta {
 
     public Optional<AString> getAStringFor(StringVariableReplica svr) {
         if (this.svrs.contains(svr)) {
-            return this.sc.getAStringFor(svr);
+            return Optional.some(this.sc.getAStringFor(svr));
         }
         else {
             return Optional.none();

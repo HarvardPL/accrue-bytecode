@@ -10,6 +10,13 @@ public interface PointsToIterable {
 
     public Iterable<InstanceKey> pointsToIterable(PointsToGraphNode node, StmtAndContext originator);
 
+    /**
+     * Note that Optional.none(), does *not* indicate bottom or top elements of AString. It indicates that there is no
+     * new information to be shared.
+     *
+     * @param x
+     * @return if there is "new information", then it returns Optional.some(theNewInformation)
+     */
     public Optional<AString> getAStringFor(StringVariableReplica x);
 
 }

@@ -104,13 +104,14 @@ public class StringMethodCall extends StringStatement {
                               StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica resultSVR = new StringVariableReplica(context, this.result);
         StringVariableReplica receiverSVR = new StringVariableReplica(context, this.receiver);
-//        List<StringVariableReplica> argumentRVRs = this.arguments.stream()
-//                                                                 .map(a -> new StringVariableReplica(context, a, haf))
-//                                                                 .collect(Collectors.toList());
+        //        List<StringVariableReplica> argumentRVRs = this.arguments.stream()
+        //                                                                 .map(a -> new StringVariableReplica(context, a, haf))
+        //                                                                 .collect(Collectors.toList());
         List<StringVariableReplica> argumentSVRs = new ArrayList<>();
-        for(StringVariable argument : this.arguments) {
+        for (StringVariable argument : this.arguments) {
             argumentSVRs.add(new StringVariableReplica(context, argument));
         }
+
         PointsToIterable pti = delta == null ? g : delta;
 
         switch (this.invokedMethod) {
@@ -120,16 +121,15 @@ public class StringMethodCall extends StringStatement {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
-            Optional<AString> maybeReceiverAString = pti.getAStringFor(receiverSVR);
+            Optional<AString> maybeReceiverAString = g.getAStringFor(receiverSVR);
+            // XXX: This is broken, the graph should have a "GIMME THE VALUE" function
+            assert maybeReceiverAString.isSome();
             Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(1));
 
-            if (maybeReceiverAString.isNone() || maybeArgumentAString.isNone()) {
-                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + resultSVR + ", AString.makeStringTop(" + MAX_STRING_SET_SIZE + "))");
-                newDelta.combine(g.stringVariableReplicaJoinAt(resultSVR, AString.makeStringTop(MAX_STRING_SET_SIZE)));
-            } else {
+            if (!maybeArgumentAString.isNone()) {
                 AString newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
-                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + resultSVR + ", " + newSIK + ")");
-                newDelta.combine(g.stringVariableReplicaJoinAt(resultSVR, newSIK));
+                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverSVR + ", " + newSIK + ")");
+                newDelta.combine(g.stringVariableReplicaJoinAt(receiverSVR, newSIK));
             }
             return newDelta;
         }

@@ -1412,7 +1412,7 @@ public final class PointsToGraph implements PointsToIterable {
 
     @Override
     public Optional<AString> getAStringFor(StringVariableReplica x) {
-        return this.sc.getAStringFor(x);
+        return Optional.some(this.sc.getAStringFor(x));
     }
 
 }
