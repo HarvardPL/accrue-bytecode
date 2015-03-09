@@ -129,8 +129,13 @@ public class FlowSensitizedVariableMap {
             Integer k = kv.getKey();
             Integer v = kv.getValue();
             if (newMap.containsKey(k) && newMap.get(k) != v) {
-                throw new RuntimeException("Maps disagree on " + k + ": " + this.map
-                                           + " " + m.getInsensitiveToFlowSensistiveMap());
+                //                throw new RuntimeException("Maps disagree on " + k + ": " + this.map
+                //                                           + " " + m.getInsensitiveToFlowSensistiveMap());
+                System.err.println("Maps disagree on " + k + ": " + this.map + " "
+                        + m.getInsensitiveToFlowSensistiveMap()
+                        + " -- proceeding by taking highest number, I hope this is an exceptional path");
+                newMap.put(k, Math.max(v, newMap.get(k)));
+
             }
             newMap.put(k, v);
         }
