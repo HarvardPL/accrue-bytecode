@@ -129,6 +129,8 @@ public class StringMethodCall extends StringStatement {
             assert maybeReceiverAString.isSome();
             Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(1));
 
+            System.err.println("[concatM] I am " + this);
+
             if (!maybeArgumentAString.isNone()) {
                 AString newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
                 System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverSVR + ", " + newSIK + ")");
