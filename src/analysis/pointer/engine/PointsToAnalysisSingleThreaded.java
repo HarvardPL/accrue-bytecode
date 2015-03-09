@@ -421,7 +421,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 queue.add(new OrderedPair<>(sac, changes));
             }
         }
-        System.err.println("[handleChanges] About to loop for StringVariables");
+
         for (StringVariableReplica svr : changes.getChangedStringVariables()) {
             System.err.println("[handleChanges] Considering " + svr);
             System.err.println("[handleChanges] Whose dependencies are " + this.getStringDependencies(svr));
