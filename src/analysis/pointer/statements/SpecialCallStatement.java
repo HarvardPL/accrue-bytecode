@@ -37,6 +37,8 @@ public class SpecialCallStatement extends CallStatement {
      */
     private final MethodSummaryNodes calleeSummary;
 
+    private boolean noTargetsYet = true;
+
     /**
      * Points-to statement for a special method invocation.
      *
@@ -68,13 +70,6 @@ public class SpecialCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
-        if (!iter.hasNext()) {
-            noReceivers.add(originator);
-        }
-        else {
-            noReceivers.remove(originator);
-        }
-
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
             assert recHeapCtxt != null : "Null instance key for " + this.callee + " at " + programPoint();
@@ -82,8 +77,17 @@ public class SpecialCallStatement extends CallStatement {
                 // The receiver points to null that is not a "real" call so there is nothing to process
                 continue;
             }
+            noTargetsYet = false;
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
         }
+
+        if (noTargetsYet) {
+            noReceivers.add(originator);
+        }
+        else {
+            noReceivers.remove(originator);
+        }
+
         return changed;
 
     }

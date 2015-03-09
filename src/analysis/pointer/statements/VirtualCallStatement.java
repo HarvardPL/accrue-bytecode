@@ -38,6 +38,8 @@ public class VirtualCallStatement extends CallStatement {
      */
     private ReferenceVariable receiver;
 
+    private boolean noTargetsYet = true;
+
     /**
      * Points-to statement for a virtual method invocation.
      *
@@ -69,41 +71,40 @@ public class VirtualCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
-        if (!iter.hasNext()) {
+        while (iter.hasNext()) {
+            InstanceKeyRecency recHeapContext = iter.next();
+            if (g.isNullInstanceKey(recHeapContext)) {
+                // The receiver points to null that is not a "real" call so there is nothing to process
+                continue;
+            }
+            noTargetsYet = false;
+            // The receiver is recHeapContext, and we want to find a method that matches selector callee.getSelector()
+            // in class recHeapContext.getConcreteType() or a superclass.
+            IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
+
+            if (resolvedCallee != null && resolvedCallee.isAbstract()) {
+                // Abstract method due to a native method that returns an abstract type or interface
+                // TODO Handle abstract methods in a smarter way
+                System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
+                continue;
+            }
+
+            // If we wanted to be very robust, check to make sure that
+            // resolvedCallee overrides the IMethod returned by ch.resolveMethod(callee).
+            changed = changed.combine(this.processCall(context,
+                                                       recHeapContext,
+                                                       resolvedCallee,
+                                                       g,
+                                                       haf,
+                                                       registrar.findOrCreateMethodSummary(resolvedCallee)));
+
+        }
+
+        if (noTargetsYet) {
             noReceivers.add(originator);
         }
         else {
             noReceivers.remove(originator);
-        }
-
-        while (iter.hasNext()) {
-            InstanceKeyRecency recHeapContext = iter.next();
-
-            if (!g.isNullInstanceKey(recHeapContext)) {
-                // find the callee.
-                // The receiver is recHeapContext, and we want to find a method that matches selector
-                // callee.getSelector() in class recHeapContext.getConcreteType() or
-                // a superclass.
-                IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(),
-                                                            receiverRep.getExpectedType());
-
-                if (resolvedCallee != null && resolvedCallee.isAbstract()) {
-                    // Abstract method due to a native method that returns an abstract type or interface
-                    // TODO Handle abstract methods in a smarter way
-                    System.err.println("Abstract method " + PrettyPrinter.methodString(resolvedCallee));
-                    continue;
-                }
-
-                // If we wanted to be very robust, check to make sure that
-                // resolvedCallee overrides
-                // the IMethod returned by ch.resolveMethod(callee).
-                changed = changed.combine(this.processCall(context,
-                                                           recHeapContext,
-                                                           resolvedCallee,
-                                                           g,
-                                                           haf,
-                                                           registrar.findOrCreateMethodSummary(resolvedCallee)));
-            }
         }
         return changed;
     }
