@@ -86,9 +86,9 @@ public final class AString {
             }
         };
 
-        System.err.print("Just concated, before: " + this.fs);
+        //        System.err.print("Just concated, before: " + this.fs);
         FiniteSet<String> s = this.fs.flatMap(fOuter);
-        System.err.println(", argument: " + that.fs + ", after: " + s);
+        //        System.err.println(", argument: " + that.fs + ", after: " + s);
         return new AString(JavaLangStringIClass, s);
     }
 
