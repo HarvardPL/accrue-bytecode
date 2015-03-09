@@ -136,7 +136,8 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
     private Map<ISSABasicBlock, FlowSensitizedVariableMap> flowGenericInvoke(SSAInvokeInstruction i,
                                                                              Iterator<ISSABasicBlock> succNodes,
                                                                              FlowSensitizedVariableMap fact) {
-        System.err.println("flowGenericInvoke(" + i + ", " + succNodes + ", " + fact + ")");
+        System.err.println("flowGenericInvoke(" + i.getCallSite().getDeclaredTarget().getName() + ", " + succNodes
+                + ", " + fact + ")");
         if (isNonStaticStringBuilderAppendMethod(i.getCallSite().getDeclaredTarget())) {
             // o1.append(o2)
             int arg = i.getUse(1);
