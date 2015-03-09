@@ -2,6 +2,7 @@ package analysis.pointer.graph;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Set;
 
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
@@ -100,7 +101,7 @@ public final class GraphDelta implements PointsToIterable {
     }
 
     public boolean isEmpty() {
-        return delta.isEmpty();
+        return delta.isEmpty() && this.getChangedStringVariables().isEmpty();
     }
 
     @Override
@@ -185,6 +186,10 @@ public final class GraphDelta implements PointsToIterable {
     @Override
     public Optional<AString> getAStringFor(StringVariableReplica svr) {
         return this.scd.getAStringFor(svr);
+    }
+
+    public Set<StringVariableReplica> getChangedStringVariables() {
+        return this.scd.getChangedStringVariables();
     }
 
 }

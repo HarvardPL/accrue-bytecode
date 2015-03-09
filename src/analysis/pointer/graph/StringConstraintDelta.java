@@ -54,4 +54,8 @@ public class StringConstraintDelta {
         return StringConstraintDelta.make(this.sc, svrs);
     }
 
+    public Set<StringVariableReplica> getChangedStringVariables() {
+        return this.svrs;
+    }
+
 }
