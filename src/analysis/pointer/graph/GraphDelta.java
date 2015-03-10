@@ -96,6 +96,7 @@ public final class GraphDelta implements PointsToIterable {
                 int estimatedSize = setSizeBestGuess(srcSet);
                 getOrCreateSet(src, estimatedSize).addAll(srcSet);
             }
+            this.scd.combine(d.scd);
         }
         return this;
     }
