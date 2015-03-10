@@ -228,14 +228,14 @@ public class StatementRegistrar {
                                                                                                                sensitizerSolution.getUseMap());
 
             /* Add string phi nodes for control joins */
-            for (Entry<Integer, Map<Integer, Set<Integer>>> kv : sensitizerSolution.getSensitizerDependencies()
+            for (Entry<Integer, Map<Set<Integer>, Integer>> kv : sensitizerSolution.getSensitizerDependencies()
                                                                                    .entrySet()) {
                 Integer varNum = kv.getKey();
-                Map<Integer, Set<Integer>> dependencyMap = kv.getValue();
+                Map<Set<Integer>, Integer> dependencyMap = kv.getValue();
 
-                for (Entry<Integer, Set<Integer>> kv2 : dependencyMap.entrySet()) {
-                    Integer sensitizer = kv2.getKey();
-                    Set<Integer> dependentSensitizers = kv2.getValue();
+                for (Entry<Set<Integer>, Integer> kv2 : dependencyMap.entrySet()) {
+                    Set<Integer> dependentSensitizers = kv2.getKey();
+                    Integer sensitizer = kv2.getValue();
 
                     StringVariable sv = stringVariableFactory.getOrCreateLocalWithSubscript(varNum, sensitizer, m);
                     Set<StringVariable> dependentSVs = new HashSet<>();
