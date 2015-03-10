@@ -125,7 +125,9 @@ public class StringMethodCall extends StringStatement {
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
             g.recordStringDependency(receiverUseSVR, originator);
+            System.err.println("[concatM] Using " + receiverUseSVR);
             g.recordStringDependency(argumentSVRs.get(1), originator);
+            System.err.println("[concatM] Using " + argumentSVRs.get(1));
 
             Optional<AString> maybeReceiverAString = g.getAStringFor(receiverUseSVR);
             // XXX: This is broken, the graph should have a "GIMME THE VALUE" function
@@ -139,6 +141,7 @@ public class StringMethodCall extends StringStatement {
                 System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverDefSVR + ", " + newSIK + ")");
                 newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
             }
+            System.err.println("[concatM] newDelta = " + newDelta);
             return newDelta;
         }
         case somethingElseM: {
