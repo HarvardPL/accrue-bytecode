@@ -63,19 +63,25 @@ public final class CallGraphReachability {
             return true;
         }
 
-        // add the dependency before accessing the concurrent sets, to avoid races.
-        addDependency(source, dest, triggeringQuery);
-
         IntSet reachableDests = reachableFrom.get(source);
         if (reachableDests != null && reachableDests.contains(dest)) {
             // The source is reachable from the destination
-
-            // XXX TODO: it would be nice to remove the dependency here.
-            // XXX Really, we need a positive cache that we can check before needing to register the dependency.
-
             return true;
         }
-        return false;
+
+        // In order to avoid races, we actually need to add the dependency before checking the sets
+        // and getting a negative result.
+        // So we add the dependency now, and check the sets again. Think of the check above as a quick check of the
+        // cache before we add the dependency and do the real check.
+        addDependency(source, dest, triggeringQuery);
+
+        if (reachableDests == null) {
+            reachableDests = reachableFrom.get(source);
+        }
+        else {
+            // we already have the appropriate set, no need to access reachableFrom again to get it.
+        }
+        return reachableDests == null ? false : reachableDests.contains(dest);
     }
 
     /**
