@@ -15,34 +15,36 @@ public class StringAndReflectiveUtil {
     private static final IClass JavaLangStringBuilderIClass = typeReferenceToIClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                                TypeName.string2TypeName("Ljava/lang/StringBuilder")));
 
-    public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
-                                                                                               TypeName.string2TypeName("Ljava/lang/String"));
-    public final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
-    public final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                            "(Ljava/lang/String;)Ljava/lang/String;");
-    public final static MethodReference JavaLangStringConcat = MethodReference.findOrCreate(JavaLangStringTypeReference,
-                                                                                            concatAtom,
-                                                                                            concatDesc);
-    public final static IMethod JavaLangStringConcatIMethod = methodReferenceToIMethod(JavaLangStringConcat);
+    private final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                                TypeName.string2TypeName("Ljava/lang/String"));
+    private final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
+    private final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
+                                                                             "(Ljava/lang/String;)Ljava/lang/String;");
+    private final static MethodReference JavaLangStringConcat = MethodReference.findOrCreate(JavaLangStringTypeReference,
+                                                                                             concatAtom,
+                                                                                             concatDesc);
+    private final static IMethod JavaLangStringConcatIMethod = methodReferenceToIMethod(JavaLangStringConcat);
 
     private static final TypeReference JavaLangStringBuilderTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
                                                                                                        TypeName.string2TypeName("Ljava/lang/StringBuilder"));
-    public final static Atom appendAtom = Atom.findOrCreateUnicodeAtom("append");
-    public final static Descriptor appendStringBuilderDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                         "(Ljava/lang/StringBuilder;)Ljava/lang/StringBuilder;");
-    public final static Descriptor appendStringDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                  "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
-    public final static Descriptor appendObjectDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                  "(Ljava/lang/Object;)Ljava/lang/StringBuilder;");
-    private static final MethodReference stringBuilderAppendStringBuilderMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                               appendAtom,
-                                                                                                               appendStringBuilderDesc);
-    private static final MethodReference stringBuilderAppendStringMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                        appendAtom,
-                                                                                                        appendStringDesc);
-    private static final MethodReference stringBuilderAppendObjectMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                        appendAtom,
-                                                                                                        appendObjectDesc);
+    private final static Atom appendAtom = Atom.findOrCreateUnicodeAtom("append");
+    private final static Descriptor appendStringBuilderDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
+                                                                                          "(Ljava/lang/StringBuilder;)Ljava/lang/StringBuilder;");
+    private final static Descriptor appendStringDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
+                                                                                   "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
+    private final static Descriptor appendObjectDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
+                                                                                   "(Ljava/lang/Object;)Ljava/lang/StringBuilder;");
+    public static final MethodReference stringBuilderAppendStringBuilderMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
+                                                                                                              appendAtom,
+                                                                                                              appendStringBuilderDesc);
+    public static final MethodReference stringBuilderAppendStringMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
+                                                                                                       appendAtom,
+                                                                                                       appendStringDesc);
+    public static final MethodReference stringBuilderAppendObjectMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
+                                                                                                       appendAtom,
+                                                                                                       appendObjectDesc);
+    public static final MethodReference stringBuilderInitMethod = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
+                                                                                               MethodReference.initSelector);
 
     private static IMethod methodReferenceToIMethod(MethodReference m) {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
@@ -60,6 +62,6 @@ public class StringAndReflectiveUtil {
     public static boolean isStringMethod(MethodReference m) {
         //        System.err.println("[isStringMethod] Comparing " + m + " to " + stringBuilderAppendStringMethod);
         return m.equals(stringBuilderAppendStringBuilderMethod) || m.equals(stringBuilderAppendStringMethod)
-                || m.equals(stringBuilderAppendObjectMethod);
+                || m.equals(stringBuilderAppendObjectMethod) || m.equals(stringBuilderInitMethod);
     }
 }
