@@ -238,7 +238,7 @@ public final class CallGraphReachability {
 
         MutableIntSet s = destinationMap.get(dest);
         if (s == null) {
-            s = AnalysisUtil.createDenseConcurrentIntSet(0);
+            s = AnalysisUtil.createConcurrentIntSet();
             MutableIntSet existing = destinationMap.putIfAbsent(dest, s);
             if (existing != null) {
                 s = existing;
