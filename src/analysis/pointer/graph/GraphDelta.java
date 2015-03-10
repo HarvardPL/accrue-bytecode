@@ -119,6 +119,7 @@ public final class GraphDelta implements PointsToIterable {
             sb.append(s);
             size += s.size();
         }
+        sb.append(this.scd);
         sb.append("](size" + size + ")");
         return sb.toString();
     }
