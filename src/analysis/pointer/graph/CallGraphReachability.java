@@ -9,7 +9,6 @@ import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
-import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
@@ -88,42 +87,35 @@ public class CallGraphReachability {
         }
 
         // Everything reachable from the callee is now reachable from the caller (and any callers of the caller)
-        IntIterator reachableFromCallee = getReachableFrom(calleeCGNode).intIterator();
+        IntIterator calleesOfCallee = getReachableFrom(calleeCGNode).intIterator();
         IntIterator callersOfCaller = getReaches(callerCGNode).intIterator();
         while (callersOfCaller.hasNext()) {
-            while (reachableFromCallee.hasNext()) {
-                recordReachableFrom(callersOfCaller.next(), reachableFromCallee.next());
+            while (calleesOfCallee.hasNext()) {
+                recordReachableFrom(callersOfCaller.next(), calleesOfCallee.next());
             }
-        }
-
-
-        // Add the edge to the reaches cache
-        boolean added = getReaches(calleeCGNode).add(callerCGNode);
-        assert added : "Whoever added the callee -> caller edge is responsible for adding the caller -> callee edge";
-
-        // Everything that reaches the caller now reaches the callee (and any callees of the callee)
-        IntSet reachesCaller = getReaches(callerCGNode);
-        IntIterator calleesOfCallee = getReachableFrom(calleeCGNode).intIterator();
-        while (calleesOfCallee.hasNext()) {
-            getReaches(calleesOfCallee.next()).addAll(reachesCaller);
         }
     }
 
     /**
-     * Add that the source is reachable from the dest
-     *
-     * @param source srouce call graph node
-     * @param dest destination call graph node
+     * Add that the callee is transitively reachable from the caller
+     * 
+     * @param caller source call graph node
+     * @param callee destination call graph node
      * @return true if this is a new relationship
      */
-    private boolean recordReachableFrom(int source, int dest) {
-        MutableIntSet s = getReachableFrom(source);
-        boolean added = s.add(dest);
+    private boolean recordReachableFrom(int caller, int callee) {
+        MutableIntSet s = getReachableFrom(caller);
+        boolean added = s.add(callee);
         if (added) {
-            // This is a new edge notify any dependencies
-            ConcurrentIntMap<MutableIntSet> destinationMap = dependencies.get(source);
+            // This is a new edge
+
+            // Add the edge to the reverse map
+            getReaches(callee).add(caller);
+
+            // Notify any dependencies
+            ConcurrentIntMap<MutableIntSet> destinationMap = dependencies.get(caller);
             if (destinationMap != null) {
-                MutableIntSet deps = destinationMap.get(dest);
+                MutableIntSet deps = destinationMap.get(callee);
                 if (deps != null) {
                     IntIterator iter = deps.intIterator();
                     while (iter.hasNext()) {
