@@ -3,6 +3,7 @@ package analysis.pointer.graph;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1421,6 +1422,25 @@ public final class PointsToGraph implements PointsToIterable {
 
     public void recordStringDependency(StringVariableReplica x, StmtAndContext s) {
         this.depRecorder.recordStringRead(x, s);
+    }
+
+    public Map<Integer, Set<InstanceKey>> readAblePointsToGraph() {
+        Map<Integer, Set<InstanceKey>> m = new HashMap<>();
+        IntIterator it = this.pointsTo.keyIterator();
+        while (it.hasNext()) {
+            int k = it.next();
+            MutableIntSet ikInts = this.pointsTo.get(k);
+            Set<InstanceKey> iks = new HashSet<>();
+
+            IntIterator ikIntsIterator = ikInts.intIterator();
+            while (ikIntsIterator.hasNext()) {
+                int ikInt = ikIntsIterator.next();
+
+                iks.add(this.instanceKeyDictionary.get(ikInt));
+            }
+            m.put(k, iks);
+        }
+        return m;
     }
 
 }

@@ -169,6 +169,7 @@ public class AccrueAnalysisMain {
             System.err.println(numNodes + " CGNodes");
 
             System.err.println(g.getStringConstraints());
+            System.err.println(g.readAblePointsToGraph());
             break;
         case "maincfg":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
