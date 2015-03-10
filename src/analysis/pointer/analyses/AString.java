@@ -43,6 +43,11 @@ public final class AString {
         this.fs = fs;
     }
 
+    /**
+     *
+     * @param sik
+     * @return true if the join resulted in a new AString
+     */
     public boolean join(AString sik) {
         return this.fs.union(sik.fs);
     }

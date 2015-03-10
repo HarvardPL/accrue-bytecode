@@ -42,6 +42,11 @@ public final class FiniteSet<T> {
 
     /* set operations */
 
+    /**
+     * mutates @code{this} to also contain every element of @code{that}
+     *
+     * @return true if set changes as a result of this call
+     **/
     public boolean union(FiniteSet<T> that) {
         if (this.maxSize != that.maxSize) {
             throw new IllegalArgumentException("Cannot union finite sets of different sizes. `this` has size "
