@@ -56,6 +56,10 @@ public final class ProgramPointDestinationQuery {
      */
     private final InterProgramPointReplica dest;
     /**
+     * Call graph node containing the destination program point
+     */
+    private final/*OrderedPair<IMethod,Context>*/int destinationCGNode;
+    /**
      * points-to graph nodes that must not be killed on a valid path from source to destination
      */
     private final/*Set<PointsToGraphNode>*/IntSet noKill;
@@ -81,10 +85,6 @@ public final class ProgramPointDestinationQuery {
     //  These fields are reset for each subquery
     //
     ////////////////////
-    /**
-     * Set of call graph nodes that are relevent to the current subquery
-     */
-    private/*Set<OrderedPair<IMethod, Context>>*/IntSet relevantNodes;
     /**
      * Sub-query that is currently being processed
      */
@@ -126,6 +126,8 @@ public final class ProgramPointDestinationQuery {
         this.forbidden = forbidden;
         this.g = g;
         this.ppr = ppr;
+        OrderedPair<IMethod, Context> destCGNode = new OrderedPair<>(dest.getContainingProcedure(), dest.getContext());
+        this.destinationCGNode = g.lookupCallGraphNodeDictionary(destCGNode);
     }
 
     /**
@@ -135,8 +137,7 @@ public final class ProgramPointDestinationQuery {
      * @param relevantNodes call graph nodes that must be inspected and cannot be summarized
      * @return whether the destination was found
      */
-    public boolean executeSubQuery(InterProgramPointReplica src, /*Set<OrderedPair<IMethod, Context>>*/
-                                   IntSet relevantNodes) {
+    public boolean executeSubQuery(InterProgramPointReplica src) {
         this.currentSubQuery = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
                                                                                               this.dest,
                                                                                               this.noKill,
@@ -156,15 +157,7 @@ public final class ProgramPointDestinationQuery {
                 int i = iter.next();
                 System.err.println("PPDQ%% \t" + i + " " + g.lookupPointsToGraphNodeDictionary(i));
             }
-            System.err.println("PPDQ%% Relevant call graph nodes: ");
-            IntIterator nodeIter = relevantNodes.intIterator();
-            while (nodeIter.hasNext()) {
-                OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(nodeIter.next());
-                System.err.println("PPDQ%% \t" + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
-            }
         }
-
-        this.relevantNodes = relevantNodes;
 
         // Reinitialize the per-query data structures
         this.currentlyProcessing = new HashSet<>();
@@ -448,11 +441,6 @@ public final class ProgramPointDestinationQuery {
 
         CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
 
-        // XXX dependencies are recorded for the caller rather than here this results in fewer dependencies
-        //        // This is a method call! Register the dependency.
-        //        ppr.addCalleeDependency(this.currentSubQuery,
-        //                                g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext())));
-
         /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext()));
         /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
         if (DEBUG && calleeSet.isEmpty()) {
@@ -480,7 +468,7 @@ public final class ProgramPointDestinationQuery {
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
             ReachabilityResult res = ReachabilityResult.UNREACHABLE;
-            if (relevantNodes.contains(calleeInt)) {
+            if (ppr.getCallGraphReachability().isReachable(calleeInt, destinationCGNode, this.currentSubQuery)) {
                 // this is a relevant node get the results for the callee
                 res = getResults(calleeEntryIPPR, true, trigger);
                 if (res == ReachabilityResult.FOUND) {
@@ -488,9 +476,9 @@ public final class ProgramPointDestinationQuery {
                 }
                 reachableExits = reachableExits.join(res);
             }
-
-            // If both exit types are not already accounted for then get summary results for the irrelevent callee
             else if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
+                // If both exit types are not already accounted for then get summary results for the callee that cannot
+                // reach the destination
                 ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
                 MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
                 KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
@@ -685,28 +673,22 @@ public final class ProgramPointDestinationQuery {
         while (callerIter.hasNext()) {
             ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callerIter.next());
             CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
-            /*OrderedPair<IMethod, Context>*/int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(cspp.getContainingProcedure(),
-                                                                                                             callerSite.getContext()));
 
-            if (relevantNodes.contains(caller)) {
-                // this is a relevant node, and we need to dig into it.
-                InterProgramPointReplica callerSiteReplica;
-                if (isExceptionExit) {
-                    callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());
-                }
-                else {
-                    callerSiteReplica = cspp.getNormalExit().post().getReplica(callerSite.getContext());
-                }
-
-                // let's explore the caller now.
-                ReachabilityResult res = getResults(callerSiteReplica, false, src);
-                if (res == ReachabilityResult.FOUND) {
-                    // we found the destination!
-                    return true;
-                }
+            // Always look at the caller even if there is no way to reach the destination via that call graph node
+            // XXX Could do something smarter to figure out whether the destination was reachable (similar to the old relevant nodes computation)
+            InterProgramPointReplica callerSiteReplica;
+            if (isExceptionExit) {
+                callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());
             }
             else {
-                // not a relevant node, so no need to pursue it.
+                callerSiteReplica = cspp.getNormalExit().post().getReplica(callerSite.getContext());
+            }
+
+            // let's explore the caller now.
+            ReachabilityResult res = getResults(callerSiteReplica, false, src);
+            if (res == ReachabilityResult.FOUND) {
+                // we found the destination!
+                return true;
             }
         }
         // Not found

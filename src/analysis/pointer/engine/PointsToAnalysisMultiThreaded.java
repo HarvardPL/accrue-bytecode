@@ -23,8 +23,6 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointReachability;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.PointsToStatement;
@@ -311,8 +309,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private AtomicLong totalStmtAndCtxtWithDeltaTasks;
         private AtomicLong totalAddNonMostRecentOriginTasks;
         private AtomicLong totalAddToSetTasks;
-        private AtomicLong totalRelevantNodesQueryTasks;
-        private AtomicLong totalSourceRelevantNodesQueryTasks;
         private AtomicLong totalPPSubQueryTasks;
 
         private AtomicLong approximationTime;
@@ -326,8 +322,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private AtomicReference<Set<AddToSetOrigin>> pendingAddToSetOrigin;
         private AtomicReference<Set<AddNonMostRecentOrigin>> pendingAddNonMostRecentOrigin;
-        private AtomicReference<Set<SourceRelevantNodesQuery>> pendingSourceRelevantNodesQuery;
-        private AtomicReference<Set<RelevantNodesQuery>> pendingRelevantNodesQuery;
         private AtomicReference<Set<ProgramPointSubQuery>> pendingPPSubQuery;
 
         /**
@@ -353,14 +347,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // Other tasks
             this.totalAddNonMostRecentOriginTasks = new AtomicLong(0);
             this.totalAddToSetTasks = new AtomicLong(0);
-            this.totalRelevantNodesQueryTasks = new AtomicLong(0);
-            this.totalSourceRelevantNodesQueryTasks = new AtomicLong(0);
             this.totalPPSubQueryTasks = new AtomicLong(0);
 
             this.pendingAddToSetOrigin = new AtomicReference<>(AnalysisUtil.<AddToSetOrigin> createConcurrentSet());
             this.pendingAddNonMostRecentOrigin = new AtomicReference<>(AnalysisUtil.<AddNonMostRecentOrigin> createConcurrentSet());
-            this.pendingSourceRelevantNodesQuery = new AtomicReference<>(AnalysisUtil.<SourceRelevantNodesQuery> createConcurrentSet());
-            this.pendingRelevantNodesQuery = new AtomicReference<>(AnalysisUtil.<RelevantNodesQuery> createConcurrentSet());
             this.pendingPPSubQuery = new AtomicReference<>(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
 
             this.isSomeThreadEmptyingQueues = new AtomicBoolean(false);
@@ -414,27 +404,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 s = this.pendingPPSubQuery.get();
                 s.add(sq);
             } while (this.pendingPPSubQuery.get() != s);
-        }
-
-        public void submitTask(RelevantNodesQuery rq) {
-            // make sure we add it to the current pending set,
-            // by looping until we know that we added it to the set that is in the reference.
-            Set<RelevantNodesQuery> s;
-            do {
-                s = this.pendingRelevantNodesQuery.get();
-                s.add(rq);
-            } while (this.pendingRelevantNodesQuery.get() != s);
-        }
-
-        public void submitTask(SourceRelevantNodesQuery sq) {
-            // make sure we add it to the current pending set,
-            // by looping until we know that we added it to the set that is in the reference.
-            Set<SourceRelevantNodesQuery> s;
-            do {
-                s = this.pendingSourceRelevantNodesQuery.get();
-                s.add(sq);
-            } while (this.pendingSourceRelevantNodesQuery.get() != s);
-
         }
 
         public void submitTask(AddNonMostRecentOrigin task) {
@@ -540,16 +509,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     printQueueSwap("executePendingAddNonMostRecentOrigin");
                     changed |= executePendingAddNonMostRecentOrigin();
                     if (this.numRemainingTasks.get() <= bound) {
-                        printQueueSwap("executePendingSourceRelevantNodesQuery");
-                        changed |= executePendingSourceRelevantNodesQuery();
-                        if (this.numRemainingTasks.get() <= bound) {
-                            printQueueSwap("executePendingRelevantNodesQuery");
-                            changed |= executePendingRelevantNodesQuery();
-                            if (this.numRemainingTasks.get() <= bound) {
-                                printQueueSwap("executePendingPPSubQuery");
-                                changed |= executePendingPPSubQuery();
-                            }
-                        }
+                        printQueueSwap("executePendingPPSubQuery");
+                        changed |= executePendingPPSubQuery();
                     }
                 }
             }
@@ -594,30 +555,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             return changed;
         }
 
-        private boolean executePendingSourceRelevantNodesQuery() {
-            Set<SourceRelevantNodesQuery> s = pendingSourceRelevantNodesQuery.getAndSet(AnalysisUtil.<SourceRelevantNodesQuery> createConcurrentSet());
-            boolean changed = false;
-            for (SourceRelevantNodesQuery sq : s) {
-                changed = true;
-                this.numRemainingTasks.incrementAndGet();
-                this.totalSourceRelevantNodesQueryTasks.incrementAndGet();
-                exec.execute(new RunnablePointsToTask(new SourceRelevantNodesQueryTask(sq)));
-            }
-            return changed;
-        }
-
-        private boolean executePendingRelevantNodesQuery() {
-            Set<RelevantNodesQuery> s = pendingRelevantNodesQuery.getAndSet(AnalysisUtil.<RelevantNodesQuery> createConcurrentSet());
-            boolean changed = false;
-            for (RelevantNodesQuery rq : s) {
-                changed = true;
-                this.numRemainingTasks.incrementAndGet();
-                this.totalRelevantNodesQueryTasks.incrementAndGet();
-                exec.execute(new RunnablePointsToTask(new RelevantNodesQueryTask(rq)));
-            }
-            return changed;
-        }
-
         private boolean executePendingPPSubQuery() {
             Set<ProgramPointSubQuery> s = pendingPPSubQuery.getAndSet(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
             boolean changed = false;
@@ -633,8 +570,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public boolean containsPending() {
             return numRemainingTasks.get() > 0 || !pendingAddNonMostRecentOrigin.get().isEmpty()
-                    || !pendingAddToSetOrigin.get().isEmpty() || !pendingPPSubQuery.get().isEmpty()
-                    || !pendingRelevantNodesQuery.get().isEmpty() || !pendingSourceRelevantNodesQuery.get().isEmpty();
+                    || !pendingAddToSetOrigin.get().isEmpty() || !pendingPPSubQuery.get().isEmpty();
         }
 
         public boolean isWorkToFinish() {
@@ -664,8 +600,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
                     + numRemainingTasks.get() + "; pendingAddToSetOrigin: " + pendingAddToSetOrigin.get().size()
                     + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
-                    + "; pendingSourceRelevantNodesQuery: " + pendingSourceRelevantNodesQuery.get().size()
-                    + "; pendingRelevantNodesQuery: " + pendingRelevantNodesQuery.get().size()
                     + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size()
                     + "; approximationTime: " + approximationTime.get() / 1000.0 + "; approxCGNodes: "
                     + g.getApproxCallGraphSize());
@@ -715,34 +649,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             @Override
             public void process(PointsToAnalysisHandle analysisHandle) {
                 processSaC(sac, delta, ExecutorServiceCounter.this);
-            }
-
-        }
-
-        public class RelevantNodesQueryTask implements PointsToTask {
-            private final RelevantNodesQuery rq;
-
-            public RelevantNodesQueryTask(RelevantNodesQuery rq) {
-                this.rq = rq;
-            }
-
-            @Override
-            public void process(PointsToAnalysisHandle analysisHandle) {
-                analysisHandle.pointsToGraph().ppReach.processRelevantNodesQuery(rq);
-            }
-
-        }
-
-        public class SourceRelevantNodesQueryTask implements PointsToTask {
-            private final SourceRelevantNodesQuery sq;
-
-            public SourceRelevantNodesQueryTask(SourceRelevantNodesQuery sq) {
-                this.sq = sq;
-            }
-
-            @Override
-            public void process(PointsToAnalysisHandle analysisHandle) {
-                analysisHandle.pointsToGraph().ppReach.processSourceRelevantNodesQuery(sq);
             }
 
         }
@@ -880,26 +786,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
             else {
                 g.ppReach.processSubQuery(sq);
-            }
-        }
-
-        @Override
-        public void submitRelevantNodesQuery(RelevantNodesQuery rq) {
-            if (DELAY_OTHER_TASKS) {
-                execService.submitTask(rq);
-            }
-            else {
-                g.ppReach.processRelevantNodesQuery(rq);
-            }
-        }
-
-        @Override
-        public void submitSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
-            if (DELAY_OTHER_TASKS) {
-                execService.submitTask(sq);
-            }
-            else {
-                g.ppReach.processSourceRelevantNodesQuery(sq);
             }
         }
 

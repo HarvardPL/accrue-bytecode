@@ -21,8 +21,6 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
-import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
-import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.LocalToFieldStatement;
@@ -72,9 +70,9 @@ public final class ProgramPointReachability {
     private final PointsToAnalysisHandle analysisHandle;
 
     /**
-     * A reference to an object that will find us relevant nodes for reachability queries.
+     * Used to check whether one call graph node is reachable from another
      */
-    private final RelevantNodes relevantNodesIncrementalComputation;
+    private final CallGraphReachability callGraphReachability;
 
     /**
      * Call sites with no receivers that will be approximating as terminating normally for the purposes of program point
@@ -92,8 +90,8 @@ public final class ProgramPointReachability {
         assert g != null && analysisHandle != null;
         this.g = g;
         this.analysisHandle = analysisHandle;
-        this.relevantNodesIncrementalComputation = new RelevantNodes(g, analysisHandle, this);
         this.approx = new ApproximateCallSitesAndFieldAssignments(g);
+        this.callGraphReachability = new CallGraphReachability();
     }
 
     /**
@@ -104,6 +102,15 @@ public final class ProgramPointReachability {
      */
     public ApproximateCallSitesAndFieldAssignments getApproximateCallSitesAndFieldAssigns() {
         return approx;
+    }
+
+    /**
+     * Get the data structure used to compute whether once call graph node is reachable from another via method calls
+     *
+     * @return call graph reachability data structure and algorithm
+     */
+    public CallGraphReachability getCallGraphReachability() {
+        return callGraphReachability;
     }
 
     /**
@@ -359,41 +366,9 @@ public final class ProgramPointReachability {
                 return true;
             }
 
-            // First check the call graph to find the set of call graph nodes that must be searched directly
-            // (i.e. the effects for these nodes cannot be summarized).
-            /*OrderedPair<IMethod, Context>*/int source = g.lookupCallGraphNodeDictionary(new OrderedPair<>(src.getContainingProcedure(),
-                                                                                                             src.getContext()));
-            /*OrderedPair<IMethod, Context>*/int dest = g.lookupCallGraphNodeDictionary(new OrderedPair<>(destination.getContainingProcedure(),
-                                                                                                           destination.getContext()));
-            long startRelevant = System.currentTimeMillis();
-            /*Set<OrderedPair<IMethod, Context>>*/IntSet relevantNodes = this.relevantNodesIncrementalComputation.relevantNodes(source,
-                                                                                                                                 dest,
-                                                                                                                                 queryInt);
-            relevantNodesTime.addAndGet(System.currentTimeMillis() - startRelevant);
-
-            if (relevantNodes.isEmpty()) {
-                // this path isn't possible.
-                if (recordQueryResult(queryInt, false)) {
-                    // We computed false, but the cache already had true
-                    if (DEBUG) {
-                        System.err.println("PPR%%\t" + src + " -> " + destination);
-                        System.err.println("PPR%%\ttrue because cache already had true");
-                    }
-                    DEBUG = false;
-                    DEBUG2 = false;
-                    totalTime.addAndGet(System.currentTimeMillis() - start);
-                    return true;
-                }
-                if (DEBUG) {
-                    System.err.println("PPR%%\t" + src + " -> " + destination);
-                    System.err.println("PPR%%\tfalse because no relevant nodes");
-                }
-                continue;
-            }
-
             // Now try a search starting at the source
             long startDest = System.currentTimeMillis();
-            boolean found = prq.executeSubQuery(src, relevantNodes);
+            boolean found = prq.executeSubQuery(src);
             destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
             computedDestQuery.incrementAndGet();
             if (found) {
@@ -1393,11 +1368,10 @@ public final class ProgramPointReachability {
      */
     public void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod, Context>*/
                                  int calleeCGNode) {
-
+        this.callGraphReachability.calleeAddedTo(callerSite);
+        this.callGraphReachability.callerAddedTo(calleeCGNode);
         this.calleeAddedTo(callerSite);
         this.callerAddedTo(calleeCGNode);
-        this.relevantNodesIncrementalComputation.calleeAddedTo(callerSite);
-        this.relevantNodesIncrementalComputation.callerAddedTo(calleeCGNode);
     }
 
     /**
@@ -1471,14 +1445,6 @@ public final class ProgramPointReachability {
         this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden);
     }
 
-    public void processRelevantNodesQuery(RelevantNodesQuery rq) {
-        this.relevantNodesIncrementalComputation.computeRelevantNodes(RelevantNodesQuery.lookupDictionary(rq));
-    }
-
-    public void processSourceRelevantNodesQuery(SourceRelevantNodesQuery sq) {
-        this.relevantNodesIncrementalComputation.computeSourceDependencies(sq.sourceCGNode);
-    }
-
     /**
      * Clear caches containing results for queries that have already been computed
      */
@@ -1486,7 +1452,7 @@ public final class ProgramPointReachability {
         System.err.println("Clearing reachability cache.");
         positiveCache = AnalysisUtil.createConcurrentIntSet();
         negativeCache = AnalysisUtil.createConcurrentIntSet();
-        relevantNodesIncrementalComputation.clearCaches();
+        callGraphReachability.clearCaches();
     }
 
     //***********************
@@ -1603,6 +1569,6 @@ public final class ProgramPointReachability {
                 + (relevantRequestCount / totalRequests.get()) + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
         System.err.println(sb.toString());
-        relevantNodesIncrementalComputation.printDiagnostics();
+        callGraphReachability.printDiagnostics();
     }
 }

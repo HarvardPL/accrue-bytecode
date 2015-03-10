@@ -75,7 +75,7 @@ public final class RelevantNodes {
      * @param analysisHandle handle for submitting queries to the points-to analysis
      * @param programPointReachability reachability query from one program point to another
      */
-    RelevantNodes(PointsToGraph g, final PointsToAnalysisHandle analysisHandle,
+    private RelevantNodes(PointsToGraph g, final PointsToAnalysisHandle analysisHandle,
                                ProgramPointReachability programPointReachability) {
         this.g = g;
         this.analysisHandle = analysisHandle;
