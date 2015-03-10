@@ -15,7 +15,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
 /**
  * Data structure that tracks whether a desination call graph node is reachable from a source call graph node
  */
-public class CallGraphReachability {
+public final class CallGraphReachability {
     /**
      * Map from call graph node to the transitive closure of all call graph nodes reachable from that node via method
      * calls, note that every node is reachable from itself
@@ -24,7 +24,7 @@ public class CallGraphReachability {
     private ConcurrentIntMap<MutableIntSet> reachableFrom = AnalysisUtil.createConcurrentIntMap();
     /**
      * Map from call graph node to all nodes that can transitively reach that node via method calls, note that every
-     * node reaches itselt
+     * node reaches itself
      */
     // Map<OrderedPair<IMethod,Context>,Set<OrderedPair<IMethod,Context>>>
     private ConcurrentIntMap<MutableIntSet> reaches = AnalysisUtil.createConcurrentIntMap();
@@ -36,7 +36,7 @@ public class CallGraphReachability {
     /**
      * Points-to graph
      */
-    private PointsToGraph g;
+    private final PointsToGraph g;
 
     /**
      * Create a new algorithm with empty caches
@@ -63,12 +63,18 @@ public class CallGraphReachability {
             return true;
         }
 
+        // add the dependency before accessing the concurrent sets, to avoid races.
+        addDependency(source, dest, triggeringQuery);
+
         IntSet reachableDests = reachableFrom.get(source);
         if (reachableDests != null && reachableDests.contains(dest)) {
             // The source is reachable from the destination
+
+            // XXX TODO: it would be nice to remove the dependency here.
+            // XXX Really, we need a positive cache that we can check before needing to register the dependency.
+
             return true;
         }
-        addDependency(source, dest, triggeringQuery);
         return false;
     }
 
@@ -139,13 +145,14 @@ public class CallGraphReachability {
     private MutableIntSet getReaches(int cgNode) {
         MutableIntSet s = reaches.get(cgNode);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentIntSet();
+            s = AnalysisUtil.createDenseConcurrentIntSet(0);
+            // every node reaches itself
+            s.add(cgNode);
             MutableIntSet existing = reaches.putIfAbsent(cgNode, s);
             if (existing != null) {
                 s = existing;
             }
         }
-        s.add(cgNode);
         return s;
     }
 
@@ -158,13 +165,14 @@ public class CallGraphReachability {
     private MutableIntSet getReachableFrom(int cgNode) {
         MutableIntSet s = reachableFrom.get(cgNode);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentIntSet();
+            s = AnalysisUtil.createDenseConcurrentIntSet(0);
+            // every node is reachable from itself
+            s.add(cgNode);
             MutableIntSet existing = reachableFrom.putIfAbsent(cgNode, s);
             if (existing != null) {
                 s = existing;
             }
         }
-        s.add(cgNode);
         return s;
     }
 
@@ -205,7 +213,7 @@ public class CallGraphReachability {
     private final ConcurrentIntMap<ConcurrentIntMap</*Set<ProgramPointSubQuery>*/MutableIntSet>> dependencies = AnalysisUtil.createConcurrentIntMap();
 
     /**
-     * Add a dependecy from a ProgramPointSubQuery to a call graph query from source to dest
+     * Add a dependency from a ProgramPointSubQuery to a call graph query from source to dest
      *
      * @param source source call graph node
      * @param dest destination call graph node
@@ -224,7 +232,7 @@ public class CallGraphReachability {
 
         MutableIntSet s = destinationMap.get(dest);
         if (s == null) {
-            s = AnalysisUtil.createDenseConcurrentIntSet();
+            s = AnalysisUtil.createDenseConcurrentIntSet(0);
             MutableIntSet existing = destinationMap.putIfAbsent(dest, s);
             if (existing != null) {
                 s = existing;
