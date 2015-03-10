@@ -9,7 +9,7 @@ import analysis.pointer.analyses.AString;
 public class StringConstraintDelta {
 
     private final StringConstraints sc;
-    private final Set<StringVariableReplica> svrs;
+    private Set<StringVariableReplica> svrs;
 
     /* Factory Methods */
 
@@ -47,11 +47,13 @@ public class StringConstraintDelta {
         return this.svrs.isEmpty();
     }
 
-    public StringConstraintDelta combine(StringConstraintDelta that) {
-        Set<StringVariableReplica> svrs = AnalysisUtil.createConcurrentSet();
-        svrs.addAll(this.svrs);
-        svrs.addAll(that.svrs);
-        return StringConstraintDelta.make(this.sc, svrs);
+    public void combine(StringConstraintDelta that) {
+        this.svrs.addAll(that.svrs);
+
+        //        Set<StringVariableReplica> svrs = AnalysisUtil.createConcurrentSet();
+        //        svrs.addAll(this.svrs);
+        //        svrs.addAll(that.svrs);
+        //        this.svrs = svrs;
     }
 
     public Set<StringVariableReplica> getChangedStringVariables() {
