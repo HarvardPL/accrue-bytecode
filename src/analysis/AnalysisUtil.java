@@ -449,6 +449,10 @@ public class AnalysisUtil {
         return new ConcurrentBitVectorIntSet();
     }
 
+    public static MutableIntSet createDenseConcurrentIntSet(int initialCapacity) {
+        return new ConcurrentBitVectorIntSet(initialCapacity);
+    }
+
     public static <T> ConcurrentIntMap<T> createConcurrentIntMap() {
         return new ConcurrentIntHashMap<>(16, 0.75f, numThreads);
     }

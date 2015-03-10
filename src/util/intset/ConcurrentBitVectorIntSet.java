@@ -82,7 +82,7 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
         this(1);
     }
     public ConcurrentBitVectorIntSet(int initialCapacity) {
-        int requestedSpineSize = (Math.max(initialCapacity - 1, 0) / SEGMENT_SIZE) + 1;
+        int requestedSpineSize = initialCapacity == 0 ? 0 : ((initialCapacity - 1) / SEGMENT_SIZE + 1);
 
         int[][] newSpine = new int[Math.max(requestedSpineSize, MIN_INITIAL_SPINE_SIZE)][];
         // preallocate the segments for the initial capacity.
