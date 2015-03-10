@@ -1,10 +1,10 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import analysis.AnalysisUtil;
+import analysis.StringAndReflectiveUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -18,50 +18,10 @@ import analysis.pointer.registrar.strings.StringVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IMethod;
-import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.types.ClassLoaderReference;
-import com.ibm.wala.types.Descriptor;
 import com.ibm.wala.types.MethodReference;
-import com.ibm.wala.types.TypeName;
-import com.ibm.wala.types.TypeReference;
-import com.ibm.wala.util.strings.Atom;
 
 public class StringMethodCall extends StringStatement {
-    public final static TypeReference JavaLangStringTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                                                                               TypeName.string2TypeName("Ljava/lang/String"));
-    public final static Atom concatAtom = Atom.findOrCreateUnicodeAtom("concat");
-    public final static Descriptor concatDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                            "(Ljava/lang/String;)Ljava/lang/String;");
-    public final static MethodReference JavaLangStringConcat = MethodReference.findOrCreate(JavaLangStringTypeReference,
-                                                                                            concatAtom,
-                                                                                            concatDesc);
-    public final static MethodReference JavaLangStringInit = MethodReference.findOrCreate(JavaLangStringTypeReference,
-                                                                                          MethodReference.initSelector);
-
-    public final static IMethod JavaLangStringConcatIMethod = AnalysisUtil.getClassHierarchy()
-                                                                          .resolveMethod(JavaLangStringConcat);
-    public final static IMethod JavaLangStringInitIMethod = AnalysisUtil.getClassHierarchy()
-                                                                        .resolveMethod(JavaLangStringInit);
-    public final static TypeReference JavaLangStringBuilderTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Primordial,
-                                                                                                      TypeName.string2TypeName("Ljava/lang/StringBuilder"));
-    public final static Atom appendStringAtom = Atom.findOrCreateUnicodeAtom("append");
-    public final static Descriptor appendStringDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                  "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
-    public final static MethodReference JavaLangStringBuilderAppendString = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                         appendStringAtom,
-                                                                                                         appendStringDesc);
-    public final static IMethod JavaLangStringBuilderAppendStringIMethod = AnalysisUtil.getClassHierarchy()
-                                                                                       .resolveMethod(JavaLangStringBuilderAppendString);
-
-    public final static Atom appendStringBuilderAtom = Atom.findOrCreateUnicodeAtom("append");
-    public final static Descriptor appendStringBuilderDesc = Descriptor.findOrCreateUTF8(Language.JAVA,
-                                                                                         "(Ljava/lang/StringBuilder;)Ljava/lang/StringBuilder;");
-    public final static MethodReference JavaLangStringBuilderAppendStringBuilder = MethodReference.findOrCreate(JavaLangStringBuilderTypeReference,
-                                                                                                                appendStringBuilderAtom,
-                                                                                                                appendStringBuilderDesc);
-    public final static IMethod JavaLangStringBuilderAppendStringBuilderIMethod = AnalysisUtil.getClassHierarchy()
-                                                                                              .resolveMethod(JavaLangStringBuilderAppendStringBuilder);
     private static final int MAX_STRING_SET_SIZE = 5;
 
     private final CallSiteReference callSite;
@@ -78,8 +38,8 @@ public class StringMethodCall extends StringStatement {
     }
 
     private static MethodEnum imethodToMethodEnum(IMethod m) {
-        if (m.equals(JavaLangStringConcatIMethod) || m.equals(JavaLangStringBuilderAppendStringBuilderIMethod)
-                || m.equals(JavaLangStringBuilderAppendStringIMethod)) {
+        if (m.equals(StringAndReflectiveUtil.stringBuilderAppendStringBuilderIMethod)
+                || m.equals(StringAndReflectiveUtil.stringBuilderAppendStringIMethod)) {
             return MethodEnum.concatM;
         }
         else {
@@ -137,10 +97,11 @@ public class StringMethodCall extends StringStatement {
             AString newSIK = maybeReceiverAString.concat(maybeArgumentAString);
             System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverDefSVR + ", " + newSIK + ")");
             newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
-            System.err.println("[concatM] " + receiverDefSVR + " <- " + g.getAStringUpdatesFor(receiverDefSVR).get());
+            System.err.println("[concatM] " + receiverDefSVR + " <- " + g.getAStringFor(receiverDefSVR));
             return newDelta;
         }
         case somethingElseM: {
+            System.err.println("[StringMethodCall.process] Whoops!");
             return new GraphDelta(g);
         }
         default: {

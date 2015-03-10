@@ -22,6 +22,7 @@ import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
+import analysis.StringAndReflectiveUtil;
 import analysis.dataflow.flowsensitizer.StringBuilderFlowSensitizer;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.duplicates.RemoveDuplicateStatements;
@@ -657,7 +658,7 @@ public class StatementRegistrar {
                 // Sometimes the receiver is a null constant
                 return;
             }
-            if (stringVariableFactory.isStringLikeMethodInvocation(i)) {
+            if (StringAndReflectiveUtil.isStringMethod(i.getDeclaredTarget())) {
                 StringVariable svresult = stringVariableFactory.getOrCreateLocalDef(i,
                                                                                     i.getReturnValue(0),
                                                                                     ir.getMethod(),

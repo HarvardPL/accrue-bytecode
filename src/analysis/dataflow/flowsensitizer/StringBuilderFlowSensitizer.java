@@ -78,7 +78,7 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
     }
 
     private static boolean isNonStaticStringBuilderAppendMethod(MethodReference m) {
-        return StringAndReflectiveUtil.isStringMethod(m);
+        return StringAndReflectiveUtil.isStringMethod(m) || StringAndReflectiveUtil.isStringInitMethod(m);
     }
 
     /*
