@@ -651,6 +651,15 @@ public class StatementRegistrar {
                                                       actuals,
                                                       exception,
                                                       calleeSummary));
+            if (StringAndReflectiveUtil.isStringInitMethod(i.getDeclaredTarget())) {
+                StringVariable svreceiverDef = stringVariableFactory.getOrCreateLocalDef(i,
+                                                                                         i.getReceiver(),
+                                                                                         ir.getMethod(),
+                                                                                         pp);
+
+                this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
+            }
+
         }
         else if (i.getInvocationCode() == IInvokeInstruction.Dispatch.INTERFACE
                 || i.getInvocationCode() == IInvokeInstruction.Dispatch.VIRTUAL) {

@@ -677,6 +677,16 @@ public class StatementFactory {
         return new ReturnStringStatement(svv, summary, method);
     }
 
+    public StringStatement stringInit(CallSiteReference callSite, IMethod method, StringVariable sv) {
+        assert callSite != null;
+        assert method != null;
+        assert sv != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(callSite, method, sv));
+
+        return new StringInitStatement(callSite, method, sv);
+    }
+
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                        ReferenceVariable result, ReferenceVariable receiver,
                                        List<StringVariable> actuals) {
