@@ -11,10 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import main.AccrueAnalysisMain;
-import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import util.print.CFGWriter;
-import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
@@ -23,15 +21,12 @@ import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.ApproximateCallSitesAndFieldAssignments.Approximation;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.ProgramPointDestinationQuery;
+import analysis.pointer.graph.ProgramPointReachability;
 import analysis.pointer.graph.ProgramPointSubQuery;
-import analysis.pointer.graph.ReferenceVariableReplica;
 import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
-import analysis.pointer.statements.CallStatement;
-import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -40,8 +35,15 @@ import com.ibm.wala.util.intset.IntIterator;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
+    /**
+     * Delay incoming tasks other than (statement, context) pairs to be processed rather than adding them directly to
+     * the work queue
+     */
     private static final boolean DELAY_OTHER_TASKS = true;
-    private static boolean PRINT_ALL = true;
+    /**
+     * Should we print program point graph, call graph and points-to graph
+     */
+    private static final boolean PRINT_ALL = false;
     /**
      * Should we print the type of tasks being added when we empty a particular type of queue
      */
@@ -183,7 +185,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         // start up...
-        while (execService.containsPending()) {
+        while (execService.isWorkToFinish()) {
             execService.waitUntilAllFinished();
         }
 
@@ -214,24 +216,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         System.err.println("APPROXIMATED call sites " + approximatedCallSites);
+        System.err.println("OVERAPPROXIMATED call sites "
+                + ProgramPointReachability.nonEmptyApproximatedCallSites.size());
         System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
-        System.err.println("IMPRECISE KILLERS " + LocalToFieldStatement.impreciseKills.size());
-        System.err.println("IMPRECISE KILLED QUERIES " + ProgramPointDestinationQuery.impreciseKills.size());
-        System.err.println("NO RECEIVERS " + CallStatement.noReceivers.size());
-        for (StmtAndContext cs : CallStatement.noReceivers) {
-            CallStatement s = (CallStatement) cs.stmt;
-            System.err.println("NO RECEIVERS " + PrettyPrinter.methodString(s.getCallee()) + " from "
-                    + PrettyPrinter.methodString(s.getMethod()) + " in " + cs.context);
-        }
-
-        for (OrderedPair<ReferenceVariableReplica, LocalToFieldStatement> kills : LocalToFieldStatement.impreciseKills) {
-            System.err.println("IMPRECISE KILL by " + kills.snd() + " for receiver " + kills.fst() + " in "
-                    + PrettyPrinter.methodString(kills.snd().getMethod()));
-        }
-
-        for (ProgramPointSubQuery q : ProgramPointDestinationQuery.impreciseKills) {
-            System.err.println("IMPRECISLY KILLLED " + q);
-        }
+        System.err.println("OVERAPPROXIMATED field assignments "
+                + ProgramPointReachability.nonEmptyApproximatedKillSets.size());
 
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
@@ -246,7 +235,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         g.constructionFinished();
-        if (!AccrueAnalysisMain.testMode && PRINT_ALL) {
+        if (PRINT_ALL) {
             registrar.dumpProgramPointSuccGraphToFile("tests/programPointSuccGraph");
             g.dumpPointsToGraphToFile("tests/pointsToGraph");
             g.getCallGraph().dumpCallGraphToFile("tests/callGraph", false);
@@ -326,6 +315,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private AtomicLong totalSourceRelevantNodesQueryTasks;
         private AtomicLong totalPPSubQueryTasks;
 
+        private AtomicLong approximationTime;
+
 
         /*
          * Additional queues for other tasks that should have lower priority
@@ -346,6 +337,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          * pending AddToSetOrigin.
          */
         private AtomicBoolean isSomeThreadEmptyingQueues;
+        /**
+         * After reaching a fixed point, approximate call-sites and field assigns with no targets to get sound
+         * reachability results even when there are unsoundnesses in the analysis (e.g. reflection)
+         */
+        private boolean approximationFinished = false;
 
         public ExecutorServiceCounter(ForkJoinPool exec) {
             this.exec = exec;
@@ -368,6 +364,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             this.pendingPPSubQuery = new AtomicReference<>(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
 
             this.isSomeThreadEmptyingQueues = new AtomicBoolean(false);
+
+            this.approximationTime = new AtomicLong(0);
         }
 
 
@@ -502,10 +500,20 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          * @return whether we added anything
          */
         private boolean checkPendingQueues(int bound) {
-            if(this.numRemainingTasks.get() == 0) {
-                Approximation next = g.ppReach.getApproximateCallSites().findNextApproximation();
+            while (!containsPending()) {
+                // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
+                if (PRINT_QUEUE_SWAPS) {
+                    printDiagnostics();
+                }
+                printQueueSwap("approximating");
+                long start = System.currentTimeMillis();
+                Approximation next = g.ppReach.getApproximateCallSitesAndFieldAssigns().findNextApproximation();
+                approximationTime.addAndGet(System.currentTimeMillis() - start);
                 if (next.callSite == -1 && next.fieldAssign == null) {
                     // The search found no more approximations, the analysis is complete
+                    System.err.println("NO MORE APPROXIMATIONS!!!");
+                    printDiagnostics();
+                    approximationFinished = true;
                     return false;
                 }
                 if (next.callSite != -1) {
@@ -516,14 +524,17 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     g.ppReach.addApproximateFieldAssign(next.fieldAssign);
                     approximatedFieldAssigns++;
                 }
+                if (PRINT_QUEUE_SWAPS) {
+                    printDiagnostics();
+                }
             }
 
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
                 if (PRINT_QUEUE_SWAPS) {
                     printDiagnostics();
-                    printQueueSwap("executePendingAddToSetOrigin");
                 }
+                printQueueSwap("executePendingAddToSetOrigin");
                 changed |= executePendingAddToSetOrigin();
                 if (this.numRemainingTasks.get() <= bound) {
                     printQueueSwap("executePendingAddNonMostRecentOrigin");
@@ -626,12 +637,16 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     || !pendingRelevantNodesQuery.get().isEmpty() || !pendingSourceRelevantNodesQuery.get().isEmpty();
         }
 
+        public boolean isWorkToFinish() {
+            return containsPending() || !approximationFinished;
+        }
+
         public long numRemainingTasks() {
             return numRemainingTasks.get();
         }
 
         public void waitUntilAllFinished() {
-            if (this.containsPending()) {
+            if (this.isWorkToFinish()) {
                 synchronized (this) {
                     try {
                         // XXX could add timeout stuff here
@@ -652,7 +667,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + pendingAddToSetOrigin.get().size() + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size()
                     + "; pendingRelevantNodesQuery: " + pendingRelevantNodesQuery.get().size()
                     + "; pendingSourceRelevantNodesQuery: " + pendingSourceRelevantNodesQuery.get().size()
-                    + "; approxCGNodes: " + g.getApproxCallGraphSize());
+                    + "; approximationTime: " + approximationTime.get() / 1000.0 + "; approxCGNodes: "
+                    + g.getApproxCallGraphSize());
         }
 
         public class RunnablePointsToTask implements Runnable {

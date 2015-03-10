@@ -97,12 +97,12 @@ public final class ProgramPointReachability {
     }
 
     /**
-     * Call sites with no receivers that will be approximating as terminating normally for the purposes of program point
-     * reachability
+     * Call sites and field assignments with no receivers that will be approximated for the purposes of program point
+     * reachability.
      *
-     * @return approximated call sites and algorithm for finding more
+     * @return approximated call sites and field assignments and algorithm for finding more
      */
-    public ApproximateCallSitesAndFieldAssignments getApproximateCallSites() {
+    public ApproximateCallSitesAndFieldAssignments getApproximateCallSitesAndFieldAssigns() {
         return approx;
     }
 
@@ -581,6 +581,9 @@ public final class ProgramPointReachability {
         recordMethodTime.addAndGet(System.currentTimeMillis() - start);
     }
 
+    public static final MutableIntSet nonEmptyApproximatedCallSites = AnalysisUtil.createConcurrentIntSet();
+    public static final Set<OrderedPair<PointsToStatement, Context>> nonEmptyApproximatedKillSets = AnalysisUtil.createConcurrentSet();
+
     private MethodSummaryKillAndAlloc computeReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
         long start = System.currentTimeMillis();
         // XXX at the moment we will just record from the start node.
@@ -622,20 +625,19 @@ public final class ProgramPointReachability {
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
 
                     /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
-                    if (getApproximateCallSites().isApproximate(callSite)) {
+                    if (getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
                         if (!calleeSet.isEmpty()) {
-                            throw new RuntimeException("Approximating non-empty call site "
-                                    + g.lookupCallSiteReplicaDictionary(callSite));
+                            nonEmptyApproximatedCallSites.add(callSite);
+                            if (PointsToAnalysis.outputLevel > 0) {
+                                System.err.println("APPROXIMATING non-empty call site "
+                                        + g.lookupCallSiteReplicaDictionary(callSite));
+                            }
                         }
                         // This is a call site with no callees that we approximate by assuming it returns normally
                         // and kills nothing
                         KilledAndAlloced postNormal = getOrCreate(results, cspp.getNormalExit().post());
                         postNormal.setEmpty();
                         q.add(cspp.getNormalExit().post());
-
-                        // Initialize exception successor to unreachable if it doesn't already exist
-                        getOrCreate(results, cspp.getExceptionExit().post());
-                        q.add(cspp.getExceptionExit().post());
                         continue;
                     }
 
@@ -699,16 +701,29 @@ public final class ProgramPointReachability {
 
                             OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
                             if (killed != null) {
-                                if (!killed.fst()) {
+
+                                if (getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, context)) {
+                                    if (killed.fst()) {
+                                        nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt, context));
+                                        if (PointsToAnalysis.outputLevel > 0) {
+                                            System.err.println("APPROXIMATING kill set for field assign with receivers. "
+                                                    + stmt + " in " + context);
+                                        }
+                                    }
+                                    // This statement is being approximated since it has no receivers
+                                    removeKillMethodDependency(cgNode,
+                                                               stmt.getReadDependencyForKillField(context, g.getHaf()));
+                                }
+                                else if (!killed.fst()) {
                                     if (DEBUG2) {
                                         System.err.println("PPR%% \t\tCould Kill "
                                                 + stmt.getReadDependencyForKillField(context, g.getHaf()));
                                     }
+
                                     // not enough info available yet.
                                     // add a dependency since more information may change this search
                                     // conservatively assume that it kills any kind of the field we give it.
                                     current.addMaybeKilledField(stmt.getMaybeKilledField());
-
                                 }
                                 else if (killed.snd() != null) {
                                     if (DEBUG2) {
@@ -725,14 +740,14 @@ public final class ProgramPointReachability {
                                                                stmt.getReadDependencyForKillField(context, g.getHaf()));
                                 }
                             }
-                        }
+                        } // end stmt.mayKillNode
                         else {
                             // The statement should not be able to kill a node.
                             removeKillMethodDependency(cgNode, stmt.getReadDependencyForKillField(context, g.getHaf()));
 
                             assert stmt.killsNode(context, g) == null
                                     || (stmt.killsNode(context, g).fst() == true && stmt.killsNode(context, g).snd() == null);
-                        }
+                        } // end !stmt.mayKillNode
 
                         // is anything allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
@@ -744,10 +759,14 @@ public final class ProgramPointReachability {
                                 if (DEBUG2) {
                                     System.err.println("PPR%% \t\tDoes Alloc " + justAllocatedKey);
                                 }
+                                if (current.getAlloced() == null) {
+                                    System.err.println("Null alloc set for " + stmt + " at " + ipp + " current="
+                                            + current);
+                                }
                                 current.addAlloced(justAllocatedKey);
                             }
                         }
-                    }
+                    } // end stmt != null
                     // Add the post program point to continue the traversal
                     KilledAndAlloced postResults = getOrCreate(results, pp.post());
                     postResults.meet(current);

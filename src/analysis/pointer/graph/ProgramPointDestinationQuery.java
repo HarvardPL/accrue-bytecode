@@ -11,6 +11,7 @@ import util.WorkQueue;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ProgramPointReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
@@ -458,10 +459,13 @@ public final class ProgramPointDestinationQuery {
             System.err.println("PPDQ%% \t\t\tNO CALLEES for " + pp);
         }
 
-        if (ppr.getApproximateCallSites().isApproximate(callSite)) {
+        if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
             if (!calleeSet.isEmpty()) {
-                throw new RuntimeException("Approximating non-empty call site "
-                        + g.lookupCallSiteReplicaDictionary(callSite));
+                ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
+                if (PointsToAnalysis.outputLevel > 0) {
+                    System.err.println("APPROXIMATING non-empty call site "
+                            + g.lookupCallSiteReplicaDictionary(callSite));
+                }
             }
             // This is a call site with no callees that we approximate by assuming it can terminate normally
             return ReachabilityResult.NORMAL_EXIT;
@@ -531,21 +535,30 @@ public final class ProgramPointDestinationQuery {
      */
     private boolean handlePossibleKill(PointsToStatement stmt, Context currentContext) {
         if (stmt.mayKillNode(currentContext, g)) {
-
-            if (ppr.getApproximateCallSites().isApproximateKillSet(stmt, currentContext)) {
-                assert !stmt.killsNode(currentContext, g).fst();
-                assert stmt instanceof LocalToFieldStatement;
-                // The statement is a field assignment with not receiver for the field access
-                // soundly approximate it by saying that it kills nothing
-                return false;
-            }
-
             // record the dependency before we call stmt.killsNode
             ppr.addKillQueryDependency(this.currentSubQuery,
                                        stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
 
             OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
             if (killed != null) {
+
+                if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, currentContext)) {
+                    assert stmt instanceof LocalToFieldStatement;
+                    if (killed.fst()) {
+                        ProgramPointReachability.nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt,
+                                                                                                    currentContext));
+                        if (PointsToAnalysis.outputLevel > 0) {
+                            System.err.println("APPROXIMATING kill set for field assign with receivers. "
+                                    + stmt + " in " + currentContext);
+                        }
+                    }
+                    // The statement is a field assignment with not receiver for the field access
+                    // soundly approximate it by saying that it kills nothing and remove the dependency
+                    ppr.removeKillQueryDependency(this.currentSubQuery,
+                                                  stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                    return false;
+                }
+
                 if (!killed.fst()) {
                     // not enough info available yet.
                     // for the moment, assume conservatively that this statement
@@ -554,6 +567,11 @@ public final class ProgramPointDestinationQuery {
                     boolean maybeKilled = couldStatemenKill((LocalToFieldStatement) stmt, noKill);
                     if (DEBUG2 && maybeKilled) {
                         System.err.println("PPDQ%% \t\t\tKILL: " + killed);
+                    }
+                    if (!maybeKilled) {
+                        // This statement can never kill anything in the noKill set
+                        ppr.removeKillQueryDependency(this.currentSubQuery,
+                                                      stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
                     }
                     return maybeKilled;
                 }

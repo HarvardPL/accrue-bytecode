@@ -29,6 +29,10 @@ import com.ibm.wala.util.intset.MutableIntSet;
 public class ApproximateCallSitesAndFieldAssignments {
 
     /**
+     * Print the call sites and field assigns that are being approximated
+     */
+    private static final boolean PRINT_APPROXIMATIONS = false;
+    /**
      * All no-target call sites that have been approximated so far
      */
     private final/*Set<ProgramPointReplica>*/MutableIntSet approxCallSites = AnalysisUtil.createConcurrentIntSet();
@@ -118,8 +122,10 @@ public class ApproximateCallSitesAndFieldAssignments {
                         // This means it is the next approximated call-site
                         recordApproximateCallSite(currentInt);
                         lastVisited = currentInt;
-                        System.err.println("APPROXIMATING " + PrettyPrinter.methodString(cspp.getCallee()) + " from "
-                                + PrettyPrinter.methodString(cspp.getCaller()) + " in " + current.getContext());
+                        if (PRINT_APPROXIMATIONS) {
+                            System.err.println("APPROXIMATING " + PrettyPrinter.methodString(cspp.getCallee()) + " from "
+                                    + PrettyPrinter.methodString(cspp.getCaller()) + " in " + current.getContext());
+                        }
                         return Approximation.getCallSiteApproximation(currentInt);
                     }
 
@@ -150,7 +156,9 @@ public class ApproximateCallSitesAndFieldAssignments {
                     // The receiver of the field access has an empty point-to set
                     // Previously we have _unsoundly_ assumed that it kills any field with the same name and type
                     // From now on we _soundly_ but _imprecisely_ assume that it kills nothing
-                    System.err.println("APPROXIMATING kill set for " + stmt + " in " + current.getContext());
+                    if (PRINT_APPROXIMATIONS) {
+                        System.err.println("APPROXIMATING kill set for " + stmt + " in " + current.getContext());
+                    }
                     approxFieldAssignments.add(new StmtAndContext(stmt, current.getContext()));
                     lastVisited = currentInt;
                     return Approximation.getFieldAssignApproximation(new OrderedPair<>(stmt, current.getContext()));

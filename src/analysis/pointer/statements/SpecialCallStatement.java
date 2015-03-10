@@ -37,8 +37,6 @@ public class SpecialCallStatement extends CallStatement {
      */
     private final MethodSummaryNodes calleeSummary;
 
-    private boolean noTargetsYet = true;
-
     /**
      * Points-to statement for a special method invocation.
      *
@@ -77,15 +75,7 @@ public class SpecialCallStatement extends CallStatement {
                 // The receiver points to null that is not a "real" call so there is nothing to process
                 continue;
             }
-            noTargetsYet = false;
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
-        }
-
-        if (noTargetsYet) {
-            noReceivers.add(originator);
-        }
-        else {
-            noReceivers.remove(originator);
         }
 
         return changed;

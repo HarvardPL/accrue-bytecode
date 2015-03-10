@@ -38,8 +38,6 @@ public class VirtualCallStatement extends CallStatement {
      */
     private ReferenceVariable receiver;
 
-    private boolean noTargetsYet = true;
-
     /**
      * Points-to statement for a virtual method invocation.
      *
@@ -77,7 +75,6 @@ public class VirtualCallStatement extends CallStatement {
                 // The receiver points to null that is not a "real" call so there is nothing to process
                 continue;
             }
-            noTargetsYet = false;
             // The receiver is recHeapContext, and we want to find a method that matches selector callee.getSelector()
             // in class recHeapContext.getConcreteType() or a superclass.
             IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
@@ -98,13 +95,6 @@ public class VirtualCallStatement extends CallStatement {
                                                        haf,
                                                        registrar.findOrCreateMethodSummary(resolvedCallee)));
 
-        }
-
-        if (noTargetsYet) {
-            noReceivers.add(originator);
-        }
-        else {
-            noReceivers.remove(originator);
         }
         return changed;
     }
