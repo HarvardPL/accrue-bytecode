@@ -61,7 +61,7 @@ public final class FlowSensitiveStringVariableFactory {
         return getOrCreateLocalWithSubscript(varNum, getOrDefaultSensitizer(sensitizer, varNum), m);
     }
 
-    private StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript, IMethod m) {
+    public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript, IMethod m) {
         StringVariable maybeValue = localsCache.get(new Triplet<>(m, varNum, sensitizingSubscript));
         if (maybeValue == null) {
             return StringVariableFactory.makeLocal(m, varNum, sensitizingSubscript);

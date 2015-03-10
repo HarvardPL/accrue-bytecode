@@ -2,6 +2,7 @@ package analysis.dataflow.flowsensitizer;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -9,7 +10,7 @@ import java.util.Set;
 
 public class FlowSensitizedVariableMap {
 
-    private final Map<Integer, Integer> map;
+    private final Map<Integer, Integer> sensitizingMap;
     public static final int INITIAL_SUBSCRIPT = 0;
 
     /* Factory methods */
@@ -24,9 +25,11 @@ public class FlowSensitizedVariableMap {
      * the elements of the collection together and return the result.
      *
      * @param s
+     * @param dependencyMap BEWARE: this map is mutatively updated with new sensitizer dependencies
      * @return
      */
-    public static FlowSensitizedVariableMap joinCollection(Collection<FlowSensitizedVariableMap> s) {
+    public static FlowSensitizedVariableMap joinCollection(Collection<FlowSensitizedVariableMap> s,
+                                                           Map<Integer, Map<Integer, Set<Integer>>> dependencyMap) {
         if (s.size() == 0) {
             return makeEmpty();
         }
@@ -40,7 +43,7 @@ public class FlowSensitizedVariableMap {
         }
 
         while (it.hasNext()) {
-            t = t.join(it.next());
+            t = t.join(it.next(), dependencyMap);
         }
 
         return t;
@@ -49,11 +52,11 @@ public class FlowSensitizedVariableMap {
     /* Constructors */
 
     private FlowSensitizedVariableMap() {
-        this.map = new HashMap<>();
+        this.sensitizingMap = new HashMap<>();
     }
 
-    private FlowSensitizedVariableMap(Map<Integer, Integer> map) {
-        this.map = map;
+    private FlowSensitizedVariableMap(Map<Integer, Integer> sensitizingMap) {
+        this.sensitizingMap = sensitizingMap;
     }
 
     /* Logic */
@@ -67,7 +70,7 @@ public class FlowSensitizedVariableMap {
     public FlowSensitizedVariableMap freshFlowSensitive(Integer t) {
         Map<Integer, Integer> newMap = new HashMap<>();
         // this.map.forEach((k, v) -> newMap.put(k, k.equals(t) ? v + 1 : v));
-        newMap.putAll(this.map);
+        newMap.putAll(this.sensitizingMap);
         if (newMap.containsKey(t)) {
             newMap.put(t, newMap.get(t) + 1);
         }
@@ -89,7 +92,7 @@ public class FlowSensitizedVariableMap {
     public FlowSensitizedVariableMap freshFlowSensitive(Set<Integer> ts) {
         // this.map.forEach((k, v) -> newMap.put(k, setOrMap(ts, t -> k.equals(t)) ? v + 1 : v));
         Map<Integer, Integer> newMap = new HashMap<>();
-        for (Entry<Integer, Integer> kv : this.map.entrySet()) {
+        for (Entry<Integer, Integer> kv : this.sensitizingMap.entrySet()) {
             Integer k = kv.getKey();
             Integer v = kv.getValue();
 
@@ -102,7 +105,7 @@ public class FlowSensitizedVariableMap {
             }
 
             if (acc) {
-                newMap.put(k, v + 1);
+                newMap.put(k, nextVar(v));
             }
             else {
                 newMap.put(k, v);
@@ -111,48 +114,50 @@ public class FlowSensitizedVariableMap {
         return new FlowSensitizedVariableMap(newMap);
     }
 
-    public FlowSensitizedVariableMap join(FlowSensitizedVariableMap m) {
-        Map<Integer, Integer> newMap = new HashMap<>();
-        // this.map.forEach((k, v) -> newMap.put(k, v));
-        for(Entry<Integer, Integer> kv : this.map.entrySet()) {
+    @SuppressWarnings("static-method")
+    private int nextVar(int sensitizer) {
+        return sensitizer + 1;
+    }
+
+    public FlowSensitizedVariableMap join(FlowSensitizedVariableMap m,
+                                          Map<Integer, Map<Integer, Set<Integer>>> dependencyMapForVar) {
+        Map<Integer, Integer> newSensitizingMap = new HashMap<>(this.sensitizingMap);
+
+        for (Entry<Integer, Integer> kv : m.getInsensitiveToFlowSensistiveMap().entrySet()) {
             Integer k = kv.getKey();
             Integer v = kv.getValue();
-            newMap.put(k, v);
-        }
-//        m.getInsensitiveToFlowSensistiveMap().forEach((k, v) -> newMap.merge(k,
-//                                        v,
-//                                        (oldv, newv) -> {
-//                                            throw new RuntimeException("overlapping maps not allowed " + this.map
-//                                                    + " " + m.getInsensitiveToFlowSensistiveMap());
-//                                        }));
+            Integer v2 = newSensitizingMap.get(k);
 
-        for(Entry<Integer, Integer> kv : m.getInsensitiveToFlowSensistiveMap().entrySet()) {
-            Integer k = kv.getKey();
-            Integer v = kv.getValue();
-            if (newMap.containsKey(k) && newMap.get(k) != v) {
-                //                throw new RuntimeException("Maps disagree on " + k + ": " + this.map
-                //                                           + " " + m.getInsensitiveToFlowSensistiveMap());
-                System.err.println("Maps disagree on " + k + ": " + this.map + " "
-                        + m.getInsensitiveToFlowSensistiveMap()
-                        + " -- proceeding by taking highest number, I hope this is an exceptional path");
-                newMap.put(k, Math.max(v, newMap.get(k)));
-
+            if (newSensitizingMap.containsKey(k) && v != v2) {
+                int nextSensitizer = nextVar(Math.max(v, v2));
+                newSensitizingMap.put(k, nextSensitizer);
+                /* below deals with the dependency map */
+                Map<Integer, Set<Integer>> dependencyMap = dependencyMapForVar.containsKey(k)
+                        ? dependencyMapForVar.get(k) : new HashMap<Integer, Set<Integer>>();
+                Set<Integer> dependencies = dependencyMap.containsKey(nextSensitizer)
+                        ? dependencyMap.get(nextSensitizer) : new HashSet<Integer>();
+                dependencies.add(v);
+                dependencies.add(v2);
+                dependencyMap.put(nextSensitizer, dependencies);
+                dependencyMapForVar.put(k, dependencyMap);
             }
-            newMap.put(k, v);
+            else {
+                newSensitizingMap.put(k, v);
+            }
         }
-        return new FlowSensitizedVariableMap(newMap);
+        return new FlowSensitizedVariableMap(newSensitizingMap);
     }
 
     /**
      * DO NOT MODIFY THIS MAP
      */
     public Map<Integer, Integer> getInsensitiveToFlowSensistiveMap() {
-        return this.map;
+        return this.sensitizingMap;
     }
 
     @Override
     public String toString() {
-        return "FlowSensitizedVariableMap(" + this.map + ")";
+        return "FlowSensitizedVariableMap(" + this.sensitizingMap + ")";
     }
 
 }

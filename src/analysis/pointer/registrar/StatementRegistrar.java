@@ -5,12 +5,14 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -24,6 +26,7 @@ import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
 import analysis.StringAndReflectiveUtil;
 import analysis.dataflow.flowsensitizer.StringBuilderFlowSensitizer;
+import analysis.dataflow.flowsensitizer.StringBuilderFlowSensitizer.Solution;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.pointer.duplicates.RemoveDuplicateStatements;
 import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
@@ -220,9 +223,28 @@ public class StatementRegistrar {
             PrettyPrinter pp = new PrettyPrinter(ir);
 
             StringBuilderFlowSensitizer sbfs = StringBuilderFlowSensitizer.make(true);
-            OrderedPair<Map<SSAInstruction, Map<Integer, Integer>>, Map<SSAInstruction, Map<Integer, Integer>>> defUseMaps = sbfs.runDataFlowAnalysisAndReturnDefUseMaps(m);
-            FlowSensitiveStringVariableFactory stringVariableFactory = FlowSensitiveStringVariableFactory.make(defUseMaps.fst(),
-                                                                                                               defUseMaps.snd());
+            Solution sensitizerSolution = sbfs.runDataFlowAnalysisAndReturnDefUseMaps(m);
+            FlowSensitiveStringVariableFactory stringVariableFactory = FlowSensitiveStringVariableFactory.make(sensitizerSolution.getDefMap(),
+                                                                                                               sensitizerSolution.getUseMap());
+
+            /* Add string phi nodes for control joins */
+            for (Entry<Integer, Map<Integer, Set<Integer>>> kv : sensitizerSolution.getSensitizerDependencies()
+                                                                                   .entrySet()) {
+                Integer varNum = kv.getKey();
+                Map<Integer, Set<Integer>> dependencyMap = kv.getValue();
+
+                for (Entry<Integer, Set<Integer>> kv2 : dependencyMap.entrySet()) {
+                    Integer sensitizer = kv2.getKey();
+                    Set<Integer> dependentSensitizers = kv2.getValue();
+
+                    StringVariable sv = stringVariableFactory.getOrCreateLocalWithSubscript(varNum, sensitizer, m);
+                    Set<StringVariable> dependentSVs = new HashSet<>();
+                    for (Integer dependentSensitizer : dependentSensitizers) {
+                        dependentSVs.add(stringVariableFactory.getOrCreateLocalWithSubscript(varNum, dependentSensitizer, m));
+                    }
+                    this.addStringStatement(stmtFactory.stringPhiNode(m, sv, dependentSVs));
+                }
+            }
 
             // Add edges from formal summary nodes to the local variables representing the method parameters
             this.registerFormalAssignments(ir, this.rvFactory, stringVariableFactory, pp);

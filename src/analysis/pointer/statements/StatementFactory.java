@@ -687,6 +687,20 @@ public class StatementFactory {
         return new StringInitStatement(callSite, method, sv);
     }
 
+
+    public StringStatement stringPhiNode(IMethod method, StringVariable sv, Set<StringVariable> dependentSVs) {
+        assert method != null;
+        assert sv != null;
+        assert dependentSVs != null;
+        for (StringVariable dsv : dependentSVs) {
+            assert dsv != null;
+        }
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(sv, dependentSVs));
+
+        return new StringPhiNode(method, sv, dependentSVs);
+    }
+
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                        ReferenceVariable result, ReferenceVariable receiver,
                                        List<StringVariable> actuals) {
@@ -859,5 +873,4 @@ public class StatementFactory {
             return result;
         }
     }
-
 }

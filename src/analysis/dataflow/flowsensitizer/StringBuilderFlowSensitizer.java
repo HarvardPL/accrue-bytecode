@@ -7,9 +7,9 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import util.OrderedPair;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
+import analysis.dataflow.InstructionDispatchDataFlow;
 
 import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.classLoader.IMethod;
@@ -40,7 +40,10 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.MethodReference;
 
-public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDataFlow<FlowSensitizedVariableMap> {
+public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<FlowSensitizedVariableMap> {
+
+    /* Cannot be private because `Solution` accesses it */
+    final Map<Integer, Map<Integer, Set<Integer>>> dependencyMap;
 
     /*
      * Factory Methods
@@ -55,6 +58,7 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
      */
     private StringBuilderFlowSensitizer(boolean forward) {
         super(forward);
+        this.dependencyMap = new HashMap<>();
     }
 
     /*
@@ -62,7 +66,7 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
      */
 
     private FlowSensitizedVariableMap joinMaps(Collection<FlowSensitizedVariableMap> c) {
-        return FlowSensitizedVariableMap.joinCollection(c);
+        return FlowSensitizedVariableMap.joinCollection(c, this.dependencyMap);
     }
 
     private Map<ISSABasicBlock, FlowSensitizedVariableMap> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
@@ -94,27 +98,11 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
      *
      */
 
-    /* (non-Javadoc)
-     * @see analysis.pointer.reflective.dataflow.FunctionalInstructionDispatchDataFlow#runDataFlowAnalysis(com.ibm.wala.classLoader.IMethod)
-     */
-    @Override
-    public Map<SSAInstruction, AnalysisRecord<FlowSensitizedVariableMap>> runDataFlowAnalysis(IMethod m) {
+    public Solution runDataFlowAnalysisAndReturnDefUseMaps(IMethod m) {
         IR ir = AnalysisUtil.getIR(m);
         this.dataflow(ir);
-        Map<SSAInstruction, AnalysisRecord<FlowSensitizedVariableMap>> map = new HashMap<>();
-        Iterator<SSAInstruction> it = ir.iterateAllInstructions();
-        while (it.hasNext()) {
-            SSAInstruction i = it.next();
-            map.put(i, this.getAnalysisRecord(i));
-        }
-        return map;
-    }
-
-    public OrderedPair<Map<SSAInstruction, Map<Integer, Integer>>, Map<SSAInstruction, Map<Integer, Integer>>> runDataFlowAnalysisAndReturnDefUseMaps(IMethod m) {
-        IR ir = AnalysisUtil.getIR(m);
-        this.dataflow(ir);
-        Map<SSAInstruction, Map<Integer, Integer>> useMap = new HashMap<>();
-        Map<SSAInstruction, Map<Integer, Integer>> defMap = new HashMap<>();
+        final Map<SSAInstruction, Map<Integer, Integer>> useMap = new HashMap<>();
+        final Map<SSAInstruction, Map<Integer, Integer>> defMap = new HashMap<>();
         Iterator<SSAInstruction> it = ir.iterateAllInstructions();
         while (it.hasNext()) {
             SSAInstruction i = it.next();
@@ -124,7 +112,23 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
                        outputOrNull == null ? Collections.<Integer, Integer> emptyMap()
                                : joinMaps(outputOrNull.values()).getInsensitiveToFlowSensistiveMap());
         }
-        return new OrderedPair<>(defMap, useMap);
+        return new Solution() {
+
+            @Override
+            public Map<SSAInstruction, Map<Integer, Integer>> getUseMap() {
+                return useMap;
+            }
+
+            @Override
+            public Map<SSAInstruction, Map<Integer, Integer>> getDefMap() {
+                return defMap;
+            }
+
+            @Override
+            public Map<Integer, Map<Integer, Set<Integer>>> getSensitizerDependencies() {
+                return dependencyMap;
+            }
+        };
     }
 
     /*
@@ -398,6 +402,14 @@ public class StringBuilderFlowSensitizer extends FunctionalInstructionDispatchDa
     protected boolean isUnreachable(ISSABasicBlock source, ISSABasicBlock target) {
         // XXX: Everyone else returns false, so should we? How do I implement it? What is it for?
         return false;
+    }
+
+    public interface Solution {
+        Map<SSAInstruction, Map<Integer, Integer>> getUseMap();
+
+        Map<SSAInstruction, Map<Integer, Integer>> getDefMap();
+
+        Map<Integer, Map<Integer, Set<Integer>>> getSensitizerDependencies();
     }
 
 }
