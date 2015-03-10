@@ -10,6 +10,7 @@ import java.util.Set;
 public class FlowSensitizedVariableMap {
 
     private final Map<Integer, Integer> map;
+    public static final int INITIAL_SUBSCRIPT = 0;
 
     /* Factory methods */
 
@@ -71,7 +72,7 @@ public class FlowSensitizedVariableMap {
             newMap.put(t, newMap.get(t) + 1);
         }
         else {
-            newMap.put(t, 0);
+            newMap.put(t, INITIAL_SUBSCRIPT + 1);
         }
         System.err.println("freshFlowSensitive(" + t + ") = " + new FlowSensitizedVariableMap(newMap));
         return new FlowSensitizedVariableMap(newMap);
