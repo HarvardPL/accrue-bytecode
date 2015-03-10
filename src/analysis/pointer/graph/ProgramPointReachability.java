@@ -91,7 +91,7 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.approx = new ApproximateCallSitesAndFieldAssignments(g);
-        this.callGraphReachability = new CallGraphReachability();
+        this.callGraphReachability = new CallGraphReachability(analysisHandle);
     }
 
     /**
@@ -1368,8 +1368,7 @@ public final class ProgramPointReachability {
      */
     public void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod, Context>*/
                                  int calleeCGNode) {
-        this.callGraphReachability.calleeAddedTo(callerSite);
-        this.callGraphReachability.callerAddedTo(calleeCGNode);
+        this.callGraphReachability.addCallGraphEdge(callerSite, calleeCGNode);
         this.calleeAddedTo(callerSite);
         this.callerAddedTo(calleeCGNode);
     }
