@@ -17,6 +17,6 @@ public interface PointsToIterable {
      * @param x
      * @return if there is "new information", then it returns Optional.some(theNewInformation)
      */
-    public Optional<AString> getAStringFor(StringVariableReplica x);
+    public Optional<AString> getAStringUpdatesFor(StringVariableReplica x);
 
 }

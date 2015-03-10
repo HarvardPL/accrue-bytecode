@@ -1411,8 +1411,12 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     @Override
-    public Optional<AString> getAStringFor(StringVariableReplica x) {
+    public Optional<AString> getAStringUpdatesFor(StringVariableReplica x) {
         return Optional.some(this.sc.getAStringFor(x));
+    }
+
+    public AString getAStringFor(StringVariableReplica x) {
+        return this.sc.getAStringFor(x);
     }
 
     public void recordStringDependency(StringVariableReplica x, StmtAndContext s) {

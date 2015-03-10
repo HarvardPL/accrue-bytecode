@@ -71,7 +71,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         GraphDelta changed = new GraphDelta(g);
         PointsToIterable pti = delta == null ? g : delta;
-        Optional<AString> nameSIK = pti.getAStringFor(nameSVR);
+        Optional<AString> nameSIK = pti.getAStringUpdatesFor(nameSVR);
 
         //        Optional<Set<IClass>> classes = nameSIK.getStrings()
         //                .map(stringSet -> stringSet.stream()

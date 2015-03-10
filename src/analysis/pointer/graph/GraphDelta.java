@@ -186,7 +186,7 @@ public final class GraphDelta implements PointsToIterable {
     }
 
     @Override
-    public Optional<AString> getAStringFor(StringVariableReplica svr) {
+    public Optional<AString> getAStringUpdatesFor(StringVariableReplica svr) {
         return this.scd.getAStringFor(svr);
     }
 

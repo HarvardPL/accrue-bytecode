@@ -1,9 +1,9 @@
 package analysis.pointer.statements;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
@@ -125,23 +125,19 @@ public class StringMethodCall extends StringStatement {
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
             g.recordStringDependency(receiverUseSVR, originator);
-            System.err.println("[concatM] Using " + receiverUseSVR);
+            System.err.println("[concatM] Using " + receiverUseSVR + " = " + g.getAStringFor(receiverUseSVR));
             g.recordStringDependency(argumentSVRs.get(1), originator);
-            System.err.println("[concatM] Using " + argumentSVRs.get(1));
+            System.err.println("[concatM] Using " + argumentSVRs.get(1) + " = " + g.getAStringFor(argumentSVRs.get(1)));
 
-            Optional<AString> maybeReceiverAString = g.getAStringFor(receiverUseSVR);
-            // XXX: This is broken, the graph should have a "GIMME THE VALUE" function
-            assert maybeReceiverAString.isSome();
-            Optional<AString> maybeArgumentAString = pti.getAStringFor(argumentSVRs.get(1));
+            AString maybeReceiverAString = g.getAStringFor(receiverUseSVR);
+            AString maybeArgumentAString = g.getAStringFor(argumentSVRs.get(1));
 
             System.err.println("[concatM] I am " + this);
 
-            if (!maybeArgumentAString.isNone()) {
-                AString newSIK = maybeReceiverAString.get().concat(maybeArgumentAString.get());
-                System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverDefSVR + ", " + newSIK + ")");
-                newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
-            }
-            System.err.println("[concatM] newDelta = " + newDelta);
+            AString newSIK = maybeReceiverAString.concat(maybeArgumentAString);
+            System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverDefSVR + ", " + newSIK + ")");
+            newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
+            System.err.println("[concatM] " + receiverDefSVR + " <- " + g.getAStringUpdatesFor(receiverDefSVR).get());
             return newDelta;
         }
         case somethingElseM: {
