@@ -28,7 +28,7 @@ public class StringConstraints {
 
     public AString getAStringFor(StringVariableReplica svr) {
         AString shat = this.map.get(svr);
-        return shat == null ? INITIAL_STRING : shat;
+        return shat == null ? AString.makeStringBottom(MAX_STRING_SET_SIZE) : shat;
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
