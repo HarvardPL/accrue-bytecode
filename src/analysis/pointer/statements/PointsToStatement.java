@@ -108,6 +108,7 @@ public abstract class PointsToStatement {
      *
      * @return
      */
+    @SuppressWarnings({ "static-method", "unused" })
     public boolean mayKillNode(Context context, PointsToGraph g) {
         return false;
     }

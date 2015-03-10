@@ -9,10 +9,13 @@ import java.util.Set;
 import util.OrderedPair;
 import util.WorkQueue;
 import util.print.PrettyPrinter;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ProgramPointReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
+import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
@@ -24,6 +27,7 @@ import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.Context;
+import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.util.CancelException;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
@@ -455,6 +459,18 @@ public final class ProgramPointDestinationQuery {
             System.err.println("PPDQ%% \t\t\tNO CALLEES for " + pp);
         }
 
+        if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
+            if (!calleeSet.isEmpty()) {
+                ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
+                if (PointsToAnalysis.outputLevel > 0) {
+                    System.err.println("APPROXIMATING non-empty call site "
+                            + g.lookupCallSiteReplicaDictionary(callSite));
+                }
+            }
+            // This is a call site with no callees that we approximate by assuming it can terminate normally
+            return ReachabilityResult.NORMAL_EXIT;
+        }
+
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
         IntIterator calleeIter = calleeSet.intIterator();
@@ -509,6 +525,8 @@ public final class ProgramPointDestinationQuery {
         return reachableExits;
     }
 
+    public static Set<ProgramPointSubQuery> impreciseKills = AnalysisUtil.createConcurrentSet();
+
     /**
      * Handle a "pre" program point that may kill the current path.
      *
@@ -523,20 +541,46 @@ public final class ProgramPointDestinationQuery {
 
             OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
             if (killed != null) {
+
+                if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, currentContext)) {
+                    assert stmt instanceof LocalToFieldStatement;
+                    if (killed.fst()) {
+                        ProgramPointReachability.nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt,
+                                                                                                    currentContext));
+                        if (PointsToAnalysis.outputLevel > 0) {
+                            System.err.println("APPROXIMATING kill set for field assign with receivers. "
+                                    + stmt + " in " + currentContext);
+                        }
+                    }
+                    // The statement is a field assignment with not receiver for the field access
+                    // soundly approximate it by saying that it kills nothing and remove the dependency
+                    ppr.removeKillQueryDependency(this.currentSubQuery,
+                                                  stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                    return false;
+                }
+
                 if (!killed.fst()) {
                     // not enough info available yet.
                     // for the moment, assume conservatively that this statement
                     // may kill a field we are interested in.
-                    if (DEBUG2) {
+                    assert stmt instanceof LocalToFieldStatement;
+                    boolean maybeKilled = couldStatemenKill((LocalToFieldStatement) stmt, noKill);
+                    if (DEBUG2 && maybeKilled) {
                         System.err.println("PPDQ%% \t\t\tKILL: " + killed);
                     }
-                    return true;
+                    if (!maybeKilled) {
+                        // This statement can never kill anything in the noKill set
+                        ppr.removeKillQueryDependency(this.currentSubQuery,
+                                                      stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
+                    }
+                    return maybeKilled;
                 }
                 else if (killed.snd() != null && noKill.contains(g.lookupDictionary(killed.snd()))) {
                     // dang! we killed something we shouldn't. Prune the search.
                     if (DEBUG2) {
                         System.err.println("PPDQ%% \t\t\tKILL: " + killed);
                     }
+                    impreciseKills.remove(ProgramPointSubQuery.lookupDictionary(this.currentSubQuery));
                     return true;
                 }
                 else if (killed.snd() == null) {
@@ -576,9 +620,43 @@ public final class ProgramPointDestinationQuery {
                 if (DEBUG2) {
                     System.err.println("PPDQ%% \t\t\tALLOC KILLED: " + justAllocated);
                 }
+                impreciseKills.remove(ProgramPointSubQuery.lookupDictionary(this.currentSubQuery));
                 return true;
             }
         }
+        impreciseKills.remove(ProgramPointSubQuery.lookupDictionary(this.currentSubQuery));
+        return false;
+    }
+
+    /**
+     * Check whether the points-to statement could kill something in the given kill set
+     *
+     * @param stmt field assignment statement for which the field access has no receiver
+     * @param noKill set of points-to graph nodes that must not be killed
+     */
+    private boolean couldStatemenKill(LocalToFieldStatement stmt, /*Set<PointsToGraphNode>*/IntSet noKill) {
+        FieldReference fr = stmt.getMaybeKilledField();
+        IntIterator noKillIter = noKill.intIterator();
+        while (noKillIter.hasNext()) {
+            PointsToGraphNode n = g.lookupPointsToGraphNodeDictionary(noKillIter.next());
+            if (n instanceof ObjectField) {
+                ObjectField of = (ObjectField) n;
+                if (of.fieldName().equals(fr.getName().toString())
+                        && of.expectedType().getName().equals(fr.getFieldType().getName())) {
+                    // The field in the noKill set has the same name and type as the field that may be killed by the field assignment
+                    // Assume that it does kill the field, this is unsound, but we later will recover soundness by
+                    // 1. Adding something to the points-to set for the receiver and checking whether it then kills
+                    // 2. Assuming that nothing is killed if the points-to set for the receiver is still empty
+                    //    after reaching a fixed point in the points-to analysis
+                    impreciseKills.add(ProgramPointSubQuery.lookupDictionary(this.currentSubQuery));
+                    return true;
+                }
+                if (of.fieldName().equals(fr.getName().toString())) {
+                    System.err.println("Missing receiver CANNOT kill " + fr + " noKill " + n);
+                }
+            }
+        }
+
         return false;
     }
 

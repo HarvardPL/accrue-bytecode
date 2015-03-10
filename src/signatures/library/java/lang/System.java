@@ -28,14 +28,21 @@ public class System {
     }
 
 
-
+    private static Properties props = new Properties();
     public final static InputStream in = new MockInputStream();
     public final static PrintStream out = new MockPrintStream(new MockOutputStream());
     public final static PrintStream err = new MockPrintStream(new MockOutputStream());
 
-    private static volatile SecurityManager security = new SecurityManager();
+    private static volatile SecurityManager security = getSecurityManager();
 
-    private static Properties props = new Properties();
+    public static SecurityManager getSecurityManager() {
+        if (security == null) {
+            security = new SecurityManager();
+        }
+        return security;
+    }
+
+
 
     static {
         registerNatives();

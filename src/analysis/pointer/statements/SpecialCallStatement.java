@@ -68,13 +68,6 @@ public class SpecialCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
-        if (!iter.hasNext()) {
-            noReceivers.add(originator);
-        }
-        else {
-            noReceivers.remove(originator);
-        }
-
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
             assert recHeapCtxt != null : "Null instance key for " + this.callee + " at " + programPoint();
@@ -84,6 +77,7 @@ public class SpecialCallStatement extends CallStatement {
             }
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
         }
+
         return changed;
 
     }

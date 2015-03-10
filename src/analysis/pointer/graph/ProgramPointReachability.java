@@ -25,6 +25,7 @@ import analysis.pointer.graph.RelevantNodes.RelevantNodesQuery;
 import analysis.pointer.graph.RelevantNodes.SourceRelevantNodesQuery;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
+import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.ProgramPoint.InterProgramPoint;
@@ -76,6 +77,12 @@ public final class ProgramPointReachability {
     private final RelevantNodes relevantNodesIncrementalComputation;
 
     /**
+     * Call sites with no receivers that will be approximating as terminating normally for the purposes of program point
+     * reachability
+     */
+    private final ApproximateCallSitesAndFieldAssignments approx;
+
+    /**
      * Create a new reachability query engine
      *
      * @param g points to graph
@@ -86,6 +93,17 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.relevantNodesIncrementalComputation = new RelevantNodes(g, analysisHandle, this);
+        this.approx = new ApproximateCallSitesAndFieldAssignments(g);
+    }
+
+    /**
+     * Call sites and field assignments with no receivers that will be approximated for the purposes of program point
+     * reachability.
+     *
+     * @return approximated call sites and field assignments and algorithm for finding more
+     */
+    public ApproximateCallSitesAndFieldAssignments getApproximateCallSitesAndFieldAssigns() {
+        return approx;
     }
 
     /**
@@ -563,6 +581,9 @@ public final class ProgramPointReachability {
         recordMethodTime.addAndGet(System.currentTimeMillis() - start);
     }
 
+    public static final MutableIntSet nonEmptyApproximatedCallSites = AnalysisUtil.createConcurrentIntSet();
+    public static final Set<OrderedPair<PointsToStatement, Context>> nonEmptyApproximatedKillSets = AnalysisUtil.createConcurrentSet();
+
     private MethodSummaryKillAndAlloc computeReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
         long start = System.currentTimeMillis();
         // XXX at the moment we will just record from the start node.
@@ -604,6 +625,22 @@ public final class ProgramPointReachability {
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
 
                     /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
+                    if (getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
+                        if (!calleeSet.isEmpty()) {
+                            nonEmptyApproximatedCallSites.add(callSite);
+                            if (PointsToAnalysis.outputLevel > 0) {
+                                System.err.println("APPROXIMATING non-empty call site "
+                                        + g.lookupCallSiteReplicaDictionary(callSite));
+                            }
+                        }
+                        // This is a call site with no callees that we approximate by assuming it returns normally
+                        // and kills nothing
+                        KilledAndAlloced postNormal = getOrCreate(results, cspp.getNormalExit().post());
+                        postNormal.setEmpty();
+                        q.add(cspp.getNormalExit().post());
+                        continue;
+                    }
+
                     if (calleeSet.isEmpty()) {
                         // no callees, so nothing to do
                         if (DEBUG) {
@@ -644,6 +681,7 @@ public final class ProgramPointReachability {
                     // Add the successor program points to the queue
                     q.add(cspp.getNormalExit().post());
                     q.add(cspp.getExceptionExit().post());
+                    continue;
                 } // end CallSiteProgramPoint
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
                     // not much to do here. The results will be copied once the work queue finishes.
@@ -663,16 +701,29 @@ public final class ProgramPointReachability {
 
                             OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
                             if (killed != null) {
-                                if (!killed.fst()) {
+
+                                if (getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, context)) {
+                                    if (killed.fst()) {
+                                        nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt, context));
+                                        if (PointsToAnalysis.outputLevel > 0) {
+                                            System.err.println("APPROXIMATING kill set for field assign with receivers. "
+                                                    + stmt + " in " + context);
+                                        }
+                                    }
+                                    // This statement is being approximated since it has no receivers
+                                    removeKillMethodDependency(cgNode,
+                                                               stmt.getReadDependencyForKillField(context, g.getHaf()));
+                                }
+                                else if (!killed.fst()) {
                                     if (DEBUG2) {
                                         System.err.println("PPR%% \t\tCould Kill "
                                                 + stmt.getReadDependencyForKillField(context, g.getHaf()));
                                     }
+
                                     // not enough info available yet.
                                     // add a dependency since more information may change this search
                                     // conservatively assume that it kills any kind of the field we give it.
                                     current.addMaybeKilledField(stmt.getMaybeKilledField());
-
                                 }
                                 else if (killed.snd() != null) {
                                     if (DEBUG2) {
@@ -689,14 +740,14 @@ public final class ProgramPointReachability {
                                                                stmt.getReadDependencyForKillField(context, g.getHaf()));
                                 }
                             }
-                        }
+                        } // end stmt.mayKillNode
                         else {
                             // The statement should not be able to kill a node.
                             removeKillMethodDependency(cgNode, stmt.getReadDependencyForKillField(context, g.getHaf()));
 
                             assert stmt.killsNode(context, g) == null
                                     || (stmt.killsNode(context, g).fst() == true && stmt.killsNode(context, g).snd() == null);
-                        }
+                        } // end !stmt.mayKillNode
 
                         // is anything allocated at this program point?
                         InstanceKeyRecency justAllocated = stmt.justAllocated(context, g);
@@ -708,10 +759,14 @@ public final class ProgramPointReachability {
                                 if (DEBUG2) {
                                     System.err.println("PPR%% \t\tDoes Alloc " + justAllocatedKey);
                                 }
+                                if (current.getAlloced() == null) {
+                                    System.err.println("Null alloc set for " + stmt + " at " + ipp + " current="
+                                            + current);
+                                }
                                 current.addAlloced(justAllocatedKey);
                             }
                         }
-                    }
+                    } // end stmt != null
                     // Add the post program point to continue the traversal
                     KilledAndAlloced postResults = getOrCreate(results, pp.post());
                     postResults.meet(current);
@@ -888,18 +943,18 @@ public final class ProgramPointReachability {
     // ConcurrentMap<ProgramPointSubQuery, Set<ReachabilityQueryOrigin>>
     private final ConcurrentIntMap<Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Sub queries depend on the callers at particular call site (ProgramPointReplica)
+     * Sub queries depend on the callees from a particular call site (ProgramPointReplica)
      */
     // ConcurrentMap<ProgramPointReplica, Set<ProgramPointSubQuery>>
     private final ConcurrentIntMap<MutableIntSet> calleeQueryDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Method reachability queries (starting at a given call garph node) depend on the callers particular call site
+     * Method reachability queries (starting at a given call garph node) depend on the callees from particular call site
      * (ProgramPointReplica)
      */
     // ConcurrentMap<ProgramPointReplica, Set<OrderedPair<IMethod, Context>>>
     private final ConcurrentIntMap<MutableIntSet> calleeMethodDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Sub queries depend on the callees of a particular call graph node (OrderedPair<IMethod, Context>)
+     * Sub queries depend on the callers of a particular call graph node (OrderedPair<IMethod, Context>)
      */
     // ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointSubQuery>>
     private final ConcurrentIntMap<MutableIntSet> callerQueryDependencies = AnalysisUtil.createConcurrentIntMap();
@@ -1123,6 +1178,88 @@ public final class ProgramPointReachability {
             while (iter.hasNext()) {
                 int mr = iter.next();
                 calleeQueryRequests.incrementAndGet();
+                // need to re-run the query of mr
+                if (!requestRerunQuery(mr)) {
+                    // whoops, no need to rerun this anymore.
+                    toRemove.add(mr);
+                }
+            }
+
+            // Now remove all the unneeded queries
+            IntIterator removeIter = toRemove.intIterator();
+            while (removeIter.hasNext()) {
+                queries.remove(removeIter.next());
+            }
+        }
+    }
+
+    /**
+     * Add a call site with no callees to be approximated as terminating normally
+     *
+     * @param callSite call site to be approximated
+     */
+    public void addApproximateCallSite(int callSite) {
+        /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = calleeMethodDependencies.get(callSite);
+        if (meths != null) {
+            IntIterator methIter = meths.intIterator();
+            while (methIter.hasNext()) {
+                /*OrderedPair<IMethod, Context>*/int m = methIter.next();
+                // need to re-run the analysis of m
+                computeReachabilityForMethod(m);
+            }
+        }
+
+        ProgramPointReplica callSiteRep = g.lookupCallSiteReplicaDictionary(callSite);
+        int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(callSiteRep.getPP().getContainingProcedure(),
+                                                                       callSiteRep.getContext()));
+        MutableIntSet queries = calleeQueryDependencies.get(caller);
+        if (queries != null) {
+            IntIterator iter = queries.intIterator();
+            MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
+            while (iter.hasNext()) {
+                int mr = iter.next();
+                calleeQueryRequests.incrementAndGet();
+                // need to re-run the query of mr
+                if (!requestRerunQuery(mr)) {
+                    // whoops, no need to rerun this anymore.
+                    toRemove.add(mr);
+                }
+            }
+
+            // Now remove all the unneeded queries
+            IntIterator removeIter = toRemove.intIterator();
+            while (removeIter.hasNext()) {
+                queries.remove(removeIter.next());
+            }
+        }
+    }
+
+    /**
+     * Add a field assignment with no receivers assumed to have an empty kill set
+     *
+     * @param fieldAssign field assignment to be approximated
+     */
+    public void addApproximateFieldAssign(OrderedPair<LocalToFieldStatement, Context> fieldAssign) {
+        ReferenceVariableReplica killDep = fieldAssign.fst().getReadDependencyForKillField(fieldAssign.snd(),
+                                                                                           g.getHaf());
+        int killDepInt = g.lookupDictionary(killDep);
+        /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.get(killDepInt);
+        if (meths != null) {
+            IntIterator methIter = meths.intIterator();
+            while (methIter.hasNext()) {
+                /*OrderedPair<IMethod, Context>*/int m = methIter.next();
+                // need to re-run the analysis of m
+                computeReachabilityForMethod(m);
+            }
+        }
+
+        MutableIntSet queries = killQueryDependencies.get(killDepInt);
+        if (queries != null) {
+            IntIterator iter = queries.intIterator();
+            MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
+            while (iter.hasNext()) {
+                int mr = iter.next();
+                killQueryRequests.incrementAndGet();
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
