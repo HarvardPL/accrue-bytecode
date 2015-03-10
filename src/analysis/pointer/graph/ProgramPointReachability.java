@@ -91,7 +91,7 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.approx = new ApproximateCallSitesAndFieldAssignments(g);
-        this.callGraphReachability = new CallGraphReachability(analysisHandle);
+        this.callGraphReachability = new CallGraphReachability(analysisHandle, g);
     }
 
     /**
