@@ -9,6 +9,7 @@ import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
@@ -62,7 +63,8 @@ public class CallGraphReachability {
             return true;
         }
 
-        if (reachableFrom.get(source).contains(dest)) {
+        IntSet reachableDests = reachableFrom.get(source);
+        if (reachableDests != null && reachableDests.contains(dest)) {
             // The source is reachable from the destination
             return true;
         }
@@ -98,7 +100,7 @@ public class CallGraphReachability {
 
     /**
      * Add that the callee is transitively reachable from the caller
-     * 
+     *
      * @param caller source call graph node
      * @param callee destination call graph node
      * @return true if this is a new relationship
