@@ -12,6 +12,8 @@ XXX Fix data-flow framework to correctly analyze the static initializers before 
 
 XXX I don't think this will work for offline registration, consider that class init methods can be added to the fake root changing the program point graph
 
+XXX Single threaded needs the call-site approximation stuff
+
 
 Flow-insensitive fixes
 
@@ -20,3 +22,4 @@ Flow-insensitive fixes
 - fix the allocation of singletons for native methods in the flow-insensitive analysis
 
 - Need to make sure "TypeReference.isPrimitiveType" is being used correctly in the main branch RE: null is a primitive type (NonNullResults.isNonNull, NonNullDataFlow.call)
+
