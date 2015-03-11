@@ -45,9 +45,9 @@ public class ApproximateCallSitesAndFieldAssignments {
      */
     private Set<ProgramPointReplica> allVisited = AnalysisUtil.createConcurrentSet();
     /**
-     * The last program point replica to be visited (-1 if no pp has been visited yet)
+     * The last program point replica to be visited (null if no pp has been visited yet)
      */
-    private/*ProgramPointReplica*/int lastVisited = -1;
+    private ProgramPointReplica lastVisited = null;
     /**
      * Has the algorithm visited every node in the interprocedural program point graph
      */
@@ -82,14 +82,14 @@ public class ApproximateCallSitesAndFieldAssignments {
     public Approximation findNextApproximation() {
         // XXX Reset the visited set and start from the beginning
         allVisited = AnalysisUtil.createConcurrentSet();
-        lastVisited = -1;
+        lastVisited = null;
 
         ProgramPointReplica first;
-        if (lastVisited == -1) {
+        if (lastVisited == null) {
             first = getEntryPP();
         }
         else {
-            first = g.lookupCallSiteReplicaDictionary(lastVisited);
+            first = lastVisited;
         }
         WorkQueue<ProgramPointReplica> q = new WorkQueue<>();
         allVisited.add(first);
@@ -98,8 +98,8 @@ public class ApproximateCallSitesAndFieldAssignments {
         while (!q.isEmpty()) {
             ProgramPointReplica current = q.poll();
             ProgramPoint pp = current.getPP();
-            int currentInt = g.lookupCallSiteReplicaDictionary(current);
             if (pp instanceof CallSiteProgramPoint) {
+                int currentInt = g.lookupCallSiteReplicaDictionary(current);
                 CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
                 if (cspp.isClinit() && !g.getClassInitializers().contains(cspp.getClinit())) {
                     // This is a class initializer that has not been added to the call graph yet.
@@ -121,7 +121,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                         // 3. It has no callees
                         // This means it is the next approximated call-site
                         recordApproximateCallSite(currentInt);
-                        lastVisited = currentInt;
+                        lastVisited = current;
                         if (PRINT_APPROXIMATIONS) {
                             System.err.println("APPROXIMATING " + PrettyPrinter.methodString(cspp.getCallee()) + " from "
                                     + PrettyPrinter.methodString(cspp.getCaller()) + " in " + current.getContext());
@@ -160,7 +160,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                         System.err.println("APPROXIMATING kill set for " + stmt + " in " + current.getContext());
                     }
                     approxFieldAssignments.add(new StmtAndContext(stmt, current.getContext()));
-                    lastVisited = currentInt;
+                    lastVisited = current;
                     return Approximation.getFieldAssignApproximation(new OrderedPair<>(stmt, current.getContext()));
                 }
             }
