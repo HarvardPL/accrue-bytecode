@@ -13,7 +13,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
  * A hash set supporting full concurrency of retrievals and adjustable expected concurrency for updates.
- * 
+ *
  * This class is based on ConcurrentHashMap from the java.util.concurrency package, but is specialized for an int hash
  * set.
  */
@@ -953,4 +953,19 @@ public class ConcurrentIntHashSet extends AbstractIntSet implements MutableIntSe
         }
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        IntIterator iter = this.intIterator();
+        while (iter.hasNext()) {
+            sb.append(iter.next());
+            if (!iter.hasNext()) {
+                return sb.append("}").toString();
+            }
+            sb.append(", ");
+        }
+        sb.append("}");
+        return super.toString();
+    }
 }

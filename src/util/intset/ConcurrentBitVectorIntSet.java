@@ -425,5 +425,21 @@ public final class ConcurrentBitVectorIntSet implements MutableIntSet {
         System.out.println("OK!");
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        IntIterator iter = this.intIterator();
+        while (iter.hasNext()) {
+            sb.append(iter.next());
+            if (!iter.hasNext()) {
+                return sb.append("}").toString();
+            }
+            sb.append(", ");
+        }
+        sb.append("}");
+        return super.toString();
+    }
+
 }
 
