@@ -93,6 +93,7 @@ public final class CallGraphReachability {
     void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod,Context>*/int calleeCGNode) {
         /*OrderedPair<IMethod,Context>*/int callerCGNode = getCGNodeForCallSite(callerSite);
 
+
         // Add the edge to the reachableFrom cache
         if (!recordReachableFrom(callerCGNode, calleeCGNode)) {
             // The callee was already reachable from the caller
@@ -100,12 +101,17 @@ public final class CallGraphReachability {
             return;
         }
 
+        // If you add something to the set then its your responsibility to propagate it
+
         // Everything reachable from the callee is now reachable from the caller (and any callers of the caller)
-        IntIterator calleesOfCallee = getReachableFrom(calleeCGNode).intIterator();
         IntIterator callersOfCaller = getReaches(callerCGNode).intIterator();
         while (callersOfCaller.hasNext()) {
+            int caller = callersOfCaller.next();
+            IntIterator calleesOfCallee = getReachableFrom(calleeCGNode).intIterator();
+
             while (calleesOfCallee.hasNext()) {
-                recordReachableFrom(callersOfCaller.next(), calleesOfCallee.next());
+                int callee = calleesOfCallee.next();
+                recordReachableFrom(caller, callee);
             }
         }
     }

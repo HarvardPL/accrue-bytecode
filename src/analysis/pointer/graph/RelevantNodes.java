@@ -400,7 +400,7 @@ public final class RelevantNodes {
                 addStartItem(source, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
-                this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
+                //this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
             }
         }
     }
@@ -424,7 +424,7 @@ public final class RelevantNodes {
                 addStartItem(source, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
-                this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
+                //this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
             }
         }
     }
@@ -632,7 +632,7 @@ public final class RelevantNodes {
 
         IntIterator iter = deps.intIterator();
         while (iter.hasNext()) {
-            analysisHandle.submitRelevantNodesQuery(RelevantNodesQuery.lookupDictionary(iter.next()));
+            //analysisHandle.submitRelevantNodesQuery(RelevantNodesQuery.lookupDictionary(iter.next()));
         }
         recordSourceQueryTime.addAndGet(System.currentTimeMillis() - start);
     }
