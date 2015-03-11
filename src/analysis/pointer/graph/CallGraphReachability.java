@@ -1,9 +1,11 @@
 package analysis.pointer.graph;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import analysis.AnalysisUtil;
-import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
 import com.ibm.wala.classLoader.IMethod;
@@ -11,6 +13,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
+import com.ibm.wala.util.intset.MutableSparseIntSet;
 
 /**
  * Data structure that tracks whether a desination call graph node is reachable from a source call graph node
@@ -23,28 +26,18 @@ public final class CallGraphReachability {
     // Map<OrderedPair<IMethod,Context>,Set<OrderedPair<IMethod,Context>>>
     private ConcurrentIntMap<MutableIntSet> reachableFrom = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Map from call graph node to all nodes that can transitively reach that node via method calls, note that every
-     * node reaches itself
-     */
-    // Map<OrderedPair<IMethod,Context>,Set<OrderedPair<IMethod,Context>>>
-    private ConcurrentIntMap<MutableIntSet> reaches = AnalysisUtil.createConcurrentIntMap();
-
-    /**
-     * Used to submit program point reachability results when the results of this algorithm change
-     */
-    private final PointsToAnalysisHandle handle;
-    /**
      * Points-to graph
      */
     private final PointsToGraph g;
+    private final ProgramPointReachability ppr;
 
     /**
      * Create a new algorithm with empty caches
      *
      * @param handle Used to submit program point reachability results when the results of this algorithm change
      */
-    public CallGraphReachability(PointsToAnalysisHandle handle, PointsToGraph g) {
-        this.handle = handle;
+    public CallGraphReachability(ProgramPointReachability ppr, PointsToGraph g) {
+        this.ppr = ppr;
         this.g = g;
     }
 
@@ -84,35 +77,61 @@ public final class CallGraphReachability {
         return reachableDests == null ? false : reachableDests.contains(dest);
     }
 
+    private final AtomicLong addCallGraphEdgeTime = new AtomicLong(0);
+
     /**
-     * Notification that a callee was added to a given call site XXX Make sure this is thread safe!
+     * Notification that a callee was added to a given call site
      *
      * @param callerSite call site with the new callee
      * @param calleeCGNode call graph node that is the new callee
      */
     void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod,Context>*/int calleeCGNode) {
+        long start = System.currentTimeMillis();
+
         /*OrderedPair<IMethod,Context>*/int callerCGNode = getCGNodeForCallSite(callerSite);
-
-
-        // Add the edge to the reachableFrom cache
-        if (!recordReachableFrom(callerCGNode, calleeCGNode)) {
-            // The callee was already reachable from the caller
-            // Whoever added that edge is responsible for propagating it
+        if (getReachableFrom(callerCGNode).contains(calleeCGNode)) {
+            // The callee is already reachable from the caller
+            // Whoever made it reachable is responsible for propagating it
             return;
         }
 
-        // If you add something to the set then its your responsibility to propagate it
-
         // Everything reachable from the callee is now reachable from the caller (and any callers of the caller)
-        IntIterator callersOfCaller = getReaches(callerCGNode).intIterator();
-        while (callersOfCaller.hasNext()) {
-            int caller = callersOfCaller.next();
-            IntIterator calleesOfCallee = getReachableFrom(calleeCGNode).intIterator();
+        addToCallerTree(callerCGNode, getReachableFrom(calleeCGNode));
 
-            while (calleesOfCallee.hasNext()) {
-                int callee = calleesOfCallee.next();
-                recordReachableFrom(caller, callee);
+        addCallGraphEdgeTime.addAndGet(System.currentTimeMillis() - start);
+    }
+
+    /**
+     * The call graph nodes in setToAdd are transitively reachable from the caller, add them to its reachable set as
+     * well as to the reachable set of any callers of the caller.
+     *
+     * @param caller caller call graph node
+     * @param setToAdd call graph nodes that are reachable from the caller
+     * @return The set that was actually added
+     */
+    private void addToCallerTree(/*OrderedPair<IMethod,Context>*/int caller, /*Set<OrderedPair<IMethod,Context>>*/
+                                 IntSet setToAdd) {
+        MutableIntSet newlyReachable = MutableSparseIntSet.makeEmpty();
+        IntIterator toAddIterator = setToAdd.intIterator();
+
+        while (toAddIterator.hasNext()) {
+            int callee = toAddIterator.next();
+            if (recordReachableFrom(caller, callee)) {
+                // This is a newly reachable node
+                newlyReachable.add(callee);
             }
+        }
+
+        if (newlyReachable.isEmpty()) {
+            // Base case: nothing to propagate
+            return;
+        }
+
+        // Add anything newly reachable from the caller to its callers
+        /*Iterator<ProgramPointReplica>*/IntIterator callSitesCallingCaller = g.getCallersOf(caller).intIterator();
+        while (callSitesCallingCaller.hasNext()) {
+            int callerOfCaller = getCGNodeForCallSite(/*ProgramPointReplica*/callSitesCallingCaller.next());
+            addToCallerTree(callerOfCaller, newlyReachable);
         }
     }
 
@@ -123,49 +142,24 @@ public final class CallGraphReachability {
      * @param callee destination call graph node
      * @return true if this is a new relationship
      */
-    private boolean recordReachableFrom(int caller, int callee) {
+    private boolean recordReachableFrom(/*OrderedPair<IMethod,Context>*/int caller, /*OrderedPair<IMethod,Context>*/
+                                        int callee) {
         MutableIntSet s = getReachableFrom(caller);
         boolean added = s.add(callee);
         if (added) {
-            // This is a new edge
-
-            // Add the edge to the reverse map
-            getReaches(callee).add(caller);
-
-            // Notify any dependencies
+            // This is a new edge notify any dependencies
             ConcurrentIntMap<MutableIntSet> destinationMap = dependencies.get(caller);
             if (destinationMap != null) {
                 MutableIntSet deps = destinationMap.get(callee);
                 if (deps != null) {
                     IntIterator iter = deps.intIterator();
                     while (iter.hasNext()) {
-                        handle.submitReachabilityQuery(ProgramPointSubQuery.lookupDictionary(iter.next()));
+                        ppr.requestRerunQuery(iter.next());
                     }
                 }
             }
         }
         return added;
-    }
-
-
-    /**
-     * Get the set of call graph nodes that reach the given call graph node
-     *
-     * @param cgNode get nodes that reach this node
-     * @return set of nodes that reach the given node, always includes the node itself
-     */
-    private MutableIntSet getReaches(int cgNode) {
-        MutableIntSet s = reaches.get(cgNode);
-        if (s == null) {
-            s = AnalysisUtil.createDenseConcurrentIntSet(0);
-            // every node reaches itself
-            s.add(cgNode);
-            MutableIntSet existing = reaches.putIfAbsent(cgNode, s);
-            if (existing != null) {
-                s = existing;
-            }
-        }
-        return s;
     }
 
     /**
@@ -206,15 +200,19 @@ public final class CallGraphReachability {
      */
     void clearCaches() {
         reachableFrom = AnalysisUtil.createConcurrentIntMap();
-        reaches = AnalysisUtil.createConcurrentIntMap();
     }
 
     /**
      * Print information about the analysis so far
      */
     void printDiagnostics() {
-        // TODO Auto-generated method stub
-
+        double addEdge = addCallGraphEdgeTime.get() / 1000.0;
+        double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n%%%%%%%%%%%%%%%%% CALL GRAPH REACHABILITY %%%%%%%%%%%%%%%%%\n");
+        sb.append("\tAddCallGraphEdge: " + addEdge + "s; RATIO: " + addEdge / analysisTime + "\n");
+        sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println(sb.toString());
     }
 
     /**

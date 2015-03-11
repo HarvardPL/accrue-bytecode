@@ -91,7 +91,7 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.approx = new ApproximateCallSitesAndFieldAssignments(g);
-        this.callGraphReachability = new CallGraphReachability(analysisHandle, g);
+        this.callGraphReachability = new CallGraphReachability(this, g);
     }
 
     /**
@@ -1316,18 +1316,19 @@ public final class ProgramPointReachability {
     }
 
     /**
-     * Rerun the query mr if necessary. Will return true if the query was rerun, false if it did not need to be rerurn.
+     * Rerun the ProgramPointSubQuery ppSubQuery if necessary. Will return true if the query was rerun, false if it did
+     * not need to be rerurn.
      *
-     * @param mr
+     * @param ppSubQuery query to rerun
      */
-    boolean requestRerunQuery(/*ProgramPointSubQuery*/int mr) {
+    boolean requestRerunQuery(/*ProgramPointSubQuery*/int ppSubQuery) {
         totalRequests.incrementAndGet();
-        if (this.positiveCache.contains(mr)) {
+        if (this.positiveCache.contains(ppSubQuery)) {
             // the query is already guaranteed to be true.
             cachedResponses.incrementAndGet();
             return false;
         }
-        this.analysisHandle.submitReachabilityQuery(ProgramPointSubQuery.lookupDictionary(mr));
+        this.analysisHandle.submitReachabilityQuery(ProgramPointSubQuery.lookupDictionary(ppSubQuery));
         return true;
     }
 
@@ -1460,7 +1461,7 @@ public final class ProgramPointReachability {
 
     // Times
     private AtomicLong queryDepTime = new AtomicLong(0);
-    private AtomicLong relevantNodesTime = new AtomicLong(0);
+    AtomicLong callGraphReachabilityTime = new AtomicLong(0);
     private AtomicLong recordResultsTime = new AtomicLong(0);
     private AtomicLong totalTime = new AtomicLong(0);
     private AtomicLong destQueryTime = new AtomicLong(0);
@@ -1492,7 +1493,6 @@ public final class ProgramPointReachability {
     private AtomicInteger killQueryRequests = new AtomicInteger(0);
     private AtomicInteger methodQueryRequests = new AtomicInteger(0);
     private AtomicInteger reachabilityRequests = new AtomicInteger(0);
-    AtomicInteger relevantRequests = new AtomicInteger(0);
 
     public void printDiagnostics() {
         StringBuffer sb = new StringBuffer();
@@ -1510,7 +1510,7 @@ public final class ProgramPointReachability {
 
         double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
         double total = totalTime.get() / 1000.0;
-        double relevantNodes = relevantNodesTime.get() / 1000.0;
+        double callGraphReach = callGraphReachabilityTime.get() / 1000.0;
         double methodReach = methodReachTime.get() / 1000.0;
         double destQuery = destQueryTime.get() / 1000.0;
 
@@ -1530,7 +1530,6 @@ public final class ProgramPointReachability {
         double callerQueryRequestCount = callerQueryRequests.get();
         double killQueryRequestCount = killQueryRequests.get();
         double methodQueryRequestCount = methodQueryRequests.get();
-        double relevantRequestCount = relevantRequests.get();
         double reachabilityRequestCount = reachabilityRequests.get();
 
         sb.append("REACHABILITY QUERY EXECUTION\n");
@@ -1538,7 +1537,8 @@ public final class ProgramPointReachability {
         // Multiply by the number of threads to get the right ratios
         analysisTime *= analysisHandle.numThreads();
         sb.append("\tReachability: " + total + "s; RATIO: " + total / analysisTime + "\n");
-        sb.append("\tRelevant: " + relevantNodes + "s; RATIO: " + relevantNodes / analysisTime + "\n");
+        sb.append("\tCGReachability: " + callGraphReach + "s; RATIO: " + callGraphReach / analysisTime
+                + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
         sb.append("RECORD RESULTS" + "\n");
@@ -1564,8 +1564,6 @@ public final class ProgramPointReachability {
                 + (methodQueryRequestCount / totalRequests.get()) + "\n");
         sb.append("\treachabilityRequests: " + reachabilityRequestCount + " RATIO: "
                 + (reachabilityRequestCount / totalRequests.get()) + "\n");
-        sb.append("\trelevantNodeRequests: " + relevantRequestCount + " RATIO: "
-                + (relevantRequestCount / totalRequests.get()) + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
         System.err.println(sb.toString());
         callGraphReachability.printDiagnostics();

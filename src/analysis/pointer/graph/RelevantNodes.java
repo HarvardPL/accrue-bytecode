@@ -344,7 +344,7 @@ public final class RelevantNodes {
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
             while (iter.hasNext()) {
                 int mr = iter.next();
-                this.programPointReachability.relevantRequests.incrementAndGet();
+                // XXX this.programPointReachability.relevantRequests.incrementAndGet();
                 // need to re-run the query
                 if (!this.programPointReachability.requestRerunQuery(mr)) {
                     // no need to rerun this anymore, it was true
@@ -400,7 +400,7 @@ public final class RelevantNodes {
                 addStartItem(source, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
-                //this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
+                // XXX this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
             }
         }
     }
@@ -424,7 +424,7 @@ public final class RelevantNodes {
                 addStartItem(source, newItem);
 
                 // Make sure the query gets rerun by the analysis if it doesn't get triggered earlier
-                //this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
+                // XXX this.analysisHandle.submitSourceRelevantNodesQuery(new SourceRelevantNodesQuery(source));
             }
         }
     }
