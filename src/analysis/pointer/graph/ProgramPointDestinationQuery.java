@@ -468,7 +468,10 @@ public final class ProgramPointDestinationQuery {
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
             ReachabilityResult res = ReachabilityResult.UNREACHABLE;
-            if (ppr.getCallGraphReachability().isReachable(calleeInt, destinationCGNode, this.currentSubQuery)) {
+            long startCG = System.currentTimeMillis();
+            boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt, destinationCGNode, this.currentSubQuery);
+            ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
+            if (destReachable) {
                 // this is a relevant node get the results for the callee
                 res = getResults(calleeEntryIPPR, true, trigger);
                 if (res == ReachabilityResult.FOUND) {
