@@ -788,6 +788,26 @@ public class StatementFactory {
             this.key7 = key7;
         }
 
+        public StatementKey(Object key1, Object key2, Object key3, Object key4) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5, Object key6) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = key5;
+            this.key6 = key6;
+            this.key7 = null;
+        }
+
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
@@ -871,6 +891,12 @@ public class StatementFactory {
             result = prime * result + (this.key6 == null ? 0 : this.key6.hashCode());
             result = prime * result + (this.key7 == null ? 0 : this.key7.hashCode());
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "StatementKey [key1=" + key1 + ", key2=" + key2 + ", key3=" + key3 + ", key4=" + key4 + ", key5="
+                    + key5 + ", key6=" + key6 + ", key7=" + key7 + "]";
         }
     }
 }
