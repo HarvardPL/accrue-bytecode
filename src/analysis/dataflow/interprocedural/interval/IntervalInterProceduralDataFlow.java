@@ -32,7 +32,7 @@ public class IntervalInterProceduralDataFlow extends InterproceduralDataFlow<Var
     /**
      * Abstract heap locations accessible from each call graph node
      */
-    private final AccessibleLocationResults accessibleLocs;
+    final AccessibleLocationResults accessibleLocs;
 
     /**
      * should heap locations be tracked (flow-sensitively) in the var context
@@ -108,6 +108,11 @@ public class IntervalInterProceduralDataFlow extends InterproceduralDataFlow<Var
     @Override
     protected boolean existingResultSuitable(VarContext<IntervalAbsVal> newInput,
                                              analysis.dataflow.interprocedural.InterproceduralDataFlow.AnalysisRecord<VarContext<IntervalAbsVal>> existingResults) {
+        if (getOutputLevel() >= 2) {
+            System.err.println("NEW INPUT: " + newInput);
+            System.err.println("PREVIOUS: " + (existingResults == null ? "NONE" : existingResults.getInput()));
+            System.err.println("SUITABLE: " + (existingResults != null && newInput.leq(existingResults.getInput())));
+        }
         return existingResults != null && newInput.leq(existingResults.getInput());
     }
 

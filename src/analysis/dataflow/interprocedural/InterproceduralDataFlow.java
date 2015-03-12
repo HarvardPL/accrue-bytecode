@@ -175,6 +175,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
         i++;
         iterations.put(n, i);
         if (i >= 10000) {
+            outputLevel = 100;
+        }
+        if (i >= 10002) {
             throw new RuntimeException("Analyzed the same CG node " + i + " times: " + PrettyPrinter.cgNodeString(n));
         }
         return i;
@@ -268,6 +271,7 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
             System.err.println("GETTING:\n\t" + PrettyPrinter.cgNodeString(callee));
             System.err.println("\tFROM: " + PrettyPrinter.cgNodeString(caller));
             System.err.println("\tINPUT: " + input);
+            System.err.println("\tPREVIOUS: " + recordedResults.getRecord(callee));
         }
 
         incrementRequestCounter(callee);
@@ -284,6 +288,9 @@ public abstract class InterproceduralDataFlow<F extends AbstractValue<F>> {
                 recordedResults.setInitialRecord(callee, initial);
             } else {
                 // TODO use widen for back edges
+                if (getOutputLevel() >= 5) {
+                    System.err.println("\tUSING INPUT: " + input.join(recordedResults.getRecord(callee).getInput()));
+                }
                 recordedResults.updateInput(callee, input.join(recordedResults.getRecord(callee).getInput()), false);
             }
 

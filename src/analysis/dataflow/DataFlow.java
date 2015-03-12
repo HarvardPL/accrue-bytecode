@@ -156,6 +156,7 @@ public abstract class DataFlow<F> {
                     if (outputLevel >= 3) {
                         System.err.println("FLOWING BB" + current.getNumber() + ": in "
                                                         + PrettyPrinter.methodString(ir.getMethod()));
+                        System.err.println("\tINPUT: " + inItems);
                     }
 
                     if (inItems.isEmpty() && getPreds(current, g).hasNext()) {
