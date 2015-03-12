@@ -36,7 +36,7 @@ public class ApproximateCallSitesAndFieldAssignments {
     /**
      * THE ANALYSIS IS UNSOUND IF TRUE
      */
-    private static final boolean DO_NOT_RUN = true;
+    private static final boolean DO_NOT_RUN = false;
     /**
      * All no-target call sites that have been approximated so far
      */
