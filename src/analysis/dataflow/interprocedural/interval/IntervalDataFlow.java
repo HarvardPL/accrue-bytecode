@@ -250,62 +250,90 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         IntervalAbsVal interval1 = getLocal(in, i.getUse(0));
         IntervalAbsVal interval2 = getLocal(in, i.getUse(1));
+        if (interval1 == IntervalAbsVal.BOTTOM_ELEMENT || interval2 == IntervalAbsVal.BOTTOM_ELEMENT) {
+            // We don't have enough information to compute the result
+            return in.setLocal(i.getDef(), IntervalAbsVal.BOTTOM_ELEMENT);
+        }
 
         IBinaryOpInstruction.Operator op = (IBinaryOpInstruction.Operator) i.getOperator();
         IntervalAbsVal joined = null;
 
-        switch (op) {
+        switch_statement: switch (op) {
         case ADD:
-            joined = IntervalAbsVal.create(interval1.min + interval2.min, interval1.max + interval2.max);
+            double newMin = interval1.min + interval2.min;
+            double newMax = interval1.max + interval2.max;
+            if (Double.isNaN(newMin) || Double.isNaN(newMax)) {
+                // Adding infinity to negative infinity, assume we know nothing
+                joined = IntervalAbsVal.TOP_ELEMENT;
+                break;
+            }
+            joined = new IntervalAbsVal(interval1.min + interval2.min,
+                                        interval1.max + interval2.max,
+                                        interval1.containsNaN || interval2.containsNaN);
             break;
         case SUB:
-            joined = IntervalAbsVal.create(interval1.min - interval2.max, interval1.max - interval2.min);
+            newMin = interval1.min - interval2.max;
+            newMax = interval1.max - interval2.min;
+            if (Double.isNaN(newMin) || Double.isNaN(newMax)) {
+                // Adding infinity to negative infinity, assume we know nothing
+                joined = IntervalAbsVal.TOP_ELEMENT;
+                break;
+            }
+            joined = new IntervalAbsVal(newMin, newMax,
+                                        interval1.containsNaN || interval2.containsNaN);
             break;
         case MUL:
             double[] possibleMul = { interval1.min * interval2.min, interval1.min * interval2.max,
                     interval1.max * interval2.min, interval1.max * interval2.max };
             Arrays.sort(possibleMul);
-            joined = IntervalAbsVal.create(possibleMul[0], possibleMul[3]);
+            for (double d : possibleMul) {
+                if (Double.isNaN(d)) {
+                    // Multiplying infinity by negative infinity, assume we know nothing
+                    joined = IntervalAbsVal.TOP_ELEMENT;
+                    break switch_statement;
+                }
+            }
+            joined = new IntervalAbsVal(possibleMul[0], possibleMul[3], interval1.containsNaN || interval2.containsNaN);
             break;
         case DIV:
             if (interval2.containsZero()) {
-                if (interval1.containsZero()) {
-                    joined = IntervalAbsVal.create(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
-                }
-                else if (interval1.min > 0) {
-                    double minBoundary = interval2.min == 0. ? interval1.min / interval2.max : Double.NEGATIVE_INFINITY;
-                    double maxBoundary = interval2.max == 0. ? interval1.min / interval2.min : Double.POSITIVE_INFINITY;
-                    joined = IntervalAbsVal.create(minBoundary, maxBoundary);
-                }
-                else {
-                    double minBoundary = interval2.max == 0. ? interval1.max / interval2.min : Double.NEGATIVE_INFINITY;
-                    double maxBoundary = interval2.min == 0. ? interval1.max / interval2.max : Double.POSITIVE_INFINITY;
-                    joined = IntervalAbsVal.create(minBoundary, maxBoundary);
+                // We have to be careful here...
+
+                // If interval1 = [0,0] and interval2 = [0,0] what value do we give the results so that
+                // any expansion of either interval expands the result. It has to be some sort of BOTTOM, but with containsNaN to true.
+                // If we use this then I think there is no way to get around checking for this special value _everywhere_.
+                // We also have to worry about dividing infinity by infinity which also will give NaN
+                // TODO Lets just punt on division by 0 for now, we should be able to do better
+                joined = IntervalAbsVal.TOP_ELEMENT;
+                break;
+            }
+            // Non-zero divided
+            double[] possibleDiv = { interval1.min / interval2.min, interval1.min / interval2.max,
+                    interval1.max / interval2.min, interval1.max / interval2.max };
+            Arrays.sort(possibleDiv);
+            for (double d : possibleDiv) {
+                if (Double.isNaN(d)) {
+                    // Dividing +/- infinity by +/- infinity, assume we know nothing
+                    joined = IntervalAbsVal.TOP_ELEMENT;
+                    break switch_statement;
                 }
             }
-            else {
-                double[] possibleDiv = { interval1.min / interval2.min, interval1.min / interval2.max,
-                        interval1.max / interval2.min, interval1.max / interval2.max };
-                Arrays.sort(possibleDiv);
-                joined = IntervalAbsVal.create(possibleDiv[0], possibleDiv[3]);
-            }
+            joined = new IntervalAbsVal(possibleDiv[0], possibleDiv[3], interval1.containsNaN || interval2.containsNaN);
             break;
         case REM:
-            if (Double.isNaN(interval2.min)) {
-                // XXX HACK this needs to be fixed somehow, but NaN can't show up on the right side of the inteval
-                joined = IntervalAbsVal.BOTTOM_ELEMENT;
-            }
-            joined = IntervalAbsVal.create(0., Math.max(Math.abs(interval2.min), Math.abs(interval2.max)));
+            joined = new IntervalAbsVal(0.0,
+                                        Math.max(Math.abs(interval2.min), Math.abs(interval2.max)),
+                                        interval1.containsNaN || interval2.containsNaN);
             break;
         case AND:
         case OR:
         case XOR:
-            joined = IntervalAbsVal.create(0., 1.);
+            joined = new IntervalAbsVal(0.0, 1.0, interval1.containsNaN || interval2.containsNaN);
             break;
         }
 
         assert joined != null;
-        return in.setLocal(i.getDef(), joined.join(getLocal(in, i.getDef())));
+        return in.setLocal(i.getDef(), joined);
     }
 
     @Override
@@ -411,7 +439,9 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                               ISSABasicBlock current) {
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
-        VarContext<IntervalAbsVal> norm = in.setLocal(i.getDef(), IntervalAbsVal.POSITIVE);
+        VarContext<IntervalAbsVal> norm = in.setLocal(i.getDef(), new IntervalAbsVal(0.0,
+                                                                                     Double.POSITIVE_INFINITY,
+                                                                                     false));
         return factsToMapWithExceptions(norm, in, current, cfg);
     }
 
@@ -423,6 +453,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         VarContext<IntervalAbsVal> norm = in;
         if (i.getElementType().isPrimitiveType()) {
+            // TODO could probably track everything we put into the array and use that
             norm = norm.setLocal(i.getDef(), IntervalAbsVal.TOP_ELEMENT);
         }
         return factsToMapWithExceptions(norm, in, current, cfg);
@@ -433,6 +464,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                              Set<VarContext<IntervalAbsVal>> previousItems,
                                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                              ISSABasicBlock current) {
+        // TODO could probably track everything we put into the array and use that
         return mergeAndCreateMap(previousItems, current, cfg);
     }
 
@@ -448,7 +480,9 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         VarContext<IntervalAbsVal> norm = in.setLocal(i.getDef(), getLocal(vc, i.getDef()));
         VarContext<IntervalAbsVal> ae = in;
         if (!isConstant(i.getUse(1))) {
-            ae = in.setLocal(i.getUse(1), IntervalAbsVal.ZERO);
+            // If an exception is thrown we know the second argument is zero
+            boolean containsNaN = getLocal(vc, i.getUse(1)).containsNaN;
+            ae = in.setLocal(i.getUse(1), new IntervalAbsVal(0.0, 0.0, containsNaN));
         }
         return factsToMapWithExceptions(norm, ae, current, cfg);
     }
@@ -478,15 +512,18 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         VarContext<IntervalAbsVal> trueContext = in;
         VarContext<IntervalAbsVal> falseContext = in;
 
+        // TODO Use what we learn in branches even for non-constant arguments
+        boolean containsNaN = !i.isObjectComparison() ? getLocal(in, i.getUse(0)).containsNaN
+                || getLocal(in, i.getUse(1)).containsNaN : false;
         switch (op) {
         case EQ:
             if (fst != null && snd == null) {
                 // first argument is constant
-                trueContext = in.setLocal(i.getUse(1), IntervalAbsVal.create(fst, fst));
+                trueContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst, containsNaN));
             }
             else if (snd != null && fst == null) {
                 // second argument is constant
-                trueContext = in.setLocal(i.getUse(0), IntervalAbsVal.create(snd, snd));
+                trueContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd, containsNaN));
             }
             break;
         case GE:
@@ -546,7 +583,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             return factToMap(in, current, cfg);
         }
 
-        IntervalAbsVal newValue = IntervalAbsVal.BOTTOM_ELEMENT;
+        IntervalAbsVal newValue = null;
         // Get the program point for this instruction
         InterProgramPoint ipp = ptg.getRegistrar().getInsToPP().get(i).pre();
         InterProgramPointReplica ippr = InterProgramPointReplica.create(currentNode.getContext(), ipp);
@@ -558,7 +595,17 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             IntervalAbsVal inLoc = getLocation(in, loc);
             newValue = VarContext.safeJoinValues(newValue, inLoc);
         }
-        normal = normal.setLocal(i.getDef(), newValue);
+        if (newValue != null) {
+            normal = normal.setLocal(i.getDef(), newValue);
+        }
+        else {
+            if (outputLevel > 0) {
+                System.err.println("No locations found for field access " + i + " in "
+                        + PrettyPrinter.cgNodeString(currentNode));
+            }
+            // Assume missing location is an imprecision and set the result to TOP
+            normal = normal.setLocal(i.getDef(), IntervalAbsVal.TOP_ELEMENT);
+        }
 
         return factsToMapWithExceptions(normal, npe, current, cfg);
     }
@@ -649,7 +696,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                                      currentNode,
                                                                                      ippr);
                 for (AbstractLocation loc : locs) {
-                    normalOut = normalOut.setLocation(loc, IntervalAbsVal.ZERO);
+                    normalOut = normalOut.setLocation(loc, new IntervalAbsVal(0.0, 0.0, false));
                 }
             }
         }
@@ -794,7 +841,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             return itvl;
         }
-        return IntervalAbsVal.create(d, d);
+        return new IntervalAbsVal(d, d, false);
     }
 
     /**
