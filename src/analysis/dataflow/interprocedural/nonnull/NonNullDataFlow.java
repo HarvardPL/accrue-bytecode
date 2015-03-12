@@ -1105,7 +1105,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             // Literal string
             return NonNullAbsVal.NON_NULL;
         }
-        // Variable is not assigned yet be conservative
+        // XXX Is this right: Variable is not assigned yet be conservative and set to MAY_BE_NULL
         return NonNullAbsVal.MAY_BE_NULL;
     }
 }
