@@ -925,7 +925,7 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
 
         StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult(), ir.getMethod(), pp);
-        this.addStringStatement(stmtFactory.returnString(svv, summary, ir.getMethod()));
+        this.addStringStatement(stmtFactory.returnString(svv, summary, ir.getMethod(), i));
     }
 
     /**
