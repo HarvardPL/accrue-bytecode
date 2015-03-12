@@ -16,7 +16,7 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
     protected static final IntervalAbsVal POSITIVE = new IntervalAbsVal(0., Double.POSITIVE_INFINITY);
     protected static final IntervalAbsVal NEGATIVE = new IntervalAbsVal(Double.NEGATIVE_INFINITY, 0.);
 
-    public IntervalAbsVal(double min, double max) {
+    private IntervalAbsVal(double min, double max) {
         if (!Double.isNaN(min) && !Double.isNaN(max)) {
             assert min <= max : "min is " + min + " max is " + max;
         }
@@ -24,6 +24,20 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
         this.max = max > BOUND || max < (-1) * BOUND ? Double.POSITIVE_INFINITY : max;
     }
 
+    public static IntervalAbsVal create(double min, double max) {
+        if (Double.isNaN(min) && Double.isNaN(max)) {
+            return BOTTOM_ELEMENT;
+        }
+
+        if (Double.isNaN(min) || Double.isNaN(max)) {
+            throw new RuntimeException("The only absval containing NaN should be BOTTOM was " + min + ", " + max);
+        }
+
+        if (min == Double.NEGATIVE_INFINITY && max == Double.POSITIVE_INFINITY) {
+            return TOP_ELEMENT;
+        }
+        return new IntervalAbsVal(min, max);
+    }
 
     @Override
     public boolean leq(IntervalAbsVal that) {

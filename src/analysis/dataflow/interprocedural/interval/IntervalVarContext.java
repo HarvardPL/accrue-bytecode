@@ -10,13 +10,13 @@ public class IntervalVarContext extends VarContext<IntervalAbsVal> {
 
     /**
      * Create a new variable context with the given values
-     * 
+     *
      * @param locals values for local variables with the given value numbers
      * @param returnResult abstract value for the return result
      * @param exceptionValue abstract value for the exception thrown by the procedure
      * @param trackHeapLocations should heap locations be tracked (flow-sensitively) in the var context
      */
-    public IntervalVarContext(Map<Integer, IntervalAbsVal> locals, IntervalAbsVal returnResult,
+    private IntervalVarContext(Map<Integer, IntervalAbsVal> locals, IntervalAbsVal returnResult,
                               IntervalAbsVal exceptionValue, boolean trackHeapLocations) {
         super(locals,
               Collections.<AbstractLocation, IntervalAbsVal> emptyMap(),

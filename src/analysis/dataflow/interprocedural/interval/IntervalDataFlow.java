@@ -3,6 +3,7 @@ package analysis.dataflow.interprocedural.interval;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -133,7 +134,16 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 }
             }
 
-            out = interProc.getResults(currentNode, callee, initial);
+            if (callee.getMethod().isNative()) {
+                out = interProc.getResults(currentNode,
+                                           callee,
+                                           initial.retainAllLocations(Collections.<AbstractLocation> emptySet()));
+            }
+            else {
+                out = interProc.getResults(currentNode,
+                                       callee,
+                                       initial.retainAllLocations(((IntervalInterProceduralDataFlow) interProc).accessibleLocs.getResults(callee)));
+            }
 
             // join the formals to the previous formals
             VarContext<IntervalAbsVal> normal = out.get(ExitType.NORMAL);
@@ -246,47 +256,51 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         switch (op) {
         case ADD:
-            joined = new IntervalAbsVal(interval1.min + interval2.min, interval1.max + interval2.max);
+            joined = IntervalAbsVal.create(interval1.min + interval2.min, interval1.max + interval2.max);
             break;
         case SUB:
-            joined = new IntervalAbsVal(interval1.min - interval2.max, interval1.max - interval2.min);
+            joined = IntervalAbsVal.create(interval1.min - interval2.max, interval1.max - interval2.min);
             break;
         case MUL:
             double[] possibleMul = { interval1.min * interval2.min, interval1.min * interval2.max,
                     interval1.max * interval2.min, interval1.max * interval2.max };
             Arrays.sort(possibleMul);
-            joined = new IntervalAbsVal(possibleMul[0], possibleMul[3]);
+            joined = IntervalAbsVal.create(possibleMul[0], possibleMul[3]);
             break;
         case DIV:
             if (interval2.containsZero()) {
                 if (interval1.containsZero()) {
-                    joined = new IntervalAbsVal(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+                    joined = IntervalAbsVal.create(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
                 }
                 else if (interval1.min > 0) {
                     double minBoundary = interval2.min == 0. ? interval1.min / interval2.max : Double.NEGATIVE_INFINITY;
                     double maxBoundary = interval2.max == 0. ? interval1.min / interval2.min : Double.POSITIVE_INFINITY;
-                    joined = new IntervalAbsVal(minBoundary, maxBoundary);
+                    joined = IntervalAbsVal.create(minBoundary, maxBoundary);
                 }
                 else {
                     double minBoundary = interval2.max == 0. ? interval1.max / interval2.min : Double.NEGATIVE_INFINITY;
                     double maxBoundary = interval2.min == 0. ? interval1.max / interval2.max : Double.POSITIVE_INFINITY;
-                    joined = new IntervalAbsVal(minBoundary, maxBoundary);
+                    joined = IntervalAbsVal.create(minBoundary, maxBoundary);
                 }
             }
             else {
                 double[] possibleDiv = { interval1.min / interval2.min, interval1.min / interval2.max,
                         interval1.max / interval2.min, interval1.max / interval2.max };
                 Arrays.sort(possibleDiv);
-                joined = new IntervalAbsVal(possibleDiv[0], possibleDiv[3]);
+                joined = IntervalAbsVal.create(possibleDiv[0], possibleDiv[3]);
             }
             break;
         case REM:
-            joined = new IntervalAbsVal(0., Math.max(Math.abs(interval2.min), Math.abs(interval2.max)));
+            if (Double.isNaN(interval2.min)) {
+                // XXX HACK this needs to be fixed somehow, but NaN can't show up on the right side of the inteval
+                joined = IntervalAbsVal.BOTTOM_ELEMENT;
+            }
+            joined = IntervalAbsVal.create(0., Math.max(Math.abs(interval2.min), Math.abs(interval2.max)));
             break;
         case AND:
         case OR:
         case XOR:
-            joined = new IntervalAbsVal(0., 1.);
+            joined = IntervalAbsVal.create(0., 1.);
             break;
         }
 
@@ -468,11 +482,11 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         case EQ:
             if (fst != null && snd == null) {
                 // first argument is constant
-                trueContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst));
+                trueContext = in.setLocal(i.getUse(1), IntervalAbsVal.create(fst, fst));
             }
             else if (snd != null && fst == null) {
                 // second argument is constant
-                trueContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd));
+                trueContext = in.setLocal(i.getUse(0), IntervalAbsVal.create(snd, snd));
             }
             break;
         case GE:
@@ -780,7 +794,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             return itvl;
         }
-        return new IntervalAbsVal(d, d);
+        return IntervalAbsVal.create(d, d);
     }
 
     /**
