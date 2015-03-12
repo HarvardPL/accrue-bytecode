@@ -39,7 +39,7 @@ public class ReturnStringStatement extends StringStatement {
         AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("stringAnalysisReturn",
                                                                  JavaLangStringIClass,
                                                                  this.method,
-                                                                 summary,
+                                                                 null, /* XXX: this is probably a bug, not sure why cannot generate more than one IK for a given result */
                                                                  false);
         InstanceKey newIK = haf.record(asn, context);
         assert newIK != null;
