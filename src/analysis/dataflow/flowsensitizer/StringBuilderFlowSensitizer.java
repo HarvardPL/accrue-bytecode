@@ -42,9 +42,8 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.MethodReference;
 
-public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map<Integer, Integer>> {
+public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<SensitizerFact> {
 
-    private final Map<Integer, Set<Integer>> confluences;
     private final Map<SSAInstruction, Integer> subscriptForInstruction;
     private int prevSubscript = 0;
 
@@ -61,7 +60,6 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map
      */
     private StringBuilderFlowSensitizer(boolean forward) {
         super(forward);
-        this.confluences = new HashMap<>();
         this.subscriptForInstruction = new HashMap<>();
     }
 
@@ -69,10 +67,14 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map
      * Helper Methods
      */
 
-    private Map<Integer, Integer> definedAt(Map<Integer, Integer> fact, Integer varNum, SSAInstruction i) {
-        Map<Integer, Integer> m = new HashMap<>(fact);
-        m.put(varNum, getSubscriptForInstruction(i));
-        return m;
+    private SensitizerFact definedAt(SensitizerFact fact, Integer varNum, SSAInstruction i) {
+        //        System.err.println("[definedAt] varNum: " + varNum);
+        //        System.err.println("[definedAt] before: " + fact);
+        Set<Integer> s = new HashSet<>();
+        s.add(getSubscriptForInstruction(i));
+        SensitizerFact fact2 = fact.replaceSetAt(varNum, s);
+        //        System.err.println("[definedAt] after: " + fact2);
+        return fact2;
     }
 
     private int getSubscriptForInstruction(SSAInstruction i) {
@@ -86,54 +88,13 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map
         }
     }
 
-    private Map<Integer, Integer> joinMaps(Collection<Map<Integer, Integer>> c) {
-        Map<Integer, Integer> m = new HashMap<>();
-        Map<Integer, Set<Integer>> flattened = flatten(c);
-
-        for (Entry<Integer, Set<Integer>> kv : flattened.entrySet()) {
-            Integer k = kv.getKey();
-            Set<Integer> v = kv.getValue();
-
-            if (v.size() == 0) {
-                throw new RuntimeException("Unexpected empty set, check the implementation of flatten");
-            }
-            else if (v.size() == 1) {
-                m.put(k, v.iterator().next());
-            }
-            else {
-                ++this.prevSubscript;
-                this.confluences.put(this.prevSubscript, v);
-                m.put(k, this.prevSubscript);
-            }
-        }
-
-        return m;
+    private SensitizerFact joinMaps(Collection<SensitizerFact> c) {
+        return SensitizerFact.joinCollection(c);
     }
 
-    private static Map<Integer, Set<Integer>> flatten(Collection<Map<Integer, Integer>> c) {
-        Map<Integer, Set<Integer>> r = new HashMap<>();
-
-        for (Map<Integer, Integer> m : c) {
-            for (Entry<Integer, Integer> kv : m.entrySet()) {
-                Integer k = kv.getKey();
-                Integer v = kv.getValue();
-                if (r.containsKey(k)) {
-                    r.get(k).add(v);
-                }
-                else {
-                    Set<Integer> s = new HashSet<>();
-                    s.add(v);
-                    r.put(k, s);
-                }
-            }
-        }
-
-        return r;
-    }
-
-    private static Map<ISSABasicBlock, Map<Integer, Integer>> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
-                                                                                   Map<Integer, Integer> fact) {
-        Map<ISSABasicBlock, Map<Integer, Integer>> m = new HashMap<>();
+    private static Map<ISSABasicBlock, SensitizerFact> sameForAllSuccessors(Iterator<ISSABasicBlock> succNodes,
+                                                                            SensitizerFact fact) {
+        Map<ISSABasicBlock, SensitizerFact> m = new HashMap<>();
 
         while (succNodes.hasNext()) {
             ISSABasicBlock succ = succNodes.next();
@@ -174,12 +135,14 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map
         while (it.hasNext()) {
             SSAInstruction i = it.next();
 
-            Map<Integer, Integer> useSensitizer = joinMaps(this.getAnalysisRecord(i).getInput());
+            Map<Integer, Integer> useSensitizer = unitizeSets(joinMaps(this.getAnalysisRecord(i).getInput()),
+                                                              confluences,
+                                                              nextConfluenceSensitizer);
             useMap.put(i, useSensitizer);
 
-            Map<ISSABasicBlock, Map<Integer, Integer>> outputOrNull = this.getAnalysisRecord(i).getOutput();
+            Map<ISSABasicBlock, SensitizerFact> outputOrNull = this.getAnalysisRecord(i).getOutput();
             Map<Integer, Integer> defSensitizer = outputOrNull == null ? Collections.<Integer, Integer> emptyMap()
-                    : joinMaps(outputOrNull.values());
+                    : unitizeSets(joinMaps(outputOrNull.values()), confluences, nextConfluenceSensitizer);
 
             defMap.put(i, defSensitizer);
         }
@@ -209,11 +172,52 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map
      * NOTE: don't mutate `fact`!!
      */
 
-    private Map<ISSABasicBlock, Map<Integer, Integer>> flowGenericInvoke(SSAInvokeInstruction i,
-                                                                         Iterator<ISSABasicBlock> succNodes,
-                                                                         Map<Integer, Integer> fact) {
-        System.err.println("flowGenericInvoke(" + i.getCallSite().getDeclaredTarget().getName() + ", " + succNodes
-                + ", " + fact + ")");
+    private static Map<Integer, Integer> unitizeSets(SensitizerFact f,
+                                                     Map<Integer, Map<Set<Integer>, Integer>> confluences,
+                                                     int nextConfluenceSensitizer) {
+        Map<Integer, Integer> result = new HashMap<>();
+        Map<Integer, Set<Integer>> m = f.getMap();
+
+        for (Entry<Integer, Set<Integer>> kv : m.entrySet()) {
+            Integer var = kv.getKey();
+            Set<Integer> s = kv.getValue();
+
+            if (s.size() == 0) {
+                throw new RuntimeException("Sensitizing sets should not be empty: " + m);
+            }
+            else if (s.size() == 1) {
+                result.put(var, s.iterator().next());
+            }
+            else {
+                if (confluences.containsKey(var)) {
+                    if (confluences.get(var).containsKey(s)) {
+                        result.put(var, confluences.get(var).get(s));
+                    }
+                    else {
+                        Map<Set<Integer>, Integer> confluencesAtVar = confluences.get(var);
+                        confluencesAtVar.put(s, nextConfluenceSensitizer);
+                        result.put(var, nextConfluenceSensitizer);
+                        --nextConfluenceSensitizer;
+                    }
+                }
+                else {
+                    Map<Set<Integer>, Integer> confluencesAtVar = new HashMap<>();
+                    confluencesAtVar.put(s, nextConfluenceSensitizer);
+                    result.put(var, nextConfluenceSensitizer);
+                    confluences.put(var, confluencesAtVar);
+                    --nextConfluenceSensitizer;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private Map<ISSABasicBlock, SensitizerFact> flowGenericInvoke(SSAInvokeInstruction i,
+                                                                  Iterator<ISSABasicBlock> succNodes,
+                                                                  SensitizerFact fact) {
+        //        System.err.println("flowGenericInvoke(" + i.getCallSite().getDeclaredTarget().getName() + ", " + succNodes
+        //                + ", " + fact + ")");
         if (isNonStaticStringBuilderAppendMethod(i.getCallSite().getDeclaredTarget())) {
             // o0.append(o1)
             int arg = i.getUse(0);
@@ -228,236 +232,218 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Map
      */
 
     @Override
-    protected Map<Integer, Integer> flowBinaryOp(SSABinaryOpInstruction i, Set<Map<Integer, Integer>> previousItems,
-                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                 ISSABasicBlock current) {
+    protected SensitizerFact flowBinaryOp(SSABinaryOpInstruction i, Set<SensitizerFact> previousItems,
+                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<Integer, Integer> flowComparison(SSAComparisonInstruction i,
-                                                   Set<Map<Integer, Integer>> previousItems,
-                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                   ISSABasicBlock current) {
-        return joinMaps(previousItems);
-    }
-
-    @Override
-    protected Map<Integer, Integer> flowConversion(SSAConversionInstruction i,
-                                                   Set<Map<Integer, Integer>> previousItems,
-                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                   ISSABasicBlock current) {
-        return joinMaps(previousItems);
-    }
-
-    @Override
-    protected Map<Integer, Integer> flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
-                                                           Set<Map<Integer, Integer>> previousItems,
-                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                           ISSABasicBlock current) {
-        return joinMaps(previousItems);
-    }
-
-    @Override
-    protected Map<Integer, Integer> flowGetStatic(SSAGetInstruction i, Set<Map<Integer, Integer>> previousItems,
-                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                  ISSABasicBlock current) {
-        return joinMaps(previousItems);
-    }
-
-    @Override
-    protected Map<Integer, Integer> flowInstanceOf(SSAInstanceofInstruction i,
-                                                   Set<Map<Integer, Integer>> previousItems,
-                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                   ISSABasicBlock current) {
-        return joinMaps(previousItems);
-    }
-
-    @Override
-    protected Map<Integer, Integer> flowPhi(SSAPhiInstruction i, Set<Map<Integer, Integer>> previousItems,
+    protected SensitizerFact flowComparison(SSAComparisonInstruction i, Set<SensitizerFact> previousItems,
                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<Integer, Integer> flowPutStatic(SSAPutInstruction i, Set<Map<Integer, Integer>> previousItems,
-                                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                  ISSABasicBlock current) {
+    protected SensitizerFact flowConversion(SSAConversionInstruction i, Set<SensitizerFact> previousItems,
+                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<Integer, Integer> flowUnaryNegation(SSAUnaryOpInstruction i,
-                                                      Set<Map<Integer, Integer>> previousItems,
-                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                      ISSABasicBlock current) {
+    protected SensitizerFact flowGetCaughtException(SSAGetCaughtExceptionInstruction i,
+                                                    Set<SensitizerFact> previousItems,
+                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                    ISSABasicBlock current) {
         return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowArrayLength(SSAArrayLengthInstruction i,
-                                                                         Set<Map<Integer, Integer>> previousItems,
-                                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                         ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    protected SensitizerFact flowGetStatic(SSAGetInstruction i, Set<SensitizerFact> previousItems,
+                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowArrayLoad(SSAArrayLoadInstruction i,
-                                                                       Set<Map<Integer, Integer>> previousItems,
-                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                       ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    protected SensitizerFact flowInstanceOf(SSAInstanceofInstruction i, Set<SensitizerFact> previousItems,
+                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowArrayStore(SSAArrayStoreInstruction i,
-                                                                        Set<Map<Integer, Integer>> previousItems,
-                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                        ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    protected SensitizerFact flowPhi(SSAPhiInstruction i, Set<SensitizerFact> previousItems,
+                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowBinaryOpWithException(SSABinaryOpInstruction i,
-                                                                                   Set<Map<Integer, Integer>> previousItems,
-                                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                                   ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    protected SensitizerFact flowPutStatic(SSAPutInstruction i, Set<SensitizerFact> previousItems,
+                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
+        return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowCheckCast(SSACheckCastInstruction i,
-                                                                       Set<Map<Integer, Integer>> previousItems,
-                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                       ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    protected SensitizerFact flowUnaryNegation(SSAUnaryOpInstruction i, Set<SensitizerFact> previousItems,
+                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                               ISSABasicBlock current) {
+        return joinMaps(previousItems);
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowConditionalBranch(SSAConditionalBranchInstruction i,
-                                                                               Set<Map<Integer, Integer>> previousItems,
-                                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                               ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowGetField(SSAGetInstruction i,
-                                                                      Set<Map<Integer, Integer>> previousItems,
-                                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                      ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowInvokeInterface(SSAInvokeInstruction i,
-                                                                             Set<Map<Integer, Integer>> previousItems,
-                                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                             ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowInvokeSpecial(SSAInvokeInstruction i,
-                                                                           Set<Map<Integer, Integer>> previousItems,
-                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                           ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowInvokeStatic(SSAInvokeInstruction i,
-                                                                          Set<Map<Integer, Integer>> previousItems,
-                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                          ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowInvokeVirtual(SSAInvokeInstruction i,
-                                                                           Set<Map<Integer, Integer>> previousItems,
-                                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                           ISSABasicBlock current) {
-        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowGoto(SSAGotoInstruction i,
-                                                                  Set<Map<Integer, Integer>> previousItems,
+    protected Map<ISSABasicBlock, SensitizerFact> flowArrayLength(SSAArrayLengthInstruction i,
+                                                                  Set<SensitizerFact> previousItems,
                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                   ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowLoadMetadata(SSALoadMetadataInstruction i,
-                                                                          Set<Map<Integer, Integer>> previousItems,
-                                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                          ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, SensitizerFact> flowArrayLoad(SSAArrayLoadInstruction i,
+                                                                Set<SensitizerFact> previousItems,
+                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowMonitor(SSAMonitorInstruction i,
-                                                                     Set<Map<Integer, Integer>> previousItems,
-                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                     ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, SensitizerFact> flowArrayStore(SSAArrayStoreInstruction i,
+                                                                 Set<SensitizerFact> previousItems,
+                                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                 ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowNewArray(SSANewInstruction i,
-                                                                      Set<Map<Integer, Integer>> previousItems,
+    protected Map<ISSABasicBlock, SensitizerFact> flowBinaryOpWithException(SSABinaryOpInstruction i,
+                                                                            Set<SensitizerFact> previousItems,
+                                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                            ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowCheckCast(SSACheckCastInstruction i,
+                                                                Set<SensitizerFact> previousItems,
+                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowConditionalBranch(SSAConditionalBranchInstruction i,
+                                                                        Set<SensitizerFact> previousItems,
+                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                        ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowGetField(SSAGetInstruction i, Set<SensitizerFact> previousItems,
+                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                               ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowInvokeInterface(SSAInvokeInstruction i,
+                                                                      Set<SensitizerFact> previousItems,
                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                       ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowNewObject(SSANewInstruction i,
-                                                                       Set<Map<Integer, Integer>> previousItems,
-                                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                       ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowPutField(SSAPutInstruction i,
-                                                                      Set<Map<Integer, Integer>> previousItems,
-                                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                      ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
-    }
-
-    @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowReturn(SSAReturnInstruction i,
-                                                                    Set<Map<Integer, Integer>> previousItems,
+    protected Map<ISSABasicBlock, SensitizerFact> flowInvokeSpecial(SSAInvokeInstruction i,
+                                                                    Set<SensitizerFact> previousItems,
                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                     ISSABasicBlock current) {
-        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowSwitch(SSASwitchInstruction i,
-                                                                    Set<Map<Integer, Integer>> previousItems,
+    protected Map<ISSABasicBlock, SensitizerFact> flowInvokeStatic(SSAInvokeInstruction i,
+                                                                   Set<SensitizerFact> previousItems,
+                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                   ISSABasicBlock current) {
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowInvokeVirtual(SSAInvokeInstruction i,
+                                                                    Set<SensitizerFact> previousItems,
                                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                     ISSABasicBlock current) {
+        return flowGenericInvoke(i, cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowGoto(SSAGotoInstruction i, Set<SensitizerFact> previousItems,
+                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                           ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowThrow(SSAThrowInstruction i,
-                                                                   Set<Map<Integer, Integer>> previousItems,
+    protected Map<ISSABasicBlock, SensitizerFact> flowLoadMetadata(SSALoadMetadataInstruction i,
+                                                                   Set<SensitizerFact> previousItems,
                                                                    ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                    ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
     }
 
     @Override
-    protected Map<ISSABasicBlock, Map<Integer, Integer>> flowEmptyBlock(Set<Map<Integer, Integer>> inItems,
-                                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
-                                                                        ISSABasicBlock current) {
+    protected Map<ISSABasicBlock, SensitizerFact> flowMonitor(SSAMonitorInstruction i,
+                                                              Set<SensitizerFact> previousItems,
+                                                              ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                              ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowNewArray(SSANewInstruction i, Set<SensitizerFact> previousItems,
+                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                               ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowNewObject(SSANewInstruction i, Set<SensitizerFact> previousItems,
+                                                                ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowPutField(SSAPutInstruction i, Set<SensitizerFact> previousItems,
+                                                               ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                               ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowReturn(SSAReturnInstruction i, Set<SensitizerFact> previousItems,
+                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                             ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowSwitch(SSASwitchInstruction i, Set<SensitizerFact> previousItems,
+                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                             ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowThrow(SSAThrowInstruction i, Set<SensitizerFact> previousItems,
+                                                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                            ISSABasicBlock current) {
+        return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(previousItems));
+    }
+
+    @Override
+    protected Map<ISSABasicBlock, SensitizerFact> flowEmptyBlock(Set<SensitizerFact> inItems,
+                                                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
+                                                                 ISSABasicBlock current) {
         return sameForAllSuccessors(cfg.getSuccNodes(current), joinMaps(inItems));
     }
 
