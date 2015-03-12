@@ -182,7 +182,6 @@ public class AccrueAnalysisMain {
                 numNodes++;
             }
             System.err.println(numNodes + " CGNodes");
-            graph = g;
             break;
         case "maincfg":
             entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
@@ -269,7 +268,9 @@ public class AccrueAnalysisMain {
             r = runReachability(otherOutputLevel, g, rvCache, null);
             alr = runAccesibleLocations(otherOutputLevel, g, r, rvCache);
             IntervalResults interval = runInterval(outputLevel, g, r, rvCache, alr);
-            interval.writeAllToFiles(r, outputDir);
+            if (fileLevel > 0) {
+                interval.writeAllToFiles(r, outputDir);
+            }
             break;
         case "precise-ex":
             results = generatePointsToGraph(outputLevel,
@@ -588,6 +589,7 @@ public class AccrueAnalysisMain {
         printSingleCFG(ir, outputDir + "/" + mainCFGFileName + "_main");
 
         ReferenceVariableCache rvCache = registrar.getRvCache();
+        graph = g;
         return new OrderedPair<>(g, rvCache);
     }
 
