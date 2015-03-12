@@ -27,7 +27,7 @@ public class RWSATest {
             classNameSB.append("instruction.");
             classNameSB.append("RWSATest");
 
-            //            Object o2 = Class.forName(classNameSB.toString()).newInstance();
+            Object o2 = Class.forName(classNameSB.toString()).newInstance();
         }
     }
 
