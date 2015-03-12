@@ -150,7 +150,7 @@ public final class CallGraphReachability {
             // This is a new edge notify any dependencies
             ConcurrentIntMap<MutableIntSet> destinationMap = dependencies.get(caller);
             if (destinationMap != null) {
-                MutableIntSet deps = destinationMap.get(callee);
+                MutableIntSet deps = destinationMap.remove(callee);
                 if (deps != null) {
                     IntIterator iter = deps.intIterator();
                     while (iter.hasNext()) {
