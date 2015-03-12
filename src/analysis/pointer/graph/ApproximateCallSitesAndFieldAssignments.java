@@ -32,6 +32,11 @@ public class ApproximateCallSitesAndFieldAssignments {
      * Print the call sites and field assigns that are being approximated
      */
     private static final boolean PRINT_APPROXIMATIONS = false;
+
+    /**
+     * THE ANALYSIS IS UNSOUND IF TRUE
+     */
+    private static final boolean DO_NOT_RUN = true;
     /**
      * All no-target call sites that have been approximated so far
      */
@@ -80,6 +85,10 @@ public class ApproximateCallSitesAndFieldAssignments {
      * @return the next approximation to be made
      */
     public Approximation findNextApproximation() {
+        if (DO_NOT_RUN) {
+            return Approximation.NONE;
+        }
+
         // XXX Reset the visited set and start from the beginning
         allVisited = AnalysisUtil.createConcurrentSet();
         lastVisited = null;
