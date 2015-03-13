@@ -250,4 +250,36 @@ public final class CallGraphReachability {
         }
         s.add(triggeringQuery);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        IntIterator iter = reachableFrom.keyIterator();
+        while (iter.hasNext()) {
+            int cg = iter.next();
+            int size = 0;
+            IntIterator reachable = reachableFrom.get(cg).intIterator();
+            while (reachable.hasNext()) {
+                reachable.next();
+                size++;
+            }
+            if (size < 10000) {
+                sb.append("0");
+            }
+            if (size < 1000) {
+                sb.append("0");
+            }
+            if (size < 100) {
+                sb.append("0");
+            }
+            if (size < 10) {
+                sb.append("0");
+            }
+            sb.append(size);
+            sb.append(" ");
+            sb.append(g.lookupCallGraphNodeDictionary(cg));
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
 }

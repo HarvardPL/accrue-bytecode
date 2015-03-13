@@ -219,6 +219,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
         System.err.println("OVERAPPROXIMATED field assignments "
                 + ProgramPointReachability.nonEmptyApproximatedKillSets.size());
+        System.err.println("\n*******************************\n");
+        System.out.println(g.ppReach.getCallGraphReachability());
+        System.err.println("\n*******************************\n");
 
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
