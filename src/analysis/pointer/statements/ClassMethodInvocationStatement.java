@@ -244,7 +244,8 @@ public class ClassMethodInvocationStatement extends
                                                                                      result,
                                                                                      false);
                             InstanceKey newik = haf.record(asn, context);
-                            System.out.println("Adding edge from " + resultReplica + " to " + newik);
+                            System.err.println("[ClassMethodInvocationStatement] newInstance " + resultReplica
+                                    + " also points to " + newik + ", classes: " + klass);
                             changed.combine(g.addEdge(resultReplica, newik));
                         }
                     }
