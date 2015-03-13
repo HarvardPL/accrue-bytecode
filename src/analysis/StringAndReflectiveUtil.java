@@ -77,6 +77,12 @@ public class StringAndReflectiveUtil {
         return iclass.equals(JavaLangStringIClass) || iclass.equals(JavaLangStringBuilderIClass);
     }
 
+    public static boolean isStringMutatingMethod(MethodReference m) {
+        IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
+        return im.equals(stringBuilderAppendObjectIMethod) || im.equals(stringBuilderAppendStringBuilderIMethod)
+                || im.equals(stringBuilderAppendStringIMethod) || im.equals(stringBuilderInitIMethod);
+    }
+
     public static boolean isStringMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
         return im.equals(stringBuilderAppendStringBuilderIMethod) || im.equals(stringBuilderAppendStringIMethod)

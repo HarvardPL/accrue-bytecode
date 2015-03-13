@@ -105,7 +105,7 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
     }
 
     private static boolean isNonStaticStringBuilderAppendMethod(MethodReference m) {
-        return StringAndReflectiveUtil.isStringMethod(m) || StringAndReflectiveUtil.isStringInitMethod(m);
+        return StringAndReflectiveUtil.isStringMutatingMethod(m);
     }
 
     /*
