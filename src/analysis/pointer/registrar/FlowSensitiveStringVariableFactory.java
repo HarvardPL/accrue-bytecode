@@ -93,8 +93,6 @@ public final class FlowSensitiveStringVariableFactory {
         // return m.getOrDefault(a, initialSubscript);
         Integer maybeValue = m.get(a);
         if (maybeValue == null) {
-            System.err.println("Variable " + a + " was unmapped (in " + m + "), returning the default "
-                    + initialSubscript + ".");
             return initialSubscript;
         }
         else {
