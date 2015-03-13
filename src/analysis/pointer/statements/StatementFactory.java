@@ -703,23 +703,20 @@ public class StatementFactory {
     }
 
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
-                                       ReferenceVariable result, ReferenceVariable receiver,
-                                       List<StringVariable> actuals) {
+                                         ReferenceVariable result, List<StringVariable> actuals) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
-        assert receiver != null;
         assert actuals != null;
 
         assert stringStatementNeverCreatedBefore(new StatementKey(callSite,
                                                                   caller,
                                                                   callee,
                                                                   result,
-                                                                  receiver,
                                                                   actuals,
                                                                   null));
 
-        return new ForNameCallStatement(callSite, caller, callee, result, receiver, actuals);
+        return new ForNameCallStatement(callSite, caller, callee, result, actuals);
 
     }
 
@@ -728,6 +725,7 @@ public class StatementFactory {
 
     private boolean stringStatementNeverCreatedBefore(StatementKey statementKey) {
         if (stringStatementMap.containsKey(statementKey)) {
+            System.err.println("I already saw: " + statementKey);
             return false;
         }
         else {

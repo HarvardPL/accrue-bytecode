@@ -25,6 +25,7 @@ import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
 import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.ClassInitStatement;
+import analysis.pointer.statements.ClassMethodInvocationStatement;
 import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.ExceptionAssignmentStatement;
 import analysis.pointer.statements.FieldToLocalStatement;
@@ -541,7 +542,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         Queue<StmtAndContext> calls =
         //        new LinkedList<>();
         Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
-        Queue<StmtAndContext> stringsAndForName = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> stringStatements = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
+        Queue<StmtAndContext> reflectiveStatements = Collections.asLifoQueue(new ArrayDeque<StmtAndContext>());
 
         ArrayList<Queue<StmtAndContext>> ordered = new ArrayList<>();
 
@@ -551,7 +553,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             ordered.add(fieldWrites);
             ordered.add(base);
             ordered.add(calls);
-            ordered.add(stringsAndForName);
+            ordered.add(stringStatements);
+            ordered.add(reflectiveStatements);
         }
 
         @Override
@@ -574,8 +577,11 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     || stmt instanceof StaticFieldToLocalStatement || stmt instanceof ExceptionAssignmentStatement) {
                 return localAssigns.offer(sac);
             }
-            if (stmt instanceof StringStatement || stmt instanceof ForNameCallStatement) {
-                return stringsAndForName.offer(sac);
+            if (stmt instanceof StringStatement) {
+                return stringStatements.offer(sac);
+            }
+            if (stmt instanceof ForNameCallStatement || stmt instanceof ClassMethodInvocationStatement) {
+                return reflectiveStatements.offer(sac);
             }
             throw new IllegalArgumentException("Don't know how to handle a " + stmt.getClass());
         }

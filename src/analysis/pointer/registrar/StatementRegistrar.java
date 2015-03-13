@@ -655,6 +655,19 @@ public class StatementRegistrar {
                                                      actuals,
                                                      exception,
                                                      calleeSummary));
+
+            if (ForNameCallStatement.isForNameCall(i)) {
+                List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
+                for (int j = 0; j < i.getNumberOfParameters(); ++j) {
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), pp));
+                }
+                this.addStatement(stmtFactory.forNameCall(i.getCallSite(),
+                                                          ir.getMethod(),
+                                                          i.getDeclaredTarget(),
+                                                          result,
+                                                          svarguments));
+
+            }
         }
         else if (i.isSpecial()) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
@@ -714,19 +727,6 @@ public class StatementRegistrar {
                                                                      svreceiverDef,
                                                                      svarguments,
                                                                      stringVariableFactory));
-            }
-            else if (ForNameCallStatement.isForNameCall(i)) {
-                List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
-                for (int j = 0; j < i.getNumberOfParameters(); ++j) {
-                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), pp));
-                }
-                this.addStatement(stmtFactory.forNameCall(i.getCallSite(),
-                                                          ir.getMethod(),
-                                                          i.getDeclaredTarget(),
-                                                          result,
-                                                          receiver,
-                                                          svarguments));
-
             }
 
             this.addStatement(stmtFactory.virtualCall(i.getCallSite(),

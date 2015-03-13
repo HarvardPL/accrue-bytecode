@@ -1,5 +1,6 @@
 package analysis.pointer.statements;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,22 +44,21 @@ public class ForNameCallStatement extends PointsToStatement {
     private final IMethod caller;
     private final MethodReference callee;
     private final ReferenceVariable result;
-    private final ReferenceVariable receiver;
     private final List<StringVariable> actuals;
 
     public static boolean isForNameCall(SSAInvokeInstruction i) {
         IMethod m = AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget());
+        System.err.println("Comparing " + m + " to " + JavaLangClassForNameIMethod);
         return m.equals(JavaLangClassForNameIMethod);
     }
 
     public ForNameCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
-                                ReferenceVariable result, ReferenceVariable receiver, List<StringVariable> actuals) {
+                                ReferenceVariable result, List<StringVariable> actuals) {
         super(caller);
         this.callSite = callSite;
         this.caller = caller;
         this.callee = callee;
         this.result = result;
-        this.receiver = receiver;
         this.actuals = actuals;
         assert actuals.size() == 1 || actuals.size() == 3 : "actuals " + actuals + ", size: " + actuals.size();
     }
@@ -68,6 +68,9 @@ public class ForNameCallStatement extends PointsToStatement {
                                   GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica resultRVR = new ReferenceVariableReplica(context, this.result, haf);
         StringVariableReplica nameSVR = new StringVariableReplica(context, this.actuals.get(0));
+
+        g.recordStringDependency(nameSVR, originator);
+        System.err.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
 
         GraphDelta changed = new GraphDelta(g);
         PointsToIterable pti = delta == null ? g : delta;
@@ -82,10 +85,12 @@ public class ForNameCallStatement extends PointsToStatement {
 
         if (nameSIK.isNone()) {
             // XXX: What should we do if there's no known strings?
+            System.err.println("[ForNameCallStatement] There are no known strings for " + nameSVR);
         }
         else {
             FiniteSet<String> strings = nameSIK.get().getFiniteStringSet();
             FiniteSet<IClass> classes;
+            System.err.println("[ForNameCallStatement] reaching strings are " + strings);
             if (strings.isTop()) {
                 classes = FiniteSet.makeTop(MAX_STRING_SET_SIZE);
             }
@@ -105,6 +110,7 @@ public class ForNameCallStatement extends PointsToStatement {
                                                                      caller,
                                                                      result,
                                                                      false);
+            System.err.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
             changed.combine(g.addEdge(resultRVR, ClassInstanceKey.make(classes)));
         }
         return changed;
@@ -140,7 +146,8 @@ public class ForNameCallStatement extends PointsToStatement {
 
     @Override
     public List<ReferenceVariable> getUses() {
-        throw new RuntimeException("No reference variable uses, don't call this method");
+        return Collections.emptyList();
+        //        throw new RuntimeException("No reference variable uses, don't call this method");
         //        List<ReferenceVariable> uses = new ArrayList<>();
         //        uses.addAll(actuals);
         //        return uses;
