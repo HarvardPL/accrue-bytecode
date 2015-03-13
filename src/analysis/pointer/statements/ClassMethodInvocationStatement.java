@@ -134,6 +134,7 @@ public class ClassMethodInvocationStatement extends
                                                                      caller,
                                                                      result,
                                                                      false);
+            System.err.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
             changed.combine(g.addEdge(resultReplica, ClassInstanceKey.makeSet(MAX_CLASS_SET_SIZE, classes)));
             return changed;
         }
@@ -244,8 +245,7 @@ public class ClassMethodInvocationStatement extends
                                                                                      result,
                                                                                      false);
                             InstanceKey newik = haf.record(asn, context);
-                            System.err.println("[ClassMethodInvocationStatement] newInstance " + resultReplica
-                                    + " also points to " + newik + ", classes: " + klass);
+                            System.err.println("[ClassMethodInvocationStatement.newInstanceRM] class: " + klass);
                             changed.combine(g.addEdge(resultReplica, newik));
                         }
                     }

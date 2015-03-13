@@ -80,6 +80,7 @@ public class StringMethodCall extends StringStatement {
 
         PointsToIterable pti = delta == null ? g : delta;
 
+        System.err.println("[StringMethodCall." + this.invokedMethod + "] " + this);
         switch (this.invokedMethod) {
         case concatM: {
             GraphDelta newDelta = new GraphDelta(g);
@@ -88,33 +89,25 @@ public class StringMethodCall extends StringStatement {
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
             g.recordStringDependency(receiverUseSVR, originator);
-            System.err.println("[concatM] Using " + receiverUseSVR + " = " + g.getAStringFor(receiverUseSVR));
             g.recordStringDependency(argumentSVRs.get(1), originator);
-            System.err.println("[concatM] Using " + argumentSVRs.get(1) + " = " + g.getAStringFor(argumentSVRs.get(1)));
 
             AString maybeReceiverAString = g.getAStringFor(receiverUseSVR);
             AString maybeArgumentAString = g.getAStringFor(argumentSVRs.get(1));
 
-            System.err.println("[concatM] I am " + this);
-
             AString newSIK = maybeReceiverAString.concat(maybeArgumentAString);
-            System.err.println("[concatM] g.stringVariableReplicaJoinAt(" + receiverDefSVR + ", " + newSIK + ")");
             newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
-            System.err.println("[concatM] " + receiverDefSVR + " <- " + g.getAStringFor(receiverDefSVR));
             return newDelta;
         }
         case toStringM: {
             GraphDelta newDelta = new GraphDelta(g);
 
             g.recordStringDependency(receiverUseSVR, originator);
-            System.err.println("[concatM] Using " + receiverUseSVR + " = " + g.getAStringFor(receiverUseSVR));
 
             newDelta.combine(g.stringVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
 
             return new GraphDelta(g);
         }
         case somethingElseM: {
-            System.err.println("[StringMethodCall.process] Whoops!");
             return new GraphDelta(g);
         }
         default: {
