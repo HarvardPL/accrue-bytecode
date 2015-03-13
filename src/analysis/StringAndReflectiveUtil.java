@@ -54,9 +54,18 @@ public class StringAndReflectiveUtil {
     public static final IMethod stringBuilderAppendObjectIMethod = methodReferenceToIMethod(stringBuilderAppendObjectMethod);
     public static final IMethod stringBuilderInitIMethod = methodReferenceToIMethod(stringBuilderInitMethod);
     public static final IMethod abstractStringBuilderInitIMethod = methodReferenceToIMethod(abstractStringBuilderInitMethod);
+    public static final IMethod stringBuilderToStringIMethod = getIMethod(JavaLangStringBuilderTypeReference,
+                                                                          "toString",
+                                                                          "()Ljava/lang/String;");
 
     private static IMethod methodReferenceToIMethod(MethodReference m) {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
+    }
+
+    private static IMethod getIMethod(TypeReference type, String atom, String desc) {
+        return methodReferenceToIMethod(MethodReference.findOrCreate(type,
+                                                                     Atom.findOrCreateUnicodeAtom(atom),
+                                                                     Descriptor.findOrCreateUTF8(Language.JAVA, desc)));
     }
 
     private static IClass typeReferenceToIClass(TypeReference tr) {
