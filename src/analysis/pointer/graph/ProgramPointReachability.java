@@ -613,6 +613,10 @@ public final class ProgramPointReachability {
                         KilledAndAlloced postNormal = getOrCreate(results, cspp.getNormalExit().post());
                         postNormal.setEmpty();
                         q.add(cspp.getNormalExit().post());
+
+                        KilledAndAlloced postEx = getOrCreate(results, cspp.getExceptionExit().post());
+                        postEx.setEmpty();
+                        q.add(cspp.getExceptionExit().post());
                         continue;
                     }
 

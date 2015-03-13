@@ -456,7 +456,7 @@ public final class ProgramPointDestinationQuery {
                 }
             }
             // This is a call site with no callees that we approximate by assuming it can terminate normally
-            return ReachabilityResult.NORMAL_EXIT;
+            return ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT;
         }
 
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
