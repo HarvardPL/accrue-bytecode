@@ -34,13 +34,16 @@ public class StringMethodCall extends StringStatement {
     private final FlowSensitiveStringVariableFactory stringVariableFactory;
 
     private enum MethodEnum {
-        concatM, somethingElseM
+        concatM, toStringM, somethingElseM
     }
 
     private static MethodEnum imethodToMethodEnum(IMethod m) {
         if (m.equals(StringAndReflectiveUtil.stringBuilderAppendStringBuilderIMethod)
                 || m.equals(StringAndReflectiveUtil.stringBuilderAppendStringIMethod)) {
             return MethodEnum.concatM;
+        }
+        else if (m.equals(StringAndReflectiveUtil.stringBuilderToStringIMethod)) {
+            return MethodEnum.toStringM;
         }
         else {
             return MethodEnum.somethingElseM;
@@ -99,6 +102,16 @@ public class StringMethodCall extends StringStatement {
             newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
             System.err.println("[concatM] " + receiverDefSVR + " <- " + g.getAStringFor(receiverDefSVR));
             return newDelta;
+        }
+        case toStringM: {
+            GraphDelta newDelta = new GraphDelta(g);
+
+            g.recordStringDependency(receiverUseSVR, originator);
+            System.err.println("[concatM] Using " + receiverUseSVR + " = " + g.getAStringFor(receiverUseSVR));
+
+            newDelta.combine(g.stringVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
+
+            return new GraphDelta(g);
         }
         case somethingElseM: {
             System.err.println("[StringMethodCall.process] Whoops!");
