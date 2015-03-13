@@ -642,9 +642,6 @@ public final class ProgramPointDestinationQuery {
                     impreciseKills.add(ProgramPointSubQuery.lookupDictionary(this.currentSubQuery));
                     return true;
                 }
-                if (of.fieldName().equals(fr.getName().toString())) {
-                    System.err.println("Missing receiver CANNOT kill " + fr + " noKill " + n);
-                }
             }
         }
 
