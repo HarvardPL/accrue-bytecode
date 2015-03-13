@@ -45,8 +45,10 @@ public class LocalStringVariable implements StringVariable {
 
     @Override
     public String toString() {
-        return "LocalStringVariable [m=" + m + ", varNum=" + varNum + ", sensitizingSubscript=" + sensitizingSubscript
-                + "]";
+        return "(LSV " + varNum + "_" + sensitizingSubscript + ")";
+        //        return "LocalStringVariable ["/* + "m=" + m*/+ ", varNum=" + varNum + ", sensitizingSubscript="
+        //                + sensitizingSubscript
+        //                + "]";
     }
 
     @Override
