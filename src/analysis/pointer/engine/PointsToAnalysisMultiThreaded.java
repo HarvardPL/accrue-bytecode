@@ -473,32 +473,37 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          * @return whether we added anything
          */
         private boolean checkPendingQueues(int bound) {
-            if (!isWorkToFinish() && FIND_ALL_APPROX) {
-                System.err.println("APPROXIMATING...");
-                // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
-                if (PRINT_QUEUE_SWAPS) {
+            if (FIND_ALL_APPROX) {
+                if (!containsPending() && isWorkToFinish()) {
+                    System.err.println("APPROXIMATING...");
+
+                    // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
+                    if (PRINT_QUEUE_SWAPS) {
+                        printDiagnostics();
+                    }
+                    printQueueSwap("approximating");
+                    long start = System.currentTimeMillis();
+                    Set<Approximation> approximations = g.ppReach.getApproximateCallSitesAndFieldAssigns()
+                                                                 .findAllApproximations();
+                    for (Approximation next : approximations) {
+                        if (next.callSite != -1) {
+                            g.ppReach.addApproximateCallSite(next.callSite);
+                            approximatedCallSites++;
+                        }
+                        if (next.fieldAssign != null) {
+                            g.ppReach.addApproximateFieldAssign(next.fieldAssign);
+                            approximatedFieldAssigns++;
+                        }
+                    }
+                    approximationTime.addAndGet(System.currentTimeMillis() - start);
+                    System.err.println("APPROXIMATED call sites " + approximatedCallSites);
+                    System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
+                    approximationFinished = true;
                     printDiagnostics();
                 }
-                printQueueSwap("approximating");
-                long start = System.currentTimeMillis();
-                Set<Approximation> approximations = g.ppReach.getApproximateCallSitesAndFieldAssigns()
-                                                             .findAllApproximations();
-                for (Approximation next : approximations) {
-                    if (next.callSite != -1) {
-                        g.ppReach.addApproximateCallSite(next.callSite);
-                        approximatedCallSites++;
-                    }
-                    if (next.fieldAssign != null) {
-                        g.ppReach.addApproximateFieldAssign(next.fieldAssign);
-                        approximatedFieldAssigns++;
-                    }
-                }
-                approximationTime.addAndGet(System.currentTimeMillis() - start);
-                System.err.println("APPROXIMATED call sites " + approximatedCallSites);
-                System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
-                printDiagnostics();
             }
             else {
+                System.err.println("APPROXIMATING ONE AT A TIME...");
                 while (!containsPending()) {
                     // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
                     if (PRINT_QUEUE_SWAPS) {
