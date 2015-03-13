@@ -222,6 +222,13 @@ public class StatementRegistrar {
             TypeRepository types = new TypeRepository(ir);
             PrettyPrinter pp = new PrettyPrinter(ir);
 
+            debugPrint(m, ">>>>>>> Analyzing : " + m.getName());
+            debugPrint(m, "+++++++\n");
+            for (SSAInstruction instruction : ir.getInstructions()) {
+                debugPrint(m, "  " + instruction);
+            }
+            debugPrint(m, "\n-------");
+
             StringBuilderFlowSensitizer sbfs = StringBuilderFlowSensitizer.make(true);
             Solution sensitizerSolution = sbfs.runDataFlowAnalysisAndReturnDefUseMaps(m);
             FlowSensitiveStringVariableFactory stringVariableFactory = FlowSensitiveStringVariableFactory.make(sensitizerSolution.getDefMap(),
@@ -240,12 +247,15 @@ public class StatementRegistrar {
                     StringVariable sv = stringVariableFactory.getOrCreateLocalWithSubscript(varNum, sensitizer, m);
                     Set<StringVariable> dependentSVs = new HashSet<>();
                     for (Integer dependentSensitizer : dependentSensitizers) {
-                        dependentSVs.add(stringVariableFactory.getOrCreateLocalWithSubscript(varNum, dependentSensitizer, m));
+                        dependentSVs.add(stringVariableFactory.getOrCreateLocalWithSubscript(varNum,
+                                                                                             dependentSensitizer,
+                                                                                             m));
                     }
                     this.addStringStatement(stmtFactory.stringPhiNode(m, sv, dependentSVs));
                 }
             }
 
+            debugPrint(m, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
             // Add edges from formal summary nodes to the local variables representing the method parameters
             this.registerFormalAssignments(ir, this.rvFactory, stringVariableFactory, pp);
 
@@ -254,6 +264,7 @@ public class StatementRegistrar {
 
             for (ISSABasicBlock bb : ir.getControlFlowGraph()) {
                 for (SSAInstruction ins : bb) {
+                    debugPrint(m, "  ins: " + ins);
                     if (ins.toString().contains("signatures/library/java/lang/String")
                             || ins.toString().contains("signatures/library/java/lang/AbstractStringBuilder")) {
                         System.err.println("\tWARNING: handling instruction mentioning String signature " + ins
@@ -262,6 +273,7 @@ public class StatementRegistrar {
                     handleInstruction(ins, ir, bb, types, stringVariableFactory, pp);
                 }
             }
+            debugPrint(m, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 
             // now try to remove duplicates
             Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -290,10 +302,21 @@ public class StatementRegistrar {
                     throw new RuntimeException();
                 }
             }
+            debugPrint(m, "String statements for this method are: ");
+            debugPrint(m, this.stringStatementsForMethod.get(m) == null ? "{}"
+                    : this.stringStatementsForMethod.get(m).toString());
+            debugPrint(m, "Regular statements for this method are: ");
+            debugPrint(m, this.statementsForMethod.get(m) == null ? "{}" : this.statementsForMethod.get(m).toString());
             return true;
         }
         return false;
 
+    }
+
+    private void debugPrint(IMethod m, String string) {
+        if (m.getName().toString().equals("main")) {
+            System.err.println(string);
+        }
     }
 
     /**
@@ -586,6 +609,8 @@ public class StatementRegistrar {
                                   FlowSensitiveStringVariableFactory stringVariableFactory, TypeRepository types,
                                   PrettyPrinter pp) {
         assert i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1;
+
+        System.err.println("[registerInvoke] " + i);
 
         // //////////// Result ////////////
 
