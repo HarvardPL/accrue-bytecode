@@ -112,17 +112,4 @@ public class ArrayToLocalStatement extends PointsToStatement {
     public List<ReferenceVariable> getUses() {
         return Collections.singletonList(array);
     }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
-        return Collections.singleton(a);
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, value, haf));
-    }
 }

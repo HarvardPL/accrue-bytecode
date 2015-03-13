@@ -124,21 +124,4 @@ public class LocalToArrayStatement extends PointsToStatement {
         }
         value = newVariable;
     }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        ReferenceVariableReplica a = new ReferenceVariableReplica(ctxt, array, haf);
-        ReferenceVariableReplica v = new ReferenceVariableReplica(ctxt, value, haf);
-        List<ReferenceVariableReplica> uses = new ArrayList<>(2);
-        uses.add(a);
-        uses.add(v);
-        return uses;
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.emptySet();
-    }
 }

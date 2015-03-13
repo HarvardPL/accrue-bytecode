@@ -125,25 +125,6 @@ public class LocalToFieldStatement extends PointsToStatement {
         return null;
     }
 
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        ReferenceVariableReplica rec =
- new ReferenceVariableReplica(ctxt, this.receiver, haf);
-        ReferenceVariableReplica var =
- new ReferenceVariableReplica(ctxt, this.localVar, haf);
-        List<Object> uses = new ArrayList<>(2);
-        uses.add(rec);
-        uses.add(var);
-
-        return uses;
-
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt, HeapAbstractionFactory haf) {
-        return Collections.singleton(this.field);
-    }
-
     /**
      * Get the field assigned into
      *

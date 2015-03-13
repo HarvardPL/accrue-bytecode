@@ -93,16 +93,4 @@ public class NewStatement extends PointsToStatement {
     public ReferenceVariable getDef() {
         return result;
     }
-
-    @Override
-    public Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.emptySet();
-    }
-
-    @Override
-    public Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf) {
-        return Collections.singleton(new ReferenceVariableReplica(ctxt, result, haf));
-    }
 }

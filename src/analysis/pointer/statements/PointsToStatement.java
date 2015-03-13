@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -184,24 +183,5 @@ public abstract class PointsToStatement {
      * @return local variable assigned into, null if there no such variable
      */
     public abstract ReferenceVariable getDef();
-
-    /**
-     * Get the objects that processing this PointsToStatement in the
-     * specified context will "read". One PointsToStatement depends on another
-     * if the first "reads" an object that the other "writes". The objects
-     * are typically ReferenceVariableReplicas, but may use other objects
-     * (e.g., FieldReferences and IMethods) to express dependencies between
-     * statements.
-     */
-    public abstract Collection<?> getReadDependencies(Context ctxt,
-            HeapAbstractionFactory haf);
-
-    /**
-     * Get the objects that processing this PointsToStatement in the
-     * specified context will "write". See documentation for
-     * getReadDependencies
-     */
-    public abstract Collection<?> getWriteDependencies(Context ctxt,
-            HeapAbstractionFactory haf);
 
 }
