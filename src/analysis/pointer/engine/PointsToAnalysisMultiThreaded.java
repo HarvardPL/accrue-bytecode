@@ -293,6 +293,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
     class ExecutorServiceCounter {
+        /**
+         * Whether we should find approximations one at a time or all at once
+         */
+        private static final boolean FIND_ALL_APPROX = true;
         public PointsToGraph g;
         public StatementRegistrar registrar;
         private ForkJoinPool exec;
@@ -469,32 +473,59 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          * @return whether we added anything
          */
         private boolean checkPendingQueues(int bound) {
-            while (!containsPending()) {
+            if (!isWorkToFinish() && FIND_ALL_APPROX) {
+                System.err.println("APPROXIMATING...");
                 // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
                 if (PRINT_QUEUE_SWAPS) {
                     printDiagnostics();
                 }
                 printQueueSwap("approximating");
                 long start = System.currentTimeMillis();
-                Approximation next = g.ppReach.getApproximateCallSitesAndFieldAssigns().findNextApproximation();
+                Set<Approximation> approximations = g.ppReach.getApproximateCallSitesAndFieldAssigns()
+                                                             .findAllApproximations();
+                for (Approximation next : approximations) {
+                    if (next.callSite != -1) {
+                        g.ppReach.addApproximateCallSite(next.callSite);
+                        approximatedCallSites++;
+                    }
+                    if (next.fieldAssign != null) {
+                        g.ppReach.addApproximateFieldAssign(next.fieldAssign);
+                        approximatedFieldAssigns++;
+                    }
+                }
                 approximationTime.addAndGet(System.currentTimeMillis() - start);
-                if (next.callSite == -1 && next.fieldAssign == null) {
-                    // The search found no more approximations, the analysis is complete
-                    System.err.println("NO MORE APPROXIMATIONS!!!");
-                    printDiagnostics();
-                    approximationFinished = true;
-                    return false;
-                }
-                if (next.callSite != -1) {
-                    g.ppReach.addApproximateCallSite(next.callSite);
-                    approximatedCallSites++;
-                }
-                if (next.fieldAssign != null) {
-                    g.ppReach.addApproximateFieldAssign(next.fieldAssign);
-                    approximatedFieldAssigns++;
-                }
-                if (PRINT_QUEUE_SWAPS) {
-                    printDiagnostics();
+                System.err.println("APPROXIMATED call sites " + approximatedCallSites);
+                System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
+                printDiagnostics();
+            }
+            else {
+                while (!containsPending()) {
+                    // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
+                    if (PRINT_QUEUE_SWAPS) {
+                        printDiagnostics();
+                    }
+                    printQueueSwap("approximating");
+                    long start = System.currentTimeMillis();
+                    Approximation next = g.ppReach.getApproximateCallSitesAndFieldAssigns().findNextApproximation();
+                    approximationTime.addAndGet(System.currentTimeMillis() - start);
+                    if (next.callSite == -1 && next.fieldAssign == null) {
+                        // The search found no more approximations, the analysis is complete
+                        System.err.println("NO MORE APPROXIMATIONS!!!");
+                        printDiagnostics();
+                        approximationFinished = true;
+                        return false;
+                    }
+                    if (next.callSite != -1) {
+                        g.ppReach.addApproximateCallSite(next.callSite);
+                        approximatedCallSites++;
+                    }
+                    if (next.fieldAssign != null) {
+                        g.ppReach.addApproximateFieldAssign(next.fieldAssign);
+                        approximatedFieldAssigns++;
+                    }
+                    if (PRINT_QUEUE_SWAPS) {
+                        printDiagnostics();
+                    }
                 }
             }
 
