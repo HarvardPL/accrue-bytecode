@@ -498,7 +498,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     approximationTime.addAndGet(System.currentTimeMillis() - start);
                     System.err.println("APPROXIMATED call sites " + approximatedCallSites);
                     System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
-                    approximationFinished = true;
+                    if (approximations.isEmpty()) {
+                        approximationFinished = true;
+                    }
                     printDiagnostics();
                 }
             }

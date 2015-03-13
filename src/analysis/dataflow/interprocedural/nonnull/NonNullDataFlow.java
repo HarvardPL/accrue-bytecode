@@ -198,6 +198,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                 }
                 initial = initial.setLocal(formals[j], actualVal);
             }
+            // Only use the locations that are used by the callee
+            initial = initial.retainAllLocations(((NonNullInterProceduralDataFlow) interProc).accessibleLocs.getResults(callee));
             out = interProc.getResults(currentNode, callee, initial);
             assert out != null : "Null data-flow results for: " + PrettyPrinter.cgNodeString(callee) + "\nFrom "
                     + PrettyPrinter.cgNodeString(currentNode);

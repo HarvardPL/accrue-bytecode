@@ -65,7 +65,7 @@ public class NonNullInterProceduralDataFlow extends InterproceduralDataFlow<VarC
         NonNullDataFlow df = new NonNullDataFlow(n, this);
         df.setOutputLevel(getOutputLevel());
         // only use the locations that are accessible from the call graph node
-        return df.dataflow(input.retainAllLocations(accessibleLocs.getResults(n)));
+        return df.dataflow(input);
         //        return df.dataflow(input);
 
     }
