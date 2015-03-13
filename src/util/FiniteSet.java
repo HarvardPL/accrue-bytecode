@@ -2,6 +2,7 @@ package util;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 
 import util.optional.Optional;
@@ -132,6 +133,37 @@ public final class FiniteSet<T> {
 
     @Override
     public String toString() {
-        return "FS(" + this.items.toString() + ")";
+        if (this.isTop()) {
+            return "FS(⊤)";
+        } else if (this.isBottom()) {
+            return "FS(⊥)";
+        } else {
+            Set<T> ts = this.items.get();
+            StringBuilder sb = new StringBuilder();
+            sb.append("{");
+            Iterator<T> it = ts.iterator();
+            if (it.hasNext()) {
+                sb.append(stringify(it.next()));
+                while (it.hasNext()) {
+                    sb.append(", " + stringify(it.next()));
+                }
+            }
+            sb.append("}");
+            return "FS(" + sb.toString() + ")";
+        }
+    }
+
+    private static String stringify(Object o) {
+        if (o instanceof String) {
+            if (o.equals("")) {
+                return "ε";
+            }
+            else {
+                return "\"" + o + "\"";
+            }
+        }
+        else {
+            return o.toString();
+        }
     }
 }
