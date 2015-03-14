@@ -21,14 +21,36 @@ public class RWSATest {
         //            Object o2 = indirection(fullyQualifiedClassName);
         //        }
 
+        /*
+         * same code but branching test
+         */
+        StringBuilder classNameBranchSB = new StringBuilder();
+        if (Math.random() <= 0.5)
         {
-            StringBuilder classNameSB = new StringBuilder();
-            classNameSB.append("test.");
-            classNameSB.append("instruction.");
-            classNameSB.append("RWSATest");
+            classNameBranchSB.append("test.");
+            classNameBranchSB.append("instruction.");
+            classNameBranchSB.append("RWSATest");
 
-            Object o2 = Class.forName(classNameSB.toString()).newInstance();
         }
+        else {
+            classNameBranchSB.append("test.");
+            classNameBranchSB.append("instruction.");
+            classNameBranchSB.append("RWSATest");
+
+        }
+        Object oBranch = Class.forName(classNameBranchSB.toString()).newInstance();
+
+        /*
+         * looping test
+         */
+        StringBuilder classNameLoopSB = new StringBuilder();
+        while (Math.random() < 0.5) {
+            classNameLoopSB.append("test.");
+            classNameLoopSB.append("instruction.");
+            classNameLoopSB.append("RWSATest");
+        }
+        Object oLoop = Class.forName(classNameLoopSB.toString()).newInstance();
+
     }
 
     //    public static Object indirection(String s) throws InstantiationException, IllegalAccessException,
