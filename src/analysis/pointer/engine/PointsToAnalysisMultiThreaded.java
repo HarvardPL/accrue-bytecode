@@ -477,8 +477,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private boolean checkPendingQueues(int bound) {
             if (FIND_ALL_APPROX) {
-                if (!containsPending() && isWorkToFinish()) {
+                while (!containsPending() && isWorkToFinish()) {
                     System.err.println("APPROXIMATING...");
+
+                    int approximatedCallSitesNow = 0;
+                    int approximatedFieldAssignsNow = 0;
 
                     // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
                     if (PRINT_QUEUE_SWAPS) {
@@ -492,15 +495,20 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                         if (next.callSite != -1) {
                             g.ppReach.addApproximateCallSite(next.callSite);
                             approximatedCallSites++;
+                            approximatedCallSitesNow++;
                         }
                         if (next.fieldAssign != null) {
                             g.ppReach.addApproximateFieldAssign(next.fieldAssign);
                             approximatedFieldAssigns++;
+                            approximatedFieldAssignsNow++;
                         }
                     }
                     approximationTime.addAndGet(System.currentTimeMillis() - start);
-                    System.err.println("APPROXIMATED call sites " + approximatedCallSites);
-                    System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
+                    System.err.println("APPROXIMATED call sites " + " " + approximatedCallSitesNow + " total: "
+                            + approximatedCallSites);
+                    System.err.println("APPROXIMATED field assignments " + " " + approximatedFieldAssignsNow
+                            + " total: "
+                            + approximatedFieldAssigns);
                     if (approximations.isEmpty()) {
                         approximationFinished = true;
                     }
