@@ -52,8 +52,13 @@ public final class AString {
         return this.fs.union(sik.fs);
     }
 
-    public Optional<Set<String>> getStrings() {
-        return this.fs.maybeIterable();
+    /**
+     * Throws an exception if this set is top
+     *
+     * @return the set of strings represented by this AString
+     */
+    public Set<String> getStrings() {
+        return this.fs.getSet();
     }
 
     public FiniteSet<String> getFiniteStringSet() {
