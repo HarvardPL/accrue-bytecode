@@ -9,8 +9,8 @@ import util.FiniteSet;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
-import analysis.pointer.analyses.ClassInstanceKey;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -37,8 +37,6 @@ public class ForNameCallStatement extends PointsToStatement {
     public final static MethodReference JavaLangClassForName = MethodReference.JavaLangClassForName;
     public final static IMethod JavaLangClassForNameIMethod = AnalysisUtil.getClassHierarchy()
                                                                           .resolveMethod(JavaLangClassForName);
-    private static final int MAX_STRING_SET_SIZE = 5;
-
 
     private final CallSiteReference callSite;
     private final IMethod caller;
@@ -74,7 +72,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         GraphDelta changed = new GraphDelta(g);
         PointsToIterable pti = delta == null ? g : delta;
-        Optional<AString> nameSIK = pti.getAStringUpdatesFor(nameSVR);
+        Optional<AString> maybeNameHat = pti.getAStringUpdatesFor(nameSVR);
 
         //        Optional<Set<IClass>> classes = nameSIK.getStrings()
         //                .map(stringSet -> stringSet.stream()
@@ -83,35 +81,39 @@ public class ForNameCallStatement extends PointsToStatement {
         //                                                                      .orElse(Stream.empty()))
         //                                           .collect(Collectors.toSet()));
 
-        if (nameSIK.isNone()) {
-            // XXX: What should we do if there's no known strings?
-            System.err.println("[ForNameCallStatement] There are no known strings for " + nameSVR);
+        if (maybeNameHat.isNone()) {
+            // XXX: What should we do if there's no updated strings?
+            System.err.println("[ForNameCallStatement] There are no string updates for " + nameSVR);
         }
         else {
-            FiniteSet<String> strings = nameSIK.get().getFiniteStringSet();
-            FiniteSet<IClass> classes;
-            System.err.println("[ForNameCallStatement] reaching strings are " + strings);
-            if (strings.isTop()) {
-                classes = FiniteSet.makeTop(MAX_STRING_SET_SIZE);
-            }
-            else {
-                Set<IClass> classSet = new HashSet<>();
-                for (String string : strings.getSet()) {
-                    Optional<IClass> maybeIClass = stringToIClass(string);
-                    if (maybeIClass.isSome()) {
-                        classSet.add(maybeIClass.get());
-                    }
-                }
-                classes = FiniteSet.makeFiniteSet(MAX_STRING_SET_SIZE, classSet);
-            }
+            AString namehat = maybeNameHat.get();
+            System.err.println("[ForNameCallStatement] reaching class names are " + namehat);
 
             AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName",
                                                                      JavaLangClassIClass,
                                                                      caller,
                                                                      result,
                                                                      false);
+            FiniteSet<IClass> classes;
+            if (namehat.isTop()) {
+                classes = ((ReflectiveHAF) haf).getAClassTop();
+            }
+            else if (namehat.isBottom()) {
+                classes = ((ReflectiveHAF) haf).getAClassBottom();
+            }
+            else {
+                Set<IClass> classSet = new HashSet<>();
+                for (String string : namehat.getStrings()) {
+                    Optional<IClass> maybeIClass = stringToIClass(string);
+                    if (maybeIClass.isSome()) {
+                        classSet.add(maybeIClass.get());
+                    }
+                }
+                classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
+            }
+
             System.err.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
-            changed.combine(g.addEdge(resultRVR, ClassInstanceKey.make(classes)));
+            changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
         }
         return changed;
     }

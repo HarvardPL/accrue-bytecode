@@ -2,8 +2,8 @@ package analysis.pointer.statements;
 
 import java.util.Collections;
 
-import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -17,8 +17,6 @@ import com.ibm.wala.ipa.callgraph.Context;
 
 public class StringInitStatement extends StringStatement {
 
-    // XXX: remove coupling
-    private static final int MAX_STRING_SET_SIZE = 5;
     private final CallSiteReference callSite;
     private final StringVariable sv;
 
@@ -37,8 +35,7 @@ public class StringInitStatement extends StringStatement {
         GraphDelta newDelta = new GraphDelta(g);
 
         newDelta.combine(g.stringVariableReplicaJoinAt(svr,
-                                                       AString.makeStringSet(MAX_STRING_SET_SIZE,
-                                                                             Collections.singleton(""))));
+                                                       ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(""))));
         System.err.println("[StringInitStatement.process] " + svr + " <- " + g.getAStringFor(svr));
 
         return newDelta;

@@ -9,6 +9,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
@@ -31,6 +32,7 @@ import analysis.dataflow.interprocedural.pdg.graph.ProgramDependenceGraph;
 import analysis.dataflow.interprocedural.reachability.ReachabilityInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.reachability.ReachabilityResults;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
@@ -463,11 +465,12 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForStrings,
                                                                                             boolean useSingleAllocForImmutableWrappers) {
         PointsToAnalysis analysis;
+        HeapAbstractionFactory wrappedHaf = ReflectiveHAF.make(5, 5, haf);
         if (singleThreaded) {
-            analysis = new PointsToAnalysisSingleThreaded(haf);
+            analysis = new PointsToAnalysisSingleThreaded(wrappedHaf);
         }
         else {
-            analysis = new PointsToAnalysisMultiThreaded(haf);
+            analysis = new PointsToAnalysisMultiThreaded(wrappedHaf);
         }
         PointsToAnalysis.outputLevel = outputLevel;
         PointsToGraph g;

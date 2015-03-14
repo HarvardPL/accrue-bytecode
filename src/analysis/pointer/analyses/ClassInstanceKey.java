@@ -21,32 +21,33 @@ public class ClassInstanceKey implements InstanceKey {
     private static final IClass JavaLangClassIClass = AnalysisUtil.getClassHierarchy()
                                                                   .lookupClass(TypeReference.JavaLangClass);
     private final FiniteSet<IClass> reflectedTypes;
+    private final InstanceKey innerIK;
 
     /* factories */
 
-    public static ClassInstanceKey makeTop(int maxSize) {
-        return new ClassInstanceKey(FiniteSet.<IClass> makeTop(maxSize));
+    public static ClassInstanceKey makeTop(int maxSize, InstanceKey innerIK) {
+        return new ClassInstanceKey(FiniteSet.<IClass> makeTop(maxSize), innerIK);
     }
 
-    public static ClassInstanceKey makeBottom(int maxSize) {
-        return new ClassInstanceKey(FiniteSet.<IClass> makeBottom(maxSize));
+    public static ClassInstanceKey makeBottom(int maxSize, InstanceKey innerIK) {
+        return new ClassInstanceKey(FiniteSet.<IClass> makeBottom(maxSize), innerIK);
     }
 
-    public static ClassInstanceKey makeSet(int maxSize, Collection<IClass> c) {
-        return new ClassInstanceKey(FiniteSet.makeFiniteSet(maxSize, c));
+    public static ClassInstanceKey makeSet(int maxSize, Collection<IClass> c, InstanceKey innerIK) {
+        return new ClassInstanceKey(FiniteSet.makeFiniteSet(maxSize, c), innerIK);
     }
 
-    public static ClassInstanceKey make(int maxSize, Optional<? extends Collection<IClass>> c) {
-        return new ClassInstanceKey(FiniteSet.make(maxSize, c));
+    public static ClassInstanceKey make(int maxSize, Optional<? extends Collection<IClass>> c, InstanceKey innerIK) {
+        return new ClassInstanceKey(FiniteSet.make(maxSize, c), innerIK);
     }
 
-    public static ClassInstanceKey make(FiniteSet<IClass> c) {
-        return new ClassInstanceKey(c);
+    public static ClassInstanceKey make(FiniteSet<IClass> c, InstanceKey innerIK) {
+        return new ClassInstanceKey(c, innerIK);
     }
 
     /* constructors */
 
-    public ClassInstanceKey(FiniteSet<IClass> reflectedTypes) {
+    public ClassInstanceKey(FiniteSet<IClass> reflectedTypes, InstanceKey innerIK) {
         Optional<Set<IClass>> maybeTypes = reflectedTypes.maybeIterable();
         if (maybeTypes.isSome()) {
             for (IClass rType : maybeTypes.get()) {
@@ -54,12 +55,17 @@ public class ClassInstanceKey implements InstanceKey {
             }
         }
         this.reflectedTypes = reflectedTypes;
+        this.innerIK = innerIK;
     }
 
     /* accessors */
 
     public FiniteSet<IClass> getReflectedType() {
         return this.reflectedTypes;
+    }
+
+    public InstanceKey getInnerIK() {
+        return this.innerIK;
     }
 
     @Override

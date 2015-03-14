@@ -1,7 +1,7 @@
 package analysis.pointer.statements;
 
-import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -14,9 +14,6 @@ import com.ibm.wala.ipa.callgraph.Context;
 
 public class NewStringStatement extends StringStatement {
 
-    // XXX: This should not be here. The HeapAbstractionFactory needs to know how to generate the bottom of StringInstanceKey.
-    private static final int MAX_STRING_SET_SIZE = 5;
-
     private final StringVariable result;
 
     public NewStringStatement(StringVariable result, IMethod method) {
@@ -26,12 +23,9 @@ public class NewStringStatement extends StringStatement {
 
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
-                                  StatementRegistrar registrar, StmtAndContext originator) {
-        // XXX: This is an affront to software engineering. I'm baking in my notion of StringInstanceKey when it ought to be provided by the analysis.
-        //      once I teach IHAFs to create the bottoms of StringInstanceKey's I'll be fine.
-        AString sik = AString.makeStringBottom(MAX_STRING_SET_SIZE);
-
-        return g.stringVariableReplicaJoinAt(new StringVariableReplica(context, result), sik);
+                              StatementRegistrar registrar, StmtAndContext originator) {
+        return g.stringVariableReplicaJoinAt(new StringVariableReplica(context, result),
+                                             ((ReflectiveHAF) haf).getAStringBottom());
     }
 
     @Override

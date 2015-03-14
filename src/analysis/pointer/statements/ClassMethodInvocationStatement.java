@@ -8,6 +8,7 @@ import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.ClassInstanceKey;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -50,10 +51,6 @@ public class ClassMethodInvocationStatement extends
                                                                            .resolveMethod(JavaLangClassGetClass);
 
     private final IMethod caller;
-
-    // XXX: I really need to figure out why these are spreading throughout my codebase
-    private static final int MAX_STRING_SET_SIZE = 5;
-    private static final int MAX_CLASS_SET_SIZE = 5;
 
     protected enum ReflectiveMethod {
         /* Class methods */
@@ -135,7 +132,10 @@ public class ClassMethodInvocationStatement extends
                                                                      result,
                                                                      false);
             System.err.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
-            changed.combine(g.addEdge(resultReplica, ClassInstanceKey.makeSet(MAX_CLASS_SET_SIZE, classes)));
+            changed.combine(g.addEdge(resultReplica,
+                                      ((ReflectiveHAF) haf).recordReflective(((ReflectiveHAF) haf).getAClassSet(classes),
+                                                                             asn,
+                                                                             context)));
             return changed;
         }
         case getClassesRM:
