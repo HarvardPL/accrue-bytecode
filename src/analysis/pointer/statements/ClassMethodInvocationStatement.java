@@ -126,10 +126,7 @@ public class ClassMethodInvocationStatement extends
             for (InstanceKey receiverIK : receiverIKs) {
                 classes.add(receiverIK.getConcreteType());
             }
-            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("getClass",
-                                                                     JavaLangClassIClass,
-                                                                     caller,
-                                                                     result,
+            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("getClass", JavaLangClassIClass, caller, null, // XXX: This is caused by duplication of getClass statements (i.e. Reflective and Regular)
                                                                      false);
             System.err.println("[ClassMethodInvocationStatement.getClassRM] classes: " + classes);
             changed.combine(g.addEdge(resultReplica,
