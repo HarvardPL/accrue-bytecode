@@ -1427,8 +1427,9 @@ public final class PointsToGraph implements PointsToIterable {
         this.depRecorder.recordStringRead(x, s);
     }
 
-    public Map<Integer, Set<InstanceKey>> readAblePointsToGraph() {
-        Map<Integer, Set<InstanceKey>> m = new HashMap<>();
+    public Map<PointsToGraphNode, Set<InstanceKey>> readAblePointsToGraph() {
+        Map<Integer, PointsToGraphNode> graphNodeMap = invertBijection(this.reverseGraphNodeDictionary);
+        Map<PointsToGraphNode, Set<InstanceKey>> m = new HashMap<>();
         IntIterator it = this.pointsTo.keyIterator();
         while (it.hasNext()) {
             int k = it.next();
@@ -1441,9 +1442,24 @@ public final class PointsToGraph implements PointsToIterable {
 
                 iks.add(this.instanceKeyDictionary.get(ikInt));
             }
-            m.put(k, iks);
+
+            assert graphNodeMap.containsKey(k);
+            m.put(graphNodeMap.get(k), iks);
         }
         return m;
+    }
+
+    private static Map<Integer, PointsToGraphNode> invertBijection(ConcurrentMap<PointsToGraphNode, Integer> m) {
+        Map<Integer, PointsToGraphNode> minv = new HashMap<>();
+
+        for (PointsToGraphNode k : m.keySet()) {
+            Integer v = m.get(k);
+
+            assert !minv.containsKey(v);
+            minv.put(v, k);
+        }
+
+        return minv;
     }
 
 }
