@@ -174,12 +174,12 @@ public class AccrueAnalysisMain {
 
             System.err.println(g.getStringConstraints());
 
-            System.err.println("PointsToGraph");
-            for (Entry<PointsToGraphNode, Set<InstanceKey>> kv : g.readAblePointsToGraph().entrySet()) {
-                PointsToGraphNode k = kv.getKey();
-                Set<InstanceKey> v = kv.getValue();
-                System.err.println("  " + k + " ↦ " + v);
-            }
+            // System.err.println("PointsToGraph");
+            // for (Entry<PointsToGraphNode, Set<InstanceKey>> kv : g.readAblePointsToGraph().entrySet()) {
+            //     PointsToGraphNode k = kv.getKey();
+            //     Set<InstanceKey> v = kv.getValue();
+            //     System.err.println("  " + k + " ↦ " + v);
+            // }
             break;
         case "maincfg":
             AnalysisUtil.init(classPath, entryPoint, outputDir);
