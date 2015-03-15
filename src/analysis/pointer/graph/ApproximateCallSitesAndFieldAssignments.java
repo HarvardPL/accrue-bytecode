@@ -89,6 +89,7 @@ public class ApproximateCallSitesAndFieldAssignments {
         Set<Approximation> approx = new LinkedHashSet<>();
         ProgramPointReplica first = getEntryPP();
         WorkQueue<ProgramPointReplica> q = new WorkQueue<>();
+        allVisited = AnalysisUtil.createConcurrentSet();
         allVisited.add(first);
         q.add(first);
 
@@ -213,7 +214,7 @@ public class ApproximateCallSitesAndFieldAssignments {
             addSuccs(current, q);
         } // The queue is empty
 
-        System.err.println("FINISHED APPROXIMATION");
+        System.err.println("FINISHED APPROXIMATION " + approx.size());
         finished = true;
         return approx;
     }

@@ -518,22 +518,24 @@ public final class CallGraphReachability {
                 reachable.next();
                 size++;
             }
-            if (size < 10000) {
-                sb.append("0");
+            if (size > 500) {
+                if (size < 10000) {
+                    sb.append("0");
+                }
+                if (size < 1000) {
+                    sb.append("0");
+                }
+                if (size < 100) {
+                    sb.append("0");
+                }
+                if (size < 10) {
+                    sb.append("0");
+                }
+                sb.append(size);
+                sb.append(" ");
+                sb.append(g.lookupCallGraphNodeDictionary(cg));
+                sb.append("\n");
             }
-            if (size < 1000) {
-                sb.append("0");
-            }
-            if (size < 100) {
-                sb.append("0");
-            }
-            if (size < 10) {
-                sb.append("0");
-            }
-            sb.append(size);
-            sb.append(" ");
-            sb.append(g.lookupCallGraphNodeDictionary(cg));
-            sb.append("\n");
         }
         return sb.toString();
     }
