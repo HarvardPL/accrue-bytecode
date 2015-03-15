@@ -9,7 +9,6 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
@@ -38,7 +37,6 @@ import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
 import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrationPass;
@@ -56,7 +54,6 @@ import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.Util;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.ipa.callgraph.propagation.ReceiverTypeContextSelector;
 import com.ibm.wala.ipa.callgraph.propagation.SSAPropagationCallGraphBuilder;
 import com.ibm.wala.ipa.cha.ClassHierarchyException;
@@ -172,7 +169,7 @@ public class AccrueAnalysisMain {
             }
             System.err.println(numNodes + " CGNodes");
 
-            System.err.println(g.getStringConstraints());
+            //            System.err.println(g.getStringConstraints());
 
             // System.err.println("PointsToGraph");
             // for (Entry<PointsToGraphNode, Set<InstanceKey>> kv : g.readAblePointsToGraph().entrySet()) {
