@@ -469,7 +469,9 @@ public final class ProgramPointDestinationQuery {
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
             ReachabilityResult res = ReachabilityResult.UNREACHABLE;
             long startCG = System.currentTimeMillis();
-            boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt, destinationCGNode, this.currentSubQuery);
+            boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt,
+                                                                               this.destinationCGNode,
+                                                                               this.currentSubQuery);
             ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
             if (destReachable) {
                 // this is a relevant node get the results for the callee
@@ -669,9 +671,16 @@ public final class ProgramPointDestinationQuery {
             return false;
         }
 
-        /*Iterator<OrderedPair<CallSiteProgramPoint, Context>>*/IntIterator callerIter = callers.intIterator();
+        /*Iterator<ProgramPointReplica>*/IntIterator callerIter = callers.intIterator();
         while (callerIter.hasNext()) {
-            ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callerIter.next());
+            int callSite = callerIter.next();
+            if (!ppr.getCallGraphReachability().isReachableByReturnTo(callSite,
+                                                                      this.destinationCGNode,
+                                                                      this.currentSubQuery)) {
+                // don't bother with this call site, we can't get to the destination
+                continue;
+            }
+            ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callSite);
             CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
 
             // Always look at the caller even if there is no way to reach the destination via that call graph node
