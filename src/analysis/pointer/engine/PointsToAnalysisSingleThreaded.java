@@ -422,12 +422,8 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                 queue.add(new OrderedPair<>(sac, changes));
             }
         }
-        if (changes.getChangedStringVariables().isEmpty()) {
-            System.err.println("[handleChanges] No string changes to consider");
-        }
+
         for (StringVariableReplica svr : changes.getChangedStringVariables()) {
-            System.err.println("[handleChanges] Considering " + svr);
-            System.err.println("[handleChanges] Whose dependencies are " + this.getStringDependencies(svr));
             for (StmtAndContext sac : this.getStringDependencies(svr)) {
                 queue.add(new OrderedPair<>(sac, changes));
             }
