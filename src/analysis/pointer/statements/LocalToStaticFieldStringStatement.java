@@ -25,10 +25,12 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
-        StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
+        StringVariableReplica vsvr = new StringVariableReplica(context, this.v);
+        StringVariableReplica fsvr = new StringVariableReplica(context, this.f);
 
-        return g.stringVariableReplicaUpperBounds(vRVR, fRVR);
+        g.recordStringDependency(vsvr, originator);
+
+        return g.stringVariableReplicaUpperBounds(fsvr, vsvr);
     }
 
     @Override
