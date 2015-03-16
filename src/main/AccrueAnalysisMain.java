@@ -169,6 +169,8 @@ public class AccrueAnalysisMain {
             }
             System.err.println(numNodes + " CGNodes");
 
+            System.err.println(g.getStringConstraintsStatistics());
+
             //            System.err.println(g.getStringConstraints());
 
             // System.err.println("PointsToGraph");

@@ -1436,6 +1436,10 @@ public final class PointsToGraph implements PointsToIterable {
         return new GraphDelta(this, this.sc.activate(x));
     }
 
+    public String getStringConstraintsStatistics() {
+        return this.sc.getStatistics();
+    }
+
     public Map<PointsToGraphNode, Set<InstanceKey>> readAblePointsToGraph() {
         Map<Integer, PointsToGraphNode> graphNodeMap = invertBijection(this.reverseGraphNodeDictionary);
         Map<PointsToGraphNode, Set<InstanceKey>> m = new HashMap<>();
