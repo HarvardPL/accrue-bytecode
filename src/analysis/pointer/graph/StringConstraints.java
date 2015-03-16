@@ -78,7 +78,8 @@ public class StringConstraints {
             else {
                 return StringConstraintDelta.makeEmpty(this);
             }
-        } else {
+        }
+        else {
             return StringConstraintDelta.makeEmpty(this);
         }
     }
@@ -94,7 +95,8 @@ public class StringConstraints {
 
     public StringConstraintDelta activate(StringVariableReplica x) {
         System.err.println("[activate] Activating: " + x);
-        return StringConstraintDelta.make(this, activateAndGetSources(x));
+        return this.active.contains(x) ? StringConstraintDelta.makeEmpty(this)
+                : StringConstraintDelta.make(this, activateAndGetSources(x));
     }
 
     private Set<StringVariableReplica> activateAndGetSources(StringVariableReplica x) {
