@@ -646,12 +646,18 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         private void printDiagnostics() {
-            System.err.println((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
+            StringBuilder sb = new StringBuilder();
+            sb.append((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
                     + numRemainingTasks.get() + "; pendingAddToSetOrigin: " + pendingAddToSetOrigin.get().size()
                     + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
-                    + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size()
-                    + "; approximationTime: " + approximationTime.get() / 1000.0 + "; approxCGNodes: "
-                    + g.getApproxCallGraphSize());
+                    + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size() + "; approximationTime: "
+                    + approximationTime.get() / 1000.0 + "; approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
+            sb.append("\ttotalStmtAndCtxtNoDeltaTasks: " + totalStmtAndCtxtNoDeltaTasks.get()
+                    + "; totalStmtAndCtxtWithDeltaTasks: " + totalStmtAndCtxtWithDeltaTasks.get()
+                    + "; totalAddNonMostRecentOriginTasks: " + totalAddNonMostRecentOriginTasks.get()
+                    + "; totalAddToSetTasks: " + totalAddToSetTasks.get() + "; totalPPSubQueryTasks: "
+                    + totalPPSubQueryTasks.get());
+            System.err.println(sb.toString());
         }
 
         public class RunnablePointsToTask implements Runnable {

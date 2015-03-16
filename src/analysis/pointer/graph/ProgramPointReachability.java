@@ -193,6 +193,7 @@ public final class ProgramPointReachability {
     private boolean reachableImpl(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
                                   Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
+        long start = System.currentTimeMillis();
         totalRequests.incrementAndGet();
         assert allMostRecent(noAlloc);
         assert allInSameMethodAndContext(forbidden, sources, destination);
@@ -250,7 +251,9 @@ public final class ProgramPointReachability {
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
         this.reachabilityRequests.incrementAndGet();
-        return computeQuery(unknown, destination, noKill, noAlloc, forbidden);
+        boolean b = computeQuery(unknown, destination, noKill, noAlloc, forbidden);
+        reachableImplTime.addAndGet(System.currentTimeMillis() - start);
+        return b;
     }
 
     /**
@@ -319,7 +322,7 @@ public final class ProgramPointReachability {
 
         //        this.destinations.add(destination);
         int resp = this.computedResponses.incrementAndGet();
-        if (PRINT_DIAGNOSTICS && (resp % 1000000) == 0) {
+        if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
             printDiagnostics();
         }
         long start = System.currentTimeMillis();
@@ -362,42 +365,44 @@ public final class ProgramPointReachability {
 
             if (positiveCache.contains(queryInt)) {
                 // The result was computed by another thread before this thread ran
+                recordQueryResult(sources, destination, noKill, noAlloc, forbidden, true);
                 cachedDestQuery.incrementAndGet();
                 return true;
             }
-
-            // Now try a search starting at the source
-            long startDest = System.currentTimeMillis();
-            boolean found = prq.executeSubQuery(src);
-            destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
-            computedDestQuery.incrementAndGet();
-            if (found) {
-                recordQueryResult(queryInt, true);
-                if (DEBUG) {
-                    System.err.println("PPR%%\t" + src + " -> " + destination);
-                    System.err.println("PPR%%\ttrue because query returned true");
-                }
-                DEBUG = false;
-                DEBUG2 = false;
-                totalTime.addAndGet(System.currentTimeMillis() - start);
-                return true;
-            }
-            if (DEBUG) {
-                System.err.println("PPR%%\t" + src + " -> " + destination);
-                System.err.println("PPR%%\tfalse because query returned false");
-            }
-            if (recordQueryResult(queryInt, false)) {
-                // We computed false, but the cache already had true
-                if (DEBUG) {
-                    System.err.println("PPR%%\t" + src + " -> " + destination);
-                    System.err.println("PPR%%\ttrue because cache already had true (2)");
-                }
-                DEBUG = false;
-                DEBUG2 = false;
-                totalTime.addAndGet(System.currentTimeMillis() - start);
-                return true;
-            }
         }
+
+        // Now try a search starting at the source
+        long startDest = System.currentTimeMillis();
+        boolean found = prq.executeSubQueries(sources);
+        destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
+        computedDestQuery.incrementAndGet();
+        if (found) {
+            recordQueryResult(sources, destination, noKill, noAlloc, forbidden, true);
+            if (DEBUG) {
+                System.err.println("PPR%%\t" + sources + " -> " + destination);
+                System.err.println("PPR%%\ttrue because query returned true");
+            }
+            DEBUG = false;
+            DEBUG2 = false;
+            totalTime.addAndGet(System.currentTimeMillis() - start);
+            return true;
+        }
+        if (DEBUG) {
+            System.err.println("PPR%%\t" + sources + " -> " + destination);
+            System.err.println("PPR%%\tfalse because query returned false");
+        }
+        if (recordQueryResult(sources, destination, noKill, noAlloc, forbidden, false)) {
+            // We computed false, but the cache already had true
+            if (DEBUG) {
+                System.err.println("PPR%%\t" + sources + " -> " + destination);
+                System.err.println("PPR%%\ttrue because cache already had true (2)");
+            }
+            DEBUG = false;
+            DEBUG2 = false;
+            totalTime.addAndGet(System.currentTimeMillis() - start);
+            return true;
+        }
+
         // we didn't find it.
         if (DEBUG) {
             System.err.println("PPR%%\t" + " -> " + destination);
@@ -406,6 +411,55 @@ public final class ProgramPointReachability {
         DEBUG = false;
         DEBUG2 = false;
         totalTime.addAndGet(System.currentTimeMillis() - start);
+        return false;
+    }
+
+    /**
+     * Record the results for a collection of sub-queries with different sources, but everything else the same
+     *
+     * @return true if all the queries were added to the positive cache
+     */
+    private boolean recordQueryResult(Collection<InterProgramPointReplica> sources,
+                                      InterProgramPointReplica destination,
+                                   IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden, boolean b) {
+        long start = System.currentTimeMillis();
+
+        if (!b) {
+            for (InterProgramPointReplica src : sources) {
+                int query = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
+                                                                                           destination,
+                                                                                           noKill,
+                                                                                           noAlloc,
+                                                                                           forbidden));
+                // Recording a false result
+                negativeCache.add(query);
+                if (positiveCache.contains(query)) {
+                    this.negativeCache.remove(query);
+                    // A positive result was computed by another thread make sure to change all the other subqueries
+                    b = true;
+                    break;
+                }
+            }
+        }
+
+        if (b) {
+            for (InterProgramPointReplica src : sources) {
+                int query = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
+                                                                                           destination,
+                                                                                           noKill,
+                                                                                           noAlloc,
+                                                                                           forbidden));
+                positiveCache.add(query);
+                if (negativeCache.remove(query)) {
+                    // we previously thought it was negative.
+                    queryResultChanged(query);
+                }
+            }
+            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+            return true;
+        }
+
+        recordResultsTime.addAndGet(System.currentTimeMillis() - start);
         return false;
     }
 
@@ -1478,6 +1532,7 @@ public final class ProgramPointReachability {
     private AtomicLong killCallerDepTime = new AtomicLong(0);
     private AtomicLong methodCalleeDepTime = new AtomicLong(0);
     private AtomicLong methodCallerDepTime = new AtomicLong(0);
+    private AtomicLong reachableImplTime = new AtomicLong(0);
 
     // Reachability counts
     private AtomicInteger totalRequests = new AtomicInteger(0);
@@ -1529,6 +1584,7 @@ public final class ProgramPointReachability {
         double killCallerDep = killCallerDepTime.get() / 1000.0;
         double methodCalleeDep = methodCalleeDepTime.get() / 1000.0;
         double methodCallerDep = methodCallerDepTime.get() / 1000.0;
+        double reachableImpl = reachableImplTime.get() / 1000.0;
 
         double calleeQueryRequestCount = calleeQueryRequests.get();
         double callerQueryRequestCount = callerQueryRequests.get();
@@ -1545,6 +1601,7 @@ public final class ProgramPointReachability {
                 + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
+        sb.append("\tReachableImpl: " + reachableImpl + "s; RATIO: " + reachableImpl / analysisTime + "\n");
         sb.append("RECORD RESULTS" + "\n");
         sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
         sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");
