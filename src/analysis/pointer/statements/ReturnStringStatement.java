@@ -46,6 +46,8 @@ public class ReturnStringStatement extends StringStatement {
 
         g.ikDependsOnStringVariable(newIK, vRVR);
 
+        g.recordStringStatementDependency(vRVR, originator);
+
         ReferenceVariableReplica summaryRVR = new ReferenceVariableReplica(context, summary, haf);
         return g.addEdge(summaryRVR, newIK);
     }
