@@ -610,8 +610,6 @@ public class StatementRegistrar {
                                   PrettyPrinter pp) {
         assert i.getNumberOfReturnValues() == 0 || i.getNumberOfReturnValues() == 1;
 
-        System.err.println("[registerInvoke] " + i);
-
         // //////////// Result ////////////
 
         ReferenceVariable result = null;
