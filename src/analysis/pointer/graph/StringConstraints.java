@@ -1,21 +1,19 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.ReflectiveHAF;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
 public class StringConstraints {
 
     private final ConcurrentMap<StringVariableReplica, AString> map;
     private final ReflectiveHAF haf;
     private final AString initialString;
-    private final Set<StringVariableReplica> active;
-    private final ConcurrentMap<StringVariableReplica, Set<StringVariableReplica>> dependsOn;
+    private final StringDependencies stringDependencies;
 
     /* Factory Methods */
 
@@ -29,8 +27,7 @@ public class StringConstraints {
         this.haf = haf;
         this.initialString = haf.getAStringSet(Collections.singleton(""));
         this.map = AnalysisUtil.createConcurrentHashMap();
-        this.active = AnalysisUtil.createConcurrentSet();
-        this.dependsOn = AnalysisUtil.createConcurrentHashMap();
+        this.stringDependencies = StringDependencies.make();
     }
 
     /* Logic */
@@ -45,7 +42,7 @@ public class StringConstraints {
             System.err.println("[joinAt] " + svr + " `join` " + shat);
         }
 
-        if (this.active.contains(svr)) {
+        if (this.stringDependencies.isActive(svr)) {
             if (this.map.containsKey(svr)) {
                 if (svr.toString().contains("LSV 69_0")) {
                     System.err.println("[joinAt] before " + svr + " = " + this.map.get(svr));
@@ -71,7 +68,7 @@ public class StringConstraints {
     }
 
     public StringConstraintDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
-        if (this.active.contains(svr1)) {
+        if (this.stringDependencies.isActive(svr1)) {
             if (this.map.containsKey(svr2)) {
                 return this.joinAt(svr1, this.map.get(svr2));
             }
@@ -85,42 +82,28 @@ public class StringConstraints {
     }
 
     public void recordDependency(StringVariableReplica x, StringVariableReplica y) {
-        if (this.dependsOn.containsKey(x)) {
-            this.dependsOn.get(x).add(y);
-        }
-        else {
-            this.dependsOn.put(x, AnalysisUtil.createConcurrentSingletonSet(y));
-        }
+        this.stringDependencies.recordDependency(x, y);
     }
 
     public StringConstraintDelta activate(StringVariableReplica x) {
-        System.err.println("[activate] Activating: " + x);
-        return this.active.contains(x) ? StringConstraintDelta.makeEmpty(this)
-                : StringConstraintDelta.make(this, activateAndGetSources(x));
+        System.err.println("[StringConstraints.activate] Activating: " + x);
+        return this.stringDependencies.isActive(x) ? StringConstraintDelta.makeEmpty(this)
+                : StringConstraintDelta.make(this, this.stringDependencies.activate(x));
     }
 
-    private Set<StringVariableReplica> activateAndGetSources(StringVariableReplica x) {
-        this.active.add(x);
+    public void recordStringStatementUseDependency(StringVariableReplica v, StmtAndContext sac) {
+        this.stringDependencies.recordStatementUseDependency(v, sac);
+    }
 
-        System.err.println("[activateAndGetSources] Activating: " + x);
-
-        if (this.dependsOn.containsKey(x) && !this.dependsOn.get(x).isEmpty()) {
-            Set<StringVariableReplica> sources = new HashSet<>();
-            for (StringVariableReplica y : this.dependsOn.get(x)) {
-                sources.addAll(activateAndGetSources(y));
-            }
-            return sources;
-        }
-        else {
-            return Collections.singleton(x);
-        }
+    public void recordStringStatementDefineDependency(StringVariableReplica v, StmtAndContext sac) {
+        this.stringDependencies.recordStatementDefineDependency(v, sac);
     }
 
     public String getStatistics() {
         StringBuilder sb = new StringBuilder();
         sb.append("StringConstraints Statistics:\n");
         sb.append("    total variables: " + this.map.size() + "\n");
-        sb.append("    active variables: " + this.active.size() + "\n");
+        sb.append("    active variables: " + this.stringDependencies.getActiveSet().size() + "\n");
         return sb.toString();
     }
 
