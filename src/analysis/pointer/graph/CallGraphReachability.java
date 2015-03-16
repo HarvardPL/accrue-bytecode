@@ -145,7 +145,10 @@ public final class CallGraphReachability {
      * @param calleeCGNode call graph node that is the new callee
      */
     void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod,Context>*/int calleeCGNode) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
 
         /*OrderedPair<IMethod,Context>*/int callerCGNode = getCGNodeForCallSite(callerSite);
         if (getReachableFromSourceNode(callerCGNode).contains(calleeCGNode)) {
@@ -175,8 +178,9 @@ public final class CallGraphReachability {
             }
         }
 
-
-        addCallGraphEdgeTime.addAndGet(System.currentTimeMillis() - start);
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            addCallGraphEdgeTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -197,6 +201,7 @@ public final class CallGraphReachability {
         return new IntIterator() {
             private int next = -1;
 
+            @SuppressWarnings("synthetic-access")
             @Override
             public boolean hasNext() {
                 while (next < 0 && iter.hasNext()) {
@@ -429,13 +434,15 @@ public final class CallGraphReachability {
      * Print information about the analysis so far
      */
     void printDiagnostics() {
-        double addEdge = addCallGraphEdgeTime.get() / 1000.0;
-        double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
-        StringBuilder sb = new StringBuilder();
-        sb.append("\n%%%%%%%%%%%%%%%%% CALL GRAPH REACHABILITY %%%%%%%%%%%%%%%%%\n");
-        sb.append("\tAddCallGraphEdge: " + addEdge + "s; RATIO: " + addEdge / analysisTime + "\n");
-        sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
-        System.err.println(sb.toString());
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            double addEdge = addCallGraphEdgeTime.get() / 1000.0;
+            double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n%%%%%%%%%%%%%%%%% CALL GRAPH REACHABILITY %%%%%%%%%%%%%%%%%\n");
+            sb.append("\tAddCallGraphEdge: " + addEdge + "s; RATIO: " + addEdge / analysisTime + "\n");
+            sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+            System.err.println(sb.toString());
+        }
     }
 
     /**

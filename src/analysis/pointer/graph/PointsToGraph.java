@@ -293,7 +293,7 @@ public final class PointsToGraph {
      */
     private boolean graphFinished = false;
 
-    public static boolean DEBUG;
+    public static final boolean DEBUG = false;
 
     public PointsToGraph(StatementRegistrar registrar, RecencyHeapAbstractionFactory haf,
                          DependencyRecorder depRecorder, PointsToAnalysisHandle analysisHandle) {
@@ -1876,7 +1876,7 @@ public final class PointsToGraph {
             if (DEBUG) {
                 System.err.println("PTG%%%%%%%%%%%%%%%%%%%%%%\n");
             }
-            DEBUG = false;
+            //DEBUG = false;
             return added;
         }
         // flow sensitive!

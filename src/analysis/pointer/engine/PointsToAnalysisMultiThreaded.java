@@ -48,6 +48,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private static final boolean PRINT_QUEUE_SWAPS = false;
 
     /**
+     * Should we print intermittent status messages
+     */
+    private static final boolean PRINT_DIAGNOSTICS = true;
+
+    /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
      * (i.e., if n changes to point to more things) requires reevaluation of sac. Many dependencies are just copy
      * dependencies (which are not interesting dependencies).
@@ -213,15 +218,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         }
 
-        System.err.println("APPROXIMATED call sites " + approximatedCallSites);
-        System.err.println("OVERAPPROXIMATED call sites "
-                + ProgramPointReachability.nonEmptyApproximatedCallSites.size());
-        System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
-        System.err.println("OVERAPPROXIMATED field assignments "
-                + ProgramPointReachability.nonEmptyApproximatedKillSets.size());
-        System.err.println("\n*******************************\n");
-        System.out.println(g.ppReach.getCallGraphReachability());
-        System.err.println("\n*******************************\n");
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            System.err.println("APPROXIMATED call sites " + approximatedCallSites);
+            System.err.println("OVERAPPROXIMATED call sites "
+                    + ProgramPointReachability.nonEmptyApproximatedCallSites.size());
+            System.err.println("APPROXIMATED field assignments " + approximatedFieldAssigns);
+            System.err.println("OVERAPPROXIMATED field assignments "
+                    + ProgramPointReachability.nonEmptyApproximatedKillSets.size());
+        }
 
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
@@ -254,6 +258,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
         }
+
+        System.err.println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        System.out.println(g.ppReach.getCallGraphReachability());
+        System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+
         return g;
     }
 
@@ -394,11 +403,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public void submitTask(StmtAndContext sac, GraphDelta delta) {
             this.numRemainingTasks.incrementAndGet();
-            if (delta == null) {
-                this.totalStmtAndCtxtNoDeltaTasks.incrementAndGet();
-            }
-            else {
-                this.totalStmtAndCtxtWithDeltaTasks.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                if (delta == null) {
+                    this.totalStmtAndCtxtNoDeltaTasks.incrementAndGet();
+                }
+                else {
+                    this.totalStmtAndCtxtWithDeltaTasks.incrementAndGet();
+                }
             }
             exec.execute(new RunnablePointsToTask(new StmtAndContextTask(sac, delta)));
         }
@@ -478,37 +489,34 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private boolean checkPendingQueues(int bound) {
             if (FIND_ALL_APPROX) {
                 while (!containsPending() && isWorkToFinish()) {
-                    System.err.println("APPROXIMATING...");
-
-                    int approximatedCallSitesNow = 0;
-                    int approximatedFieldAssignsNow = 0;
-
                     // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
                     if (PRINT_QUEUE_SWAPS) {
                         printDiagnostics();
                     }
                     printQueueSwap("approximating");
-                    long start = System.currentTimeMillis();
+                    long start = 0L;
+                    if (PRINT_DIAGNOSTICS) {
+                        start = System.currentTimeMillis();
+                    }
                     Set<Approximation> approximations = g.ppReach.getApproximateCallSitesAndFieldAssigns()
                                                                  .findAllApproximations();
                     for (Approximation next : approximations) {
                         if (next.callSite != -1) {
                             g.ppReach.addApproximateCallSite(next.callSite);
-                            approximatedCallSites++;
-                            approximatedCallSitesNow++;
+                            if (PRINT_DIAGNOSTICS) {
+                                approximatedCallSites++;
+                            }
                         }
                         if (next.fieldAssign != null) {
                             g.ppReach.addApproximateFieldAssign(next.fieldAssign);
-                            approximatedFieldAssigns++;
-                            approximatedFieldAssignsNow++;
+                            if (PRINT_DIAGNOSTICS) {
+                                approximatedFieldAssigns++;
+                            }
                         }
                     }
-                    approximationTime.addAndGet(System.currentTimeMillis() - start);
-                    System.err.println("APPROXIMATED call sites " + " " + approximatedCallSitesNow + " total: "
-                            + approximatedCallSites);
-                    System.err.println("APPROXIMATED field assignments " + " " + approximatedFieldAssignsNow
-                            + " total: "
-                            + approximatedFieldAssigns);
+                    if (PRINT_DIAGNOSTICS) {
+                        approximationTime.addAndGet(System.currentTimeMillis() - start);
+                    }
                     if (approximations.isEmpty()) {
                         approximationFinished = true;
                     }
@@ -523,9 +531,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                         printDiagnostics();
                     }
                     printQueueSwap("approximating");
-                    long start = System.currentTimeMillis();
+                    long start = 0L;
+                    if (PRINT_DIAGNOSTICS) {
+                        start = System.currentTimeMillis();
+                    }
                     Approximation next = g.ppReach.getApproximateCallSitesAndFieldAssigns().findNextApproximation();
-                    approximationTime.addAndGet(System.currentTimeMillis() - start);
+                    if (PRINT_DIAGNOSTICS) {
+                        approximationTime.addAndGet(System.currentTimeMillis() - start);
+                    }
                     if (next.callSite == -1 && next.fieldAssign == null) {
                         // The search found no more approximations, the analysis is complete
                         System.err.println("NO MORE APPROXIMATIONS!!!");
@@ -586,7 +599,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             for (AddToSetOrigin t : s) {
                 changed = true;
                 this.numRemainingTasks.incrementAndGet();
-                this.totalAddToSetTasks.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    this.totalAddToSetTasks.incrementAndGet();
+                }
                 exec.execute(new RunnablePointsToTask(t));
             }
             return changed;
@@ -598,7 +613,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             for (AddNonMostRecentOrigin t : s) {
                 changed = true;
                 this.numRemainingTasks.incrementAndGet();
-                this.totalAddNonMostRecentOriginTasks.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    this.totalAddNonMostRecentOriginTasks.incrementAndGet();
+                }
                 exec.execute(new RunnablePointsToTask(t));
             }
             return changed;
@@ -610,7 +627,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             for (ProgramPointSubQuery sq : s) {
                 changed = true;
                 this.numRemainingTasks.incrementAndGet();
-                this.totalPPSubQueryTasks.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    this.totalPPSubQueryTasks.incrementAndGet();
+                }
                 exec.execute(new RunnablePointsToTask(new PPSubQueryTask(sq)));
             }
             return changed;
@@ -646,18 +665,21 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         private void printDiagnostics() {
-            StringBuilder sb = new StringBuilder();
-            sb.append((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
-                    + numRemainingTasks.get() + "; pendingAddToSetOrigin: " + pendingAddToSetOrigin.get().size()
-                    + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
-                    + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size() + "; approximationTime: "
-                    + approximationTime.get() / 1000.0 + "; approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
-            sb.append("\ttotalStmtAndCtxtNoDeltaTasks: " + totalStmtAndCtxtNoDeltaTasks.get()
-                    + "; totalStmtAndCtxtWithDeltaTasks: " + totalStmtAndCtxtWithDeltaTasks.get()
-                    + "; totalAddNonMostRecentOriginTasks: " + totalAddNonMostRecentOriginTasks.get()
-                    + "; totalAddToSetTasks: " + totalAddToSetTasks.get() + "; totalPPSubQueryTasks: "
-                    + totalPPSubQueryTasks.get());
-            System.err.println(sb.toString());
+            if (PRINT_DIAGNOSTICS) {
+                StringBuilder sb = new StringBuilder();
+                sb.append((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
+                        + numRemainingTasks.get() + "; pendingAddToSetOrigin: " + pendingAddToSetOrigin.get().size()
+                        + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
+                        + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size() + "; approximationTime: "
+                        + approximationTime.get() / 1000.0 + "; approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
+                sb.append("\ttotalStmtAndCtxtNoDeltaTasks: " + totalStmtAndCtxtNoDeltaTasks.get()
+                        + "; totalStmtAndCtxtWithDeltaTasks: " + totalStmtAndCtxtWithDeltaTasks.get()
+                        + "; totalAddNonMostRecentOriginTasks: " + totalAddNonMostRecentOriginTasks.get()
+                        + "; totalAddToSetTasks: " + totalAddToSetTasks.get() + "; totalPPSubQueryTasks: "
+                        + totalPPSubQueryTasks.get() + "; approximatedCallSites: " + approximatedCallSites
+                        + "; approximatedFieldAssigns: " + approximatedFieldAssigns);
+                System.err.println(sb.toString());
+            }
         }
 
         public class RunnablePointsToTask implements Runnable {

@@ -41,11 +41,11 @@ public final class ProgramPointDestinationQuery {
     /**
      * Print debug info
      */
-    public boolean DEBUG = ProgramPointReachability.DEBUG;
+    public static final boolean DEBUG = ProgramPointReachability.DEBUG;
     /**
      * Print more debug info
      */
-    public boolean DEBUG2 = ProgramPointReachability.DEBUG2;
+    public static final boolean DEBUG2 = ProgramPointReachability.DEBUG2;
 
     /////////////////////
     //
@@ -450,13 +450,17 @@ public final class ProgramPointDestinationQuery {
 
         /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext()));
         /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
-        if (DEBUG && calleeSet.isEmpty()) {
-            System.err.println("PPDQ%% \t\t\tNO CALLEES for " + pp);
+        if (DEBUG) {
+            if (calleeSet.isEmpty()) {
+                System.err.println("PPDQ%% \t\t\tNO CALLEES for " + pp);
+            }
         }
 
         if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
             if (!calleeSet.isEmpty()) {
-                ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
+                if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+                    ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
+                }
                 if (PointsToAnalysis.outputLevel > 0) {
                     System.err.println("APPROXIMATING non-empty call site "
                             + g.lookupCallSiteReplicaDictionary(callSite));
@@ -475,11 +479,16 @@ public final class ProgramPointDestinationQuery {
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
             InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
             ReachabilityResult res = ReachabilityResult.UNREACHABLE;
-            long startCG = System.currentTimeMillis();
+            long startCG = 0L;
+            if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+                startCG = System.currentTimeMillis();
+            }
             boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt,
                                                                                this.destinationCGNode,
                                                                                this.currentSubQuery);
-            ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
+            if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+                ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
+            }
             if (destReachable) {
                 // this is a relevant node get the results for the callee
                 res = getResults(calleeEntryIPPR, true, trigger, visited);
@@ -545,8 +554,10 @@ public final class ProgramPointDestinationQuery {
                 if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, currentContext)) {
                     assert stmt instanceof LocalToFieldStatement;
                     if (killed.fst()) {
-                        ProgramPointReachability.nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt,
-                                                                                                    currentContext));
+                        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+                            ProgramPointReachability.nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt,
+                                                                                                        currentContext));
+                        }
                         if (PointsToAnalysis.outputLevel > 0) {
                             System.err.println("APPROXIMATING kill set for field assign with receivers. "
                                     + stmt + " in " + currentContext);
@@ -565,8 +576,10 @@ public final class ProgramPointDestinationQuery {
                     // may kill a field we are interested in.
                     assert stmt instanceof LocalToFieldStatement;
                     boolean maybeKilled = couldStatemenKill((LocalToFieldStatement) stmt, noKill);
-                    if (DEBUG2 && maybeKilled) {
-                        System.err.println("PPDQ%% \t\t\tKILL: " + killed);
+                    if (DEBUG2) {
+                        if (maybeKilled) {
+                            System.err.println("PPDQ%% \t\t\tKILL: " + killed);
+                        }
                     }
                     if (!maybeKilled) {
                         // This statement can never kill anything in the noKill set
@@ -692,8 +705,6 @@ public final class ProgramPointDestinationQuery {
             ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callSite);
             CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
 
-            // Always look at the caller even if there is no way to reach the destination via that call graph node
-            // XXX Could do something smarter to figure out whether the destination was reachable (similar to the old relevant nodes computation)
             InterProgramPointReplica callerSiteReplica;
             if (isExceptionExit) {
                 callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());

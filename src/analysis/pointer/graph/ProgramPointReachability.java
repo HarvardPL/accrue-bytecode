@@ -47,17 +47,17 @@ public final class ProgramPointReachability {
     /**
      * Whether to incrementally print diagnostic timing and count information
      */
-    private boolean PRINT_DIAGNOSTICS = true;
+    public static final boolean PRINT_DIAGNOSTICS = false;
 
     /**
      * Print debug info
      */
-    public static boolean DEBUG;
+    public static final boolean DEBUG = false;
 
     /**
      * Print more debug info
      */
-    public static boolean DEBUG2;
+    public static final boolean DEBUG2 = false;
 
     /**
      * Keep a reference to the PointsToGraph for convenience.
@@ -193,8 +193,11 @@ public final class ProgramPointReachability {
     private boolean reachableImpl(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
                                   Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
-        long start = System.currentTimeMillis();
-        totalRequests.incrementAndGet();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+            totalRequests.incrementAndGet();
+        }
         assert allMostRecent(noAlloc);
         assert allInSameMethodAndContext(forbidden, sources, destination);
 
@@ -204,12 +207,15 @@ public final class ProgramPointReachability {
         //            DEBUG2 = true;
         //        }
 
-        if (DEBUG && sources.isEmpty()) {
-            System.err.println("PPR%%NO SOURCES " + " -> " + destination);
-            System.err.println("PPR%%\tNO KILL " + noKill);
-            System.err.println("PPR%%\tNO ALLOC " + noAlloc);
-            System.err.println("PPR%%\tforbidden " + forbidden);
-            System.err.println("PPR%%\tORIGIN " + origin);
+        if (DEBUG) {
+            if (sources.isEmpty()) {
+
+                System.err.println("PPR%%NO SOURCES " + " -> " + destination);
+                System.err.println("PPR%%\tNO KILL " + noKill);
+                System.err.println("PPR%%\tNO ALLOC " + noAlloc);
+                System.err.println("PPR%%\tforbidden " + forbidden);
+                System.err.println("PPR%%\tORIGIN " + origin);
+            }
         }
 
         // check the caches
@@ -222,7 +228,9 @@ public final class ProgramPointReachability {
                                                                                     forbidden));
             if (this.positiveCache.contains(mr)) {
                 // We have already computed that the destination is reachable from src
-                cachedResponses.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    cachedResponses.incrementAndGet();
+                }
                 return true;
             }
             addQueryDependency(mr, origin);
@@ -244,15 +252,19 @@ public final class ProgramPointReachability {
                 System.err.println("PPR%%\torigin " + origin);
                 System.err.println("PPR%%\tfalse because cache all negative");
             }
-            DEBUG = false;
-            DEBUG2 = false;
-            cachedResponses.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                cachedResponses.incrementAndGet();
+            }
             return false;
         }
         // The cache didn't help. Try getting an answer for the unknown elements.
-        this.reachabilityRequests.incrementAndGet();
+        if (PRINT_DIAGNOSTICS) {
+            this.reachabilityRequests.incrementAndGet();
+        }
         boolean b = computeQuery(unknown, destination, noKill, noAlloc, forbidden);
-        reachableImplTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            reachableImplTime.addAndGet(System.currentTimeMillis() - start);
+        }
         return b;
     }
 
@@ -321,11 +333,14 @@ public final class ProgramPointReachability {
         //        }
 
         //        this.destinations.add(destination);
-        int resp = this.computedResponses.incrementAndGet();
-        if (PRINT_DIAGNOSTICS && (resp % 100000) == 0) {
-            printDiagnostics();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            int resp = this.computedResponses.incrementAndGet();
+            if (resp % 1000000 == 0) {
+                printDiagnostics();
+            }
+            start = System.currentTimeMillis();
         }
-        long start = System.currentTimeMillis();
         ProgramPointDestinationQuery prq = new ProgramPointDestinationQuery(destination,
                                                                             noKill,
                                                                             noAlloc,
@@ -349,9 +364,6 @@ public final class ProgramPointReachability {
             //                DEBUG = false;
             //                DEBUG2 = false;
             //            }
-
-            prq.DEBUG = DEBUG;
-            prq.DEBUG2 = DEBUG2;
         }
 
         // try to solve it for each source.
@@ -361,30 +373,43 @@ public final class ProgramPointReachability {
                                                                                           noKill,
                                                                                           noAlloc,
                                                                                           forbidden));
-            totalDestQuery.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                totalDestQuery.incrementAndGet();
+            }
 
             if (positiveCache.contains(queryInt)) {
                 // The result was computed by another thread before this thread ran
                 recordQueryResult(sources, destination, noKill, noAlloc, forbidden, true);
-                cachedDestQuery.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    cachedDestQuery.incrementAndGet();
+                }
                 return true;
             }
         }
 
         // Now try a search starting at the source
-        long startDest = System.currentTimeMillis();
+        long startDest = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            startDest = System.currentTimeMillis();
+        }
+
         boolean found = prq.executeSubQueries(sources);
-        destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
-        computedDestQuery.incrementAndGet();
+
+        if (PRINT_DIAGNOSTICS) {
+            destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
+            computedDestQuery.incrementAndGet();
+        }
+
         if (found) {
             recordQueryResult(sources, destination, noKill, noAlloc, forbidden, true);
             if (DEBUG) {
                 System.err.println("PPR%%\t" + sources + " -> " + destination);
                 System.err.println("PPR%%\ttrue because query returned true");
             }
-            DEBUG = false;
-            DEBUG2 = false;
-            totalTime.addAndGet(System.currentTimeMillis() - start);
+
+            if (PRINT_DIAGNOSTICS) {
+                totalTime.addAndGet(System.currentTimeMillis() - start);
+            }
             return true;
         }
         if (DEBUG) {
@@ -397,9 +422,9 @@ public final class ProgramPointReachability {
                 System.err.println("PPR%%\t" + sources + " -> " + destination);
                 System.err.println("PPR%%\ttrue because cache already had true (2)");
             }
-            DEBUG = false;
-            DEBUG2 = false;
-            totalTime.addAndGet(System.currentTimeMillis() - start);
+            if (PRINT_DIAGNOSTICS) {
+                totalTime.addAndGet(System.currentTimeMillis() - start);
+            }
             return true;
         }
 
@@ -408,9 +433,9 @@ public final class ProgramPointReachability {
             System.err.println("PPR%%\t" + " -> " + destination);
             System.err.println("PPR%%\tAll sources false");
         }
-        DEBUG = false;
-        DEBUG2 = false;
-        totalTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            totalTime.addAndGet(System.currentTimeMillis() - start);
+        }
         return false;
     }
 
@@ -422,7 +447,10 @@ public final class ProgramPointReachability {
     private boolean recordQueryResult(Collection<InterProgramPointReplica> sources,
                                       InterProgramPointReplica destination,
                                    IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden, boolean b) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
 
         if (!b) {
             for (InterProgramPointReplica src : sources) {
@@ -455,46 +483,14 @@ public final class ProgramPointReachability {
                     queryResultChanged(query);
                 }
             }
-            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
-            return true;
-        }
-
-        recordResultsTime.addAndGet(System.currentTimeMillis() - start);
-        return false;
-    }
-
-    /**
-     * Record in the caches that the result of query mr is b. If this is a change (from negative to positive), then some
-     * StmtAndContexts may need to be rerun. If set sacsToReprocess is non-null then the StmtAndContexts will be added
-     * to the set. Otherwise, they will be submitted to the PointsToEngine.
-     *
-     * @param query query to record
-     * @param b new result, true if the destination was reachable from the source, false otherwise
-     *
-     * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
-     *         the cache already has a positive result.
-     */
-    private boolean recordQueryResult(/*ProgramPointSubQuery*/int query, boolean b) {
-        long start = System.currentTimeMillis();
-        if (b) {
-            positiveCache.add(query);
-            if (negativeCache.remove(query)) {
-                // we previously thought it was negative.
-                queryResultChanged(query);
+            if (PRINT_DIAGNOSTICS) {
+                recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             }
-            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
         }
-
-        // Recording a false result
-        negativeCache.add(query);
-        if (positiveCache.contains(query)) {
-            this.negativeCache.remove(query);
-            // A positive result has already been computed return it
+        if (PRINT_DIAGNOSTICS) {
             recordResultsTime.addAndGet(System.currentTimeMillis() - start);
-            return true;
         }
-        recordResultsTime.addAndGet(System.currentTimeMillis() - start);
         return false;
     }
 
@@ -530,7 +526,9 @@ public final class ProgramPointReachability {
      * Get the reachability results for a method.
      */
     MethodSummaryKillAndAlloc getReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
-        totalMethodReach.incrementAndGet();
+        if (PRINT_DIAGNOSTICS) {
+            totalMethodReach.incrementAndGet();
+        }
         if (DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
             System.err.println("PPR%% METHOD " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
@@ -554,7 +552,9 @@ public final class ProgramPointReachability {
                     }
                 }
             }
-            cachedMethodReach.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                cachedMethodReach.incrementAndGet();
+            }
             return res;
         }
         // no results yet.
@@ -575,7 +575,9 @@ public final class ProgramPointReachability {
                     }
                 }
             }
-            cachedMethodReach.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                cachedMethodReach.incrementAndGet();
+            }
             return existing;
         }
 
@@ -596,25 +598,35 @@ public final class ProgramPointReachability {
                 }
             }
         }
-        computedMethodReach.incrementAndGet();
+        if (PRINT_DIAGNOSTICS) {
+            computedMethodReach.incrementAndGet();
+        }
         return rr;
     }
 
     private void recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, MethodSummaryKillAndAlloc res) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.put(cgnode, res);
         if (existing != null && !existing.equals(res)) {
             // trigger update for dependencies.
             methodSummaryChanged(cgnode);
         }
-        recordMethodTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            recordMethodTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     public static final MutableIntSet nonEmptyApproximatedCallSites = AnalysisUtil.createConcurrentIntSet();
     public static final Set<OrderedPair<PointsToStatement, Context>> nonEmptyApproximatedKillSets = AnalysisUtil.createConcurrentSet();
 
     private MethodSummaryKillAndAlloc computeReachabilityForMethod(/*OrderedPair<IMethod, Context>*/int cgNode) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         // XXX at the moment we will just record from the start node.
         OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
         Context context = n.snd();
@@ -656,7 +668,9 @@ public final class ProgramPointReachability {
                     /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
                     if (getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
                         if (!calleeSet.isEmpty()) {
-                            nonEmptyApproximatedCallSites.add(callSite);
+                            if (PRINT_DIAGNOSTICS) {
+                                nonEmptyApproximatedCallSites.add(callSite);
+                            }
                             if (PointsToAnalysis.outputLevel > 0) {
                                 System.err.println("APPROXIMATING non-empty call site "
                                         + g.lookupCallSiteReplicaDictionary(callSite));
@@ -737,7 +751,9 @@ public final class ProgramPointReachability {
 
                                 if (getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, context)) {
                                     if (killed.fst()) {
-                                        nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt, context));
+                                        if (PRINT_DIAGNOSTICS) {
+                                            nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt, context));
+                                        }
                                         if (PointsToAnalysis.outputLevel > 0) {
                                             System.err.println("APPROXIMATING kill set for field assign with receivers. "
                                                     + stmt + " in " + context);
@@ -828,7 +844,9 @@ public final class ProgramPointReachability {
         rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
 
         recordMethodReachability(cgNode, rr);
-        methodReachTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            methodReachTime.addAndGet(System.currentTimeMillis() - start);
+        }
         return rr;
     }
 
@@ -1023,7 +1041,10 @@ public final class ProgramPointReachability {
      * @param caller
      */
     void addCalleeQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/int caller) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         MutableIntSet s = calleeQueryDependencies.get(caller);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -1033,7 +1054,9 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
-        calleeDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            calleeDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -1044,7 +1067,10 @@ public final class ProgramPointReachability {
      */
     void addCallerQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
                                   int callGraphNode) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         MutableIntSet s = callerQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -1054,7 +1080,9 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
-        callerDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            callerDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -1065,7 +1093,10 @@ public final class ProgramPointReachability {
      */
     void addMethodQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
                                   int callGraphNode) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         MutableIntSet s = methodQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -1075,11 +1106,16 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
-        methodDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            methodDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     void addKillQueryDependency(/*ProgramPointSubQuery*/int query, ReferenceVariableReplica readDependencyForKillField) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1093,12 +1129,17 @@ public final class ProgramPointReachability {
             }
         }
         s.add(query);
-        killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     void removeKillQueryDependency(/*ProgramPointSubQuery*/int query,
                                    ReferenceVariableReplica readDependencyForKillField) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1108,12 +1149,17 @@ public final class ProgramPointReachability {
         if (s != null) {
             s.remove(query);
         }
-        killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     private void addCalleeMethodDependency(/*OrderedPair<IMethod, Context>*/int callee, /*ProgramPointReplica*/
                                            int callSite) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet s = calleeMethodDependencies.get(callSite);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -1123,7 +1169,9 @@ public final class ProgramPointReachability {
             }
         }
         s.add(callee);
-        methodCalleeDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            methodCalleeDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -1134,7 +1182,10 @@ public final class ProgramPointReachability {
      */
     private void addMethodMethodDependency(/*OrderedPair<IMethod, Context>*/int dependee,
     /*OrderedPair<IMethod, Context>*/int callGraphNode) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         /*Set<OrderedPair<IMethod, Context>>*/MutableIntSet s = methodMethodDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
@@ -1144,12 +1195,17 @@ public final class ProgramPointReachability {
             }
         }
         s.add(dependee);
-        methodCallerDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            methodCallerDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     private void addKillMethodDependency(/*OrderedPair<IMethod, Context>*/int callGraphNode,
                                          ReferenceVariableReplica readDependencyForKillField) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1164,12 +1220,17 @@ public final class ProgramPointReachability {
             }
         }
         s.add(callGraphNode);
-        killCallerDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            killCallerDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     private void removeKillMethodDependency(/*OrderedPair<IMethod, Context>*/int callGraphNode,
                                             ReferenceVariableReplica readDependencyForKillField) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         if (readDependencyForKillField == null) {
             return;
         }
@@ -1179,7 +1240,9 @@ public final class ProgramPointReachability {
         if (s != null) {
             s.remove(callGraphNode);
         }
-        killCallerDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            killCallerDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -1210,7 +1273,9 @@ public final class ProgramPointReachability {
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
             while (iter.hasNext()) {
                 int mr = iter.next();
-                calleeQueryRequests.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    calleeQueryRequests.incrementAndGet();
+                }
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1251,7 +1316,9 @@ public final class ProgramPointReachability {
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
             while (iter.hasNext()) {
                 int mr = iter.next();
-                calleeQueryRequests.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    calleeQueryRequests.incrementAndGet();
+                }
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1292,7 +1359,9 @@ public final class ProgramPointReachability {
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
             while (iter.hasNext()) {
                 int mr = iter.next();
-                killQueryRequests.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    killQueryRequests.incrementAndGet();
+                }
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1323,7 +1392,9 @@ public final class ProgramPointReachability {
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
             while (iter.hasNext()) {
                 int mr = iter.next();
-                callerQueryRequests.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    callerQueryRequests.incrementAndGet();
+                }
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1357,7 +1428,9 @@ public final class ProgramPointReachability {
 
             while (iter.hasNext()) {
                 int mr = iter.next();
-                methodQueryRequests.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    methodQueryRequests.incrementAndGet();
+                }
                 // need to re-run the query of mr
                 if (!requestRerunQuery(mr)) {
                     // whoops, no need to rerun this anymore.
@@ -1380,10 +1453,14 @@ public final class ProgramPointReachability {
      * @param ppSubQuery query to rerun
      */
     boolean requestRerunQuery(/*ProgramPointSubQuery*/int ppSubQuery) {
-        totalRequests.incrementAndGet();
+        if (PRINT_DIAGNOSTICS) {
+            totalRequests.incrementAndGet();
+        }
         if (this.positiveCache.contains(ppSubQuery)) {
             // the query is already guaranteed to be true.
-            cachedResponses.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                cachedResponses.incrementAndGet();
+            }
             return false;
         }
         this.analysisHandle.submitReachabilityQuery(ProgramPointSubQuery.lookupDictionary(ppSubQuery));
@@ -1439,7 +1516,10 @@ public final class ProgramPointReachability {
      * @param origin to be triggered if the query results change
      */
     private void addQueryDependency(/*ProgramPointSubQuery*/int query, ReachabilityQueryOrigin origin) {
-        long start = System.currentTimeMillis();
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
         if (origin == null) {
             // nothing to do
             return;
@@ -1453,7 +1533,9 @@ public final class ProgramPointReachability {
             }
         }
         deps.add(origin);
-        queryDepTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            queryDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -1482,7 +1564,9 @@ public final class ProgramPointReachability {
                 MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
                 while (iter.hasNext()) {
                     int mr = iter.next();
-                    killQueryRequests.incrementAndGet();
+                    if (PRINT_DIAGNOSTICS) {
+                        killQueryRequests.incrementAndGet();
+                    }
                     // need to re-run the query of mr
                     if (!requestRerunQuery(mr)) {
                         // whoops, no need to rerun this anymore.
@@ -1554,6 +1638,9 @@ public final class ProgramPointReachability {
     private AtomicInteger reachabilityRequests = new AtomicInteger(0);
 
     public void printDiagnostics() {
+        if (!PRINT_DIAGNOSTICS) {
+            return;
+        }
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
         sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses

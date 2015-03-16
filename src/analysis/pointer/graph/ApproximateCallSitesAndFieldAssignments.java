@@ -214,7 +214,6 @@ public class ApproximateCallSitesAndFieldAssignments {
             addSuccs(current, q);
         } // The queue is empty
 
-        System.err.println("FINISHED APPROXIMATION " + approx.size());
         finished = true;
         return approx;
     }

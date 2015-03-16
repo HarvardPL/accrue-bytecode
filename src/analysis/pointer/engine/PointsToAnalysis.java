@@ -19,7 +19,7 @@ public abstract class PointsToAnalysis {
      * If true then debug strings may be more verbose, and memory usage may be higher, no additional output should be
      * produced. Adjust {@link PointsToAnalysis#outputLevel} for more verbose console output.
      */
-    public static boolean DEBUG = false;
+    public static final boolean DEBUG = false;
     /**
      * Defining abstraction factory for this points-to analysis
      */

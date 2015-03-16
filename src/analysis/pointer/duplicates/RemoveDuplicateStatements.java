@@ -27,7 +27,7 @@ public class RemoveDuplicateStatements {
     /**
      * Print out the sets before and after removing duplicates
      */
-    public static boolean DEBUG = false;
+    public static final boolean DEBUG = false;
 
     /**
      * Map from variable to the points-to statements that use the variable and the index into the use list
@@ -139,7 +139,11 @@ public class RemoveDuplicateStatements {
      * @return set with duplicate statements removed
      */
     public static OrderedPair<Set<PointsToStatement>, VariableIndex> removeDuplicates(Set<PointsToStatement> statements) {
-        long startTime = System.currentTimeMillis();
+
+        long start = 0L;
+        if (DEBUG) {
+            start = System.currentTimeMillis();
+        }
         int startSize = statements.size();
 
         if (DEBUG) {
@@ -163,13 +167,15 @@ public class RemoveDuplicateStatements {
             changed |= analysis.handleCall();
         }
 
-        if (DEBUG && startSize != analysis.allStatements.size()) {
+        if (DEBUG) {
+            if (startSize != analysis.allStatements.size()) {
             System.err.println("AFTER:");
             for (PointsToStatement s : analysis.allStatements) {
                 System.err.println("\t" + s);
             }
             System.err.println("Finished removing " + (startSize - analysis.allStatements.size()) + " duplicates: "
-                                            + (System.currentTimeMillis() - startTime) + "ms");
+                        + (System.currentTimeMillis() - start) + "ms");
+            }
         }
         return new OrderedPair<>(analysis.allStatements, analysis.variableIndex);
     }
