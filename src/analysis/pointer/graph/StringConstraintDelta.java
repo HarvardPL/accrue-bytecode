@@ -5,37 +5,60 @@ import java.util.Set;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
 public class StringConstraintDelta {
 
     private final StringConstraints sc;
-    private Set<StringVariableReplica> svrs;
+    private Set<StringVariableReplica> needUses;
+    private Set<StringVariableReplica> needDefs;
 
     /* Factory Methods */
 
     public static final StringConstraintDelta makeEmpty(StringConstraints sc) {
-        return new StringConstraintDelta(sc, AnalysisUtil.<StringVariableReplica> createConcurrentSet());
+        return new StringConstraintDelta(sc,
+                                         AnalysisUtil.<StringVariableReplica> createConcurrentSet(),
+                                         AnalysisUtil.<StringVariableReplica> createConcurrentSet());
     }
 
-    public static final StringConstraintDelta make(StringConstraints sc, StringVariableReplica svr) {
-        return new StringConstraintDelta(sc, AnalysisUtil.createConcurrentSingletonSet(svr));
+    public static final StringConstraintDelta makeWithNeedUses(StringConstraints sc, StringVariableReplica needsUses) {
+        return new StringConstraintDelta(sc,
+                                         AnalysisUtil.createConcurrentSingletonSet(needsUses),
+                                         AnalysisUtil.<StringVariableReplica> createConcurrentSet());
     }
 
-    public static final StringConstraintDelta make(StringConstraints sc, Set<StringVariableReplica> svrs) {
-        return new StringConstraintDelta(sc, svrs);
+    public static final StringConstraintDelta makeWithNeedDefs(StringConstraints sc, StringVariableReplica needsDefs) {
+        return new StringConstraintDelta(sc,
+                                         AnalysisUtil.<StringVariableReplica> createConcurrentSet(),
+                                         AnalysisUtil.createConcurrentSingletonSet(needsDefs));
+    }
+
+    public static final StringConstraintDelta makeWithNeedUses(StringConstraints sc, Set<StringVariableReplica> needUses) {
+        return new StringConstraintDelta(sc, needUses, AnalysisUtil.<StringVariableReplica> createConcurrentSet());
+    }
+
+    public static final StringConstraintDelta makeWithNeedDefs(StringConstraints sc, Set<StringVariableReplica> needDefs) {
+        return new StringConstraintDelta(sc, AnalysisUtil.<StringVariableReplica> createConcurrentSet(), needDefs);
+    }
+
+    public static final StringConstraintDelta make(StringConstraints sc, Set<StringVariableReplica> needUses,
+                                                   Set<StringVariableReplica> needDefs) {
+        return new StringConstraintDelta(sc, needUses, needDefs);
     }
 
     /* Constructors */
 
-    public StringConstraintDelta(StringConstraints sc, Set<StringVariableReplica> svrs) {
+    public StringConstraintDelta(StringConstraints sc, Set<StringVariableReplica> needUses,
+                                 Set<StringVariableReplica> needDefs) {
         this.sc = sc;
-        this.svrs = svrs;
+        this.needUses = needUses;
+        this.needDefs = needDefs;
     }
 
     /* Logic */
 
     public Optional<AString> getAStringFor(StringVariableReplica svr) {
-        if (this.svrs.contains(svr)) {
+        if (this.needUses.contains(svr)) {
             return Optional.some(this.sc.getAStringFor(svr));
         }
         else {
@@ -44,11 +67,12 @@ public class StringConstraintDelta {
     }
 
     public boolean isEmpty() {
-        return this.svrs.isEmpty();
+        return this.needUses.isEmpty() && this.needDefs.isEmpty();
     }
 
     public void combine(StringConstraintDelta that) {
-        this.svrs.addAll(that.svrs);
+        this.needUses.addAll(that.needUses);
+        this.needDefs.addAll(that.needDefs);
 
         //        Set<StringVariableReplica> svrs = AnalysisUtil.createConcurrentSet();
         //        svrs.addAll(this.svrs);
@@ -56,13 +80,26 @@ public class StringConstraintDelta {
         //        this.svrs = svrs;
     }
 
-    public Set<StringVariableReplica> getChangedStringVariables() {
-        return this.svrs;
+    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
+        Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
+
+        for (StringVariableReplica v : this.needDefs) {
+            System.err.println("[StringConstraintDelta.getStatementsNeededByStringUpdates] v: " + v);
+            System.err.println("[StringConstraintDelta.getStatementsNeededByStringUpdates] definedBy: "
+                    + this.sc.getDefinedBy(v));
+            s.addAll(this.sc.getDefinedBy(v));
+        }
+
+        for (StringVariableReplica v : this.needUses) {
+            s.addAll(this.sc.getUsedBy(v));
+        }
+
+        return s;
     }
 
     @Override
     public String toString() {
-        return "StringConstraintDelta [svrs=" + svrs + "]";
+        return "StringConstraintDelta [needDefs=" + this.needDefs + ", needUses=" + this.needUses + "]";
     }
 
 }

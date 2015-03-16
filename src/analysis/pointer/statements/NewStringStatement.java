@@ -24,8 +24,11 @@ public class NewStringStatement extends StringStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        return g.stringVariableReplicaJoinAt(new StringVariableReplica(context, result),
-                                             ((ReflectiveHAF) haf).getAStringBottom());
+        StringVariableReplica svr = new StringVariableReplica(context, result);
+
+        g.recordStringStatementDefineDependency(svr, originator);
+
+        return g.stringVariableReplicaJoinAt(svr, ((ReflectiveHAF) haf).getAStringBottom());
     }
 
     @Override

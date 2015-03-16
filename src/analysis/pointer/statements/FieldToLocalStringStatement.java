@@ -43,6 +43,8 @@ public class FieldToLocalStringStatement extends StringStatement {
 
         GraphDelta newDelta = new GraphDelta(g);
 
+        g.recordStringStatementDefineDependency(vSVR, originator);
+
         for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
             ObjectField f = new ObjectField(oIK, this.field);
 

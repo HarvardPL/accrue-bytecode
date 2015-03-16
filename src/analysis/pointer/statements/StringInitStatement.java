@@ -34,6 +34,8 @@ public class StringInitStatement extends StringStatement {
         System.err.println("[StringInitStatement.process] ");
         GraphDelta newDelta = new GraphDelta(g);
 
+        g.recordStringStatementDefineDependency(svr, originator);
+
         newDelta.combine(g.stringVariableReplicaJoinAt(svr,
                                                        ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(""))));
         System.err.println("[StringInitStatement.process] " + svr + " <- " + g.getAStringFor(svr));

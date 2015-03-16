@@ -53,14 +53,15 @@ public class StringConstraints {
                     System.err.println("[joinAt] after " + svr + " = " + this.map.get(svr));
                     System.err.println("[joinAt] changed = " + changedp);
                 }
-                return changedp ? StringConstraintDelta.make(this, svr) : StringConstraintDelta.makeEmpty(this);
+                return changedp ? StringConstraintDelta.makeWithNeedUses(this, svr)
+                        : StringConstraintDelta.makeEmpty(this);
             }
             else {
                 if (svr.toString().contains("LSV 69_0")) {
                     System.err.println("[joinAt] nothing in 69_0 yet, setting to copy of " + shat);
                 }
                 this.map.put(svr, shat.copy());
-                return StringConstraintDelta.make(this, svr);
+                return StringConstraintDelta.makeWithNeedUses(this, svr);
             }
         }
         else {
@@ -93,7 +94,7 @@ public class StringConstraints {
             return StringConstraintDelta.makeEmpty(this);
         }
         else {
-            return StringConstraintDelta.make(this, activatedSVRs);
+            return StringConstraintDelta.makeWithNeedDefs(this, activatedSVRs);
         }
     }
 
@@ -103,6 +104,14 @@ public class StringConstraints {
 
     public void recordStringStatementDefineDependency(StringVariableReplica v, StmtAndContext sac) {
         this.stringDependencies.recordStatementDefineDependency(v, sac);
+    }
+
+    public Set<StmtAndContext> getDefinedBy(StringVariableReplica v) {
+        return this.stringDependencies.getDefinedBy(v);
+    }
+
+    public Set<StmtAndContext> getUsedBy(StringVariableReplica v) {
+        return this.stringDependencies.getUsedBy(v);
     }
 
     public String getStatistics() {

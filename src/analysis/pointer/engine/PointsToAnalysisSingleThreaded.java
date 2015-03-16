@@ -19,7 +19,6 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
-import analysis.pointer.graph.StringVariableReplica;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ArrayToLocalStatement;
@@ -62,8 +61,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     private IntMap<Set<StmtAndContext>> interestingDepedencies = new SparseIntMap<>();
 
-    private final Map<StringVariableReplica, Set<StmtAndContext>> stringDependencies;
-
     /**
      * New pointer analysis engine
      *
@@ -71,7 +68,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      */
     public PointsToAnalysisSingleThreaded(HeapAbstractionFactory haf) {
         super(haf);
-        this.stringDependencies = new HashMap<>();
     }
 
     @Override
@@ -141,11 +137,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             @Override
             public void recordRead(int n, StmtAndContext sac) {
                 PointsToAnalysisSingleThreaded.this.addInterestingDependency(n, sac);
-            }
-
-            @Override
-            public void recordStringRead(StringVariableReplica svr, StmtAndContext sac) {
-                PointsToAnalysisSingleThreaded.this.addStringDependency(svr, sac);
             }
 
             @Override
@@ -429,12 +420,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
 
-        for (StringVariableReplica svr : changes.getChangedStringVariables()) {
-            for (StmtAndContext sac : this.getStringDependencies(svr)) {
-                queue.add(new OrderedPair<>(sac, changes));
-            }
+        for (StmtAndContext sac : changes.getStatementsNeededByStringUpdates()) {
+            queue.add(new OrderedPair<>(sac, changes));
         }
-
     }
 
     /**
@@ -506,23 +494,6 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             this.interestingDepedencies.put(n, s);
         }
         return s.add(sac);
-    }
-
-    protected void addStringDependency(StringVariableReplica svr, StmtAndContext sac) {
-        if (this.stringDependencies.containsKey(svr)) {
-            this.stringDependencies.get(svr).add(sac);
-        }
-        else {
-            this.stringDependencies.put(svr, AnalysisUtil.createConcurrentSingletonSet(sac));
-        }
-    }
-
-    protected Set<StmtAndContext> getStringDependencies(StringVariableReplica svr) {
-        if (this.stringDependencies.containsKey(svr)) {
-            return this.stringDependencies.get(svr);
-        } else {
-            return AnalysisUtil.createConcurrentSet();
-        }
     }
 
     /**

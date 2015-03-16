@@ -1,6 +1,5 @@
 package analysis.pointer.graph;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -46,16 +45,14 @@ public class StringDependencies {
 
             System.err.println("[StringDependencies.activate] Activating: " + x);
 
-            if (this.dependsOn.containsKey(x) && !this.dependsOn.get(x).isEmpty()) {
-                Set<StringVariableReplica> sources = new HashSet<>();
+            Set<StringVariableReplica> sources = new HashSet<>();
+            sources.add(x);
+            if (this.dependsOn.containsKey(x)) {
                 for (StringVariableReplica y : this.dependsOn.get(x)) {
                     sources.addAll(activate(y));
                 }
-                return sources;
             }
-            else {
-                return Collections.singleton(x);
-            }
+            return sources;
         }
     }
 
@@ -71,6 +68,14 @@ public class StringDependencies {
         setMapPut(this.usedBy, v, sac);
     }
 
+    public Set<StmtAndContext> getDefinedBy(StringVariableReplica v) {
+        return setMapGet(this.definedBy, v);
+    }
+
+    public Set<StmtAndContext> getUsedBy(StringVariableReplica v) {
+        return setMapGet(this.usedBy, v);
+    }
+
     private static <K, V> void setMapPut(ConcurrentMap<K, Set<V>> m, K k, V v) {
         if (m.containsKey(k)) {
             m.get(k).add(v);
@@ -79,4 +84,14 @@ public class StringDependencies {
             m.put(k, AnalysisUtil.createConcurrentSingletonSet(v));
         }
     }
+
+    private <K, V> Set<V> setMapGet(ConcurrentMap<K, Set<V>> m, K k) {
+        if (m.containsKey(k)) {
+            return m.get(k);
+        }
+        else {
+            return AnalysisUtil.createConcurrentSet();
+        }
+    }
+
 }

@@ -88,6 +88,8 @@ public class StringMethodCall extends StringStatement {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
+            g.recordStringStatementDefineDependency(receiverDefSVR, originator);
+
             g.recordStringStatementDependency(receiverUseSVR, originator);
             g.recordStringStatementDependency(argumentSVRs.get(1), originator);
 

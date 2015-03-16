@@ -33,6 +33,8 @@ public class PhiToLocalStringStatement extends StringStatement {
 //        List<StringVariableReplica> useRVRs = uses.stream()
 //                                                  .map(use -> new StringVariableReplica(context, use, haf))
 //                                                  .collect(Collectors.toList());
+        g.recordStringStatementDefineDependency(assigneeRVR, originator);
+
         List<StringVariableReplica> useRVRs = new ArrayList<>();
         for(StringVariable use : uses) {
             StringVariableReplica usesvr = new StringVariableReplica(context, use);

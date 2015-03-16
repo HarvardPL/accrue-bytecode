@@ -38,6 +38,8 @@ public class LocalFromFormalStringStatement extends StringStatement {
 
         GraphDelta newDelta = new GraphDelta(g);
 
+        g.recordStringStatementDefineDependency(localRVR, originator);
+
         for (InstanceKey formalIK : pti.pointsToIterable(formalRVR, originator)) {
             for (AString sik : g.stringsForInstanceKey(formalIK)) {
                 newDelta.combine(g.stringVariableReplicaJoinAt(localRVR, sik));

@@ -102,7 +102,7 @@ public final class GraphDelta implements PointsToIterable {
     }
 
     public boolean isEmpty() {
-        return delta.isEmpty() && this.getChangedStringVariables().isEmpty();
+        return delta.isEmpty() && this.scd.isEmpty();
     }
 
     @Override
@@ -190,8 +190,8 @@ public final class GraphDelta implements PointsToIterable {
         return this.scd.getAStringFor(svr);
     }
 
-    public Set<StringVariableReplica> getChangedStringVariables() {
-        return this.scd.getChangedStringVariables();
+    public Set<StmtAndContext> getStatementsNeededByStringUpdates() {
+        return this.scd.getStatementsNeededByStringUpdates();
     }
 
 }
