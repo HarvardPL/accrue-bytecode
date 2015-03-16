@@ -1428,6 +1428,14 @@ public final class PointsToGraph implements PointsToIterable {
         this.depRecorder.recordStringRead(x, s);
     }
 
+    public void recordStringVariableDependency(StringVariableReplica x, StringVariableReplica y) {
+        this.sc.recordDependency(x, y);
+    }
+
+    public GraphDelta activateStringVariable(StringVariableReplica x) {
+        return new GraphDelta(this, this.sc.activate(x));
+    }
+
     public Map<PointsToGraphNode, Set<InstanceKey>> readAblePointsToGraph() {
         Map<Integer, PointsToGraphNode> graphNodeMap = invertBijection(this.reverseGraphNodeDictionary);
         Map<PointsToGraphNode, Set<InstanceKey>> m = new HashMap<>();

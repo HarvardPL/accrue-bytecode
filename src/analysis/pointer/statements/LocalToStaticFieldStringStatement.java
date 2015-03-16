@@ -30,6 +30,8 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
 
         g.recordStringStatementDependency(vsvr, originator);
 
+        g.recordStringVariableDependency(fsvr, vsvr);
+
         return g.stringVariableReplicaUpperBounds(fsvr, vsvr);
     }
 

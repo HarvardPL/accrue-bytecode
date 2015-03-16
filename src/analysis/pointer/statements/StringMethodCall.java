@@ -91,6 +91,9 @@ public class StringMethodCall extends StringStatement {
             g.recordStringStatementDependency(receiverUseSVR, originator);
             g.recordStringStatementDependency(argumentSVRs.get(1), originator);
 
+            g.recordStringVariableDependency(receiverDefSVR, receiverUseSVR);
+            g.recordStringVariableDependency(receiverDefSVR, argumentSVRs.get(1));
+
             AString maybeReceiverAString = g.getAStringFor(receiverUseSVR);
             AString maybeArgumentAString = g.getAStringFor(argumentSVRs.get(1));
 
@@ -102,6 +105,8 @@ public class StringMethodCall extends StringStatement {
             GraphDelta newDelta = new GraphDelta(g);
 
             g.recordStringStatementDependency(receiverUseSVR, originator);
+
+            g.recordStringVariableDependency(resultSVR, receiverUseSVR);
 
             newDelta.combine(g.stringVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
 

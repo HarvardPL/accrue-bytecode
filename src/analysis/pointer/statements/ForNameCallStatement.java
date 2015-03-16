@@ -71,6 +71,9 @@ public class ForNameCallStatement extends PointsToStatement {
         System.err.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
 
         GraphDelta changed = new GraphDelta(g);
+
+        changed.combine(g.activateStringVariable(nameSVR));
+
         PointsToIterable pti = delta == null ? g : delta;
         Optional<AString> maybeNameHat = pti.getAStringUpdatesFor(nameSVR);
 

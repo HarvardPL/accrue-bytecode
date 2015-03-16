@@ -1,6 +1,8 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import analysis.AnalysisUtil;
@@ -12,6 +14,8 @@ public class StringConstraints {
     private final ConcurrentMap<StringVariableReplica, AString> map;
     private final ReflectiveHAF haf;
     private final AString initialString;
+    private final Set<StringVariableReplica> active;
+    private final ConcurrentMap<StringVariableReplica, Set<StringVariableReplica>> dependsOn;
 
     /* Factory Methods */
 
@@ -25,6 +29,8 @@ public class StringConstraints {
         this.haf = haf;
         this.initialString = haf.getAStringSet(Collections.singleton(""));
         this.map = AnalysisUtil.createConcurrentHashMap();
+        this.active = AnalysisUtil.createConcurrentSet();
+        this.dependsOn = AnalysisUtil.createConcurrentHashMap();
     }
 
     /* Logic */
@@ -35,21 +41,62 @@ public class StringConstraints {
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
-        if (this.map.containsKey(svr)) {
-            boolean changedp = this.map.get(svr).join(shat);
-            return changedp ? StringConstraintDelta.make(this, svr) : StringConstraintDelta.makeEmpty(this);
+        if (this.active.contains(svr)) {
+            if (this.map.containsKey(svr)) {
+                boolean changedp = this.map.get(svr).join(shat);
+                return changedp ? StringConstraintDelta.make(this, svr) : StringConstraintDelta.makeEmpty(this);
+            }
+            else {
+                this.map.put(svr, shat.copy());
+                return StringConstraintDelta.make(this, svr);
+            }
         }
         else {
-            this.map.put(svr, shat.copy());
-            return StringConstraintDelta.make(this, svr);
+            return StringConstraintDelta.makeEmpty(this);
         }
     }
 
     public StringConstraintDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
-        if (this.map.containsKey(svr2)) {
-            return this.joinAt(svr1, this.map.get(svr2));
+        if (this.active.contains(svr1)) {
+            if (this.map.containsKey(svr2)) {
+                return this.joinAt(svr1, this.map.get(svr2));
+            }
+            else {
+                return StringConstraintDelta.makeEmpty(this);
+            }
         } else {
             return StringConstraintDelta.makeEmpty(this);
+        }
+    }
+
+    public void recordDependency(StringVariableReplica x, StringVariableReplica y) {
+        if (this.dependsOn.containsKey(x)) {
+            this.dependsOn.get(x).add(y);
+        }
+        else {
+            this.dependsOn.put(x, AnalysisUtil.createConcurrentSingletonSet(y));
+        }
+    }
+
+    public StringConstraintDelta activate(StringVariableReplica x) {
+        System.err.println("[activate] Activating: " + x);
+        return StringConstraintDelta.make(this, activateAndGetSources(x));
+    }
+
+    private Set<StringVariableReplica> activateAndGetSources(StringVariableReplica x) {
+        this.active.add(x);
+
+        System.err.println("[activateAndGetSources] Activating: " + x);
+
+        if (this.dependsOn.containsKey(x) && !this.dependsOn.get(x).isEmpty()) {
+            Set<StringVariableReplica> sources = new HashSet<>();
+            for (StringVariableReplica y : this.dependsOn.get(x)) {
+                sources.addAll(activateAndGetSources(y));
+            }
+            return sources;
+        }
+        else {
+            return Collections.singleton(x);
         }
     }
 
