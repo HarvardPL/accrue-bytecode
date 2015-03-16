@@ -24,6 +24,7 @@ import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.registrar.StatementRegistrar.StatementListener;
 import analysis.pointer.statements.ConstraintStatement;
 import analysis.pointer.statements.PointsToStatement;
+import analysis.pointer.statements.StringStatement;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -141,6 +142,12 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     execService.submitTask(sac);
                 }
             }
+            for (StringStatement s : registrar.getStringStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    StmtAndContext sac = new StmtAndContext(s, c);
+                    execService.submitTask(sac);
+                }
+            }
         }
 
         if (registerOnline) {
@@ -247,6 +254,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         while (iter.hasNext()) {
             int n = iter.next();
             for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
+                execService.submitTask(depSaC, changes);
+            }
+        }
+        for (StringVariableReplica svr : changes.getChangedStringVariables()) {
+            for (StmtAndContext depSaC : this.getStringDependencies(svr)) {
                 execService.submitTask(depSaC, changes);
             }
         }
