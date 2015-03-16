@@ -1424,7 +1424,7 @@ public final class PointsToGraph implements PointsToIterable {
         return this.sc.getAStringFor(x);
     }
 
-    public void recordStringDependency(StringVariableReplica x, StmtAndContext s) {
+    public void recordStringStatementDependency(StringVariableReplica x, StmtAndContext s) {
         this.depRecorder.recordStringRead(x, s);
     }
 

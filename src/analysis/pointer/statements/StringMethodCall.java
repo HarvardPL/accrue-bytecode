@@ -88,8 +88,8 @@ public class StringMethodCall extends StringStatement {
             // the first argument is a copy of the "this" argument
             assert argumentSVRs.size() == 2 : argumentSVRs.size();
 
-            g.recordStringDependency(receiverUseSVR, originator);
-            g.recordStringDependency(argumentSVRs.get(1), originator);
+            g.recordStringStatementDependency(receiverUseSVR, originator);
+            g.recordStringStatementDependency(argumentSVRs.get(1), originator);
 
             AString maybeReceiverAString = g.getAStringFor(receiverUseSVR);
             AString maybeArgumentAString = g.getAStringFor(argumentSVRs.get(1));
@@ -101,7 +101,7 @@ public class StringMethodCall extends StringStatement {
         case toStringM: {
             GraphDelta newDelta = new GraphDelta(g);
 
-            g.recordStringDependency(receiverUseSVR, originator);
+            g.recordStringStatementDependency(receiverUseSVR, originator);
 
             newDelta.combine(g.stringVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
 

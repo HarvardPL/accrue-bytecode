@@ -36,7 +36,7 @@ public class PhiToLocalStringStatement extends StringStatement {
         List<StringVariableReplica> useRVRs = new ArrayList<>();
         for(StringVariable use : uses) {
             StringVariableReplica usesvr = new StringVariableReplica(context, use);
-            g.recordStringDependency(usesvr, originator);
+            g.recordStringStatementDependency(usesvr, originator);
             useRVRs.add(usesvr);
         }
         GraphDelta newDelta = new GraphDelta(g);

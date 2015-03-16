@@ -66,7 +66,8 @@ public class ForNameCallStatement extends PointsToStatement {
         ReferenceVariableReplica resultRVR = new ReferenceVariableReplica(context, this.result, haf);
         StringVariableReplica nameSVR = new StringVariableReplica(context, this.actuals.get(0));
 
-        g.recordStringDependency(nameSVR, originator);
+        g.recordStringStatementDependency(nameSVR, originator);
+
         System.err.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
 
         GraphDelta changed = new GraphDelta(g);

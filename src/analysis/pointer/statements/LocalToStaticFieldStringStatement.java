@@ -28,7 +28,7 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
         StringVariableReplica vsvr = new StringVariableReplica(context, this.v);
         StringVariableReplica fsvr = new StringVariableReplica(context, this.f);
 
-        g.recordStringDependency(vsvr, originator);
+        g.recordStringStatementDependency(vsvr, originator);
 
         return g.stringVariableReplicaUpperBounds(fsvr, vsvr);
     }
