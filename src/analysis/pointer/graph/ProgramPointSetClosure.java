@@ -34,7 +34,7 @@ public final class ProgramPointSetClosure {
     private final/*InstanceKeyRecency*/int to;
     private final PointsToGraph g;
 
-    private boolean DEBUG;
+    private static final boolean DEBUG = false;
 
     public ProgramPointSetClosure(/*PointsToGraphNode*/int from, /*InstanceKeyRecency*/int to, PointsToGraph g) {
         // Uncomment to print output for a particular "from" node
@@ -51,10 +51,7 @@ public final class ProgramPointSetClosure {
         this.fromBase = g.baseNodeForPointsToGraphNode(from);
         if (DEBUG) {
             System.err.println("PPSC%% NEW CLOSURE");
-            System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-            System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-            System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+            printDiagnostics();
         }
         assert (fromBase == -1 || g.isMostRecentObject(fromBase)) : "If we have a fromBase, it should be a most recent object, since these are the only ones we track flow sensitively.";
     }
@@ -82,9 +79,7 @@ public final class ProgramPointSetClosure {
     public boolean contains(InterProgramPointReplica ippr, ReachabilityQueryOrigin originator) {
         if (DEBUG) {
             System.err.println("PPSC%% COMPUTING CONTAINS? " + ippr);
-            System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-            System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-            System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
+            printDiagnostics();
         }
 
         boolean b = g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(), originator);
@@ -92,10 +87,7 @@ public final class ProgramPointSetClosure {
         if (DEBUG) {
             System.err.println("PPSC%% CONTAINS? " + ippr);
             System.err.println("PPSC%%\t" + b);
-            System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-            System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-            System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+            printDiagnostics();
         }
         return b;
     }
@@ -187,10 +179,7 @@ public final class ProgramPointSetClosure {
             System.err.println("PPSC%% GETTING SOURCES most recent? " + g.isMostRecentObject(this.to) + " tracking? "
                     + g.isTrackingMostRecentObject(this.to));
             if (!g.isMostRecentObject(this.to)) {
-                System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-                System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-                System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-                System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+                printDiagnostics();
                 System.err.println("PPSC%%\toriginator " + originator);
             }
         }
@@ -199,10 +188,7 @@ public final class ProgramPointSetClosure {
             List<InterProgramPointReplica> s = new ArrayList<>();
             s.addAll(this.sources);
             if (DEBUG) {
-                System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-                System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-                System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-                System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+                printDiagnostics();
                 System.err.println("PPSC%%\t\tADDED " + this.sources);
             }
             // we need to add allocation sites of the to object, where from pointed to
@@ -211,18 +197,14 @@ public final class ProgramPointSetClosure {
             assert mostRecentVersion != this.to;
             if (originator != null) {
                 if (DEBUG) {
-                    System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-                    System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-                    System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
+                    printDiagnostics();
                     System.err.println("PPSC%%\t\tDEP " + originator);
                 }
                 g.recordAllocationDependency(mostRecentVersion, originator);
             }
             else {
                 if (DEBUG) {
-                    System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-                    System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-                    System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
+                    printDiagnostics();
                     System.err.println("PPSC%%\t\tNO DEP!!!!!!!!");
                 }
             }
@@ -234,10 +216,7 @@ public final class ProgramPointSetClosure {
 
             for (ProgramPointReplica allocPP : g.getAllocationSitesOf(mostRecentVersion)) {
                 if (DEBUG) {
-                    System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-                    System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-                    System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-                    System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+                    printDiagnostics();
                     System.err.println("PPSC%%\t\t\t\tFOUND " + allocPP);
                 }
                 if (g.pointsTo(this.from, mostRecentVersion, allocPP.pre(), originator)) {
@@ -251,19 +230,13 @@ public final class ProgramPointSetClosure {
                 }
             }
             if (DEBUG) {
-                System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-                System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-                System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-                System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+                printDiagnostics();
                 System.err.println("PPSC%%\t\tSOURCES " + s);
             }
             return s;
         }
         if (DEBUG) {
-            System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-            System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-            System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-            System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
+            printDiagnostics();
             System.err.println("PPSC%%\t\tSOURCES " + this.sources);
         }
         return this.sources;
@@ -291,5 +264,12 @@ public final class ProgramPointSetClosure {
         }
         s.append("}");
         return s.toString();
+    }
+
+    private void printDiagnostics() {
+        System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
+        System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
+        System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
+        System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
     }
 }
