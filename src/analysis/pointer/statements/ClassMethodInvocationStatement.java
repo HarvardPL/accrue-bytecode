@@ -236,10 +236,11 @@ public class ClassMethodInvocationStatement extends
                         for (IClass klass : classes.get()) {
                             // XXX: This is broken; ASNF will only allow one ASN per result but we might need many because
                             //      there could be many different classes flowing to this point.
+                            //      I work around this by passing null for the fourth argument.
                             AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("newInstance",
                                                                                      klass,
                                                                                      caller,
-                                                                                     result,
+                                                                                     null,
                                                                                      false);
                             InstanceKey newik = haf.record(asn, context);
                             System.err.println("[ClassMethodInvocationStatement.newInstanceRM] class: " + klass);
