@@ -37,11 +37,16 @@ public class StringDependencies {
     }
 
     public Set<StringVariableReplica> activate(StringVariableReplica x) {
-        if (this.active.contains(x)) {
-            return new HashSet<>();
+        return this.activate(x, AnalysisUtil.<StringVariableReplica> createConcurrentSet());
+    }
+
+    private Set<StringVariableReplica> activate(StringVariableReplica x, Set<StringVariableReplica> alreadyActivated) {
+        if (alreadyActivated.contains(x)) {
+            return AnalysisUtil.createConcurrentSet();
         }
         else {
             this.active.add(x);
+            alreadyActivated.add(x);
 
             System.err.println("[StringDependencies.activate] Activating: " + x);
 
@@ -49,7 +54,7 @@ public class StringDependencies {
             sources.add(x);
             if (this.dependsOn.containsKey(x)) {
                 for (StringVariableReplica y : this.dependsOn.get(x)) {
-                    sources.addAll(activate(y));
+                    sources.addAll(activate(y, alreadyActivated));
                 }
             }
             return sources;
