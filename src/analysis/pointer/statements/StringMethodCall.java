@@ -105,7 +105,7 @@ public class StringMethodCall extends StringStatement {
 
             newDelta.combine(g.stringVariableReplicaUpperBounds(resultSVR, receiverUseSVR));
 
-            return new GraphDelta(g);
+            return newDelta;
         }
         case somethingElseM: {
             return new GraphDelta(g);
