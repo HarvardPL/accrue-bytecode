@@ -1,12 +1,16 @@
 package analysis.pointer.graph;
 
+import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.ProgramPoint.ProgramPointReplica;
 
@@ -26,7 +30,7 @@ public final class CallGraphReachability {
      * Temporary flag to control the use of reachable by return to a call site. Use this flag to test performance and
      * correctness, and remove when we decide if we want to keep it.
      */
-    private static final boolean USE_REACHABLE_BY_RETURN_TO = true;
+    private static final boolean USE_REACHABLE_BY_RETURN_TO = false;
 
     /**
      * Map from call graph node to the transitive closure of all call graph nodes reachable from that node via method
@@ -182,21 +186,23 @@ public final class CallGraphReachability {
      * @param callerSite
      * @return
      */
-    private IntIterator callSitesBefore(final int callSite) {
-        final IntIterator iter = this.g.getCallSitesWithinMethod(this.getCGNodeForCallSite(callSite)).intIterator();
+    private IntIterator callSitesBefore(int callSite) {
+        ProgramPointReplica pprep = g.lookupCallSiteReplicaDictionary(callSite);
+        final Context context = pprep.getContext();
+
+        StatementRegistrar sr = this.g.getRegistrar();
+        Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> m = sr.getCallSiteOrdering(pprep.getPP()
+                                                                                             .containingProcedure());
+        final Iterator<CallSiteProgramPoint> iter = m.get(pprep.getPP()).iterator();
         return new IntIterator() {
             private int next = -1;
 
             @Override
             public boolean hasNext() {
                 while (next < 0 && iter.hasNext()) {
-                    next = iter.next();
-                    if (next == callSite) {
-                        next = -1;
-                    }
-                    else {
-                        break;
-                    }
+                    CallSiteProgramPoint cspp = iter.next();
+                    ProgramPointReplica csppr = cspp.getReplica(context);
+                    next = g.lookupCallSiteReplicaDictionary(csppr);
                 }
                 return next >= 0;
             }
