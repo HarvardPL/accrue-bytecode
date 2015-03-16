@@ -2,9 +2,9 @@ package analysis.pointer.engine;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
@@ -41,7 +41,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * dependencies (which are not interesting dependencies).
      */
     private ConcurrentIntMap<Set<StmtAndContext>> interestingDepedencies = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
-    private final Map<StringVariableReplica, Set<StmtAndContext>> stringDependencies;
+    private final ConcurrentMap<StringVariableReplica, Set<StmtAndContext>> stringDependencies;
     /**
      * If true then the analysis will reprocess all points-to statements after reaching a fixed point to make sure there
      * are no changes.
@@ -55,7 +55,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
         super(haf);
-        this.stringDependencies = new HashMap<>();
+        this.stringDependencies = new ConcurrentHashMap<>();
     }
 
     @Override
