@@ -258,6 +258,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
         for (StringVariableReplica svr : changes.getChangedStringVariables()) {
+            if (svr.toString().contains("LSV 69_0")) {
+                System.err.println("[processSaC] looking for dependencies of " + svr);
+                System.err.println("[processSaC]     they are: " + this.getStringDependencies(svr));
+            }
             for (StmtAndContext depSaC : this.getStringDependencies(svr)) {
                 execService.submitTask(depSaC, changes);
             }

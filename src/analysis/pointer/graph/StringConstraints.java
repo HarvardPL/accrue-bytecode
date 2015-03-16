@@ -41,12 +41,26 @@ public class StringConstraints {
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
+        if (svr.toString().contains("LSV 69_0")) {
+            System.err.println("[joinAt] " + svr + " `join` " + shat);
+        }
+
         if (this.active.contains(svr)) {
             if (this.map.containsKey(svr)) {
+                if (svr.toString().contains("LSV 69_0")) {
+                    System.err.println("[joinAt] before " + svr + " = " + this.map.get(svr));
+                }
                 boolean changedp = this.map.get(svr).join(shat);
+                if (svr.toString().contains("LSV 69_0")) {
+                    System.err.println("[joinAt] after " + svr + " = " + this.map.get(svr));
+                    System.err.println("[joinAt] changed = " + changedp);
+                }
                 return changedp ? StringConstraintDelta.make(this, svr) : StringConstraintDelta.makeEmpty(this);
             }
             else {
+                if (svr.toString().contains("LSV 69_0")) {
+                    System.err.println("[joinAt] nothing in 69_0 yet, setting to copy of " + shat);
+                }
                 this.map.put(svr, shat.copy());
                 return StringConstraintDelta.make(this, svr);
             }
@@ -112,4 +126,5 @@ public class StringConstraints {
     public String toString() {
         return "StringConstraints [map=" + map + "]";
     }
+
 }
