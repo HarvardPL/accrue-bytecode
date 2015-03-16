@@ -18,35 +18,34 @@ import analysis.pointer.statements.ProgramPoint;
 class CallSiteOrdering {
 
     /**
-     * Map from program points to call sites that occur after that program point on some path to the exit
+     * Map from program points to call sites that occur before that program point on some path from the entry
      */
-    private Map<ProgramPoint, Set<CallSiteProgramPoint>> callSitesAfter = new HashMap<>();
+    private Map<ProgramPoint, Set<CallSiteProgramPoint>> callSitesBefore;
     /**
      * Map from program point to direct predecessors in the program point graph
      */
-    private Map<ProgramPoint, Set<ProgramPoint>> preds = new HashMap<>();
+    private Map<ProgramPoint, Set<ProgramPoint>> preds;
 
     /**
-     * Compute the may-happens-after relationship between call-sites within a given method.
+     * Compute the may-happens-before relationship between call-sites within a given method.
      *
      * @param entryPP program point for the entry to the method
      * @return Map from call-sites to call-sites that may occur after that call-site
      */
     Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> getForMethod(ProgramPoint entryPP) {
         WorkQueue<ProgramPoint> q = new WorkQueue<>();
+        this.callSitesBefore = new HashMap<>();
+
+        // clear the preds and callSitesBefore hashmap
         this.preds = new HashMap<>();
-        this.callSitesAfter = new HashMap<>();
+        this.callSitesBefore = new HashMap<>();
 
         q.add(entryPP);
 
         // Compute predecessors
         Set<ProgramPoint> visited = new HashSet<>();
-        Set<ProgramPoint> exits = new HashSet<>();
         while (!q.isEmpty()) {
             ProgramPoint current = q.poll();
-            if (current.isNormalExitSummaryNode() || current.isExceptionExitSummaryNode()) {
-                exits.add(current);
-            }
             for (ProgramPoint succ : current.succs()) {
                 recordPredecessor(current, succ);
                 if (visited.add(succ)) {
@@ -56,51 +55,54 @@ class CallSiteOrdering {
         }
 
         assert q.isEmpty();
-        // Record all call-sites seen by searching backward from the exit program points
-        q.addAll(exits);
+
+        // Record all call-sites seen by searching forward from the entry program point
+        q.add(entryPP);
+
         visited = new HashSet<>();
         while (!q.isEmpty()) {
             ProgramPoint current = q.poll();
             Set<CallSiteProgramPoint> result;
-            if (current.succs().isEmpty()) {
-                assert current.isExceptionExitSummaryNode() || current.isNormalExitSummaryNode();
-                // initial results for the exit nodes
+            if (current == entryPP) {
+                // initial results for the entry node
                 result = Collections.emptySet();
             }
             else {
                 result = new HashSet<>();
-                for (ProgramPoint succ : current.succs()) {
-                    result.addAll(getResults(succ));
-                    if (succ instanceof CallSiteProgramPoint) {
-                        result.add((CallSiteProgramPoint) succ);
+                for (ProgramPoint pred : getPreds(current)) {
+                    result.addAll(getResults(pred));
+                    if (pred instanceof CallSiteProgramPoint) {
+                        result.add((CallSiteProgramPoint) pred);
                     }
                 }
             }
 
             boolean changed = recordResult(current, result);
-            if (!preds.containsKey(current)) {
-                // no predecessors to add to queue
-                assert current.isEntrySummaryNode();
-                continue;
-            }
-
-            for (ProgramPoint pred : preds.get(current)) {
-                // The result changed add all predecessors to the queue to be run/rerun
-                if (changed || visited.add(pred)) {
-                    q.add(pred);
+            for (ProgramPoint succ : current.succs()) {
+                // If the result changed add all successors to the queue to be run/rerun
+                if (changed | visited.add(succ)) {
+                    q.add(succ);
                 }
             }
         }
 
         // Finished computing return the results for call-sites
         Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>> results = new LinkedHashMap<>();
-        for (ProgramPoint pp : callSitesAfter.keySet()) {
+        for (ProgramPoint pp : callSitesBefore.keySet()) {
             if (pp instanceof CallSiteProgramPoint) {
-                results.put((CallSiteProgramPoint) pp, callSitesAfter.get(pp));
+                results.put((CallSiteProgramPoint) pp, callSitesBefore.get(pp));
             }
         }
 
         return results;
+    }
+
+    private Set<ProgramPoint> getPreds(ProgramPoint pp) {
+        Set<ProgramPoint> s = this.preds.get(pp);
+        if (s == null) {
+            return Collections.EMPTY_SET;
+        }
+        return s;
     }
 
     /**
@@ -127,14 +129,14 @@ class CallSiteOrdering {
      * @return true if the new result was different than the previously cached result
      */
     private boolean recordResult(ProgramPoint pp, Set<CallSiteProgramPoint> result) {
-        Set<CallSiteProgramPoint> existing = this.callSitesAfter.get(pp);
+        Set<CallSiteProgramPoint> existing = this.callSitesBefore.get(pp);
         assert existing == null || result.containsAll(existing) : "Removing elements " + existing + "  NEW " + result;
         if (existing != null && existing.containsAll(result)) {
             return false;
         }
 
         // new result
-        this.callSitesAfter.put(pp, result);
+        this.callSitesBefore.put(pp, result);
         return true;
     }
 
@@ -145,10 +147,10 @@ class CallSiteOrdering {
      * @return the set of call site program points that are after the given program point on some path to the exit
      */
     private Set<CallSiteProgramPoint> getResults(ProgramPoint pp) {
-        Set<CallSiteProgramPoint> results = this.callSitesAfter.get(pp);
+        Set<CallSiteProgramPoint> results = this.callSitesBefore.get(pp);
         if (results == null) {
             results = Collections.emptySet();
-            this.callSitesAfter.put(pp, results);
+            this.callSitesBefore.put(pp, results);
         }
         return results;
     }

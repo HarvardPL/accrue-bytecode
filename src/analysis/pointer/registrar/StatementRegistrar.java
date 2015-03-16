@@ -89,7 +89,7 @@ public class StatementRegistrar {
      */
     private final ConcurrentMap<IMethod, Set<CallSiteProgramPoint>> callSitesWithinMethod;
     /**
-     * Map from method to the may-happen-after relationship for call-sites within the method
+     * Map from method to the may-happen-before relationship for call-sites within the method
      */
     private final ConcurrentMap<IMethod, Map<CallSiteProgramPoint, Set<CallSiteProgramPoint>>> callSiteOrdering;
 
@@ -1981,7 +1981,7 @@ public class StatementRegistrar {
     }
 
     /**
-     * Get the may-happen-after relationship for call sites within a given method
+     * Get the may-happen-before relationship for call sites within a given method
      *
      * @param m method
      * @return map from call-site to the set of call-sites that may occur after it
