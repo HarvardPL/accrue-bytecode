@@ -240,6 +240,12 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     noDeltaQueue.add(sac);
                 }
             }
+            for (StringStatement s : registrar.getStringStatementsForMethod(m)) {
+                for (Context c : g.getContexts(s.getMethod())) {
+                    StmtAndContext sac = new StmtAndContext(s, c);
+                    noDeltaQueue.add(sac);
+                }
+            }
         }
 
         if (registerOnline) {
