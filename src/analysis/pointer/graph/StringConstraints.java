@@ -37,7 +37,7 @@ public class StringConstraints {
             return changedp ? StringConstraintDelta.make(this, svr) : StringConstraintDelta.makeEmpty(this);
         }
         else {
-            this.map.put(svr, shat);
+            this.map.put(svr, shat.copy());
             return StringConstraintDelta.make(this, svr);
         }
     }

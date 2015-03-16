@@ -82,6 +82,10 @@ public final class FiniteSet<T> {
         return this.items.isSome() && this.items.get().isEmpty();
     }
 
+    public FiniteSet<T> copy() {
+        return FiniteSet.make(this.maxSize, this.items);
+    }
+
     public Set<T> getSet() {
         if (this.isTop()) {
             throw new RuntimeException("Cannot get set of Top");

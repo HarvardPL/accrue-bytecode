@@ -81,6 +81,10 @@ public final class AString {
         return this.fs.isBottom();
     }
 
+    public AString copy() {
+        return new AString(JavaLangStringIClass, this.fs.copy());
+    }
+
     public AString concat(final AString that) {
         // str1 -> that.fs.map(str2 -> str1.concat(str2))
         final Function<String, FiniteSet<String>> fOuter = new Function<String, FiniteSet<String>>() {
