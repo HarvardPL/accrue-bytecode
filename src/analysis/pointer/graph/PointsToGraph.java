@@ -25,6 +25,7 @@ import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
@@ -189,7 +190,7 @@ public final class PointsToGraph implements PointsToIterable {
 
         this.haf = haf;
 
-        this.sc = StringConstraints.make();
+        this.sc = StringConstraints.make((ReflectiveHAF) haf);
 
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }

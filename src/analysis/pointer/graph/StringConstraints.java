@@ -5,23 +5,25 @@ import java.util.concurrent.ConcurrentMap;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
+import analysis.pointer.analyses.ReflectiveHAF;
 
 public class StringConstraints {
 
     private final ConcurrentMap<StringVariableReplica, AString> map;
-    // XXX: Pass a reference to HAF to here
-    private static final int MAX_STRING_SET_SIZE = 5;
-    private static final AString INITIAL_STRING = AString.makeStringSet(MAX_STRING_SET_SIZE, Collections.singleton(""));
+    private final ReflectiveHAF haf;
+    private final AString initialString;
 
     /* Factory Methods */
 
-    public static StringConstraints make() {
-        return new StringConstraints();
+    public static StringConstraints make(ReflectiveHAF haf) {
+        return new StringConstraints(haf);
     }
 
     /* Constructors */
 
-    private StringConstraints() {
+    private StringConstraints(ReflectiveHAF haf) {
+        this.haf = haf;
+        this.initialString = haf.getAStringSet(Collections.singleton(""));
         this.map = AnalysisUtil.createConcurrentHashMap();
     }
 
@@ -29,7 +31,7 @@ public class StringConstraints {
 
     public AString getAStringFor(StringVariableReplica svr) {
         AString shat = this.map.get(svr);
-        return shat == null ? AString.makeStringBottom(MAX_STRING_SET_SIZE) : shat;
+        return shat == null ? haf.getAStringBottom() : shat;
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
