@@ -1,14 +1,15 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
-import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 
 public class StringConstraints {
 
-    private final Map<StringVariableReplica, AString> map;
+    private final ConcurrentMap<StringVariableReplica, AString> map;
+    // XXX: Pass a reference to HAF to here
     private static final int MAX_STRING_SET_SIZE = 5;
     private static final AString INITIAL_STRING = AString.makeStringSet(MAX_STRING_SET_SIZE, Collections.singleton(""));
 
