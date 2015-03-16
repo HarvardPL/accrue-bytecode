@@ -61,8 +61,8 @@ public class ForNameCallStatement extends PointsToStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                                  GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         ReferenceVariableReplica resultRVR = new ReferenceVariableReplica(context, this.result, haf);
         StringVariableReplica nameSVR = new StringVariableReplica(context, this.actuals.get(0));
 
@@ -88,10 +88,7 @@ public class ForNameCallStatement extends PointsToStatement {
             AString namehat = maybeNameHat.get();
             System.err.println("[ForNameCallStatement] reaching class names are " + namehat);
 
-            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName",
-                                                                     JavaLangClassIClass,
-                                                                     caller,
-                                                                     result,
+            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
                                                                      false);
             FiniteSet<IClass> classes;
             if (namehat.isTop()) {
