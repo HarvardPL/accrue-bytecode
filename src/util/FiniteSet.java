@@ -30,7 +30,7 @@ public final class FiniteSet<T> {
     }
 
     public static <T> FiniteSet<T> make(int maxSize, Optional<? extends Collection<T>> c) {
-        return new FiniteSet<>(maxSize, c.isNone() ? Optional.<Set<T>> some(new HashSet<>(c.get()))
+        return new FiniteSet<>(maxSize, c.isSome() ? Optional.<Set<T>> some(new HashSet<>(c.get()))
                 : Optional.<Set<T>> none());
     }
 
