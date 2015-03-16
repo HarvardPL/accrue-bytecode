@@ -27,12 +27,6 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  */
 public final class CallGraphReachability {
     /**
-     * Temporary flag to control the use of reachable by return to a call site. Use this flag to test performance and
-     * correctness, and remove when we decide if we want to keep it.
-     */
-    private static final boolean USE_REACHABLE_BY_RETURN_TO = false;
-
-    /**
      * Map from call graph node to the transitive closure of all call graph nodes reachable from that node via method
      * calls, note that every node is reachable from itself
      */
@@ -108,9 +102,6 @@ public final class CallGraphReachability {
     boolean isReachableByReturnTo(/*ProgramPointReplica*/int callSite, /*OrderedPair<IMethod,Context>*/
                                   int dest, /*ProgramPointSubQuery*/
                                   int triggeringQuery) {
-        if (!USE_REACHABLE_BY_RETURN_TO) {
-            return true;
-        }
         assert g.lookupCallSiteReplicaDictionary(callSite) != null;
         assert g.lookupCallSiteReplicaDictionary(callSite).getPP() instanceof CallSiteProgramPoint;
         assert g.lookupCallGraphNodeDictionary(dest) != null;
@@ -159,22 +150,20 @@ public final class CallGraphReachability {
             // Everything reachable from the callee is now reachable from the caller (and any callers of the caller)
             addToCallerTree(callerSite, getReachableFromSourceNode(calleeCGNode));
 
-            if (USE_REACHABLE_BY_RETURN_TO) {
-                // propagate the reachableByReturnTo callerSite to all call sites within the callee.
-                /*Iterator<ProgramPointReplica>*/IntIterator callSitesWithinCalleeMethod = this.g.getCallSitesWithinMethod(calleeCGNode)
-                                                                                                  .intIterator();
-                /*Set<OrderedPair<IMethod,Context>>*/IntSet reachableByReturnToCallerSite = this.getReachableByReturnTo(callerSite);
-                while (callSitesWithinCalleeMethod.hasNext()) {
-                    addToReturnToCallSite(callSitesWithinCalleeMethod.next(), reachableByReturnToCallerSite);
-                }
+            // propagate the reachableByReturnTo callerSite to all call sites within the callee.
+            /*Iterator<ProgramPointReplica>*/IntIterator callSitesWithinCalleeMethod = this.g.getCallSitesWithinMethod(calleeCGNode)
+                                                                                              .intIterator();
+            /*Set<OrderedPair<IMethod,Context>>*/IntSet reachableByReturnToCallerSite = this.getReachableByReturnTo(callerSite);
+            while (callSitesWithinCalleeMethod.hasNext()) {
+                addToReturnToCallSite(callSitesWithinCalleeMethod.next(), reachableByReturnToCallerSite);
+            }
 
-                // propagate the nodes that are reachable from calleeCGNode into the reachableByReturnTo
-                // sets of the call sites that come before callerSite (within the same method, callerCGNode).
-                /*Iterator<ProgramPointReplica>*/IntIterator callSitesBefore = callSitesBefore(callerSite);
-                /*Set<OrderedPair<IMethod,Context>>*/IntSet reachableFromCallee = getReachableFromSourceNode(calleeCGNode);
-                while (callSitesBefore.hasNext()) {
-                    addToReturnToCallSite(callSitesBefore.next(), reachableFromCallee);
-                }
+            // propagate the nodes that are reachable from calleeCGNode into the reachableByReturnTo
+            // sets of the call sites that come before callerSite (within the same method, callerCGNode).
+            /*Iterator<ProgramPointReplica>*/IntIterator callSitesBefore = callSitesBefore(callerSite);
+            /*Set<OrderedPair<IMethod,Context>>*/IntSet reachableFromCallee = getReachableFromSourceNode(calleeCGNode);
+            while (callSitesBefore.hasNext()) {
+                addToReturnToCallSite(callSitesBefore.next(), reachableFromCallee);
             }
         }
 
@@ -259,16 +248,14 @@ public final class CallGraphReachability {
                 addToCallerTree(callSitesCallingCaller.next(), newlyReachable);
             }
 
-            if (USE_REACHABLE_BY_RETURN_TO) {
-                // we also need to add newlyReachable to the appropriate call sites
-                IntIterator callerSitesOfCaller = g.getCallersOf(caller).intIterator();
-                while (callerSitesOfCaller.hasNext()) {
-                    int callSiteOfCaller = callerSitesOfCaller.next();
-                    IntIterator callSitesBefore = callSitesBefore(callSiteOfCaller);
-                    while (callSitesBefore.hasNext()) {
-                        int csb = callSitesBefore.next();
-                        addToReturnToCallSite(csb, newlyReachable);
-                    }
+            // we also need to add newlyReachable to the appropriate call sites
+            IntIterator callerSitesOfCaller = g.getCallersOf(caller).intIterator();
+            while (callerSitesOfCaller.hasNext()) {
+                int callSiteOfCaller = callerSitesOfCaller.next();
+                IntIterator callSitesBefore = callSitesBefore(callSiteOfCaller);
+                while (callSitesBefore.hasNext()) {
+                    int csb = callSitesBefore.next();
+                    addToReturnToCallSite(csb, newlyReachable);
                 }
             }
         }
@@ -281,10 +268,6 @@ public final class CallGraphReachability {
      */
     private void addToReturnToCallSite(/*ProgramPointReplica*/int callSite, /*Set<OrderedPair<IMethod,Context>>*/
                                        IntSet setToAdd) {
-        if (!USE_REACHABLE_BY_RETURN_TO) {
-            throw new UnsupportedOperationException();
-        }
-
         MutableIntSet newlyReachedFromCallSite = MutableSparseIntSet.makeEmpty();
         IntIterator iter = setToAdd.intIterator();
 
