@@ -24,32 +24,54 @@ public class RWSATest {
         /*
          * same code but branching test
          */
-        StringBuilder classNameBranchSB = new StringBuilder();
-        if (Math.random() <= 0.5)
         {
-            classNameBranchSB.append("test.");
-            classNameBranchSB.append("instruction.");
-            classNameBranchSB.append("RWSATest");
+            StringBuilder classNameBranchSB = new StringBuilder();
+            if (Math.random() <= 0.5) {
+                classNameBranchSB.append("test.");
+                classNameBranchSB.append("instruction.");
+                classNameBranchSB.append("RWSATest");
 
-        }
-        else {
-            classNameBranchSB.append("test.");
-            classNameBranchSB.append("instruction.");
-            classNameBranchSB.append("RWSATest");
+            }
+            else {
+                classNameBranchSB.append("test.");
+                classNameBranchSB.append("instruction.");
+                classNameBranchSB.append("RWSATest");
 
+            }
+            Object oBranch = Class.forName(classNameBranchSB.toString()).newInstance();
         }
-        Object oBranch = Class.forName(classNameBranchSB.toString()).newInstance();
 
         /*
          * looping test
          */
-        StringBuilder classNameLoopSB = new StringBuilder();
-        while (Math.random() < 0.5) {
-            classNameLoopSB.append("test.");
-            classNameLoopSB.append("instruction.");
-            classNameLoopSB.append("RWSATest");
+        {
+            StringBuilder classNameLoopSB = new StringBuilder();
+            while (Math.random() < 0.5) {
+                classNameLoopSB.append("java.");
+                classNameLoopSB.append("lang.");
+                classNameLoopSB.append("String");
+            }
+            Object oLoop = Class.forName(classNameLoopSB.toString()).newInstance();
         }
-        Object oLoop = Class.forName(classNameLoopSB.toString()).newInstance();
+
+        /* branch with non-trivial join */
+        {
+            StringBuilder classNameBranchSB = new StringBuilder();
+            if (Math.random() <= 0.5) {
+                classNameBranchSB.append("test.");
+                classNameBranchSB.append("instruction.");
+                classNameBranchSB.append("RWSATest");
+
+            }
+            else {
+                classNameBranchSB.append("java.");
+                classNameBranchSB.append("lang.");
+                classNameBranchSB.append("String");
+
+            }
+            Object o = Class.forName(classNameBranchSB.toString()).newInstance();
+        }
+
 
     }
 
