@@ -49,6 +49,7 @@ public abstract class PointsToStatement implements ConstraintStatement {
      *
      * @return resolved method
      */
+    @Override
     public IMethod getMethod() {
         return m;
     }

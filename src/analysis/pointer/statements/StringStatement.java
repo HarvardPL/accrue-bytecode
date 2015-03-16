@@ -21,6 +21,7 @@ public abstract class StringStatement implements ConstraintStatement {
     public abstract GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                                        StatementRegistrar registrar, StmtAndContext originator);
 
+    @Override
     public IMethod getMethod() {
         return this.method;
     }
