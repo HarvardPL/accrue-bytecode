@@ -1,6 +1,7 @@
 package analysis.pointer.graph;
 
 import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import analysis.AnalysisUtil;
@@ -87,8 +88,13 @@ public class StringConstraints {
 
     public StringConstraintDelta activate(StringVariableReplica x) {
         System.err.println("[StringConstraints.activate] Activating: " + x);
-        return this.stringDependencies.isActive(x) ? StringConstraintDelta.makeEmpty(this)
-                : StringConstraintDelta.make(this, this.stringDependencies.activate(x));
+        Set<StringVariableReplica> activatedSVRs = this.stringDependencies.activate(x);
+        if (activatedSVRs.isEmpty()) {
+            return StringConstraintDelta.makeEmpty(this);
+        }
+        else {
+            return StringConstraintDelta.make(this, activatedSVRs);
+        }
     }
 
     public void recordStringStatementUseDependency(StringVariableReplica v, StmtAndContext sac) {
