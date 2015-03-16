@@ -106,6 +106,8 @@ public class StringMethodCall extends StringStatement {
         case toStringM: {
             GraphDelta newDelta = new GraphDelta(g);
 
+            g.recordStringStatementDefineDependency(resultSVR, originator);
+
             g.recordStringStatementDependency(receiverUseSVR, originator);
 
             g.recordStringVariableDependency(resultSVR, receiverUseSVR);
