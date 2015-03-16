@@ -46,7 +46,6 @@ public class ForNameCallStatement extends PointsToStatement {
 
     public static boolean isForNameCall(SSAInvokeInstruction i) {
         IMethod m = AnalysisUtil.getClassHierarchy().resolveMethod(i.getDeclaredTarget());
-        System.err.println("Comparing " + m + " to " + JavaLangClassForNameIMethod);
         return m.equals(JavaLangClassForNameIMethod);
     }
 
