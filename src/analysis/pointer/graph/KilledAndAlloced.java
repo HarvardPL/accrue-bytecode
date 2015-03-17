@@ -56,9 +56,13 @@ public class KilledAndAlloced {
      * @param b
      */
     public static KilledAndAlloced join(KilledAndAlloced a, KilledAndAlloced b) {
-        if (a.killed == null || b.killed == null) {
+        if (a.killed == null) {
             // represents everything!
             return a;
+        }
+        if (b.killed == null) {
+            // represents everything!
+            return b;
         }
         int killedSize = a.killed.size() + b.killed.size();
         MutableIntSet killed = killedSize == 0 ? EmptyIntSet.INSTANCE
@@ -87,11 +91,13 @@ public class KilledAndAlloced {
      * updates the killed and alloced sets. It returns true if and only if the killed or alloced sets of this object
      * changed.
      */
-    public boolean meet(KilledAndAlloced res) {
-        assert (killed == null && maybeKilledFields == null && alloced == null)
-                || (killed != null && maybeKilledFields != null && alloced != null);
+    public synchronized boolean meet(KilledAndAlloced res) {
+        assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
+                || (this.killed != null && this.maybeKilledFields != null && this.alloced != null) : "this has violated the invariants that either all fields are null or none of them are: "
+                + this;
         assert (res.killed == null && res.maybeKilledFields == null && res.alloced == null)
-                || (res.killed != null && res.maybeKilledFields != null && res.alloced != null);
+                || (res.killed != null && res.maybeKilledFields != null && res.alloced != null) : "res has violated the invariants that either all fields are null or none of them are : "
+                + res;
 
         if (this == res || res.killed == null) {
             // no change to this object.
@@ -122,12 +128,12 @@ public class KilledAndAlloced {
     /**
      * Add a points to graph node to the kill set.
      */
-    public boolean addKill(/*PointsToGraphNode*/int n) {
+    public synchronized boolean addKill(/*PointsToGraphNode*/int n) {
         assert killed != null;
         return this.killed.add(n);
     }
 
-    public boolean addMaybeKilledField(FieldReference f) {
+    public synchronized boolean addMaybeKilledField(FieldReference f) {
         assert maybeKilledFields != null;
         return this.maybeKilledFields.add(f);
     }
@@ -135,7 +141,7 @@ public class KilledAndAlloced {
     /**
      * Add an instance key to the alloced set.
      */
-    public boolean addAlloced(/*InstanceKeyRecency*/int justAllocatedKey) {
+    public synchronized boolean addAlloced(/*InstanceKeyRecency*/int justAllocatedKey) {
         assert alloced != null;
         return this.alloced.add(justAllocatedKey);
     }
@@ -144,7 +150,7 @@ public class KilledAndAlloced {
      * Set the killed and alloced sets to empty. This should be used only as the first operation called after the
      * constructor.
      */
-    public void setEmpty() {
+    public synchronized void setEmpty() {
         assert killed == null;
         assert maybeKilledFields == null;
         assert alloced == null;
@@ -159,7 +165,7 @@ public class KilledAndAlloced {
      *
      * @param g
      */
-    public boolean allows(IntSet noKill, IntSet noAlloc, PointsToGraph g) {
+    public synchronized boolean allows(IntSet noKill, IntSet noAlloc, PointsToGraph g) {
         if ((this.killed != null && !this.killed.containsAny(noKill))
                 && (this.alloced != null && !this.alloced.containsAny(noAlloc))) {
             // check if the killed fields might be a problem.
