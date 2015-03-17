@@ -39,6 +39,7 @@ import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.StatementFactory;
+import analysis.pointer.statements.StringLiteralStatement;
 import analysis.pointer.statements.StringStatement;
 
 import com.ibm.wala.classLoader.IClass;
