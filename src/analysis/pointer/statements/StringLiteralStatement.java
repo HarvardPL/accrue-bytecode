@@ -30,6 +30,9 @@ public class StringLiteralStatement extends StringStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica vSVR = new StringVariableReplica(context, v);
+
+        g.recordStringStatementDefineDependency(vSVR, originator);
+
         AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(value));
         System.err.println("[StringLiteralStatement] g.stringVariableReplicaJoinAt(" + vSVR + ", "
                 + shat + ")");
