@@ -30,8 +30,8 @@ public class StringDependencies {
         System.err.println("[StringDependencies.recordDependency] x: " + x + " y: " + y);
         System.err.println("[StringDependencies.recordDependency] Active? x: " + isActive(x) + " y: " + isActive(y));
 
-        if (this.active.contains(y)) {
-            this.active.add(x);
+        if (this.active.contains(x)) {
+            activate(y);
         }
     }
 
