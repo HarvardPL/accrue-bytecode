@@ -51,6 +51,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      * Should we print intermittent status messages
      */
     private static final boolean PRINT_DIAGNOSTICS = true;
+    /**
+     * Print the CG nodes which can reach the most callees
+     */
+    private static final boolean PRINT_CG_NODES = false;
 
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
@@ -259,10 +263,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             System.err.println("\n\n");
         }
 
-        System.err.println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-        System.out.println(g.ppReach.getCallGraphReachability());
-        System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-
+        if (PRINT_CG_NODES) {
+            System.err.println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            System.out.println(g.ppReach.getCallGraphReachability());
+            System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        }
         return g;
     }
 
