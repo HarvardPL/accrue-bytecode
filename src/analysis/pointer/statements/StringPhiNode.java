@@ -30,6 +30,8 @@ public class StringPhiNode extends StringStatement {
         StringVariableReplica svr = new StringVariableReplica(context, this.v);
         GraphDelta newDelta = new GraphDelta(g);
 
+        g.recordStringStatementDefineDependency(svr, originator);
+
         for (StringVariable dependency : dependencies) {
             StringVariableReplica dependentSVR = new StringVariableReplica(context, dependency);
             g.recordStringStatementDependency(dependentSVR, originator);
