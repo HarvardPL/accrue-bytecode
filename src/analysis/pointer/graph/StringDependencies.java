@@ -27,6 +27,9 @@ public class StringDependencies {
     public void recordDependency(StringVariableReplica x, StringVariableReplica y) {
         setMapPut(this.dependsOn, x, y);
 
+        System.err.println("[StringDependencies.recordDependency] x: " + x + " y: " + y);
+        System.err.println("[StringDependencies.recordDependency] Active? x: " + isActive(x) + " y: " + isActive(y));
+
         if (this.active.contains(y)) {
             this.active.add(x);
         }
@@ -74,6 +77,7 @@ public class StringDependencies {
     }
 
     public Set<StmtAndContext> getDefinedBy(StringVariableReplica v) {
+        System.err.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.definedBy, v));
         return setMapGet(this.definedBy, v);
     }
 
