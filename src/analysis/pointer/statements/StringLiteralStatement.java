@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Collections;
 
+import util.Logger;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
@@ -34,7 +35,7 @@ public class StringLiteralStatement extends StringStatement {
         g.recordStringStatementDefineDependency(vSVR, originator);
 
         AString shat = ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(value));
-        System.err.println("[StringLiteralStatement] g.stringVariableReplicaJoinAt(" + vSVR + ", "
+        Logger.println("[StringLiteralStatement] g.stringVariableReplicaJoinAt(" + vSVR + ", "
                 + shat + ")");
         return g.stringVariableReplicaJoinAt(vSVR, shat);
     }

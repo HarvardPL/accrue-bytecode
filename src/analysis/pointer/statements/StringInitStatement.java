@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Collections;
 
+import util.Logger;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -31,14 +32,14 @@ public class StringInitStatement extends StringStatement {
                               StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica svr = new StringVariableReplica(context, this.sv);
 
-        System.err.println("[StringInitStatement.process] ");
+        Logger.println("[StringInitStatement.process] ");
         GraphDelta newDelta = new GraphDelta(g);
 
         g.recordStringStatementDefineDependency(svr, originator);
 
         newDelta.combine(g.stringVariableReplicaJoinAt(svr,
                                                        ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(""))));
-        System.err.println("[StringInitStatement.process] " + svr + " <- " + g.getAStringFor(svr));
+        Logger.println("[StringInitStatement.process] " + svr + " <- " + g.getAStringFor(svr));
 
         return newDelta;
     }

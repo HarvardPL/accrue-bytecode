@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
@@ -27,10 +28,7 @@ public class StringDependencies {
     public void recordDependency(StringVariableReplica x, StringVariableReplica y) {
         setMapPut(this.dependsOn, x, y);
 
-        System.err.println("[StringDependencies.recordDependency] x: " + x + " y: " + y);
-        System.err.println("[StringDependencies.recordDependency] Active? x: " + isActive(x) + " y: " + isActive(y));
-
-        if (this.active.contains(x)) {
+        if (isActive(x)) {
             activate(y);
         }
     }
@@ -40,24 +38,19 @@ public class StringDependencies {
     }
 
     public Set<StringVariableReplica> activate(StringVariableReplica x) {
-        return this.activate(x, AnalysisUtil.<StringVariableReplica> createConcurrentSet());
-    }
-
-    private Set<StringVariableReplica> activate(StringVariableReplica x, Set<StringVariableReplica> alreadyActivated) {
-        if (alreadyActivated.contains(x)) {
+        if (isActive(x)) {
             return AnalysisUtil.createConcurrentSet();
         }
         else {
             this.active.add(x);
-            alreadyActivated.add(x);
 
-            System.err.println("[StringDependencies.activate] Activating: " + x);
+            Logger.println("[StringDependencies.activate] Activating: " + x);
 
             Set<StringVariableReplica> sources = new HashSet<>();
             sources.add(x);
             if (this.dependsOn.containsKey(x)) {
                 for (StringVariableReplica y : this.dependsOn.get(x)) {
-                    sources.addAll(activate(y, alreadyActivated));
+                    sources.addAll(activate(y));
                 }
             }
             return sources;
@@ -77,7 +70,7 @@ public class StringDependencies {
     }
 
     public Set<StmtAndContext> getDefinedBy(StringVariableReplica v) {
-        System.err.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.definedBy, v));
+        Logger.println("[getDefinedBy] " + v + " is defined by " + setMapGet(this.definedBy, v));
         return setMapGet(this.definedBy, v);
     }
 

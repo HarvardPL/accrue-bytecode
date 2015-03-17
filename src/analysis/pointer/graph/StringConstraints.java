@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.ReflectiveHAF;
@@ -40,25 +41,25 @@ public class StringConstraints {
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
         if (svr.toString().contains("LSV 69_0")) {
-            System.err.println("[joinAt] " + svr + " `join` " + shat);
+            Logger.println("[joinAt] " + svr + " `join` " + shat);
         }
 
         if (this.stringDependencies.isActive(svr)) {
             if (this.map.containsKey(svr)) {
                 if (svr.toString().contains("LSV 69_0")) {
-                    System.err.println("[joinAt] before " + svr + " = " + this.map.get(svr));
+                    Logger.println("[joinAt] before " + svr + " = " + this.map.get(svr));
                 }
                 boolean changedp = this.map.get(svr).join(shat);
                 if (svr.toString().contains("LSV 69_0")) {
-                    System.err.println("[joinAt] after " + svr + " = " + this.map.get(svr));
-                    System.err.println("[joinAt] changed = " + changedp);
+                    Logger.println("[joinAt] after " + svr + " = " + this.map.get(svr));
+                    Logger.println("[joinAt] changed = " + changedp);
                 }
                 return changedp ? StringConstraintDelta.makeWithNeedUses(this, svr)
                         : StringConstraintDelta.makeEmpty(this);
             }
             else {
                 if (svr.toString().contains("LSV 69_0")) {
-                    System.err.println("[joinAt] nothing in 69_0 yet, setting to copy of " + shat);
+                    Logger.println("[joinAt] nothing in 69_0 yet, setting to copy of " + shat);
                 }
                 this.map.put(svr, shat.copy());
                 return StringConstraintDelta.makeWithNeedUses(this, svr);
@@ -88,7 +89,7 @@ public class StringConstraints {
     }
 
     public StringConstraintDelta activate(StringVariableReplica x) {
-        System.err.println("[StringConstraints.activate] Activating: " + x);
+        Logger.println("[StringConstraints.activate] Activating: " + x);
         Set<StringVariableReplica> activatedSVRs = this.stringDependencies.activate(x);
         if (activatedSVRs.isEmpty()) {
             return StringConstraintDelta.makeEmpty(this);

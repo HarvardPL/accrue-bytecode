@@ -84,8 +84,8 @@ public class StringConstraintDelta {
         Set<StmtAndContext> s = AnalysisUtil.createConcurrentSet();
 
         for (StringVariableReplica v : this.needDefs) {
-            System.err.println("[StringConstraintDelta.getStatementsNeededByStringUpdates] v: " + v);
-            System.err.println("[StringConstraintDelta.getStatementsNeededByStringUpdates] definedBy: "
+            Logger.println("[StringConstraintDelta.getStatementsNeededByStringUpdates] v: " + v);
+            Logger.println("[StringConstraintDelta.getStatementsNeededByStringUpdates] definedBy: "
                     + this.sc.getDefinedBy(v));
             s.addAll(this.sc.getDefinedBy(v));
         }

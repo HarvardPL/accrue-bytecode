@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import java.util.Set;
 
+import util.Logger;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;

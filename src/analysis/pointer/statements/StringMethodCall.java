@@ -3,6 +3,7 @@ package analysis.pointer.statements;
 import java.util.ArrayList;
 import java.util.List;
 
+import util.Logger;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
 import analysis.pointer.analyses.AString;
@@ -80,7 +81,7 @@ public class StringMethodCall extends StringStatement {
 
         PointsToIterable pti = delta == null ? g : delta;
 
-        System.err.println("[StringMethodCall." + this.invokedMethod + "] " + this);
+        Logger.println("[StringMethodCall." + this.invokedMethod + "] " + this);
         switch (this.invokedMethod) {
         case concatM: {
             GraphDelta newDelta = new GraphDelta(g);

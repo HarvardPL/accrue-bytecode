@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import util.Logger;
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.DenseIntMap;
@@ -1387,12 +1388,12 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     public GraphDelta stringVariableReplicaJoinAt(StringVariableReplica svr, AString shat) {
-        System.err.println("[PointsToGraph] " + svr + " <- " + this.getAStringFor(svr) + " ⊔ " + shat);
+        Logger.println("[PointsToGraph] " + svr + " <- " + this.getAStringFor(svr) + " ⊔ " + shat);
         return new GraphDelta(this, this.sc.joinAt(svr, shat));
     }
 
     public GraphDelta stringVariableReplicaUpperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
-        System.err.println("[PointsToGraph] " + this.getAStringFor(svr1) + " = " + svr1 + " ⊒ " + svr2 + " = "
+        Logger.println("[PointsToGraph] " + this.getAStringFor(svr1) + " = " + svr1 + " ⊒ " + svr2 + " = "
                 + this.getAStringFor(svr2));
         return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
     }

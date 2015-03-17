@@ -12,6 +12,7 @@ import java.util.Queue;
 import java.util.Set;
 
 import util.Histogram;
+import util.Logger;
 import util.OrderedPair;
 import util.intmap.IntMap;
 import util.intmap.SparseIntMap;
@@ -379,7 +380,10 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         if (outputLevel >= 3) {
             System.err.println("\tPROCESSING: " + sac);
         }
+
+        Logger.push(s.getMethod().toString().contains("main"));
         GraphDelta changed = s.process(c, this.haf, g, delta, registrar, sac);
+        Logger.pop();
 
         if (changed.isEmpty()) {
             this.processedWithNoChange++;

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 
 import util.FiniteSet;
+import util.Logger;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.AString;
@@ -68,7 +69,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         g.recordStringStatementDependency(nameSVR, originator);
 
-        System.err.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
+        Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
 
         GraphDelta changed = new GraphDelta(g);
 
@@ -86,11 +87,11 @@ public class ForNameCallStatement extends PointsToStatement {
 
         if (maybeNameHat.isNone()) {
             // XXX: What should we do if there's no updated strings?
-            System.err.println("[ForNameCallStatement] There are no string updates for " + nameSVR);
+            Logger.println("[ForNameCallStatement] There are no string updates for " + nameSVR);
         }
         else {
             AString namehat = maybeNameHat.get();
-            System.err.println("[ForNameCallStatement] reaching class names are " + namehat);
+            Logger.println("[ForNameCallStatement] reaching class names are " + namehat);
 
             AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
                                                                      false);
@@ -112,7 +113,7 @@ public class ForNameCallStatement extends PointsToStatement {
                 classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
             }
 
-            System.err.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
+            Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
             changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
         }
         return changed;
@@ -123,7 +124,7 @@ public class ForNameCallStatement extends PointsToStatement {
                                     .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application, "L"
                                             + string.replace(".", "/")));
         if (result == null) {
-            System.err.println("Could not find class for: " + string);
+            Logger.println("Could not find class for: " + string);
             return Optional.none();
         }
         else {
