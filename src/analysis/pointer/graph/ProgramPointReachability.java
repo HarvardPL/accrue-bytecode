@@ -8,13 +8,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import util.OrderedPair;
 import util.WorkQueue;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.IntMap;
 import util.intset.EmptyIntSet;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -446,7 +446,8 @@ public final class ProgramPointReachability {
      */
     private boolean recordQueryResult(Collection<InterProgramPointReplica> sources,
                                       InterProgramPointReplica destination,
-                                   IntSet noKill, IntSet noAlloc, Set<InterProgramPointReplica> forbidden, boolean b) {
+ IntSet noKill, IntSet noAlloc,
+                                      Set<InterProgramPointReplica> forbidden, boolean b) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -512,12 +513,12 @@ public final class ProgramPointReachability {
     }
 
     /* *****************************************************************************
-    *
-    * METHOD REACHABILITY CODE
-    *
-    * The following code is responsible for computing the reachability results of an
-    * entire method.
-    */
+     *
+     * METHOD REACHABILITY CODE
+     *
+     * The following code is responsible for computing the reachability results of an
+     * entire method.
+     */
 
     // ConcurrentMap<OrderedPair<IMethod, Context>, MethodSummaryKillAndAlloc>
     private final ConcurrentIntMap<MethodSummaryKillAndAlloc> methodSummaryMemoization = AnalysisUtil.createConcurrentIntMap();
@@ -537,20 +538,8 @@ public final class ProgramPointReachability {
         if (res != null) {
             if (DEBUG) {
                 System.err.println("PPR%% \tCACHED");
-                for (InterProgramPointReplica src : res.getAllSources()) {
-                    for (InterProgramPointReplica target : res.getTargetMap(src).keySet()) {
-                        System.err.println("PPR%% \t\t" + src + " -> " + target + " "
-                                + res.getTargetMap(src).get(target));
-                        MutableIntSet alloced = res.getTargetMap(src).get(target).getAlloced();
-                        IntIterator iter;
-                        if (alloced != null) {
-                            iter = alloced.intIterator();
-                            while (iter.hasNext()) {
-                                System.err.println("PPR%% \t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
-                            }
-                        }
-                    }
-                }
+                System.err.println("PPR%% \t\t normalExit" + res.getNormalExitResult());
+                System.err.println("PPR%% \t\t exceptionalExit" + res.getExceptionalExitResult());
             }
             if (PRINT_DIAGNOSTICS) {
                 cachedMethodReach.incrementAndGet();
@@ -558,22 +547,14 @@ public final class ProgramPointReachability {
             return res;
         }
         // no results yet.
-        res = MethodSummaryKillAndAlloc.createInitial();
+        res = MethodSummaryKillAndAlloc.createInitial(cgNode);
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.putIfAbsent(cgNode, res);
         if (existing != null) {
             // someone beat us to it, and is currently working on the results.
             if (DEBUG) {
                 System.err.println("PPR%% \tBEATEN");
-                for (InterProgramPointReplica src : existing.getAllSources()) {
-                    for (InterProgramPointReplica target : existing.getTargetMap(src).keySet()) {
-                        System.err.println("PPR%% \t\t" + src + " -> " + target + " "
-                                + existing.getTargetMap(src).get(target));
-                        IntIterator iter = existing.getTargetMap(src).get(target).getAlloced().intIterator();
-                        while (iter.hasNext()) {
-                            System.err.println("PPR%% \t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
-                        }
-                    }
-                }
+                System.err.println("PPR%% \t\t normalExit" + res.getNormalExitResult());
+                System.err.println("PPR%% \t\t exceptionalExit" + res.getExceptionalExitResult());
             }
             if (PRINT_DIAGNOSTICS) {
                 cachedMethodReach.incrementAndGet();
@@ -585,18 +566,8 @@ public final class ProgramPointReachability {
         if (DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
             System.err.println("PPR%% \tCOMPUTED " + PrettyPrinter.methodString(n.fst()) + " in " + n.snd());
-            for (InterProgramPointReplica src : rr.getAllSources()) {
-                for (InterProgramPointReplica target : rr.getTargetMap(src).keySet()) {
-                    System.err.println("PPR%% \t\t" + src + " -> " + target + " " + rr.getTargetMap(src).get(target));
-                    MutableIntSet alloced = rr.getTargetMap(src).get(target).getAlloced();
-                    if (alloced != null) {
-                        IntIterator iter = alloced.intIterator();
-                        while (iter.hasNext()) {
-                            System.err.println("PPR%% \t\t\tALLOC " + g.lookupInstanceKeyDictionary(iter.next()));
-                        }
-                    }
-                }
-            }
+            System.err.println("PPR%% \t\t normalExit" + res.getNormalExitResult());
+            System.err.println("PPR%% \t\t exceptionalExit" + res.getExceptionalExitResult());
         }
         if (PRINT_DIAGNOSTICS) {
             computedMethodReach.incrementAndGet();
@@ -604,19 +575,24 @@ public final class ProgramPointReachability {
         return rr;
     }
 
-    private void recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, MethodSummaryKillAndAlloc res) {
+    private MethodSummaryKillAndAlloc recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode,
+                                                               KilledAndAlloced normalExitResults,
+                                                               KilledAndAlloced exceptionalExitResults,
+                                          IntMap<KilledAndAlloced> tunnel) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
         }
-        MethodSummaryKillAndAlloc existing = methodSummaryMemoization.put(cgnode, res);
-        if (existing != null && !existing.equals(res)) {
+        MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
+        assert existing != null;
+        if (existing.update(normalExitResults, exceptionalExitResults, tunnel)) {
             // trigger update for dependencies.
             methodSummaryChanged(cgnode);
         }
         if (PRINT_DIAGNOSTICS) {
             recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
+        return existing;
     }
 
     public static final MutableIntSet nonEmptyApproximatedCallSites = AnalysisUtil.createConcurrentIntSet();
@@ -637,6 +613,11 @@ public final class ProgramPointReachability {
         // do a dataflow over the program points. XXX could try to use a dataflow framework to speed this up.
 
         Map<InterProgramPoint, KilledAndAlloced> results = new HashMap<>();
+        ConcurrentIntMap<KilledAndAlloced> tunnel = AnalysisUtil.createConcurrentIntMap();
+        KilledAndAlloced kaa = KilledAndAlloced.createUnreachable();
+        kaa.setEmpty();
+        tunnel.put(cgNode, kaa);
+
         WorkQueue<InterProgramPoint> q = new WorkQueue<>();
         Set<InterProgramPoint> visited = new HashSet<>();
 
@@ -710,20 +691,26 @@ public final class ProgramPointReachability {
                         InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
                                                                                               calleeSummary.getEntryPP())
                                                                                       .post();
-                        KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
-                                                                             ProgramPointReplica.create(callee.snd(),
-                                                                                                        calleeSummary.getNormalExitPP())
-                                                                                                .pre());
-                        KilledAndAlloced exRet = calleeResults.getResult(calleeEntryIPPR,
-                                                                         ProgramPointReplica.create(callee.snd(),
-                                                                                                    calleeSummary.getExceptionExitPP())
-                                                                                            .pre());
+                        KilledAndAlloced normalRet = calleeResults.getNormalExitResult();
+                        KilledAndAlloced exRet = calleeResults.getExceptionalExitResult();
 
                         // The final results will be the sets that are killed or alloced for all the callees
                         //     so intersect the results
                         postNormal.meet(KilledAndAlloced.join(current, normalRet));
                         postEx.meet(KilledAndAlloced.join(current, exRet));
 
+                        // add to the tunnel. That is, everything that can be reached from callee is reachable from
+                        // this node, albeit, with killed and alloced as indicated by current.
+                        IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
+                        while (reachableFromCalleeIterator.hasNext()) {
+                            int reachableFromCallee = reachableFromCalleeIterator.next();
+                            KilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
+                            if (tunnelToCallee == null) {
+                                tunnelToCallee = KilledAndAlloced.createUnreachable();
+                                tunnel.put(reachableFromCallee, tunnelToCallee);
+                            }
+                            tunnelToCallee.meet(KilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee), current));
+                        }
                     }
                     // Add the successor program points to the queue
                     q.add(cspp.getNormalExit().post());
@@ -836,14 +823,13 @@ public final class ProgramPointReachability {
             }
         } // queue is now empty
 
-        MethodSummaryKillAndAlloc rr = MethodSummaryKillAndAlloc.createInitial();
         PreProgramPoint normExitIPP = summ.getNormalExitPP().pre();
         PreProgramPoint exExitIPP = summ.getExceptionExitPP().pre();
 
-        rr.add(entryIPP.getReplica(context), normExitIPP.getReplica(context), getOrCreate(results, normExitIPP));
-        rr.add(entryIPP.getReplica(context), exExitIPP.getReplica(context), getOrCreate(results, exExitIPP));
-
-        recordMethodReachability(cgNode, rr);
+        MethodSummaryKillAndAlloc rr = recordMethodReachability(cgNode,
+                                                                getOrCreate(results, normExitIPP),
+                                                                getOrCreate(results, exExitIPP),
+                                                                tunnel);
         if (PRINT_DIAGNOSTICS) {
             methodReachTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -859,109 +845,104 @@ public final class ProgramPointReachability {
      */
     static class MethodSummaryKillAndAlloc {
         /**
-         * Map from source iipr to target ippr with a pair of killed and allocated. Note that all source and target
-         * ipprs in m should be from the same method.
-         *
-         * If (s, t, _, _) is not in the map, then it means that t is not reachable from s (or at least we haven't found
-         * out that it is, or are not interested in recording that fact).
-         *
-         * If (s, t, killed, alloced) is in the map, then this means that t is reachable from s, but all paths from s to
-         * t will kill the PointsToGraphNodes in killed, and allocate the InstanceKeyRecencys in alloced.
+         * For all paths from the entry node of this method to the normal exit, what are the illed and alloced things?
          */
-        final ConcurrentMap<InterProgramPointReplica, ConcurrentMap<InterProgramPointReplica, KilledAndAlloced>> m = AnalysisUtil.createConcurrentHashMap();
+        KilledAndAlloced normalExitSummary;
+        /**
+         * For all paths from the entry node of this method to the exceptional exit, what are the illed and alloced
+         * things?
+         */
+        KilledAndAlloced exceptionalExitSummary;
 
-        private MethodSummaryKillAndAlloc() {
-            // Intentionally left blank
+        /**
+         * Map from call graph nodes to KilledAndAlloced info. Let n be a call graph node, and let m be the call graph
+         * node that this object is a summary for. If tunnel.contains(n) is true, then the entry program point of n is
+         * reachable from the entry program point of m, and moreover, tunnel.get(n) describes the kill and alloc set,
+         * i.e., all paths from the entry point of m to the entry point of n will kill the PointsToGraphNodes in
+         * tunnel.get(n).killed and allocate the InstanceKeyRecencys in tunnel.get(n).alloced. If n is not in the domain
+         * of tunnel (i.e., tunnel.contains(n) is false), then (to the best of our current knowledge) the entry point of
+         * n is not reachable from the entry point of m.
+         */
+        final ConcurrentIntMap<KilledAndAlloced> tunnel = AnalysisUtil.createConcurrentIntMap();
+
+        private MethodSummaryKillAndAlloc(/*OrderedPair<IMethod, Context>*/int cgnode) {
+            // the method that this summary is for is reachable without killing or allocating anything.
+            KilledAndAlloced kaa = KilledAndAlloced.createUnreachable();
+            kaa.setEmpty();
+            this.tunnel.put(cgnode, kaa);
+
+            this.normalExitSummary = KilledAndAlloced.createUnreachable();
+            this.exceptionalExitSummary = KilledAndAlloced.createUnreachable();
         }
 
         /**
-         * Create a result in which every result is unreachable
+         * Create a result in which every result is unreachable. cgnode indicates the call graph node that this summary
+         * is for.
          *
          * @return
          */
-        public static MethodSummaryKillAndAlloc createInitial() {
-            return new MethodSummaryKillAndAlloc();
+        public static MethodSummaryKillAndAlloc createInitial(/*OrderedPair<IMethod, Context>*/int cgnode) {
+            return new MethodSummaryKillAndAlloc(cgnode);
         }
 
-        public KilledAndAlloced getResult(InterProgramPointReplica source, InterProgramPointReplica target) {
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> s = m.get(source);
-            if (s == null) {
-                return KilledAndAlloced.createUnreachable();
-            }
-            KilledAndAlloced p = s.get(target);
-            if (p == null) {
-                return KilledAndAlloced.createUnreachable();
-            }
-            return p;
+        public KilledAndAlloced getNormalExitResult() {
+            return this.normalExitSummary;
         }
 
-        public void add(InterProgramPointReplica source, InterProgramPointReplica target, KilledAndAlloced res) {
-            assert target != null;
-            assert source.getContainingProcedure().equals(target.getContainingProcedure());
-            assert source.getContext().equals(target.getContext());
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> thisTargetMap = this.getTargetMap(source);
-            if (res != null) {
-                KilledAndAlloced existing = thisTargetMap.putIfAbsent(target, res);
-                assert existing == null;
-            }
-            else {
-                // we are putting in null, i.e., the target is not reachable from the source.
-                assert !thisTargetMap.containsKey(target);
-                //thisTargetMap.remove(target);
-            }
+        public KilledAndAlloced getExceptionalExitResult() {
+            return this.exceptionalExitSummary;
         }
 
-        Set<InterProgramPointReplica> getAllSources() {
-            return this.m.keySet();
-        }
+        /**
+         * Update the summary. Return true if and only if this summary changed.
+         *
+         * @return
+         */
+        public boolean update(KilledAndAlloced normalExitSummary, KilledAndAlloced exceptionalExitSummary,
+                              IntMap<KilledAndAlloced> tunnel) {
+            boolean changed = false;
+            changed |= this.normalExitSummary.meet(normalExitSummary);
+            changed |= this.exceptionalExitSummary.meet(exceptionalExitSummary);
 
-        ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> getTargetMap(InterProgramPointReplica s) {
-            ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> tm = this.m.get(s);
-            if (tm == null) {
-                tm = AnalysisUtil.createConcurrentHashMap();
-                ConcurrentMap<InterProgramPointReplica, KilledAndAlloced> existing = this.m.putIfAbsent(s, tm);
-                if (existing != null) {
-                    tm = existing;
+            IntIterator iter = tunnel.keyIterator();
+            while (iter.hasNext()) {
+                int key = iter.next();
+                KilledAndAlloced kaa = this.tunnel.get(key);
+                if (kaa == null) {
+                    kaa = KilledAndAlloced.createUnreachable();
+                    KilledAndAlloced existing = this.tunnel.putIfAbsent(key, kaa);
+                    if (existing != null) {
+                        kaa = existing;
+                    }
                 }
+                changed |= kaa.meet(tunnel.get(key));
             }
-            return tm;
+            return changed;
         }
+
 
         @Override
         public int hashCode() {
-            return m.hashCode();
+            return normalExitSummary.hashCode() * 37 + exceptionalExitSummary.hashCode() + tunnel.hashCode();
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof MethodSummaryKillAndAlloc)) {
-                return false;
-            }
-            MethodSummaryKillAndAlloc other = (MethodSummaryKillAndAlloc) obj;
-            if (m == null) {
-                if (other.m != null) {
-                    return false;
-                }
-            }
-            else if (!m.equals(other.m)) {
-                return false;
-            }
-            return true;
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            for (InterProgramPointReplica s : m.keySet()) {
-                for (InterProgramPointReplica t : m.get(s).keySet()) {
-                    sb.append(s + " -> " + t + "\n\t" + m.get(s).get(t));
-                }
+            sb.append("normalExit: ");
+            sb.append(this.normalExitSummary);
+            sb.append("exExit: ");
+            sb.append(this.exceptionalExitSummary);
+            sb.append("\nTunnels:");
+            IntIterator cgnodes = tunnel.keyIterator();
+            while (cgnodes.hasNext()) {
+                int cgnode = cgnodes.next();
+                sb.append(cgnode + " -> " + tunnel.get(cgnode));
             }
             return sb.toString();
         }
@@ -1685,7 +1666,7 @@ public final class ProgramPointReachability {
         analysisTime *= analysisHandle.numThreads();
         sb.append("\tReachability: " + total + "s; RATIO: " + total / analysisTime + "\n");
         sb.append("\tCGReachability: " + callGraphReach + "s; RATIO: " + callGraphReach / analysisTime
-                + "\n");
+ + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
         sb.append("\tReachableImpl: " + reachableImpl + "s; RATIO: " + reachableImpl / analysisTime + "\n");

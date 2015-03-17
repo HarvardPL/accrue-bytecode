@@ -502,14 +502,8 @@ public final class ProgramPointDestinationQuery {
                 // reach the destination
                 ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
                 MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
-                KilledAndAlloced normalRet = calleeResults.getResult(calleeEntryIPPR,
-                                                                     calleeSummary.getNormalExitPP()
-                                                                                  .pre()
-                                                                                  .getReplica(callee.snd()));
-                KilledAndAlloced exRet = calleeResults.getResult(calleeEntryIPPR,
-                                                                 calleeSummary.getExceptionExitPP()
-                                                                              .pre()
-                                                                              .getReplica(callee.snd()));
+                KilledAndAlloced normalRet = calleeResults.getNormalExitResult();
+                KilledAndAlloced exRet = calleeResults.getExceptionalExitResult();
                 if (DEBUG) {
                     System.err.println("PPDQ%% \t\t\t\tUSING SUMMARY  Normal: "
                             + normalRet.allows(this.noKill, this.noAlloc, this.g) + " Ex: "
