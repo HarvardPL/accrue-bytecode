@@ -47,6 +47,11 @@ public final class ProgramPointDestinationQuery {
      */
     public static final boolean DEBUG2 = ProgramPointReachability.DEBUG2;
 
+    /**
+     * Should we use tunnels to the destination?
+     */
+    private static final boolean USE_TUNNELS = ProgramPointReachability.USE_TUNNELS;
+
     /////////////////////
     //
     //  Fields maintained across subqueries
@@ -60,6 +65,9 @@ public final class ProgramPointDestinationQuery {
      * Call graph node containing the destination program point
      */
     private final/*OrderedPair<IMethod,Context>*/int destinationCGNode;
+
+    private final InterProgramPointReplica destinationEntryIPPR;
+
     /**
      * points-to graph nodes that must not be killed on a valid path from source to destination
      */
@@ -129,6 +137,9 @@ public final class ProgramPointDestinationQuery {
         this.ppr = ppr;
         OrderedPair<IMethod, Context> destCGNode = new OrderedPair<>(dest.getContainingProcedure(), dest.getContext());
         this.destinationCGNode = g.lookupCallGraphNodeDictionary(destCGNode);
+        MethodSummaryNodes destinationSummary = g.getRegistrar().getMethodSummary(dest.getContainingProcedure());
+        this.destinationEntryIPPR = destinationSummary.getEntryPP().post().getReplica(dest.getContext());
+
     }
 
     /**
@@ -470,6 +481,7 @@ public final class ProgramPointDestinationQuery {
             return ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT;
         }
 
+
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
         IntIterator calleeIter = calleeSet.intIterator();
@@ -477,31 +489,51 @@ public final class ProgramPointDestinationQuery {
             /*OrderedPair<IMethod, Context>*/int calleeInt = calleeIter.next();
             OrderedPair<IMethod, Context> callee = g.lookupCallGraphNodeDictionary(calleeInt);
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
-            InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP().post().getReplica(callee.snd());
-            ReachabilityResult res = ReachabilityResult.UNREACHABLE;
             long startCG = 0L;
             if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
                 startCG = System.currentTimeMillis();
             }
-            boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt,
-                                                                               this.destinationCGNode,
-                                                                               this.currentSubQuery);
+
+            ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
+            MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
+
             if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
                 ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
             }
-            if (destReachable) {
-                // this is a relevant node get the results for the callee
-                res = getResults(calleeEntryIPPR, true, trigger, visited);
-                if (res == ReachabilityResult.FOUND) {
-                    return ReachabilityResult.FOUND;
+            if (USE_TUNNELS) {
+                KilledAndAlloced tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
+                if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()) {
+                    // this is a relevant node get the results for the callee
+                    if (tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
+                        if (getResults(destinationEntryIPPR, true, trigger, visited) == ReachabilityResult.FOUND) {
+                            return ReachabilityResult.FOUND;
+                        }
+                    }
                 }
-                reachableExits = reachableExits.join(res);
             }
-            else if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
+            else {
+                // NOT USING TUNNELS
+                boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt,
+                                                                                   this.destinationCGNode,
+                                                                                   this.currentSubQuery);
+
+                if (destReachable) {
+                    // this is a relevant node get the results for the callee
+                    InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP()
+                                                                            .post()
+                                                                            .getReplica(callee.snd());
+                    ReachabilityResult res = getResults(calleeEntryIPPR, true, trigger, visited);
+                    if (res == ReachabilityResult.FOUND) {
+                        return ReachabilityResult.FOUND;
+                    }
+                    reachableExits = reachableExits.join(res);
+                    // We've processed the callee, no need to use the summary information.
+                    continue;
+                }
+            }
+            if (reachableExits != ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
                 // If both exit types are not already accounted for then get summary results for the callee that cannot
                 // reach the destination
-                ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
-                MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
                 KilledAndAlloced normalRet = calleeResults.getNormalExitResult();
                 KilledAndAlloced exRet = calleeResults.getExceptionalExitResult();
                 if (DEBUG) {

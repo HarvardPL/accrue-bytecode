@@ -60,6 +60,11 @@ public final class ProgramPointReachability {
     public static final boolean DEBUG2 = false;
 
     /**
+     * Should we use tunnels to the destination?
+     */
+    public static final boolean USE_TUNNELS = true;
+
+    /**
      * Keep a reference to the PointsToGraph for convenience.
      */
     private final PointsToGraph g;
@@ -578,7 +583,7 @@ public final class ProgramPointReachability {
     private MethodSummaryKillAndAlloc recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode,
                                                                KilledAndAlloced normalExitResults,
                                                                KilledAndAlloced exceptionalExitResults,
-                                          IntMap<KilledAndAlloced> tunnel) {
+                                                               IntMap<KilledAndAlloced> tunnel) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -638,6 +643,8 @@ public final class ProgramPointReachability {
             assert pp.getContainingProcedure().equals(n.fst());
             KilledAndAlloced current = getOrCreate(results, ipp);
 
+            assert !current.isUnreachable() : "Program point " + ipp + " appears to be unreachable";
+
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
                     // this is a method call! Register the dependency and get some cached results
@@ -686,11 +693,6 @@ public final class ProgramPointReachability {
                         addMethodMethodDependency(cgNode, calleeInt);
                         MethodSummaryKillAndAlloc calleeResults = getReachabilityForMethod(calleeInt);
 
-                        OrderedPair<IMethod, Context> callee = g.lookupCallGraphNodeDictionary(calleeInt);
-                        MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
-                        InterProgramPointReplica calleeEntryIPPR = ProgramPointReplica.create(callee.snd(),
-                                                                                              calleeSummary.getEntryPP())
-                                                                                      .post();
                         KilledAndAlloced normalRet = calleeResults.getNormalExitResult();
                         KilledAndAlloced exRet = calleeResults.getExceptionalExitResult();
 
@@ -699,22 +701,29 @@ public final class ProgramPointReachability {
                         postNormal.meet(KilledAndAlloced.join(current, normalRet));
                         postEx.meet(KilledAndAlloced.join(current, exRet));
 
-                        // add to the tunnel. That is, everything that can be reached from callee is reachable from
-                        // this node, albeit, with killed and alloced as indicated by current.
-                        IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
-                        while (reachableFromCalleeIterator.hasNext()) {
-                            int reachableFromCallee = reachableFromCalleeIterator.next();
-                            KilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
-                            if (tunnelToCallee == null) {
-                                tunnelToCallee = KilledAndAlloced.createUnreachable();
-                                tunnel.put(reachableFromCallee, tunnelToCallee);
+                        if (USE_TUNNELS) {
+                            // add to the tunnel. That is, everything that can be reached from callee is reachable from
+                            // this node, albeit, with killed and alloced as indicated by current.
+                            IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
+                            while (reachableFromCalleeIterator.hasNext()) {
+                                int reachableFromCallee = reachableFromCalleeIterator.next();
+                                KilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
+                                if (tunnelToCallee == null) {
+                                    tunnelToCallee = KilledAndAlloced.createUnreachable();
+                                    tunnel.put(reachableFromCallee, tunnelToCallee);
+                                }
+                                tunnelToCallee.meet(KilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee),
+                                                                          current));
                             }
-                            tunnelToCallee.meet(KilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee), current));
                         }
                     }
-                    // Add the successor program points to the queue
-                    q.add(cspp.getNormalExit().post());
-                    q.add(cspp.getExceptionExit().post());
+                    // Add the successor program points to the queue, if they are reachable
+                    if (!postNormal.isUnreachable()) {
+                        q.add(cspp.getNormalExit().post());
+                    }
+                    if (!postEx.isUnreachable()) {
+                        q.add(cspp.getExceptionExit().post());
+                    }
                     continue;
                 } // end CallSiteProgramPoint
                 else if (pp.isNormalExitSummaryNode() || pp.isExceptionExitSummaryNode()) {
@@ -866,11 +875,12 @@ public final class ProgramPointReachability {
         final ConcurrentIntMap<KilledAndAlloced> tunnel = AnalysisUtil.createConcurrentIntMap();
 
         private MethodSummaryKillAndAlloc(/*OrderedPair<IMethod, Context>*/int cgnode) {
-            // the method that this summary is for is reachable without killing or allocating anything.
-            KilledAndAlloced kaa = KilledAndAlloced.createUnreachable();
-            kaa.setEmpty();
-            this.tunnel.put(cgnode, kaa);
-
+            if (USE_TUNNELS) {
+                // the method that this summary is for is reachable without killing or allocating anything.
+                KilledAndAlloced kaa = KilledAndAlloced.createUnreachable();
+                kaa.setEmpty();
+                this.tunnel.put(cgnode, kaa);
+            }
             this.normalExitSummary = KilledAndAlloced.createUnreachable();
             this.exceptionalExitSummary = KilledAndAlloced.createUnreachable();
         }
@@ -904,18 +914,20 @@ public final class ProgramPointReachability {
             changed |= this.normalExitSummary.meet(normalExitSummary);
             changed |= this.exceptionalExitSummary.meet(exceptionalExitSummary);
 
-            IntIterator iter = tunnel.keyIterator();
-            while (iter.hasNext()) {
-                int key = iter.next();
-                KilledAndAlloced kaa = this.tunnel.get(key);
-                if (kaa == null) {
-                    kaa = KilledAndAlloced.createUnreachable();
-                    KilledAndAlloced existing = this.tunnel.putIfAbsent(key, kaa);
-                    if (existing != null) {
-                        kaa = existing;
+            if (USE_TUNNELS) {
+                IntIterator iter = tunnel.keyIterator();
+                while (iter.hasNext()) {
+                    int key = iter.next();
+                    KilledAndAlloced kaa = this.tunnel.get(key);
+                    if (kaa == null) {
+                        kaa = KilledAndAlloced.createUnreachable();
+                        KilledAndAlloced existing = this.tunnel.putIfAbsent(key, kaa);
+                        if (existing != null) {
+                            kaa = existing;
+                        }
                     }
+                    changed |= kaa.meet(tunnel.get(key));
                 }
-                changed |= kaa.meet(tunnel.get(key));
             }
             return changed;
         }

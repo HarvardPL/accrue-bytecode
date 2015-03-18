@@ -21,13 +21,6 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  * pp, and which InstanceKeyRecency must have been newly allocated on all paths from the method entry to pp.
  */
 public class KilledAndAlloced {
-    //    /**
-    //     * We use a distinguished constant for unreachable program points. The null value for the killed and alloced sets
-    //     * represents the "universe" sets, e.g., if killed == null, then it means that all fields are killed on all paths to
-    //     * the program point.
-    //     */
-    //    static final KilledAndAlloced UNREACHABLE = new KilledAndAlloced(null, null, null);
-
     private/*Set<PointsToGraphNode>*/MutableIntSet killed;
     private/*Set<InstanceKeyRecency>*/MutableIntSet alloced;
     private Set<FieldReference> maybeKilledFields;
@@ -157,6 +150,10 @@ public class KilledAndAlloced {
         this.killed = MutableSparseIntSet.createMutableSparseIntSet(1);
         this.maybeKilledFields = Collections.emptySet();
         this.alloced = MutableSparseIntSet.createMutableSparseIntSet(1);
+    }
+
+    public synchronized boolean isUnreachable() {
+        return this.killed == null;
     }
 
     /**
