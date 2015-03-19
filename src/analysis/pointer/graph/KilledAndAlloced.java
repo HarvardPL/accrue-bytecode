@@ -29,8 +29,8 @@ public class KilledAndAlloced {
         this.killed = killed;
         this.maybeKilledFields = maybeKilledFields;
         this.alloced = alloced;
-        assert (killed == null && maybeKilledFields == null && alloced == null)
-                || (killed != null && maybeKilledFields != null && alloced != null);
+        assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
+                || (this.killed != null && this.maybeKilledFields != null && this.alloced != null);
     }
 
     /**
@@ -169,9 +169,9 @@ public class KilledAndAlloced {
      * constructor.
      */
     public synchronized void setEmpty() {
-        assert killed == null;
-        assert maybeKilledFields == null;
-        assert alloced == null;
+        assert this.killed == null;
+        assert this.maybeKilledFields == null;
+        assert this.alloced == null;
         this.killed = MutableSparseIntSet.createMutableSparseIntSet(1);
         this.maybeKilledFields = Collections.emptySet();
         this.alloced = MutableSparseIntSet.createMutableSparseIntSet(1);

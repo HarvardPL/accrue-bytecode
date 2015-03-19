@@ -879,6 +879,8 @@ public final class ProgramPointReachability {
                 // the method that this summary is for is reachable without killing or allocating anything.
                 KilledAndAlloced kaa = KilledAndAlloced.createUnreachable();
                 kaa.setEmpty();
+                assert (kaa.getKilled() == null && kaa.getMaybeKilledFields() == null && kaa.getAlloced() == null)
+                        || (kaa.getKilled() != null && kaa.getMaybeKilledFields() != null && kaa.getAlloced() != null);
                 this.tunnel.put(cgnode, kaa);
             }
             this.normalExitSummary = KilledAndAlloced.createUnreachable();
@@ -927,6 +929,8 @@ public final class ProgramPointReachability {
                         }
                     }
                     changed |= kaa.meet(tunnel.get(key));
+                    assert (kaa.getKilled() == null && kaa.getMaybeKilledFields() == null && kaa.getAlloced() == null)
+                            || (kaa.getKilled() != null && kaa.getMaybeKilledFields() != null && kaa.getAlloced() != null);
                 }
             }
             return changed;
