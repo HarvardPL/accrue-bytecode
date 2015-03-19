@@ -13,7 +13,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
-import analysis.pointer.graph.ProgramPointReachability.MethodSummaryKillAndAlloc;
+import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.registrar.MethodSummaryNodes;
 import analysis.pointer.statements.CallSiteProgramPoint;
 import analysis.pointer.statements.LocalToFieldStatement;
@@ -495,7 +495,7 @@ public final class ProgramPointDestinationQuery {
             }
 
             ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
-            MethodSummaryKillAndAlloc calleeResults = ppr.getReachabilityForMethod(calleeInt);
+            MethodSummaryKillAndAlloc calleeResults = this.ppr.getReachabilityForMethod(calleeInt);
 
             if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
                 ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
