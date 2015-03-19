@@ -19,6 +19,7 @@ import analysis.pointer.graph.AddNonMostRecentOrigin;
 import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
 import analysis.pointer.graph.ApproximateCallSitesAndFieldAssignments.Approximation;
+import analysis.pointer.graph.CallGraphReachability;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointReachability;
@@ -263,7 +264,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             System.err.println("\n\n");
         }
 
-        if (PRINT_CG_NODES) {
+        if (PRINT_CG_NODES && CallGraphReachability.USE_CALL_GRAPH_REACH) {
             System.err.println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             System.out.println(g.ppReach.getCallGraphReachability());
             System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");

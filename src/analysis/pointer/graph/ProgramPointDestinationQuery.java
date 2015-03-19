@@ -497,6 +497,7 @@ public final class ProgramPointDestinationQuery {
             ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
             MethodSummaryKillAndAlloc calleeResults = this.ppr.getReachabilityForMethod(calleeInt);
 
+            boolean tunnelsAllowAccessToDest = false;
             if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
                 ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
             }
@@ -505,6 +506,7 @@ public final class ProgramPointDestinationQuery {
                 if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()) {
                     // this is a relevant node get the results for the callee
                     if (tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
+                        tunnelsAllowAccessToDest = true;
                         if (getResults(destinationEntryIPPR, true, trigger, visited) == ReachabilityResult.FOUND) {
                             return ReachabilityResult.FOUND;
                         }
@@ -513,9 +515,10 @@ public final class ProgramPointDestinationQuery {
             }
             else {
                 // NOT USING TUNNELS
-                boolean destReachable = ppr.getCallGraphReachability().isReachable(calleeInt,
-                                                                                   this.destinationCGNode,
-                                                                                   this.currentSubQuery);
+                boolean destReachable = CallGraphReachability.USE_CALL_GRAPH_REACH
+                        ? ppr.getCallGraphReachability().isReachable(calleeInt,
+                                                                     this.destinationCGNode,
+                                                                     this.currentSubQuery) : true;
 
                 if (destReachable) {
                     // this is a relevant node get the results for the callee
@@ -552,6 +555,12 @@ public final class ProgramPointDestinationQuery {
                     //    on a path to the exceptional exit of the callee
                     reachableExits = reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
                 }
+            }
+            if (tunnelsAllowAccessToDest && reachableExits == ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
+                // The tunnels allows access to the destination, and the exits are fully reachable.
+                // This means that any changes to the method summary won't change our results.
+                // So we can remove the dependency.
+                ppr.removeMethodQueryDependency(this.currentSubQuery, calleeInt);
             }
         }
         if (DEBUG2) {
@@ -722,9 +731,13 @@ public final class ProgramPointDestinationQuery {
         /*Iterator<ProgramPointReplica>*/IntIterator callerIter = callers.intIterator();
         while (callerIter.hasNext()) {
             int callSite = callerIter.next();
-            if (!ppr.getCallGraphReachability().isReachableByReturnTo(callSite,
-                                                                      this.destinationCGNode,
-                                                                      this.currentSubQuery)) {
+            boolean isReachableByReturnTo = true;
+            if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
+                isReachableByReturnTo = ppr.getCallGraphReachability().isReachableByReturnTo(callSite,
+                                                                                             this.destinationCGNode,
+                                                                                             this.currentSubQuery);
+            }
+            if (!isReachableByReturnTo) {
                 // don't bother with this call site, we can't get to the destination
                 continue;
             }

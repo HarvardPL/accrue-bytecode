@@ -26,6 +26,7 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  * whether a destination call graph node is reachable after returning to a given call site.
  */
 public final class CallGraphReachability {
+    public static final boolean USE_CALL_GRAPH_REACH = false;
     /**
      * Map from call graph node to the transitive closure of all call graph nodes reachable from that node via method
      * calls, note that every node is reachable from itself
@@ -65,6 +66,9 @@ public final class CallGraphReachability {
      */
     boolean isReachable(/*OrderedPair<IMethod,Context>*/int source, /*OrderedPair<IMethod,Context>*/int dest, /*ProgramPointSubQuery*/
                         int triggeringQuery) {
+        if (!USE_CALL_GRAPH_REACH) {
+            return true;
+        }
         if (source == dest) {
             // A node is always reachable from itself
             return true;
@@ -102,6 +106,10 @@ public final class CallGraphReachability {
     boolean isReachableByReturnTo(/*ProgramPointReplica*/int callSite, /*OrderedPair<IMethod,Context>*/
                                   int dest, /*ProgramPointSubQuery*/
                                   int triggeringQuery) {
+        if (!USE_CALL_GRAPH_REACH) {
+            return true;
+        }
+
         assert g.lookupCallSiteReplicaDictionary(callSite) != null;
         assert g.lookupCallSiteReplicaDictionary(callSite).getPP() instanceof CallSiteProgramPoint;
         assert g.lookupCallGraphNodeDictionary(dest) != null;
@@ -136,6 +144,10 @@ public final class CallGraphReachability {
      * @param calleeCGNode call graph node that is the new callee
      */
     void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod,Context>*/int calleeCGNode) {
+        if (!USE_CALL_GRAPH_REACH) {
+            return;
+        }
+
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();

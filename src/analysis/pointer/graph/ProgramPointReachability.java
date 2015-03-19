@@ -89,7 +89,12 @@ public final class ProgramPointReachability {
         this.analysisHandle = analysisHandle;
         this.approx = new ApproximateCallSitesAndFieldAssignments(g);
         this.methodReachability = new MethodReachability(this, g);
-        this.callGraphReachability = new CallGraphReachability(this, g);
+        if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
+            this.callGraphReachability = new CallGraphReachability(this, g);
+        }
+        else {
+            this.callGraphReachability = null;
+        }
     }
 
     /**
@@ -622,6 +627,21 @@ public final class ProgramPointReachability {
         }
     }
 
+    /**
+     * We do NOT need to reanalyze the method results for (m, context) if the reachability results for callGraphNode
+     * changes.
+     *
+     * @param query
+     * @param callGraphNode
+     */
+    void removeMethodQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
+                                     int callGraphNode) {
+        MutableIntSet s = methodQueryDependencies.get(callGraphNode);
+        if (s != null) {
+            s.remove(query);
+        }
+    }
+
     void addKillQueryDependency(/*ProgramPointSubQuery*/int query, ReferenceVariableReplica readDependencyForKillField) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
@@ -890,7 +910,9 @@ public final class ProgramPointReachability {
      */
     public void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod, Context>*/
                                  int calleeCGNode) {
-        this.callGraphReachability.addCallGraphEdge(callerSite, calleeCGNode);
+        if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
+            this.callGraphReachability.addCallGraphEdge(callerSite, calleeCGNode);
+        }
         this.methodReachability.addCallGraphEdge(callerSite, calleeCGNode);
         this.calleeAddedTo(callerSite);
         this.callerAddedTo(calleeCGNode);
