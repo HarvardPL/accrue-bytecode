@@ -94,6 +94,7 @@ public class ApproximateCallSitesAndFieldAssignments {
 
     public int checkAndApproximateCallSites() {
         int count = 0;
+        System.err.println("Check and approx call sites");
         while (!emptyCallSites.isEmpty()) {
             IntIterator iter = emptyCallSites.intIterator();
             while (iter.hasNext()) {
@@ -104,6 +105,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                         if (approxCallSites.add(i)) {
                             g.ppReach.addApproximateCallSite(i);
                             count++;
+                            System.err.println(" added " + i);
                         }
                     }
                 }
@@ -114,6 +116,7 @@ public class ApproximateCallSitesAndFieldAssignments {
 
     public int checkAndApproximateFieldAssignments() {
         int count = 0;
+        System.err.println("Check and approx field assignments: " + emptyTargetFieldAssignments.size());
         while (!emptyTargetFieldAssignments.isEmpty()) {
             Iterator<StmtAndContext> iter = emptyTargetFieldAssignments.iterator();
             while (iter.hasNext()) {
@@ -124,6 +127,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                     if (!killed.fst()) {
                         if (approxFieldAssignments.add(i)) {
                             g.ppReach.addApproximateFieldAssign(i);
+                            System.err.println(" added " + i);
                             count++;
                         }
                     }
