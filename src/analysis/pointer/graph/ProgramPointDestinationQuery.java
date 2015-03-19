@@ -1,6 +1,5 @@
 package analysis.pointer.graph;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -144,12 +143,12 @@ public final class ProgramPointDestinationQuery {
 
     /**
      * Execute a subquery for a single source
-     *
-     * @param sources sources to search from
+     * 
+     * @param src source to search from
      * @param relevantNodes call graph nodes that must be inspected and cannot be summarized
      * @return whether the destination was found
      */
-    public boolean executeSubQueries(Collection<InterProgramPointReplica> sources) {
+    public boolean executeSubQuery(InterProgramPointReplica src) {
         if (DEBUG) {
             System.err.println("PPDQ%% \nEXECUTING " + this.currentSubQuery);
             IntIterator iter = this.noAlloc.intIterator();
@@ -170,9 +169,8 @@ public final class ProgramPointDestinationQuery {
         this.currentlyProcessing = new HashSet<>();
         this.resultCache = new HashMap<>();
         this.workItemDependencies = new HashMap<>();
-        Set<InterProgramPointReplica> visited = new HashSet<>();
 
-        for (InterProgramPointReplica src : sources) {
+        //for (InterProgramPointReplica src : sources) {
             this.currentSubQuery = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
                                                                                                   this.dest,
                                                                                                   this.noKill,
@@ -181,14 +179,14 @@ public final class ProgramPointDestinationQuery {
             searchQ.add(new WorkItem(src, false));
             while (!searchQ.isEmpty()) {
                 WorkItem wi = searchQ.poll();
-                if (search(wi, visited)) {
+            if (search(wi)) {
                     if (DEBUG) {
                         System.err.println("PPDQ%% FOUND DESTINATION " + this.currentSubQuery + "\n");
                     }
                     return true;
                 }
             }
-        }
+        //}
         if (DEBUG) {
             System.err.println("PPDQ%% DID NOT FIND DEST " + this.currentSubQuery + "\n");
         }
@@ -204,7 +202,7 @@ public final class ProgramPointDestinationQuery {
      *
      * @return true if the destination was found
      */
-    private boolean search(WorkItem wi, Set<InterProgramPointReplica> visited) {
+    private boolean search(WorkItem wi /*Set<InterProgramPointReplica> visited*/) {
         if (DEBUG) {
             System.err.println("PPDQ%% \tSearching from " + wi + " in "
                     + PrettyPrinter.methodString(wi.src.getContainingProcedure()) + " in " + wi.src.getContext());
@@ -220,6 +218,7 @@ public final class ProgramPointDestinationQuery {
 
         // Is the destination node in the same node as the source
         final boolean inSameMethod = this.dest.getContainingProcedure().equals(currentMethod);
+        Set<InterProgramPointReplica> visited = new HashSet<>();
 
         // try searching forward from src, carefully handling calls.
         WorkQueue<InterProgramPointReplica> q = new WorkQueue<>();
@@ -329,7 +328,7 @@ public final class ProgramPointDestinationQuery {
                         addedCalleeDependency = true;
                         ppr.addCalleeQueryDependency(currentSubQuery, currentCGNode);
                     }
-                    ReachabilityResult res = handleCall(ippr, wi, visited);
+                    ReachabilityResult res = handleCall(ippr, wi);
                     if (res == ReachabilityResult.FOUND) {
                         return true;
                     }
@@ -388,8 +387,7 @@ public final class ProgramPointDestinationQuery {
 
                     boolean found = handleMethodExitToUnknownCallSite(currentCGNode,
                                                                       pp.isExceptionExitSummaryNode(),
-                                                                      wi,
-                                                                      visited);
+                                                                      wi);
                     if (found) {
                         return true;
                     }
@@ -451,8 +449,7 @@ public final class ProgramPointDestinationQuery {
      *
      * @return the results of searching through all the possible callees
      */
-    private ReachabilityResult handleCall(InterProgramPointReplica ippr, WorkItem trigger,
-                                          Set<InterProgramPointReplica> visited) {
+    private ReachabilityResult handleCall(InterProgramPointReplica ippr, WorkItem trigger) {
         if (DEBUG) {
             System.err.println("PPDQ%% \t\t\tHANDLING CALL " + ippr);
         }
@@ -507,7 +504,7 @@ public final class ProgramPointDestinationQuery {
                     // this is a relevant node get the results for the callee
                     if (tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
                         tunnelsAllowAccessToDest = true;
-                        if (getResults(destinationEntryIPPR, true, trigger, visited) == ReachabilityResult.FOUND) {
+                        if (getResults(destinationEntryIPPR, true, trigger) == ReachabilityResult.FOUND) {
                             return ReachabilityResult.FOUND;
                         }
                     }
@@ -525,7 +522,7 @@ public final class ProgramPointDestinationQuery {
                     InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP()
                                                                             .post()
                                                                             .getReplica(callee.snd());
-                    ReachabilityResult res = getResults(calleeEntryIPPR, true, trigger, visited);
+                    ReachabilityResult res = getResults(calleeEntryIPPR, true, trigger);
                     if (res == ReachabilityResult.FOUND) {
                         return ReachabilityResult.FOUND;
                     }
@@ -716,8 +713,7 @@ public final class ProgramPointDestinationQuery {
      * @return true if the destination program point was found
      */
     private boolean handleMethodExitToUnknownCallSite(/*OrderedPair<IMethod, Context>*/int currentCallGraphNode,
-                                                      boolean isExceptionExit, WorkItem src,
-                                                      Set<InterProgramPointReplica> visited) {
+                                                      boolean isExceptionExit, WorkItem src) {
         if (DEBUG2) {
             System.err.println("PPDQ%% \t\t\tHANDLING UNKNOWN EXIT " + currentCallGraphNode + " EX? " + isExceptionExit);
         }
@@ -753,7 +749,7 @@ public final class ProgramPointDestinationQuery {
             }
 
             // let's explore the caller now.
-            ReachabilityResult res = getResults(callerSiteReplica, false, src, visited);
+            ReachabilityResult res = getResults(callerSiteReplica, false, src);
             if (res == ReachabilityResult.FOUND) {
                 // we found the destination!
                 return true;
@@ -773,8 +769,7 @@ public final class ProgramPointDestinationQuery {
      * @param visited
      * @return
      */
-    private ReachabilityResult getResults(InterProgramPointReplica newSrc, boolean isKnownCallSite, WorkItem trigger,
-                                          Set<InterProgramPointReplica> visited) {
+    private ReachabilityResult getResults(InterProgramPointReplica newSrc, boolean isKnownCallSite, WorkItem trigger) {
         WorkItem newWI = new WorkItem(newSrc, isKnownCallSite);
         if (DEBUG2) {
             System.err.println("PPDQ%% \t\tRequesting results for: " + newWI + " from " + trigger);
@@ -799,7 +794,7 @@ public final class ProgramPointDestinationQuery {
             return ReachabilityResult.UNREACHABLE;
         }
 
-        if (search(newWI, visited)) {
+        if (search(newWI)) {
             // The destination was found
             resultCache.put(newWI, ReachabilityResult.FOUND);
             return ReachabilityResult.FOUND;

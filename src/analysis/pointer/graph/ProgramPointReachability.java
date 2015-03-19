@@ -49,7 +49,7 @@ public final class ProgramPointReachability {
     /**
      * Should we use tunnels to the destination?
      */
-    public static final boolean USE_TUNNELS = true;
+    public static final boolean USE_TUNNELS = false;
 
     /**
      * Keep a reference to the PointsToGraph for convenience.
@@ -364,53 +364,53 @@ public final class ProgramPointReachability {
 
             if (positiveCache.contains(queryInt)) {
                 // The result was computed by another thread before this thread ran
-                recordQueryResult(sources, destination, noKill, noAlloc, forbidden, true);
+                recordQueryResult(queryInt, true);
                 if (PRINT_DIAGNOSTICS) {
                     cachedDestQuery.incrementAndGet();
                 }
                 return true;
             }
-        }
 
-        // Now try a search starting at the source
-        long startDest = 0L;
-        if (PRINT_DIAGNOSTICS) {
-            startDest = System.currentTimeMillis();
-        }
-
-        boolean found = prq.executeSubQueries(sources);
-
-        if (PRINT_DIAGNOSTICS) {
-            destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
-            computedDestQuery.incrementAndGet();
-        }
-
-        if (found) {
-            recordQueryResult(sources, destination, noKill, noAlloc, forbidden, true);
-            if (DEBUG) {
-                System.err.println("PPR%%\t" + sources + " -> " + destination);
-                System.err.println("PPR%%\ttrue because query returned true");
+            // Now try a search starting at the source
+            long startDest = 0L;
+            if (PRINT_DIAGNOSTICS) {
+                startDest = System.currentTimeMillis();
             }
+
+            boolean found = prq.executeSubQuery(src);
 
             if (PRINT_DIAGNOSTICS) {
-                totalTime.addAndGet(System.currentTimeMillis() - start);
+                destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
+                computedDestQuery.incrementAndGet();
             }
-            return true;
-        }
-        if (DEBUG) {
-            System.err.println("PPR%%\t" + sources + " -> " + destination);
-            System.err.println("PPR%%\tfalse because query returned false");
-        }
-        if (recordQueryResult(sources, destination, noKill, noAlloc, forbidden, false)) {
-            // We computed false, but the cache already had true
+
+            if (found) {
+                recordQueryResult(queryInt, true);
+                if (DEBUG) {
+                    System.err.println("PPR%%\t" + sources + " -> " + destination);
+                    System.err.println("PPR%%\ttrue because query returned true");
+                }
+
+                if (PRINT_DIAGNOSTICS) {
+                    totalTime.addAndGet(System.currentTimeMillis() - start);
+                }
+                return true;
+            }
             if (DEBUG) {
                 System.err.println("PPR%%\t" + sources + " -> " + destination);
-                System.err.println("PPR%%\ttrue because cache already had true (2)");
+                System.err.println("PPR%%\tfalse because query returned false");
             }
-            if (PRINT_DIAGNOSTICS) {
-                totalTime.addAndGet(System.currentTimeMillis() - start);
+            if (recordQueryResult(queryInt, false)) {
+                // We computed false, but the cache already had true
+                if (DEBUG) {
+                    System.err.println("PPR%%\t" + sources + " -> " + destination);
+                    System.err.println("PPR%%\ttrue because cache already had true (2)");
+                }
+                if (PRINT_DIAGNOSTICS) {
+                    totalTime.addAndGet(System.currentTimeMillis() - start);
+                }
+                return true;
             }
-            return true;
         }
 
         // we didn't find it.
@@ -425,58 +425,37 @@ public final class ProgramPointReachability {
     }
 
     /**
-     * Record the results for a collection of sub-queries with different sources, but everything else the same
+     * Record in the caches that the result of query mr is b. If this is a change (from negative to positive), then some
+     * StmtAndContexts may need to be rerun. If set sacsToReprocess is non-null then the StmtAndContexts will be added
+     * to the set. Otherwise, they will be submitted to the PointsToEngine.
      *
-     * @return true if all the queries were added to the positive cache
+     * @param query query to record
+     * @param b new result, true if the destination was reachable from the source, false otherwise
+     *
+     * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
+     *         the cache already has a positive result.
      */
-    private boolean recordQueryResult(Collection<InterProgramPointReplica> sources,
-                                      InterProgramPointReplica destination,
- IntSet noKill, IntSet noAlloc,
-                                      Set<InterProgramPointReplica> forbidden, boolean b) {
-        long start = 0L;
-        if (PRINT_DIAGNOSTICS) {
-            start = System.currentTimeMillis();
-        }
-
-        if (!b) {
-            for (InterProgramPointReplica src : sources) {
-                int query = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
-                                                                                           destination,
-                                                                                           noKill,
-                                                                                           noAlloc,
-                                                                                           forbidden));
-                // Recording a false result
-                negativeCache.add(query);
-                if (positiveCache.contains(query)) {
-                    this.negativeCache.remove(query);
-                    // A positive result was computed by another thread make sure to change all the other subqueries
-                    b = true;
-                    break;
-                }
-            }
-        }
-
+    private boolean recordQueryResult(/*ProgramPointSubQuery*/int query, boolean b) {
+        long start = System.currentTimeMillis();
         if (b) {
-            for (InterProgramPointReplica src : sources) {
-                int query = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
-                                                                                           destination,
-                                                                                           noKill,
-                                                                                           noAlloc,
-                                                                                           forbidden));
-                positiveCache.add(query);
-                if (negativeCache.remove(query)) {
-                    // we previously thought it was negative.
-                    queryResultChanged(query);
-                }
+            positiveCache.add(query);
+            if (negativeCache.remove(query)) {
+                // we previously thought it was negative.
+                queryResultChanged(query);
             }
-            if (PRINT_DIAGNOSTICS) {
-                recordResultsTime.addAndGet(System.currentTimeMillis() - start);
-            }
+            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
         }
-        if (PRINT_DIAGNOSTICS) {
+
+        // Recording a false result
+        negativeCache.add(query);
+        if (positiveCache.contains(query)) {
+            this.negativeCache.remove(query);
+            // A positive result has already been computed return it
             recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+            return true;
         }
+        recordResultsTime.addAndGet(System.currentTimeMillis() - start);
         return false;
     }
 
@@ -684,8 +663,6 @@ public final class ProgramPointReachability {
             killQueryDepTime.addAndGet(System.currentTimeMillis() - start);
         }
     }
-
-
 
     /**
      * This method is invoked to let us know that a new edge in the call graph has been added from the callSite.
@@ -1043,7 +1020,12 @@ public final class ProgramPointReachability {
         }
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
-        sb.append("\nTotal requests: " + totalRequests + "  ;  " + cachedResponses + "  cached " + computedResponses
+        sb.append("\nTotal requests: "
+                + totalRequests
+                + "  ;  "
+                + cachedResponses
+                + "  cached "
+                + computedResponses
                 + " computed ("
                 + (int) (100 * (cachedResponses.floatValue() / (cachedResponses.floatValue() + computedResponses.floatValue())))
                 + "% hit rate)\n");
@@ -1084,8 +1066,7 @@ public final class ProgramPointReachability {
         // Multiply by the number of threads to get the right ratios
         analysisTime *= analysisHandle.numThreads();
         sb.append("\tReachability: " + total + "s; RATIO: " + total / analysisTime + "\n");
-        sb.append("\tCGReachability: " + callGraphReach + "s; RATIO: " + callGraphReach / analysisTime
- + "\n");
+        sb.append("\tCGReachability: " + callGraphReach + "s; RATIO: " + callGraphReach / analysisTime + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
         sb.append("\tReachableImpl: " + reachableImpl + "s; RATIO: " + reachableImpl / analysisTime + "\n");
