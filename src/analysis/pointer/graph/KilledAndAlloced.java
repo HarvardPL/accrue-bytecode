@@ -80,6 +80,9 @@ public abstract class KilledAndAlloced {
         if (this.isUnreachable()) {
             return false;
         }
+        if (this.isEmpty()) {
+            return true;
+        }
         if (this.killed.containsAny(noKill)) {
             return false;
         }
