@@ -49,7 +49,7 @@ public final class ProgramPointReachability {
     /**
      * Should we use tunnels to the destination?
      */
-    public static final boolean USE_TUNNELS = false;
+    public static final boolean USE_TUNNELS = true;
 
     /**
      * Keep a reference to the PointsToGraph for convenience.

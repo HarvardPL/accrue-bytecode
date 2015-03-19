@@ -26,7 +26,7 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  * whether a destination call graph node is reachable after returning to a given call site.
  */
 public final class CallGraphReachability {
-    public static final boolean USE_CALL_GRAPH_REACH = false;
+    public static final boolean USE_CALL_GRAPH_REACH = !ProgramPointReachability.USE_TUNNELS;
     /**
      * Map from call graph node to the transitive closure of all call graph nodes reachable from that node via method
      * calls, note that every node is reachable from itself
