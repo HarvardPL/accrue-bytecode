@@ -54,7 +54,6 @@ public abstract class KilledAndAlloced {
      */
     public abstract void setEmpty();
 
-
     /**
      * Take the meet of this KilledAndAlloced with kaa, and return true if and only if this object was modified.
      *
