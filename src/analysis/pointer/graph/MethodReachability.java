@@ -114,9 +114,8 @@ public class MethodReachability {
 
         // res is the summary, but is currently the default initial entry.
         // Let's compute it! The call to recomputeMethodReachability will imperatively update res.
-        MutableIntSet mis = MutableSparseIntSet.createMutableSparseIntSet(2);
-        mis.add(cgNode);
-        this.recomputeMethodReachability(mis);
+        this.toRecompute.add(cgNode);
+        this.recomputeMethodReachability();
 
         if (ProgramPointReachability.DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
@@ -131,6 +130,11 @@ public class MethodReachability {
     }
 
     /**
+     * This is a shared (across threads) set of call graph nodes that need recomputing.
+     */
+    private final/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute = AnalysisUtil.createConcurrentIntSet();
+
+    /**
      * Trigger recomputation of all of the call graph nodes in the set cgnodes. If the recomputation triggers
      * dependencies for other methods to be recomputed, this will be done.
      *
@@ -138,13 +142,24 @@ public class MethodReachability {
      *
      * @param cgNodes
      */
-    private void recomputeMethodReachability(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+    private void recomputeMethodReachability() {
         MutableIntSet summaryChanged = MutableSparseIntSet.makeEmpty();
-        while (!toRecompute.isEmpty()) {
+        while (!this.toRecompute.isEmpty()) {
             // get the next node to recompute.
-            // The max is the cheapest to remove, so lets do that.
-            int cgNode = toRecompute.max();
-            toRecompute.remove(cgNode);
+            IntIterator recompNodes = this.toRecompute.intIterator();
+            int cgNode = -1;
+            while (cgNode < 0 && recompNodes.hasNext()) {
+                cgNode = recompNodes.next();
+                if (!toRecompute.remove(cgNode)) {
+                    // someone else removed it first
+                    cgNode = -1;
+                }
+            }
+            if (cgNode < 0) {
+                // still don't have a node to remove.
+                // See if this.toRecompute is empty yet.
+                continue;
+            }
 
             boolean changed = computeMethodSummary(cgNode);
             if (changed) {
@@ -575,12 +590,10 @@ public class MethodReachability {
                                                                                  callerSitePPR.getContext());
 
         int callerCGNode = g.lookupCallGraphNodeDictionary(caller);
-        if (!methodSummaryMemoization.containsKey(callerCGNode)) {
-            return;
+        if (methodSummaryMemoization.containsKey(callerCGNode)) {
+            this.toRecompute.add(callerCGNode);
+            recomputeMethodReachability();
         }
-        MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
-        s.add(callerCGNode);
-        recomputeMethodReachability(s);
     }
 
 
@@ -596,12 +609,10 @@ public class MethodReachability {
                                                                                  callerSitePPR.getContext());
 
         int callerCGNode = g.lookupCallGraphNodeDictionary(caller);
-        if (!methodSummaryMemoization.containsKey(callerCGNode)) {
-            return;
+        if (methodSummaryMemoization.containsKey(callerCGNode)) {
+            this.toRecompute.add(callerCGNode);
+            recomputeMethodReachability();
         }
-        MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
-        s.add(callerCGNode);
-        recomputeMethodReachability(s);
     }
 
     private void addKillMethodDependency(/*OrderedPair<IMethod, Context>*/int callGraphNode,
@@ -670,23 +681,25 @@ public class MethodReachability {
     void addApproximateFieldAssign(/*ReferenceVariableReplica*/int killDependency) {
         /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.get(killDependency);
         if (meths != null) {
-            recomputeMethodReachability(MutableSparseIntSet.make(meths));
+            this.toRecompute.addAll(meths);
+            recomputeMethodReachability();
         }
 
     }
 
     void checkPointsToGraphDelta(GraphDelta delta) {
+        boolean added = false;
         IntIterator domainIter = delta.domainIterator();
-        MutableIntSet toRecompute = MutableSparseIntSet.makeEmpty();
         while (domainIter.hasNext()) {
             int n = domainIter.next();
             /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.get(n);
             if (meths != null) {
-                toRecompute.addAll(meths);
+                added = true;
+                this.toRecompute.addAll(meths);
             }
         }
-        if (!toRecompute.isEmpty()) {
-            recomputeMethodReachability(toRecompute);
+        if (added) {
+            recomputeMethodReachability();
         }
     }
 
