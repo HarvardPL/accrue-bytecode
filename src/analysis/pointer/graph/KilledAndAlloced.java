@@ -43,11 +43,19 @@ public abstract class KilledAndAlloced {
     }
 
     /**
-     * Does this KilledAndAlloced represent an unreachable set?
+     * Does this KilledAndAlloced represent an unreachable set? (The unreachable set is the top element of the lattice)
      *
      * @return
      */
     public abstract boolean isUnreachable();
+
+    /**
+     * Does this KilledAndAlloced represent the empty set (i.e., killed, alloced, and maybeKilledFields are all empty)?
+     * If so, this is the bottom element of the lattice.
+     *
+     * @return
+     */
+    public abstract boolean isEmpty();
 
     /**
      * Set this KilledAndAlloced to empty. This should only be called if this is unreachable.
@@ -124,7 +132,7 @@ public abstract class KilledAndAlloced {
         }
 
         /**
-         * Combine (union) a and b.
+         * Combine (union) a and b. The result should not be imperatively updated.
          *
          * @param a
          * @param b
@@ -137,6 +145,15 @@ public abstract class KilledAndAlloced {
             if (b.isUnreachable()) {
                 // represents everything!
                 return b;
+            }
+
+            if (a.isEmpty()) {
+                // a is the bottom of the lattice
+                return b;
+            }
+            if (b.isEmpty()) {
+                // b is the bottom of the lattice
+                return a;
             }
             int killedSize = a.killed.size() + b.killed.size();
             MutableIntSet killed = killedSize == 0 ? EmptyIntSet.INSTANCE
@@ -173,7 +190,7 @@ public abstract class KilledAndAlloced {
             assert (res.isUnreachable() || (res.killed != null && res.maybeKilledFields != null && res.alloced != null)) : "res has violated the invariants that either all fields are null or none of them are : "
                     + res + " :: " + res.getClass();
 
-            if (this == res || res.isUnreachable()) {
+            if (this == res || this.isEmpty() || res.isUnreachable()) {
                 // no change to this object.
                 return false;
             }
@@ -243,6 +260,12 @@ public abstract class KilledAndAlloced {
         public boolean isUnreachable() {
             return this.killed == null;
         }
+
+        @Override
+        public boolean isEmpty() {
+            return this.killed != null && this.killed.isEmpty() && this.alloced.isEmpty()
+                    && this.maybeKilledFields.isEmpty();
+        }
     }
 
     /**
@@ -251,6 +274,7 @@ public abstract class KilledAndAlloced {
      */
     private static class ThreadSafeKilledAndAlloced extends KilledAndAlloced {
         private volatile boolean isUnreachable = true;
+        private volatile boolean isEmpty = false;
 
         // Unsafe mechanics
         private static final sun.misc.Unsafe UNSAFE;
@@ -281,18 +305,30 @@ public abstract class KilledAndAlloced {
         }
 
         @Override
+        public boolean isEmpty() {
+            return this.isEmpty;
+        }
+
+        @Override
         public void setEmpty() {
             // install the new sets, ensuring that we don't overwrite a non-null value.
-            UNSAFE.compareAndSwapObject(this, KILLEDOFFSET, null, AnalysisUtil.createConcurrentIntSet());
-            UNSAFE.compareAndSwapObject(this, ALLOCEDOFFSET, null, AnalysisUtil.createConcurrentIntSet());
-            UNSAFE.compareAndSwapObject(this, MAYBEKILLEDOFFSET, null, AnalysisUtil.createConcurrentSet());
+            if (!UNSAFE.compareAndSwapObject(this, KILLEDOFFSET, null, AnalysisUtil.createConcurrentIntSet())) {
+                throw new RuntimeException("Failed to set empty!");
+            }
+            if (!UNSAFE.compareAndSwapObject(this, ALLOCEDOFFSET, null, AnalysisUtil.createConcurrentIntSet())) {
+                throw new RuntimeException("Failed to set empty!");
+            }
+            if (!UNSAFE.compareAndSwapObject(this, MAYBEKILLEDOFFSET, null, AnalysisUtil.createConcurrentSet())) {
+                throw new RuntimeException("Failed to set empty!");
+            }
 
             this.isUnreachable = false;
+            this.isEmpty = true;
         }
 
         @Override
         public boolean meet(KilledAndAlloced kaa) {
-            if (this == kaa || kaa.isUnreachable()) {
+            if (this == kaa || this.isEmpty || kaa.isUnreachable()) {
                 // no change to this object.
                 return false;
             }
@@ -347,6 +383,15 @@ public abstract class KilledAndAlloced {
                     }
                 }
                 this.isUnreachable = false;
+                this.isEmpty = (this.killed.isEmpty() && this.alloced.isEmpty() && this.maybeKilledFields.isEmpty());
+                return true;
+            }
+
+            if (kaa.isEmpty()) {
+                this.killed.clear();
+                this.alloced.clear();
+                this.maybeKilledFields.clear();
+                this.isEmpty = true;
                 return true;
             }
 
@@ -357,6 +402,7 @@ public abstract class KilledAndAlloced {
             this.killed.intersectWith(kaa.killed);
             this.alloced.intersectWith(kaa.alloced);
             boolean changed = this.maybeKilledFields.retainAll(kaa.maybeKilledFields);
+            this.isEmpty = (this.killed.isEmpty() && this.alloced.isEmpty() && this.maybeKilledFields.isEmpty());
             return changed || (this.killed.size() != origKilledSize || this.alloced.size() != origAllocedSize);
         }
 
