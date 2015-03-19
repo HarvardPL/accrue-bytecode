@@ -121,19 +121,22 @@ public class ApproximateCallSitesAndFieldAssignments {
             Iterator<StmtAndContext> iter = emptyTargetFieldAssignments.iterator();
             while (iter.hasNext()) {
                 StmtAndContext i = iter.next();
-                if (emptyTargetFieldAssignments.remove(i)) {
-                    // if field really has no targets, then approximate it.
-                    OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
-                    if (!killed.fst()) {
-                        if (approxFieldAssignments.add(i)) {
-                            g.ppReach.addApproximateFieldAssign(i);
-                            System.err.println(" added " + i);
-                            count++;
-                        }
+                iter.remove();
+                // if field really has no targets, then approximate it.
+                OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
+                if (!killed.fst()) {
+                    if (approxFieldAssignments.add(i)) {
+                        g.ppReach.addApproximateFieldAssign(i);
+                        System.err.println(" added " + i);
+                        count++;
                     }
                 }
             }
+            System.err.println("  -- A: Check and approx field assignments: " + emptyTargetFieldAssignments.size()
+                    + "  count is " + count + " iterator has next?" + emptyTargetFieldAssignments.iterator().hasNext());
         }
+        System.err.println("  -- B: Check and approx field assignments: " + emptyTargetFieldAssignments.size()
+                + "  count is " + count);
         return count;
     }
 }

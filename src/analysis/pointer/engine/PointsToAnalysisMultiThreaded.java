@@ -510,6 +510,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 if (numApproximatedCallSites == 0 && numApproximatedFieldAssigns == 0) {
                     approximationFinished = true;
                 }
+                System.err.println("in checkPendingQueues: " + numApproximatedCallSites + " and "
+                        + numApproximatedFieldAssigns + " and approx finished: " + approximationFinished
+                        + ". ContainsPending: " + containsPending() + " isWorkToFinish:" + isWorkToFinish());
                 printDiagnostics();
             }
 

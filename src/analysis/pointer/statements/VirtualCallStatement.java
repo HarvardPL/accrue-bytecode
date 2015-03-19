@@ -73,10 +73,6 @@ public class VirtualCallStatement extends CallStatement {
             int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
             g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyCallSite(callSite);
         }
-        else if (iter.hasNext()) {
-            int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
-            g.ppReach.getApproximateCallSitesAndFieldAssigns().removeEmptyCallSite(callSite);
-        }
 
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();

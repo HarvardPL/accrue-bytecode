@@ -121,7 +121,6 @@ public class LocalToFieldStatement extends PointsToStatement {
             return new OrderedPair<>(Boolean.FALSE, null);
         }
         // the receiver point to at least one object.
-        g.ppReach.getApproximateCallSitesAndFieldAssigns().removeEmptyTargetFieldAssignment(sac);
         InstanceKeyRecency pointedTo = iter.next();
 
         if (!iter.hasNext() && pointedTo.isRecent()) {
