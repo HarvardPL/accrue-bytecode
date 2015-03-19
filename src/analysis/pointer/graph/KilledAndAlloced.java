@@ -26,11 +26,16 @@ public class KilledAndAlloced {
     private Set<FieldReference> maybeKilledFields;
 
     private KilledAndAlloced(MutableIntSet killed, Set<FieldReference> maybeKilledFields, MutableIntSet alloced) {
+        assert (killed != null && maybeKilledFields != null && alloced != null);
         this.killed = killed;
         this.maybeKilledFields = maybeKilledFields;
         this.alloced = alloced;
-        assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
-                || (this.killed != null && this.maybeKilledFields != null && this.alloced != null);
+    }
+
+    private KilledAndAlloced() {
+        this.killed = null;
+        this.maybeKilledFields = null;
+        this.alloced = null;
     }
 
     /**
@@ -39,7 +44,7 @@ public class KilledAndAlloced {
      * @return new KilledAndAlloced where everything is killed or alloced
      */
     static KilledAndAlloced createUnreachable() {
-        return new KilledAndAlloced(null, null, null);
+        return new KilledAndAlloced();
     }
 
     /**
@@ -82,9 +87,10 @@ public class KilledAndAlloced {
             alloced.addAll(b.alloced);
         }
 
+        assert (killed != null && maybeKilledFields != null && alloced != null) : "something has violated the invariants that either all fields are null or none of them are : "
+                + "killed=" + killed + " alloced=" + alloced + " killedFields=" + maybeKilledFields;
         KilledAndAlloced res = new KilledAndAlloced(killed, maybeKilledFields, alloced);
-        assert (res.killed == null && res.maybeKilledFields == null && res.alloced == null)
-                || (res.killed != null && res.maybeKilledFields != null && res.alloced != null) : "res has violated the invariants that either all fields are null or none of them are : "
+        assert (res.killed != null && res.maybeKilledFields != null && res.alloced != null) : "res has violated the invariants that either all fields are null or none of them are : "
                 + res;
         return res;
     }
@@ -113,6 +119,8 @@ public class KilledAndAlloced {
             // we represent the "universal" sets, so intersecting with
             // the sets in res just gives us directly the sets in res.
             // So copy over the sets res.killed and res.alloced.
+            assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null) : "this has violated the invariants that either all fields are null or none of them are: "
+                    + this;
             this.killed = MutableSparseIntSet.createMutableSparseIntSet(2);
             this.killed.copySet(res.killed);
             this.maybeKilledFields = new LinkedHashSet<>(res.maybeKilledFields);
@@ -175,6 +183,9 @@ public class KilledAndAlloced {
         this.killed = MutableSparseIntSet.createMutableSparseIntSet(1);
         this.maybeKilledFields = Collections.emptySet();
         this.alloced = MutableSparseIntSet.createMutableSparseIntSet(1);
+        assert this.killed != null;
+        assert this.maybeKilledFields != null;
+        assert this.alloced != null;
     }
 
     public synchronized boolean isUnreachable() {
