@@ -112,13 +112,16 @@ public class LocalToFieldStatement extends PointsToStatement {
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         ReferenceVariableReplica receiverReplica = new ReferenceVariableReplica(context, receiver, g.getHaf());
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
-        Iterator<InstanceKeyRecency> iter = g.pointsToIterator(receiverReplica, pre, new StmtAndContext(this, context));
+        StmtAndContext sac = new StmtAndContext(this, context);
+        Iterator<InstanceKeyRecency> iter = g.pointsToIterator(receiverReplica, pre, sac);
 
         if (!iter.hasNext()) {
             // the receiver currently point to nothing. Too early to tell if we kill a node
+            g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyTargetFieldAssignment(sac);
             return new OrderedPair<>(Boolean.FALSE, null);
         }
         // the receiver point to at least one object.
+        g.ppReach.getApproximateCallSitesAndFieldAssigns().removeEmptyTargetFieldAssignment(sac);
         InstanceKeyRecency pointedTo = iter.next();
 
         if (!iter.hasNext() && pointedTo.isRecent()) {

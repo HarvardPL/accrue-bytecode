@@ -69,6 +69,15 @@ public class VirtualCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
+        if (delta == null && !iter.hasNext()) {
+            int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
+            g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyCallSite(callSite);
+        }
+        else if (iter.hasNext()) {
+            int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
+            g.ppReach.getApproximateCallSitesAndFieldAssigns().removeEmptyCallSite(callSite);
+        }
+
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();
             if (g.isNullInstanceKey(recHeapContext)) {

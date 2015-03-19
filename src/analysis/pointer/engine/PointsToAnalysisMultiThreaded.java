@@ -18,7 +18,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
 import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
-import analysis.pointer.graph.ApproximateCallSitesAndFieldAssignments.Approximation;
 import analysis.pointer.graph.CallGraphReachability;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -311,10 +310,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
 
     class ExecutorServiceCounter {
-        /**
-         * Whether we should find approximations one at a time or all at once
-         */
-        private static final boolean FIND_ALL_APPROX = true;
         public PointsToGraph g;
         public StatementRegistrar registrar;
         private ForkJoinPool exec;
@@ -493,78 +488,31 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          * @return whether we added anything
          */
         private boolean checkPendingQueues(int bound) {
-            if (FIND_ALL_APPROX) {
-                while (!containsPending() && isWorkToFinish()) {
-                    // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
-                    if (PRINT_QUEUE_SWAPS) {
-                        printDiagnostics();
-                    }
-                    printQueueSwap("approximating");
-                    long start = 0L;
-                    if (PRINT_DIAGNOSTICS) {
-                        start = System.currentTimeMillis();
-                    }
-                    Set<Approximation> approximations = g.ppReach.getApproximateCallSitesAndFieldAssigns()
-                                                                 .findAllApproximations();
-                    for (Approximation next : approximations) {
-                        if (next.callSite != -1) {
-                            g.ppReach.addApproximateCallSite(next.callSite);
-                            if (PRINT_DIAGNOSTICS) {
-                                approximatedCallSites++;
-                            }
-                        }
-                        if (next.fieldAssign != null) {
-                            g.ppReach.addApproximateFieldAssign(next.fieldAssign);
-                            if (PRINT_DIAGNOSTICS) {
-                                approximatedFieldAssigns++;
-                            }
-                        }
-                    }
-                    if (PRINT_DIAGNOSTICS) {
-                        approximationTime.addAndGet(System.currentTimeMillis() - start);
-                    }
-                    if (approximations.isEmpty()) {
-                        approximationFinished = true;
-                    }
+            while (!containsPending() && isWorkToFinish()) {
+                // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
+                if (PRINT_QUEUE_SWAPS) {
                     printDiagnostics();
                 }
-            }
-            else {
-                System.err.println("APPROXIMATING ONE AT A TIME...");
-                while (!containsPending()) {
-                    // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
-                    if (PRINT_QUEUE_SWAPS) {
-                        printDiagnostics();
-                    }
-                    printQueueSwap("approximating");
-                    long start = 0L;
-                    if (PRINT_DIAGNOSTICS) {
-                        start = System.currentTimeMillis();
-                    }
-                    Approximation next = g.ppReach.getApproximateCallSitesAndFieldAssigns().findNextApproximation();
-                    if (PRINT_DIAGNOSTICS) {
-                        approximationTime.addAndGet(System.currentTimeMillis() - start);
-                    }
-                    if (next.callSite == -1 && next.fieldAssign == null) {
-                        // The search found no more approximations, the analysis is complete
-                        System.err.println("NO MORE APPROXIMATIONS!!!");
-                        printDiagnostics();
-                        approximationFinished = true;
-                        return false;
-                    }
-                    if (next.callSite != -1) {
-                        g.ppReach.addApproximateCallSite(next.callSite);
-                        approximatedCallSites++;
-                    }
-                    if (next.fieldAssign != null) {
-                        g.ppReach.addApproximateFieldAssign(next.fieldAssign);
-                        approximatedFieldAssigns++;
-                    }
-                    if (PRINT_QUEUE_SWAPS) {
-                        printDiagnostics();
-                    }
+                printQueueSwap("approximating");
+                long start = 0L;
+                if (PRINT_DIAGNOSTICS) {
+                    start = System.currentTimeMillis();
                 }
+                int numApproximatedCallSites = g.ppReach.getApproximateCallSitesAndFieldAssigns()
+                                                        .checkAndApproximateCallSites();
+                int numApproximatedFieldAssigns = g.ppReach.getApproximateCallSitesAndFieldAssigns()
+                                                           .checkAndApproximateFieldAssignments();
+                if (PRINT_DIAGNOSTICS) {
+                    approximatedCallSites += numApproximatedCallSites;
+                    approximatedFieldAssigns += numApproximatedFieldAssigns;
+                    approximationTime.addAndGet(System.currentTimeMillis() - start);
+                }
+                if (numApproximatedCallSites == 0 && numApproximatedFieldAssigns == 0) {
+                    approximationFinished = true;
+                }
+                printDiagnostics();
             }
+
 
             boolean changed = false;
             if (this.numRemainingTasks.get() <= bound) {
