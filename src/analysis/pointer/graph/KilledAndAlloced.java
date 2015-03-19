@@ -49,6 +49,12 @@ public class KilledAndAlloced {
      * @param b
      */
     public static KilledAndAlloced join(KilledAndAlloced a, KilledAndAlloced b) {
+        assert (a.killed == null && a.maybeKilledFields == null && a.alloced == null)
+                || (a.killed != null && a.maybeKilledFields != null && a.alloced != null) : "a has violated the invariants that either all fields are null or none of them are: "
+                + a;
+        assert (b.killed == null && b.maybeKilledFields == null && b.alloced == null)
+                || (b.killed != null && b.maybeKilledFields != null && b.alloced != null) : "b has violated the invariants that either all fields are null or none of them are : "
+                + b;
         if (a.killed == null) {
             // represents everything!
             return a;
@@ -76,7 +82,11 @@ public class KilledAndAlloced {
             alloced.addAll(b.alloced);
         }
 
-        return new KilledAndAlloced(killed, maybeKilledFields, alloced);
+        KilledAndAlloced res = new KilledAndAlloced(killed, maybeKilledFields, alloced);
+        assert (res.killed == null && res.maybeKilledFields == null && res.alloced == null)
+                || (res.killed != null && res.maybeKilledFields != null && res.alloced != null) : "res has violated the invariants that either all fields are null or none of them are : "
+                + res;
+        return res;
     }
 
     /**
@@ -94,6 +104,9 @@ public class KilledAndAlloced {
 
         if (this == res || res.killed == null) {
             // no change to this object.
+            assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
+                    || (this.killed != null && this.maybeKilledFields != null && this.alloced != null) : "this has violated the invariants that either all fields are null or none of them are: "
+                    + this;
             return false;
         }
         if (this.killed == null) {
@@ -105,6 +118,9 @@ public class KilledAndAlloced {
             this.maybeKilledFields = new LinkedHashSet<>(res.maybeKilledFields);
             this.alloced = MutableSparseIntSet.createMutableSparseIntSet(2);
             this.alloced.copySet(res.alloced);
+            assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
+                    || (this.killed != null && this.maybeKilledFields != null && this.alloced != null) : "this has violated the invariants that either all fields are null or none of them are: "
+                    + this;
             return true;
         }
 
@@ -114,6 +130,9 @@ public class KilledAndAlloced {
         this.killed.intersectWith(res.killed);
         this.alloced.intersectWith(res.alloced);
         boolean changed = this.maybeKilledFields.retainAll(res.maybeKilledFields);
+        assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
+                || (this.killed != null && this.maybeKilledFields != null && this.alloced != null) : "this has violated the invariants that either all fields are null or none of them are: "
+                + this;
         return changed || (this.killed.size() != origKilledSize || this.alloced.size() != origAllocedSize);
 
     }
@@ -123,10 +142,14 @@ public class KilledAndAlloced {
      */
     public synchronized boolean addKill(/*PointsToGraphNode*/int n) {
         assert killed != null;
+        assert alloced != null;
+        assert maybeKilledFields != null;
         return this.killed.add(n);
     }
 
     public synchronized boolean addMaybeKilledField(FieldReference f) {
+        assert killed != null;
+        assert alloced != null;
         assert maybeKilledFields != null;
         return this.maybeKilledFields.add(f);
     }
@@ -135,7 +158,9 @@ public class KilledAndAlloced {
      * Add an instance key to the alloced set.
      */
     public synchronized boolean addAlloced(/*InstanceKeyRecency*/int justAllocatedKey) {
+        assert killed != null;
         assert alloced != null;
+        assert maybeKilledFields != null;
         return this.alloced.add(justAllocatedKey);
     }
 
