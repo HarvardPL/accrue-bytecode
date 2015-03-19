@@ -927,7 +927,13 @@ public class ConcurrentIntHashSet extends AbstractIntSet implements MutableIntSe
 
     @Override
     public void intersectWith(IntSet set) {
-        throw new UnsupportedOperationException();
+        IntIterator iter = this.intIterator();
+        while (iter.hasNext()) {
+            int n = iter.next();
+            if (!set.contains(n)) {
+                this.remove(n);
+            }
+        }
     }
 
     @Override
