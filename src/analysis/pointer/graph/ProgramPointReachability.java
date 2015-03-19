@@ -13,6 +13,7 @@ import util.intmap.ConcurrentIntMap;
 import util.intset.EmptyIntSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.statements.LocalToFieldStatement;
@@ -740,8 +741,9 @@ public final class ProgramPointReachability {
      *
      * @param fieldAssign field assignment to be approximated
      */
-    public void addApproximateFieldAssign(OrderedPair<LocalToFieldStatement, Context> fieldAssign) {
-        ReferenceVariableReplica killDep = fieldAssign.fst().getReadDependencyForKillField(fieldAssign.snd(),
+    public void addApproximateFieldAssign(StmtAndContext fieldAssign) {
+        assert fieldAssign.stmt instanceof LocalToFieldStatement;
+        ReferenceVariableReplica killDep = fieldAssign.stmt.getReadDependencyForKillField(fieldAssign.context,
                                                                                            g.getHaf());
         int killDepInt = g.lookupDictionary(killDep);
         this.methodReachability.addApproximateFieldAssign(killDepInt);

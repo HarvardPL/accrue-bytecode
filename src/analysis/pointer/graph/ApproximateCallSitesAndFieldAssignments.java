@@ -102,6 +102,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                     // if call site i really has no targets, then approximate it.
                     if (g.getCalleesOf(i).isEmpty()) {
                         if (approxCallSites.add(i)) {
+                            g.ppReach.addApproximateCallSite(i);
                             count++;
                         }
                     }
@@ -122,6 +123,7 @@ public class ApproximateCallSitesAndFieldAssignments {
                     OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
                     if (!killed.fst()) {
                         if (approxFieldAssignments.add(i)) {
+                            g.ppReach.addApproximateFieldAssign(i);
                             count++;
                         }
                     }
