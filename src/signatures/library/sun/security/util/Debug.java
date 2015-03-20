@@ -1,4 +1,4 @@
-package signatures.library.disabled.sun.security.util;
+package signatures.library.sun.security.util;
 
 public class Debug {
     private static String marshal(String args) {
