@@ -225,14 +225,14 @@ public final class ProgramPointDestinationQuery {
 
         // Is the destination node in the same node as the source
         final boolean inSameMethod = (currentCGNode == this.destinationCGNode);
-        Set<InterProgramPointReplica> visited = new HashSet<>();
+        Set<InterProgramPoint> visited = new HashSet<>();
 
         // try searching forward from src, carefully handling calls.
-        WorkQueue<InterProgramPointReplica> q = new WorkQueue<>();
+        WorkQueue<InterProgramPoint> q = new WorkQueue<>();
         // Program points to delay until after we search other paths
-        WorkQueue<InterProgramPointReplica> delayedQ = new WorkQueue<>();
+        WorkQueue<InterProgramPoint> delayedQ = new WorkQueue<>();
 
-        Set<InterProgramPointReplica> alreadyDelayed = new HashSet<>();
+        Set<InterProgramPoint> alreadyDelayed = new HashSet<>();
 
         // Record the exits that are reachable within the method containing the source
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
@@ -246,38 +246,36 @@ public final class ProgramPointDestinationQuery {
         boolean addedCallerDependency = false;
 
         boolean onDelayed = false; // are we processing the delayed nodes?
-        q.add(src);
+        q.add(src.getInterPP());
         while (!q.isEmpty() || !delayedQ.isEmpty()) {
             onDelayed |= q.isEmpty();
             boolean isDelayed = q.isEmpty();
             boolean anyDelayed = !delayedQ.isEmpty();
 
             // pull from the regular queue first
-            InterProgramPointReplica ippr = q.isEmpty() ? delayedQ.poll() : q.poll();
+            InterProgramPoint ipp = q.isEmpty() ? delayedQ.poll() : q.poll();
             if (DEBUG) {
-                System.err.println("PPDQ%% \t\tQ " + ippr + " isDelayed? " + isDelayed + " anyDelayed? " + anyDelayed
-                        + " "
-                        + ippr.getInterPP().getClass());
+                System.err.println("PPDQ%% \t\tQ " + ipp + " isDelayed? " + isDelayed + " anyDelayed? " + anyDelayed
+                        + " " + ipp.getClass());
             }
-            assert (ippr.getContainingProcedure().equals(currentMethod)) : "All nodes for a single search should be ";
-            if (ippr.equals(this.dest)) {
+            assert (ipp.getPP().getContainingProcedure().equals(currentMethod)) : "All nodes for a single search should be ";
+            if (inSameMethod && ipp.equals(this.dest.getInterPP())) {
                 // Found it!
                 return true;
             }
 
-            if (this.forbidden.contains(ippr)) {
+            if (!this.forbidden.isEmpty() && this.forbidden.contains(ipp.getReplica(currentContext))) {
                 // prune this!
                 continue;
             }
 
-            InterProgramPoint ipp = ippr.getInterPP();
             ProgramPoint pp = ipp.getPP();
 
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
 
                     if (DEBUG2) {
-                        System.err.println("PPDQ%% \t\t\tCALL SITE: " + ippr);
+                        System.err.println("PPDQ%% \t\t\tCALL SITE: " + ipp);
                     }
                     CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
 
@@ -309,7 +307,7 @@ public final class ProgramPointDestinationQuery {
                             // the points-to analysis, but once we have more precise information it turns out
                             // they never can be initialized.
 
-                            InterProgramPointReplica post = pp.post().getReplica(currentContext);
+                            InterProgramPoint post = pp.post();
                             if (visited.add(post)) {
                                 q.add(post);
                             }
@@ -324,8 +322,8 @@ public final class ProgramPointDestinationQuery {
                         if (DEBUG2) {
                             System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
                         }
-                        if (alreadyDelayed.add(ippr)) {
-                            delayedQ.add(ippr);
+                        if (alreadyDelayed.add(ipp)) {
+                            delayedQ.add(ipp);
                         }
                         continue;
                     }
@@ -335,19 +333,19 @@ public final class ProgramPointDestinationQuery {
                         addedCalleeDependency = true;
                         ppr.addCalleeQueryDependency(currentSubQuery, currentCGNode);
                     }
-                    ReachabilityResult res = handleCall(ippr, wi);
+                    ReachabilityResult res = handleCall(ipp, currentContext, wi);
                     if (res == ReachabilityResult.FOUND) {
                         return true;
                     }
                     // We just analyzed a call, add the post for the caller if we found any exits
                     if (res.containsNormalExit()) {
-                        InterProgramPointReplica post = cspp.getNormalExit().post().getReplica(currentContext);
+                        InterProgramPoint post = cspp.getNormalExit().post();
                         if (visited.add(post)) {
                             q.add(post);
                         }
                     }
                     if (res.containsExceptionExit()) {
-                        InterProgramPointReplica post = cspp.getExceptionExit().post().getReplica(currentContext);
+                        InterProgramPoint post = cspp.getExceptionExit().post();
                         if (visited.add(post)) {
                             q.add(post);
                         }
@@ -377,8 +375,8 @@ public final class ProgramPointDestinationQuery {
                         if (DEBUG2) {
                             System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
                         }
-                        if (alreadyDelayed.add(ippr)) {
-                            delayedQ.add(ippr);
+                        if (alreadyDelayed.add(ipp)) {
+                            delayedQ.add(ipp);
                         }
                         continue;
                     }
@@ -412,7 +410,7 @@ public final class ProgramPointDestinationQuery {
                 }
 
                 // Path was not killed add the post PP for the pre PP
-                InterProgramPointReplica post = pp.post().getReplica(currentContext);
+                InterProgramPoint post = pp.post();
                 if (DEBUG2) {
                     System.err.println("PPDQ%% \t\t\tNOT KILLED  by " + stmt + " adding post " + post);
                 }
@@ -426,9 +424,9 @@ public final class ProgramPointDestinationQuery {
                 }
                 Set<ProgramPoint> ppSuccs = pp.succs();
                 for (ProgramPoint succ : ppSuccs) {
-                    InterProgramPointReplica succIPPR = succ.pre().getReplica(currentContext);
-                    if (visited.add(succIPPR)) {
-                        q.add(succIPPR);
+                    InterProgramPoint succIPP = succ.pre();
+                    if (visited.add(succIPP)) {
+                        q.add(succIPP);
                     }
                 }
             }
@@ -456,14 +454,14 @@ public final class ProgramPointDestinationQuery {
      *
      * @return the results of searching through all the possible callees
      */
-    private ReachabilityResult handleCall(InterProgramPointReplica ippr, WorkItem trigger) {
+    private ReachabilityResult handleCall(InterProgramPoint ipp, Context context, WorkItem trigger) {
         if (DEBUG) {
-            System.err.println("PPDQ%% \t\t\tHANDLING CALL " + ippr);
+            System.err.println("PPDQ%% \t\t\tHANDLING CALL " + ipp + " " + context);
         }
 
-        CallSiteProgramPoint pp = (CallSiteProgramPoint) ippr.getInterPP().getPP();
+        CallSiteProgramPoint pp = (CallSiteProgramPoint) ipp.getPP();
 
-        /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(ippr.getContext()));
+        /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(context));
         /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
         if (DEBUG) {
             if (calleeSet.isEmpty()) {
@@ -588,7 +586,7 @@ public final class ProgramPointDestinationQuery {
             }
         }
         if (DEBUG2) {
-            System.err.println("PPDQ%% \t\t\t\tfinished " + ippr + " " + reachableExits);
+            System.err.println("PPDQ%% \t\t\t\tfinished " + ipp + " " + context + " " + reachableExits);
         }
         return reachableExits;
     }
