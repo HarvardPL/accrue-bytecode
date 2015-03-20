@@ -1006,7 +1006,9 @@ public final class ProgramPointReachability {
         System.err.println("Clearing reachability cache.");
         positiveCache = AnalysisUtil.createConcurrentIntSet();
         negativeCache = AnalysisUtil.createConcurrentIntSet();
-        callGraphReachability.clearCaches();
+        if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
+            callGraphReachability.clearCaches();
+        }
     }
 
     //***********************
