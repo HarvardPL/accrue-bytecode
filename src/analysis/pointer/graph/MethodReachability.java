@@ -9,6 +9,7 @@ import util.OrderedPair;
 import util.WorkQueue;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.IntMap;
+import util.intmap.SparseIntMap;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
@@ -53,7 +54,7 @@ public class MethodReachability {
         this.g = g;
     }
 
-    private boolean recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode,
+    private MethodSummaryKillAndAllocChanges recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode,
                                                                KilledAndAlloced normalExitResults,
                                                                KilledAndAlloced exceptionalExitResults,
                                                                IntMap<KilledAndAlloced> tunnel) {
@@ -63,7 +64,7 @@ public class MethodReachability {
         }
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
-        boolean changed = (existing.update(normalExitResults, exceptionalExitResults, tunnel));
+        MethodSummaryKillAndAllocChanges changed = (existing.update(normalExitResults, exceptionalExitResults, tunnel));
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -139,17 +140,22 @@ public class MethodReachability {
      * @param cgNodes
      */
     private void recomputeMethodReachability(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
-        MutableIntSet summaryChanged = MutableSparseIntSet.makeEmpty();
+        IntMap<MethodSummaryKillAndAllocChanges> summaryChanged = new SparseIntMap<>();
         while (!toRecompute.isEmpty()) {
             // get the next node to recompute.
             // The max is the cheapest to remove, so lets do that.
             int cgNode = toRecompute.max();
             toRecompute.remove(cgNode);
 
-            boolean changed = computeMethodSummary(cgNode);
-            if (changed) {
+            MethodSummaryKillAndAllocChanges changed = computeMethodSummary(cgNode);
+            if (changed != null) {
                 // the method summary changed!
-                summaryChanged.add(cgNode);
+                if (summaryChanged.containsKey(cgNode)) {
+                    summaryChanged.get(cgNode).merge(changed);
+                }
+                else {
+                    summaryChanged.put(cgNode, changed);
+                }
                 // this may cause us to recompute some other methods.
                 /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.get(cgNode);
                 if (meths != null) {
@@ -160,9 +166,10 @@ public class MethodReachability {
         }
 
         // we have now finished all the recomputation of the summaries. Let ppr know.
-        IntIterator changedIter = summaryChanged.intIterator();
+        IntIterator changedIter = summaryChanged.keyIterator();
         while (changedIter.hasNext()) {
-            this.ppr.methodSummaryChanged(changedIter.next());
+            int cgNode = changedIter.next();
+            this.ppr.methodSummaryChanged(cgNode, summaryChanged.get(cgNode));
         }
     }
 
@@ -176,7 +183,7 @@ public class MethodReachability {
      * @param cgNode
      * @return
      */
-    private boolean computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode) {
+    private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode) {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -409,7 +416,7 @@ public class MethodReachability {
         PreProgramPoint normExitIPP = summ.getNormalExitPP().pre();
         PreProgramPoint exExitIPP = summ.getExceptionExitPP().pre();
 
-        boolean changed = recordMethodReachability(cgNode,
+        MethodSummaryKillAndAllocChanges changed = recordMethodReachability(cgNode,
                                                    getOrCreate(facts, normExitIPP),
                                                    getOrCreate(facts, exExitIPP),
                                                    tunnel);
@@ -479,16 +486,19 @@ public class MethodReachability {
         }
 
         /**
-         * Update the summary. Return true if and only if this summary changed.
+         * Update the summary. Return a description of how this object was modified, or null if no modifications were
+         * made.
          *
          * @return
          */
-        public boolean update(KilledAndAlloced normalExitSummary, KilledAndAlloced exceptionalExitSummary,
+        public MethodSummaryKillAndAllocChanges update(KilledAndAlloced normalExitSummary,
+                                                       KilledAndAlloced exceptionalExitSummary,
                               IntMap<KilledAndAlloced> tunnel) {
-            boolean changed = false;
-            changed |= this.normalExitSummary.meet(normalExitSummary);
-            changed |= this.exceptionalExitSummary.meet(exceptionalExitSummary);
+            boolean resultsChanged = false;
+            resultsChanged |= this.normalExitSummary.meet(normalExitSummary);
+            resultsChanged |= this.exceptionalExitSummary.meet(exceptionalExitSummary);
 
+            MutableIntSet changedTunnels = MutableSparseIntSet.makeEmpty();
             if (ProgramPointReachability.USE_TUNNELS) {
                 IntIterator iter = tunnel.keyIterator();
                 while (iter.hasNext()) {
@@ -501,10 +511,15 @@ public class MethodReachability {
                             kaa = existing;
                         }
                     }
-                    changed |= kaa.meet(tunnel.get(key));
+                    if (kaa.meet(tunnel.get(key))) {
+                        changedTunnels.add(key);
+                    }
                 }
             }
-            return changed;
+            if (resultsChanged || !changedTunnels.isEmpty()) {
+                return new MethodSummaryKillAndAllocChanges(resultsChanged, changedTunnels);
+            }
+            return null;
         }
 
         @Override
@@ -532,6 +547,35 @@ public class MethodReachability {
             }
             return sb.toString();
         }
+    }
+
+    /**
+     * A MethodSummaryKillAndAllocChanges class describes the changes that have been made to a MethodSummaryKillAndAlloc
+     * when it is updated.
+     */
+    static class MethodSummaryKillAndAllocChanges {
+        private boolean resultsChanged;
+        private MutableIntSet changedTunnels;
+
+        public MethodSummaryKillAndAllocChanges(boolean resultsChanged, MutableIntSet changedTunnels) {
+            assert resultsChanged || !changedTunnels.isEmpty();
+            this.resultsChanged = resultsChanged;
+            this.changedTunnels = changedTunnels;
+        }
+
+        public void merge(MethodSummaryKillAndAllocChanges changed) {
+            this.resultsChanged |= changed.resultsChanged;
+            this.changedTunnels.addAll(changed.changedTunnels);
+        }
+
+        public boolean resultsChanged() {
+            return this.resultsChanged;
+        }
+
+        public IntSet changedTunnels() {
+            return this.changedTunnels;
+        }
+
     }
 
 

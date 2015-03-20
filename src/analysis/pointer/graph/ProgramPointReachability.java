@@ -15,6 +15,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAlloc;
+import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAllocChanges;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
@@ -516,11 +517,16 @@ public final class ProgramPointReachability {
     // ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointSubQuery>>
     private final ConcurrentIntMap<MutableIntSet> callerQueryDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
-     * Sub queries depend on a method reachability query starting at a particular call graph node (OrderedPair<IMethod,
-     * Context>)
+     * Sub queries depending on the (normal or exceptional) results of a method reachability.
      */
     // ConcurrentMap<OrderedPair<IMethod, Context>, Set<ProgramPointSubQuery>>
-    private final ConcurrentIntMap<MutableIntSet> methodQueryDependencies = AnalysisUtil.createConcurrentIntMap();
+    private final ConcurrentIntMap<MutableIntSet> methodResultQueryDependencies = AnalysisUtil.createConcurrentIntMap();
+
+    /**
+     * Sub queries depending on a tunnel from one call graph node to another.
+     */
+    // ConcurrentMap<OrderedPair<IMethod, Context>, Map<OrderedPair<IMethod, Context>, <ProgramPointSubQuery>>
+    private final ConcurrentIntMap<ConcurrentIntMap<MutableIntSet>> methodTunnelQueryDependencies = AnalysisUtil.createConcurrentIntMap();
 
     /**
      * Sub queries depend on the killset at a particular PointsToGraphNode
@@ -586,16 +592,16 @@ public final class ProgramPointReachability {
      * @param query
      * @param callGraphNode
      */
-    void addMethodQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
+    void addMethodResultQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
                                   int callGraphNode) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
         }
-        MutableIntSet s = methodQueryDependencies.get(callGraphNode);
+        MutableIntSet s = methodResultQueryDependencies.get(callGraphNode);
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
-            MutableIntSet existing = methodQueryDependencies.putIfAbsent(callGraphNode, s);
+            MutableIntSet existing = methodResultQueryDependencies.putIfAbsent(callGraphNode, s);
             if (existing != null) {
                 s = existing;
             }
@@ -607,17 +613,34 @@ public final class ProgramPointReachability {
     }
 
     /**
-     * We do NOT need to reanalyze the method results for (m, context) if the reachability results for callGraphNode
-     * changes.
-     *
-     * @param query
-     * @param callGraphNode
+     * We need to reanalyze the method results for (m, context) if the tunnel from callGraphNode to destCallGraphNode
+     * changes
      */
-    void removeMethodQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
-                                     int callGraphNode) {
-        MutableIntSet s = methodQueryDependencies.get(callGraphNode);
-        if (s != null) {
-            s.remove(query);
+    void addMethodTunnelQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
+                                        int callGraphNode, int destCallGraphNode) {
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
+        ConcurrentIntMap<MutableIntSet> m = methodTunnelQueryDependencies.get(callGraphNode);
+        if (m == null) {
+            m = AnalysisUtil.createConcurrentIntMap();
+            ConcurrentIntMap<MutableIntSet> existing = methodTunnelQueryDependencies.putIfAbsent(callGraphNode, m);
+            if (existing != null) {
+                m = existing;
+            }
+        }
+        MutableIntSet s = m.get(destCallGraphNode);
+        if (s == null) {
+            s = AnalysisUtil.createConcurrentIntSet();
+            MutableIntSet existing = m.putIfAbsent(destCallGraphNode, s);
+            if (existing!=null) {
+                s = existing;
+            }
+        }
+        s.add(query);
+        if (PRINT_DIAGNOSTICS) {
+            methodDepTime.addAndGet(System.currentTimeMillis() - start);
         }
     }
 
@@ -803,28 +826,41 @@ public final class ProgramPointReachability {
         }
     }
 
-    void methodSummaryChanged(/*OrderedPair<IMethod, Context>*/int cgNode) {
-        MutableIntSet queries = methodQueryDependencies.get(cgNode);
-        if (queries != null) {
-            IntIterator iter = queries.intIterator();
-            MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
+    void methodSummaryChanged(/*OrderedPair<IMethod, Context>*/int cgNode, MethodSummaryKillAndAllocChanges changes) {
+        if (changes.resultsChanged()) {
+            MutableIntSet queries = methodResultQueryDependencies.remove(cgNode);
+            if (queries != null) {
+                IntIterator iter = queries.intIterator();
+                MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
 
-            while (iter.hasNext()) {
-                int mr = iter.next();
-                if (PRINT_DIAGNOSTICS) {
-                    methodQueryRequests.incrementAndGet();
-                }
-                // need to re-run the query of mr
-                if (!requestRerunQuery(mr)) {
-                    // whoops, no need to rerun this anymore.
-                    toRemove.add(mr);
+                while (iter.hasNext()) {
+                    int mr = iter.next();
+                    if (PRINT_DIAGNOSTICS) {
+                        methodQueryRequests.incrementAndGet();
+                    }
+                    // need to re-run the query of mr
+                    requestRerunQuery(mr);
                 }
             }
+        }
 
-            // Now remove all the unneeded queries
-            IntIterator removeIter = toRemove.intIterator();
-            while (removeIter.hasNext()) {
-                queries.remove(removeIter.next());
+        ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
+        if (m != null) {
+            IntIterator changedTunnels = changes.changedTunnels().intIterator();
+            while (changedTunnels.hasNext()) {
+                int destCGNode = changedTunnels.next();
+                IntSet s = m.remove(destCGNode);
+                if (s != null) {
+                    IntIterator qs = s.intIterator();
+                    while (qs.hasNext()) {
+                        int q = qs.next();
+                        if (PRINT_DIAGNOSTICS) {
+                            methodQueryRequests.incrementAndGet();
+                        }
+                        // need to re-run the query
+                        requestRerunQuery(q);
+                    }
+                }
             }
         }
     }

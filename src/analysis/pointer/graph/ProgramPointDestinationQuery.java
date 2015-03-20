@@ -143,7 +143,7 @@ public final class ProgramPointDestinationQuery {
 
     /**
      * Execute a subquery for a single source
-     * 
+     *
      * @param src source to search from
      * @param relevantNodes call graph nodes that must be inspected and cannot be summarized
      * @return whether the destination was found
@@ -491,7 +491,6 @@ public final class ProgramPointDestinationQuery {
                 startCG = System.currentTimeMillis();
             }
 
-            ppr.addMethodQueryDependency(this.currentSubQuery, calleeInt);
             MethodSummaryKillAndAlloc calleeResults = this.ppr.getReachabilityForMethod(calleeInt);
 
             boolean tunnelsAllowAccessToDest = false;
@@ -500,13 +499,18 @@ public final class ProgramPointDestinationQuery {
             }
             if (USE_TUNNELS) {
                 KilledAndAlloced tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
-                if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()) {
-                    // this is a relevant node get the results for the callee
-                    if (tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
-                        tunnelsAllowAccessToDest = true;
-                        if (getResults(destinationEntryIPPR, true, trigger) == ReachabilityResult.FOUND) {
-                            return ReachabilityResult.FOUND;
-                        }
+                if (tunnelToDestination == null || tunnelToDestination.isUnreachable()
+                        || !tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
+                    // need to record a dependency before reading a false result, in case the false result changes later.
+                    // Otherwise, if the result is true, we don't need to be notified if it changes.
+                    // XXX could also do this only if we have not yet been able to reach destinationEntryIPPR.
+                    ppr.addMethodTunnelQueryDependency(this.currentSubQuery, calleeInt, this.destinationCGNode);
+                }
+                if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()
+                        && tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
+                    tunnelsAllowAccessToDest = true;
+                    if (getResults(destinationEntryIPPR, true, trigger) == ReachabilityResult.FOUND) {
+                        return ReachabilityResult.FOUND;
                     }
                 }
             }
@@ -541,23 +545,30 @@ public final class ProgramPointDestinationQuery {
                             + normalRet.allows(this.noKill, this.noAlloc, this.g) + " Ex: "
                             + exRet.allows(this.noKill, this.noAlloc, this.g));
                 }
-                if (normalRet.allows(this.noKill, this.noAlloc, this.g)) {
-                    // we don't kill things we aren't meant to, not allocated things we aren't meant to
-                    //    on a path to the normal exit of the callee
-                    reachableExits = reachableExits.join(ReachabilityResult.NORMAL_EXIT);
+                boolean recordedDependency = false;
+                if (!reachableExits.containsNormalExit()) {
+                    if (!normalRet.allows(this.noKill, this.noAlloc, this.g)) {
+                        // record a dependency before reading a false result.
+                        ppr.addMethodResultQueryDependency(this.currentSubQuery, calleeInt);
+                        recordedDependency = true;
+                    }
+                    if (normalRet.allows(this.noKill, this.noAlloc, this.g)) {
+                        // we don't kill things we aren't meant to, not allocated things we aren't meant to
+                        //    on a path to the normal exit of the callee
+                        reachableExits = reachableExits.join(ReachabilityResult.NORMAL_EXIT);
+                    }
                 }
-
-                if (exRet.allows(this.noKill, this.noAlloc, this.g)) {
-                    // we don't kill things we aren't meant to, not allocated things we aren't meant to
-                    //    on a path to the exceptional exit of the callee
-                    reachableExits = reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
+                if (!reachableExits.containsExceptionExit()) {
+                    if (!recordedDependency && !exRet.allows(this.noKill, this.noAlloc, this.g)) {
+                        // record a dependency before reading a false result.
+                        ppr.addMethodResultQueryDependency(this.currentSubQuery, calleeInt);
+                    }
+                    if (exRet.allows(this.noKill, this.noAlloc, this.g)) {
+                        // we don't kill things we aren't meant to, not allocated things we aren't meant to
+                        //    on a path to the exceptional exit of the callee
+                        reachableExits = reachableExits.join(ReachabilityResult.EXCEPTION_EXIT);
+                    }
                 }
-            }
-            if (tunnelsAllowAccessToDest && reachableExits == ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
-                // The tunnels allows access to the destination, and the exits are fully reachable.
-                // This means that any changes to the method summary won't change our results.
-                // So we can remove the dependency.
-                ppr.removeMethodQueryDependency(this.currentSubQuery, calleeInt);
             }
         }
         if (DEBUG2) {
