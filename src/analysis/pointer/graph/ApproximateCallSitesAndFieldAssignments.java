@@ -2,6 +2,7 @@ package analysis.pointer.graph;
 
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import util.OrderedPair;
 import analysis.AnalysisUtil;
@@ -46,7 +47,7 @@ public class ApproximateCallSitesAndFieldAssignments {
     /**
      * Known no-receiver field accesses
      */
-    private final Set<StmtAndContext> emptyTargetFieldAssignments = AnalysisUtil.createConcurrentSet();
+    private AtomicReference<Set<StmtAndContext>> emptyTargetFieldAssignments = new AtomicReference<>(AnalysisUtil.<StmtAndContext> createConcurrentSet());
 
     /**
      * Points-to graph
@@ -62,11 +63,11 @@ public class ApproximateCallSitesAndFieldAssignments {
     }
 
     public void addEmptyTargetFieldAssignment(StmtAndContext sac) {
-        this.emptyTargetFieldAssignments.add(sac);
+        this.emptyTargetFieldAssignments.get().add(sac);
     }
 
     public void removeEmptyTargetFieldAssignment(StmtAndContext sac) {
-        this.emptyTargetFieldAssignments.remove(sac);
+        this.emptyTargetFieldAssignments.get().remove(sac);
     }
     /**
      * Create a new instance of the algorithm for computing approximate call sites and data structures to store them
@@ -94,7 +95,6 @@ public class ApproximateCallSitesAndFieldAssignments {
 
     public int checkAndApproximateCallSites() {
         int count = 0;
-        System.err.println("Check and approx call sites");
         while (!emptyCallSites.isEmpty()) {
             IntIterator iter = emptyCallSites.intIterator();
             while (iter.hasNext()) {
@@ -105,7 +105,6 @@ public class ApproximateCallSitesAndFieldAssignments {
                         if (approxCallSites.add(i)) {
                             g.ppReach.addApproximateCallSite(i);
                             count++;
-                            System.err.println(" added " + i);
                         }
                     }
                 }
@@ -116,27 +115,26 @@ public class ApproximateCallSitesAndFieldAssignments {
 
     public int checkAndApproximateFieldAssignments() {
         int count = 0;
-        System.err.println("Check and approx field assignments: " + emptyTargetFieldAssignments.size());
-        while (!emptyTargetFieldAssignments.isEmpty()) {
-            Iterator<StmtAndContext> iter = emptyTargetFieldAssignments.iterator();
-            while (iter.hasNext()) {
-                StmtAndContext i = iter.next();
-                iter.remove();
-                // if field really has no targets, then approximate it.
-                OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
-                if (!killed.fst()) {
-                    if (approxFieldAssignments.add(i)) {
-                        g.ppReach.addApproximateFieldAssign(i);
-                        System.err.println(" added " + i);
-                        count++;
-                    }
+        Set<StmtAndContext> s, newSet;
+        do {
+            newSet = AnalysisUtil.createConcurrentSet();
+            s = this.emptyTargetFieldAssignments.get();
+        } while (!this.emptyTargetFieldAssignments.compareAndSet(s, newSet));
+
+        // s is now the old set, and we installed a new empty set.
+
+        Iterator<StmtAndContext> iter = s.iterator();
+        while (iter.hasNext()) {
+            StmtAndContext i = iter.next();
+            // if field really has no targets, then approximate it.
+            OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
+            if (!killed.fst()) {
+                if (approxFieldAssignments.add(i)) {
+                    g.ppReach.addApproximateFieldAssign(i);
+                    count++;
                 }
             }
-            System.err.println("  -- A: Check and approx field assignments: " + emptyTargetFieldAssignments.size()
-                    + "  count is " + count + " iterator has next?" + emptyTargetFieldAssignments.iterator().hasNext());
         }
-        System.err.println("  -- B: Check and approx field assignments: " + emptyTargetFieldAssignments.size()
-                + "  count is " + count);
         return count;
     }
 }
