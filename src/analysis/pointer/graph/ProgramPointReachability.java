@@ -155,23 +155,6 @@ public final class ProgramPointReachability {
     /**
      * Can destination be reached from any InterProgramPointReplica in sources without going through a program point
      * that kills any PointsToGraphNode in noKill, and without going through a program point that allocates any
-     * InstanceKey in noAlloc?
-     *
-     * @return true if the destination is reachable from anys source
-     */
-    public boolean reachable(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
-    /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc, ReachabilityQueryOrigin origin) {
-        return reachableImpl(sources,
-                             destination,
-                             noKill,
-                             noAlloc,
-                             Collections.<InterProgramPointReplica> emptySet(),
-                             origin);
-    }
-
-    /**
-     * Can destination be reached from any InterProgramPointReplica in sources without going through a program point
-     * that kills any PointsToGraphNode in noKill, and without going through a program point that allocates any
      * InstanceKey in noAlloc, and without going through any of the forbidden IPPRs? If forbidden is non empty, then all
      * of the forbidden IPPRs must be in the same method and context as one of the source or the destination.
      *
