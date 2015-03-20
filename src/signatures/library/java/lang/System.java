@@ -262,4 +262,24 @@ public class System {
             // intentionally left blank
         }
     }
+
+    public static void setProperties(Properties props) {
+        System.props = props;
+    }
+
+    public static java.lang.String setProperty(java.lang.String key, java.lang.String value) {
+        return (java.lang.String) props.setProperty(key, value);
+    }
+
+    public static java.lang.String clearProperty(java.lang.String key) {
+        return (java.lang.String) props.remove(key);
+    }
+
+    public static java.lang.String getProperty(java.lang.String key) {
+        return props.getProperty(key);
+    }
+
+    public static java.lang.String getProperty(java.lang.String key, java.lang.String def) {
+        return props.getProperty(key, def);
+    }
 }

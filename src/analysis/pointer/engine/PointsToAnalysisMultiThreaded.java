@@ -55,7 +55,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     /**
      * Print the CG nodes which can reach the most callees
      */
-    private static final boolean PRINT_CG_NODES = false;
+    private static final boolean PRINT_CG_NODES = true && CallGraphReachability.USE_CALL_GRAPH_REACH;
 
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
@@ -264,9 +264,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             System.err.println("\n\n");
         }
 
-        if (PRINT_CG_NODES && CallGraphReachability.USE_CALL_GRAPH_REACH) {
+        if (PRINT_CG_NODES) {
             System.err.println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-            System.out.println(g.ppReach.getCallGraphReachability());
+            System.out.println(g.ppReach.getCallGraphReachability().toString(500));
             System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         }
         return g;
