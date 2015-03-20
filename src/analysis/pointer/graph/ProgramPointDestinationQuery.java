@@ -224,7 +224,7 @@ public final class ProgramPointDestinationQuery {
                                                                                                                 currentContext));
 
         // Is the destination node in the same node as the source
-        final boolean inSameMethod = this.dest.getContainingProcedure().equals(currentMethod);
+        final boolean inSameMethod = (currentCGNode == this.destinationCGNode);
         Set<InterProgramPointReplica> visited = new HashSet<>();
 
         // try searching forward from src, carefully handling calls.
