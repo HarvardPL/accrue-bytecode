@@ -183,6 +183,7 @@ public class MethodReachability {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
+            this.ppr.totalComputeMethodReachability.incrementAndGet();
         }
 
         OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
