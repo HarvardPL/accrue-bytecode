@@ -97,6 +97,12 @@ public final class ProgramPointDestinationQuery {
      * Sub-query that is currently being processed
      */
     private int currentSubQuery;
+
+    /**
+     * Has the destination CG node entry program point been reached yet? If so, there is no need to explore callees, we
+     * just really need to explore callers...
+     */
+    private boolean destCGNodeEntryReached;
     /**
      * Cache of results for the current subquery
      */
@@ -166,6 +172,7 @@ public final class ProgramPointDestinationQuery {
         }
 
         // Reinitialize the per-query data structures
+        this.destCGNodeEntryReached = false;
         this.currentlyProcessing = new HashSet<>();
         this.resultCache = new HashMap<>();
         this.workItemDependencies = new HashMap<>();
@@ -483,6 +490,12 @@ public final class ProgramPointDestinationQuery {
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
         IntIterator calleeIter = calleeSet.intIterator();
         while (calleeIter.hasNext()) {
+            if (this.destCGNodeEntryReached && reachableExits == ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT) {
+                // we already can reach the destination call graph node, and we know that the normal and exceptional
+                // exit for this call site can be reached, so don't bother continuing, we've got everything we can
+                // from this call site...
+                break;
+            }
             /*OrderedPair<IMethod, Context>*/int calleeInt = calleeIter.next();
             OrderedPair<IMethod, Context> callee = g.lookupCallGraphNodeDictionary(calleeInt);
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
@@ -493,25 +506,27 @@ public final class ProgramPointDestinationQuery {
 
             MethodSummaryKillAndAlloc calleeResults = this.ppr.getReachabilityForMethod(calleeInt);
 
-            boolean tunnelsAllowAccessToDest = false;
+
             if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
                 ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
             }
             if (USE_TUNNELS) {
-                KilledAndAlloced tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
-                if (tunnelToDestination == null || tunnelToDestination.isUnreachable()
-                        || !tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
-                    // need to record a dependency before reading a false result, in case the false result changes later.
-                    // Otherwise, if the result is true, we don't need to be notified if it changes.
-                    // XXX could also do this only if we have not yet been able to reach destinationEntryIPPR.
-                    ppr.addMethodTunnelQueryDependency(this.currentSubQuery, calleeInt, this.destinationCGNode);
-                    tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
-                }
-                if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()
-                        && tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
-                    tunnelsAllowAccessToDest = true;
-                    if (getResults(destinationEntryIPPR, true, trigger) == ReachabilityResult.FOUND) {
-                        return ReachabilityResult.FOUND;
+                if (!this.destCGNodeEntryReached) {
+                    // we haven't reached the destination CG node yet, so keep trying to find it.
+                    KilledAndAlloced tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
+                    if (tunnelToDestination == null || tunnelToDestination.isUnreachable()
+                            || !tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
+                        // need to record a dependency before reading a false result, in case the false result changes later.
+                        // Otherwise, if the result is true, we don't need to be notified if it changes.
+                        ppr.addMethodTunnelQueryDependency(this.currentSubQuery, calleeInt, this.destinationCGNode);
+                        tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
+                    }
+                    if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()
+                            && tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
+                        this.destCGNodeEntryReached = true;
+                        if (getResults(destinationEntryIPPR, true, trigger) == ReachabilityResult.FOUND) {
+                            return ReachabilityResult.FOUND;
+                        }
                     }
                 }
             }
