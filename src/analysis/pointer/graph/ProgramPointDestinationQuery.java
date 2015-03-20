@@ -1,9 +1,9 @@
 package analysis.pointer.graph;
 
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 
@@ -229,7 +229,7 @@ public final class ProgramPointDestinationQuery {
         Set<InterProgramPoint> visited = new HashSet<>();
 
         // try searching forward from src, carefully handling calls.
-        LinkedList<InterProgramPoint> q = new LinkedList<>();
+        ArrayDeque<InterProgramPoint> q = new ArrayDeque<>();
         // Program points to delay until after we search other paths
         WorkQueue<InterProgramPoint> delayedQ = new WorkQueue<>();
 
