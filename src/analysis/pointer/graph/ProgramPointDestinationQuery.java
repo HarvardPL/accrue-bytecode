@@ -3,6 +3,7 @@ package analysis.pointer.graph;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 
@@ -183,7 +184,7 @@ public final class ProgramPointDestinationQuery {
                                                                                                   this.noKill,
                                                                                                   this.noAlloc,
                                                                                                   this.forbidden));
-            searchQ.add(new WorkItem(src, false));
+        searchQ.add(new WorkItem(src.getInterPP(), src.getContext(), false));
             while (!searchQ.isEmpty()) {
                 WorkItem wi = searchQ.poll();
             if (search(wi)) {
@@ -212,27 +213,25 @@ public final class ProgramPointDestinationQuery {
     private boolean search(WorkItem wi /*Set<InterProgramPointReplica> visited*/) {
         if (DEBUG) {
             System.err.println("PPDQ%% \tSearching from " + wi + " in "
-                    + PrettyPrinter.methodString(wi.src.getContainingProcedure()) + " in " + wi.src.getContext());
+                    + PrettyPrinter.methodString(wi.srcIPP.getPP().getContainingProcedure()) + " in " + wi.srcContext);
             System.err.println("PPDQ%% \t\tto " + dest + " in "
                     + PrettyPrinter.methodString(dest.getContainingProcedure())
                     + " in " + dest.getContext());
         }
-        final InterProgramPointReplica src = wi.src;
-        final IMethod currentMethod = src.getContainingProcedure();
-        final Context currentContext = src.getContext();
+        final InterProgramPoint srcIPP = wi.srcIPP;
+        final IMethod currentMethod = srcIPP.getPP().getContainingProcedure();
+        final Context currentContext = wi.srcContext;
         final/*OrderedPair<IMethod, Context>*/int currentCGNode = g.lookupCallGraphNodeDictionary(new OrderedPair<>(currentMethod,
                                                                                                                 currentContext));
 
         // Is the destination node in the same node as the source
-        final boolean inSameMethod = (currentCGNode == this.destinationCGNode);
+        final boolean inSameCallGraphNode = (currentCGNode == this.destinationCGNode);
         Set<InterProgramPoint> visited = new HashSet<>();
 
         // try searching forward from src, carefully handling calls.
-        WorkQueue<InterProgramPoint> q = new WorkQueue<>();
+        LinkedList<InterProgramPoint> q = new LinkedList<>();
         // Program points to delay until after we search other paths
         WorkQueue<InterProgramPoint> delayedQ = new WorkQueue<>();
-
-        Set<InterProgramPoint> alreadyDelayed = new HashSet<>();
 
         // Record the exits that are reachable within the method containing the source
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
@@ -246,7 +245,7 @@ public final class ProgramPointDestinationQuery {
         boolean addedCallerDependency = false;
 
         boolean onDelayed = false; // are we processing the delayed nodes?
-        q.add(src.getInterPP());
+        q.add(srcIPP);
         while (!q.isEmpty() || !delayedQ.isEmpty()) {
             onDelayed |= q.isEmpty();
             boolean isDelayed = q.isEmpty();
@@ -259,7 +258,7 @@ public final class ProgramPointDestinationQuery {
                         + " " + ipp.getClass());
             }
             assert (ipp.getPP().getContainingProcedure().equals(currentMethod)) : "All nodes for a single search should be ";
-            if (inSameMethod && ipp.equals(this.dest.getInterPP())) {
+            if (inSameCallGraphNode && ipp.equals(this.dest.getInterPP())) {
                 // Found it!
                 return true;
             }
@@ -318,13 +317,11 @@ public final class ProgramPointDestinationQuery {
                     }
 
                     // This is a program point for a method call
-                    if (inSameMethod && !onDelayed) {
+                    if (inSameCallGraphNode && !onDelayed) {
                         if (DEBUG2) {
-                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
+                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameCallGraphNode);
                         }
-                        if (alreadyDelayed.add(ipp)) {
-                            delayedQ.add(ipp);
-                        }
+                        delayedQ.add(ipp);
                         continue;
                     }
 
@@ -370,14 +367,12 @@ public final class ProgramPointDestinationQuery {
                         continue;
                     }
 
-                    if (inSameMethod && !onDelayed) {
+                    if (inSameCallGraphNode && !onDelayed) {
                         assert !wi.isFromCallSite;
                         if (DEBUG2) {
-                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameMethod);
+                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameCallGraphNode);
                         }
-                        if (alreadyDelayed.add(ipp)) {
-                            delayedQ.add(ipp);
-                        }
+                        delayedQ.add(ipp);
                         continue;
                     }
 
@@ -522,7 +517,7 @@ public final class ProgramPointDestinationQuery {
                     if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()
                             && tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
                         this.destCGNodeEntryReached = true;
-                        if (getResults(destinationEntryIPPR, true, trigger) == ReachabilityResult.FOUND) {
+                        if (getResults(destinationEntryIPPR.getInterPP(), destinationEntryIPPR.getContext(), true, trigger) == ReachabilityResult.FOUND) {
                             return ReachabilityResult.FOUND;
                         }
                     }
@@ -537,10 +532,7 @@ public final class ProgramPointDestinationQuery {
 
                 if (destReachable) {
                     // this is a relevant node get the results for the callee
-                    InterProgramPointReplica calleeEntryIPPR = calleeSummary.getEntryPP()
-                                                                            .post()
-                                                                            .getReplica(callee.snd());
-                    ReachabilityResult res = getResults(calleeEntryIPPR, true, trigger);
+                    ReachabilityResult res = getResults(calleeSummary.getEntryPP().post(), callee.snd(), true, trigger);
                     if (res == ReachabilityResult.FOUND) {
                         return ReachabilityResult.FOUND;
                     }
@@ -765,16 +757,16 @@ public final class ProgramPointDestinationQuery {
             ProgramPointReplica callerSite = g.lookupCallSiteReplicaDictionary(callSite);
             CallSiteProgramPoint cspp = (CallSiteProgramPoint) callerSite.getPP();
 
-            InterProgramPointReplica callerSiteReplica;
+            InterProgramPoint callerSiteIPP;
             if (isExceptionExit) {
-                callerSiteReplica = cspp.getExceptionExit().post().getReplica(callerSite.getContext());
+                callerSiteIPP = cspp.getExceptionExit().post();
             }
             else {
-                callerSiteReplica = cspp.getNormalExit().post().getReplica(callerSite.getContext());
+                callerSiteIPP = cspp.getNormalExit().post();
             }
 
             // let's explore the caller now.
-            ReachabilityResult res = getResults(callerSiteReplica, false, src);
+            ReachabilityResult res = getResults(callerSiteIPP, callerSite.getContext(), false, src);
             if (res == ReachabilityResult.FOUND) {
                 // we found the destination!
                 return true;
@@ -794,8 +786,9 @@ public final class ProgramPointDestinationQuery {
      * @param visited
      * @return
      */
-    private ReachabilityResult getResults(InterProgramPointReplica newSrc, boolean isKnownCallSite, WorkItem trigger) {
-        WorkItem newWI = new WorkItem(newSrc, isKnownCallSite);
+    private ReachabilityResult getResults(InterProgramPoint newSrcIPP, Context newSrcContext, boolean isKnownCallSite,
+                                          WorkItem trigger) {
+        WorkItem newWI = new WorkItem(newSrcIPP, newSrcContext, isKnownCallSite);
         if (DEBUG2) {
             System.err.println("PPDQ%% \t\tRequesting results for: " + newWI + " from " + trigger);
         }
@@ -982,9 +975,13 @@ public final class ProgramPointDestinationQuery {
      */
     private static class WorkItem {
         /**
-         * Node to search from
+         * IPP of the node to search from
          */
-        final InterProgramPointReplica src;
+        final InterProgramPoint srcIPP;
+        /**
+         * Context of the node to search from
+         */
+        final Context srcContext;
         /**
          * If true then the source is the entry program point for a method that came from a known call-site, from which
          * the search will continue when an exit program point is found
@@ -1001,10 +998,11 @@ public final class ProgramPointDestinationQuery {
          * @param isFromCallSite whether the source is from a known call site (if so the source must be a method entry
          *            program point)
          */
-        public WorkItem(InterProgramPointReplica src, boolean isFromCallSite) {
-            assert src != null;
-            assert !isFromCallSite || src.getInterPP().getPP().isEntrySummaryNode();
-            this.src = src;
+        public WorkItem(InterProgramPoint srcIPP, Context srcContext, boolean isFromCallSite) {
+            assert srcIPP != null && srcContext != null;
+            assert !isFromCallSite || srcIPP.getPP().isEntrySummaryNode();
+            this.srcIPP = srcIPP;
+            this.srcContext = srcContext;
             this.isFromCallSite = isFromCallSite;
         }
 
@@ -1013,7 +1011,8 @@ public final class ProgramPointDestinationQuery {
             final int prime = 31;
             int result = 1;
             result = prime * result + (this.isFromCallSite ? 1231 : 1237);
-            result = prime * result + this.src.hashCode();
+            result = prime * result + this.srcIPP.hashCode();
+            result = prime * result + this.srcContext.hashCode();
             return result;
         }
 
@@ -1032,7 +1031,10 @@ public final class ProgramPointDestinationQuery {
             if (this.isFromCallSite != other.isFromCallSite) {
                 return false;
             }
-            if (!this.src.equals(other.src)) {
+            if (!this.srcIPP.equals(other.srcIPP)) {
+                return false;
+            }
+            if (!this.srcContext.equals(other.srcContext)) {
                 return false;
             }
             return true;
@@ -1040,7 +1042,7 @@ public final class ProgramPointDestinationQuery {
 
         @Override
         public String toString() {
-            return "(" + src + ", " + isFromCallSite + ")";
+            return "(" + srcIPP + " " + srcContext + ", " + isFromCallSite + ")";
         }
     }
 }
