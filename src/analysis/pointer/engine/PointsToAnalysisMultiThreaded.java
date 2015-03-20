@@ -18,6 +18,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.graph.AddNonMostRecentOrigin;
 import analysis.pointer.graph.AddToSetOriginMaker.AddToSetOrigin;
 import analysis.pointer.graph.AllocationDepender;
+import analysis.pointer.graph.ApproximateCallSitesAndFieldAssignments;
 import analysis.pointer.graph.CallGraphReachability;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -498,20 +499,18 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 if (PRINT_DIAGNOSTICS) {
                     start = System.currentTimeMillis();
                 }
-                int numApproximatedCallSites = g.ppReach.getApproximateCallSitesAndFieldAssigns()
-                                                        .checkAndApproximateCallSites();
-                int numApproximatedFieldAssigns = g.ppReach.getApproximateCallSitesAndFieldAssigns()
-                                                           .checkAndApproximateFieldAssignments();
+                ApproximateCallSitesAndFieldAssignments approx = g.ppReach.getApproximateCallSitesAndFieldAssigns();
+                int numApproximated = approx.checkAndApproximateCallSitesAndFieldAssignments();
                 if (PRINT_DIAGNOSTICS) {
-                    approximatedCallSites += numApproximatedCallSites;
-                    approximatedFieldAssigns += numApproximatedFieldAssigns;
+                    approximatedCallSites = approx.numApproximatedCallSites();
+                    approximatedFieldAssigns = approx.numApproximatedFieldAssigns();
                     approximationTime.addAndGet(System.currentTimeMillis() - start);
                 }
-                if (numApproximatedCallSites == 0 && numApproximatedFieldAssigns == 0) {
+                if (numApproximated == 0) {
                     approximationFinished = true;
                 }
-                System.err.println("in checkPendingQueues: " + numApproximatedCallSites + " and "
-                        + numApproximatedFieldAssigns + " and approx finished: " + approximationFinished
+                System.err.println("in checkPendingQueues: " + numApproximated + " and approx finished: "
+                        + approximationFinished
                         + ". ContainsPending: " + containsPending() + " isWorkToFinish:" + isWorkToFinish());
                 printDiagnostics();
             }

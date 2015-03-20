@@ -156,4 +156,12 @@ public class ApproximateCallSitesAndFieldAssignments {
         }
         return count;
     }
+
+    public int numApproximatedCallSites() {
+        return this.approxCallSites.size();
+    }
+
+    public int numApproximatedFieldAssigns() {
+        return this.approxFieldAssignments.size();
+    }
 }
