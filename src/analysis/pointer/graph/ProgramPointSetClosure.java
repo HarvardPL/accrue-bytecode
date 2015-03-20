@@ -92,56 +92,6 @@ public final class ProgramPointSetClosure {
         return b;
     }
 
-    //    /**
-    //     * Does this set contain of the program points ippr? Pays attention to the newAllocationSites, much like a
-    //     * GraphDelta.
-    //     */
-    //    public boolean contains(InterProgramPointReplica ippr, ReachabilityQueryOrigin origin,
-    //                            IntMap<Set<ProgramPointReplica>> newAllocationSites) {
-    //        if (DEBUG) {
-    //            System.err.println("PPSC%% COMPUTING CONTAINS2? " + ippr);
-    //            System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-    //            System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-    //            System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-    //        }
-    //
-    //        boolean b;
-    //        if (newAllocationSites != null && g.isTrackingMostRecentObject(to) && !g.isMostRecentObject(to)) {
-    //            // we only want the points to information that is a result of the new allocation sites.
-    //            b = g.programPointReachability().reachable(convertToPost(newAllocationSites.get(g.mostRecentVersion(to))),
-    //                                                       ippr,
-    //                                                       this.noKill(),
-    //                                                       this.noAlloc(),
-    //                                                       origin);
-    //        }
-    //        else {
-    //            b = g.programPointReachability().reachable(this, ippr, this.noKill(), this.noAlloc(), origin);
-    //        }
-    //        if (DEBUG) {
-    //            System.err.println("PPSC%% CONTAINS2? " + ippr);
-    //            System.err.println("PPSC%%\t" + b);
-    //            System.err.println("PPSC%%\tFROM " + from + " " + g.lookupPointsToGraphNodeDictionary(from));
-    //            System.err.println("PPSC%%\tTO " + to + " " + g.lookupInstanceKeyDictionary(to));
-    //            System.err.println("PPSC%%\tRECENT? " + g.isMostRecentObject(to));
-    //            System.err.println("PPSC%%\tNO ALLOC " + noAlloc());
-    //            System.err.println("PPSC%%\tNEW ALLOC " + newAllocationSites);
-    //            System.err.println("PPSC%%\tORIGIN " + origin);
-    //            System.err.println("PPSC%%\tALLOC SITES " + newAllocationSites);
-    //            System.err.println("PPSC%%\tSOURCES " + this.sources);
-    //        }
-    //        return b;
-    //    }
-
-    //    private static Set<InterProgramPointReplica> convertToPost(Set<ProgramPointReplica> set) {
-    //        //XXX make this more efficient sometime in the future. Use an iterator instead of
-    //        // realizing a set
-    //        Set<InterProgramPointReplica> s = new LinkedHashSet<>();
-    //        for (ProgramPointReplica ppr : set) {
-    //            s.add(ppr.post());
-    //        }
-    //        return s;
-    //    }
-
     private IntSet noAlloc() {
         if (g.isMostRecentObject(this.to)) {
             // "to" will be in the set!
@@ -240,15 +190,6 @@ public final class ProgramPointSetClosure {
             System.err.println("PPSC%%\t\tSOURCES " + this.sources);
         }
         return this.sources;
-    }
-
-    public boolean containsAll(ExplicitProgramPointSet pps, ReachabilityQueryOrigin originator) {
-        for (InterProgramPointReplica ippr : pps) {
-            if (!this.contains(ippr, originator)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     public/*PointsToGraphNode*/int getFrom() {

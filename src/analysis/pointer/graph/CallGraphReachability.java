@@ -26,7 +26,7 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  * whether a destination call graph node is reachable after returning to a given call site.
  */
 public final class CallGraphReachability {
-    public static final boolean USE_CALL_GRAPH_REACH = false;
+    public static final boolean USE_CALL_GRAPH_REACH = !ProgramPointReachability.USE_TUNNELS;
     /**
      * Map from call graph node to the transitive closure of all call graph nodes reachable from that node via method
      * calls, note that every node is reachable from itself
@@ -514,8 +514,7 @@ public final class CallGraphReachability {
         s.add(triggeringQuery);
     }
 
-    @Override
-    public String toString() {
+    public String toString(int minSize) {
         StringBuilder sb = new StringBuilder();
         IntIterator iter = reachableFrom.keyIterator();
         while (iter.hasNext()) {
@@ -526,7 +525,7 @@ public final class CallGraphReachability {
                 reachable.next();
                 size++;
             }
-            if (size > 500) {
+            if (size > minSize) {
                 if (size < 10000) {
                     sb.append("0");
                 }
@@ -546,5 +545,10 @@ public final class CallGraphReachability {
             }
         }
         return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return toString(-1);
     }
 }

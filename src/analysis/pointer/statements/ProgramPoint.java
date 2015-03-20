@@ -149,16 +149,9 @@ public class ProgramPoint {
             return "**" + pp.getID() + "_pre** " + pp;
         }
 
-        @Override
-        public int hashCode() {
-            return pp.hashCode() ^ 9;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            // object equality
-            return this == obj;
-        }
+        /*
+         * Note that we explicitly use Object's hashCode and equals.
+         */
 
         @Override
         public ProgramPoint getPP() {
@@ -186,16 +179,9 @@ public class ProgramPoint {
             return "**" + pp.getID() + "_post** " + pp;
         }
 
-        @Override
-        public final int hashCode() {
-            return pp.hashCode() ^ 45;
-        }
-
-        @Override
-        public final boolean equals(Object obj) {
-            // object equality
-            return this == obj;
-        }
+        /*
+         * Note that we explicitly use Object's hashCode and equals.
+         */
 
         @Override
         public ProgramPoint getPP() {
@@ -313,15 +299,6 @@ public class ProgramPoint {
 
         public IMethod getContainingProcedure() {
             return ipp.getPP().getContainingProcedure();
-        }
-
-        /**
-         * Get the replica for the program point for which this is either the pre or post program point
-         *
-         * @return program point replica
-         */
-        public ProgramPointReplica getRegularProgramPointReplica() {
-            return ProgramPointReplica.create(getContext(), ipp.getPP());
         }
 
         @Override

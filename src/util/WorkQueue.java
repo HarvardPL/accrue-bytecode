@@ -1,8 +1,8 @@
 package util;
 
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.Set;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
@@ -19,7 +19,7 @@ public class WorkQueue<T> {
     /**
      * Internal Q
      */
-    private LinkedList<T> q = new LinkedList<>();
+    private ArrayDeque<T> q = new ArrayDeque<>();
     /**
      * Mirror of Q used to quickly check containment
      */
