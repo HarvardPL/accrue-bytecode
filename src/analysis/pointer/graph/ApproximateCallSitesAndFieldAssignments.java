@@ -24,10 +24,11 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  */
 public class ApproximateCallSitesAndFieldAssignments {
 
+    private static final boolean USE_APPROXIMATION = true;
     /**
      * Do we be slower but deterministic? Both are sound, and moreover the faster (non-deterministic) is more precise.
      */
-    private static final boolean DETERMINISTIC = false;
+    private static final boolean DETERMINISTIC = true;
     /**
      * All no-target call sites that have been approximated so far
      */
@@ -53,11 +54,15 @@ public class ApproximateCallSitesAndFieldAssignments {
     private final PointsToGraph g;
 
     public void addEmptyCallSite(/*ProgramPointReplica*/int callSite) {
-        this.emptyCallSites.get().add(callSite);
+        if (USE_APPROXIMATION) {
+            this.emptyCallSites.get().add(callSite);
+        }
     }
 
     public void addEmptyTargetFieldAssignment(StmtAndContext sac) {
-        this.emptyTargetFieldAssignments.get().add(sac);
+        if (USE_APPROXIMATION) {
+            this.emptyTargetFieldAssignments.get().add(sac);
+        }
     }
 
     /**
@@ -85,6 +90,10 @@ public class ApproximateCallSitesAndFieldAssignments {
     }
 
     public int checkAndApproximateCallSitesAndFieldAssignments() {
+        if (!USE_APPROXIMATION) {
+            // don't even try to approximate.
+            return 0;
+        }
         int count = 0;
 
         MutableSparseIntSet newApproxCallSites = DETERMINISTIC ? MutableSparseIntSet.makeEmpty() : null;
@@ -100,8 +109,18 @@ public class ApproximateCallSitesAndFieldAssignments {
             IntIterator iter = s.intIterator();
             while (iter.hasNext()) {
                 int i = iter.next();
-                // if call site i really has no targets, then approximate it.
-                if (g.getCalleesOf(i).isEmpty()) {
+                // if call site i really has no (non-null) targets, then approximate it.
+                boolean targetFound = false;
+                IntIterator trgs = g.getCalleesOf(i).intIterator();
+                while (trgs.hasNext()) {
+                    int trg = trgs.next();
+                    if (g.isNullInstanceKey(trg)) {
+                        continue;
+                    }
+                    targetFound = true;
+                    break;
+                }
+                if (!targetFound) {
                     if (approxCallSites.add(i)) {
                         if (DETERMINISTIC) {
                             newApproxCallSites.add(i);

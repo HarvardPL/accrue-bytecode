@@ -66,10 +66,11 @@ public class LocalToFieldStatement extends PointsToStatement {
         InterProgramPointReplica post = InterProgramPointReplica.create(context, this.programPoint().post());
 
         GraphDelta changed = new GraphDelta(g);
-
         if (delta == null) {
             // no delta, let's do some simple processing
-            for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator); iter.hasNext();) {
+
+            Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator);
+            while (iter.hasNext()) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
                     ObjectField of = new ObjectField(recHeapContext, this.field);
@@ -85,7 +86,8 @@ public class LocalToFieldStatement extends PointsToStatement {
         else {
             // We check if o has changed what it points to. If it has, we need to make the new object fields
             // point to everything that the RHS can.
-            for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
+            Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator);
+            while (iter.hasNext()) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
                     ObjectField of = new ObjectField(recHeapContext, this.field);

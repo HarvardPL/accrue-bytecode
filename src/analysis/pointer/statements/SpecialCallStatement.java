@@ -68,6 +68,8 @@ public class SpecialCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
+        boolean nonNullTargetSeen = false;
+
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapCtxt = iter.next();
             assert recHeapCtxt != null : "Null instance key for " + this.callee + " at " + programPoint();
@@ -75,7 +77,14 @@ public class SpecialCallStatement extends CallStatement {
                 // The receiver points to null that is not a "real" call so there is nothing to process
                 continue;
             }
+            nonNullTargetSeen = true;
             changed = changed.combine(this.processCall(context, recHeapCtxt, this.callee, g, haf, this.calleeSummary));
+        }
+
+        if (!nonNullTargetSeen) {
+            // This could be an empty call site
+            int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
+            g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyCallSite(callSite);
         }
 
         return changed;

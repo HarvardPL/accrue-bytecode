@@ -69,10 +69,7 @@ public class VirtualCallStatement extends CallStatement {
         Iterator<InstanceKeyRecency> iter = delta == null ? g.pointsToIterator(receiverRep, pre, originator)
                 : delta.pointsToIterator(receiverRep, pre, originator);
 
-        if (delta == null && !iter.hasNext()) {
-            int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
-            g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyCallSite(callSite);
-        }
+        boolean nonNullTargetSeen = false;
 
         while (iter.hasNext()) {
             InstanceKeyRecency recHeapContext = iter.next();
@@ -80,6 +77,7 @@ public class VirtualCallStatement extends CallStatement {
                 // The receiver points to null that is not a "real" call so there is nothing to process
                 continue;
             }
+            nonNullTargetSeen = true;
             // The receiver is recHeapContext, and we want to find a method that matches selector callee.getSelector()
             // in class recHeapContext.getConcreteType() or a superclass.
             IMethod resolvedCallee = this.resolveMethod(recHeapContext.getConcreteType(), receiverRep.getExpectedType());
@@ -101,6 +99,13 @@ public class VirtualCallStatement extends CallStatement {
                                                        registrar.findOrCreateMethodSummary(resolvedCallee)));
 
         }
+
+        if (!nonNullTargetSeen) {
+            // This could be an empty call site
+            int callSite = g.lookupCallSiteReplicaDictionary(this.programPoint().getReplica(context));
+            g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyCallSite(callSite);
+        }
+
         return changed;
     }
 
