@@ -1,6 +1,7 @@
 package analysis.pointer.graph;
 
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -12,6 +13,7 @@ import analysis.pointer.statements.PointsToStatement;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
 import com.ibm.wala.util.intset.MutableIntSet;
+import com.ibm.wala.util.intset.MutableSparseIntSet;
 
 /**
  * Call sites with no non-null receiver that will be approximated by assuming that the call can terminate normally or
@@ -23,14 +25,9 @@ import com.ibm.wala.util.intset.MutableIntSet;
 public class ApproximateCallSitesAndFieldAssignments {
 
     /**
-     * Print the call sites and field assigns that are being approximated
+     * Do we be slower but deterministic? Both are sound, and moreover the faster (non-deterministic) is more precise.
      */
-    private static final boolean PRINT_APPROXIMATIONS = false;
-
-    /**
-     * THE ANALYSIS IS UNSOUND IF TRUE
-     */
-    private static final boolean DO_NOT_RUN = false;
+    private static final boolean DETERMINISTIC = false;
     /**
      * All no-target call sites that have been approximated so far
      */
@@ -41,13 +38,14 @@ public class ApproximateCallSitesAndFieldAssignments {
     private final Set<StmtAndContext> approxFieldAssignments = AnalysisUtil.createConcurrentSet();
 
     /**
-     * Known empty call sites
+     * Possible empty call sites
      */
-    private final/*Set<ProgramPointReplica>*/MutableIntSet emptyCallSites = AnalysisUtil.createConcurrentIntSet();
+    private final AtomicReference</*Set<ProgramPointReplica>*/MutableIntSet> emptyCallSites = new AtomicReference<>(AnalysisUtil.createConcurrentIntSet());
+
     /**
-     * Known no-receiver field accesses
+     * Possible no-receiver field accesses
      */
-    private AtomicReference<Set<StmtAndContext>> emptyTargetFieldAssignments = new AtomicReference<>(AnalysisUtil.<StmtAndContext> createConcurrentSet());
+    private final AtomicReference<Set<StmtAndContext>> emptyTargetFieldAssignments = new AtomicReference<>(AnalysisUtil.<StmtAndContext> createConcurrentSet());
 
     /**
      * Points-to graph
@@ -55,20 +53,13 @@ public class ApproximateCallSitesAndFieldAssignments {
     private final PointsToGraph g;
 
     public void addEmptyCallSite(/*ProgramPointReplica*/int callSite) {
-        this.emptyCallSites.add(callSite);
-    }
-
-    public void removeEmptyCallSite(/*ProgramPointReplica*/int callSite) {
-        this.emptyCallSites.remove(callSite);
+        this.emptyCallSites.get().add(callSite);
     }
 
     public void addEmptyTargetFieldAssignment(StmtAndContext sac) {
         this.emptyTargetFieldAssignments.get().add(sac);
     }
 
-    public void removeEmptyTargetFieldAssignment(StmtAndContext sac) {
-        this.emptyTargetFieldAssignments.get().remove(sac);
-    }
     /**
      * Create a new instance of the algorithm for computing approximate call sites and data structures to store them
      *
@@ -93,46 +84,74 @@ public class ApproximateCallSitesAndFieldAssignments {
         return approxFieldAssignments.contains(new StmtAndContext(stmt, context));
     }
 
-    public int checkAndApproximateCallSites() {
+    public int checkAndApproximateCallSitesAndFieldAssignments() {
         int count = 0;
-        while (!emptyCallSites.isEmpty()) {
-            IntIterator iter = emptyCallSites.intIterator();
+
+        MutableSparseIntSet newApproxCallSites = DETERMINISTIC ? MutableSparseIntSet.makeEmpty() : null;
+        Set<StmtAndContext> newApproxFieldAssignments = DETERMINISTIC ? new LinkedHashSet<StmtAndContext>() : null;
+        {
+            // first, call sites
+            MutableIntSet s, newSet;
+            do {
+                newSet = AnalysisUtil.createConcurrentIntSet();
+                s = this.emptyCallSites.get();
+            } while (!this.emptyCallSites.compareAndSet(s, newSet));
+
+            IntIterator iter = s.intIterator();
             while (iter.hasNext()) {
                 int i = iter.next();
-                if (emptyCallSites.remove(i)) {
-                    // if call site i really has no targets, then approximate it.
-                    if (g.getCalleesOf(i).isEmpty()) {
-                        if (approxCallSites.add(i)) {
-                            g.ppReach.addApproximateCallSite(i);
-                            count++;
+                // if call site i really has no targets, then approximate it.
+                if (g.getCalleesOf(i).isEmpty()) {
+                    if (approxCallSites.add(i)) {
+                        if (DETERMINISTIC) {
+                            newApproxCallSites.add(i);
                         }
+                        else {
+                            g.ppReach.addApproximateCallSite(i);
+                        }
+                        count++;
                     }
                 }
             }
         }
-        return count;
-    }
 
-    public int checkAndApproximateFieldAssignments() {
-        int count = 0;
-        Set<StmtAndContext> s, newSet;
-        do {
-            newSet = AnalysisUtil.createConcurrentSet();
-            s = this.emptyTargetFieldAssignments.get();
-        } while (!this.emptyTargetFieldAssignments.compareAndSet(s, newSet));
+        {
+            // second, field assignments
 
-        // s is now the old set, and we installed a new empty set.
+            Set<StmtAndContext> s, newSet;
+            do {
+                newSet = AnalysisUtil.createConcurrentSet();
+                s = this.emptyTargetFieldAssignments.get();
+            } while (!this.emptyTargetFieldAssignments.compareAndSet(s, newSet));
 
-        Iterator<StmtAndContext> iter = s.iterator();
-        while (iter.hasNext()) {
-            StmtAndContext i = iter.next();
-            // if field really has no targets, then approximate it.
-            OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
-            if (!killed.fst()) {
-                if (approxFieldAssignments.add(i)) {
-                    g.ppReach.addApproximateFieldAssign(i);
-                    count++;
+            // s is now the old set, and we installed a new empty set.
+
+            Iterator<StmtAndContext> iter = s.iterator();
+            while (iter.hasNext()) {
+                StmtAndContext i = iter.next();
+                // if field really has no targets, then approximate it.
+                OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
+                if (!killed.fst()) {
+                    if (approxFieldAssignments.add(i)) {
+                        if (DETERMINISTIC) {
+                            newApproxFieldAssignments.add(i);
+                        }
+                        else {
+                            g.ppReach.addApproximateFieldAssign(i);
+                        }
+                        count++;
+                    }
                 }
+            }
+        }
+
+        if (DETERMINISTIC) {
+            IntIterator iter = newApproxCallSites.intIterator();
+            while (iter.hasNext()) {
+                g.ppReach.addApproximateCallSite(iter.next());
+            }
+            for (StmtAndContext i : newApproxFieldAssignments) {
+                g.ppReach.addApproximateFieldAssign(i);
             }
         }
         return count;
