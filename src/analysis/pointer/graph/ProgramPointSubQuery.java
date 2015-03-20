@@ -19,6 +19,8 @@ public final class ProgramPointSubQuery {
     final/*Set<PointsToGraphNode>*/IntSet noKill;
     final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
     final Set<InterProgramPointReplica> forbidden;
+    final ReachabilityQueryOrigin origin;
+    private volatile boolean expired;
     private final int hashcode;
     private static AtomicInteger counter = new AtomicInteger(0);
     private static final ConcurrentIntMap<ProgramPointSubQuery> dictionary = AnalysisUtil.createConcurrentIntMap();
@@ -32,15 +34,22 @@ public final class ProgramPointSubQuery {
      * @param noKill points-to graph nodes that must not be killed on a valid path from source to destination
      * @param noAlloc instance key that must not be allocated on a valid path from source to destination
      * @param forbidden program points that must not be traversed on a valid path from source to destination
+     * @param origin Reachability query origin that triggered this subquery
      */
-    ProgramPointSubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
-             IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc, Set<InterProgramPointReplica> forbidden) {
+    private ProgramPointSubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+                                 IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
+                                 Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
+        assert source != null;
+        assert destination != null;
+        assert origin != null;
         this.source = source;
         this.destination = destination;
         this.noKill = noKill;
         this.noAlloc = noAlloc;
         this.forbidden = forbidden;
+        this.origin = origin;
         this.hashcode = computeHashCode();
+        this.expired = false;
     }
 
     /**
@@ -50,7 +59,10 @@ public final class ProgramPointSubQuery {
      *
      * @return integer
      */
-    static int lookupDictionary(ProgramPointSubQuery key) {
+    static int lookupDictionary(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+                                IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
+                                Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
+        ProgramPointSubQuery key = new ProgramPointSubQuery(source, destination, noKill, noAlloc, forbidden, origin);
         Integer n = reverseDictionary.get(key);
         if (n == null) {
             // not in the dictionary yet
@@ -98,6 +110,7 @@ public final class ProgramPointSubQuery {
         result = prime * result + noAlloc.size();
         result = prime * result + noKill.size();
         result = prime * result + forbidden.hashCode();
+        result = prime * result + origin.hashCode();
         return result;
     }
 
@@ -131,7 +144,18 @@ public final class ProgramPointSubQuery {
         if (!forbidden.equals(other.forbidden)) {
             return false;
         }
+        if (!origin.equals(other.origin)) {
+            return false;
+        }
         return true;
+    }
+
+    public boolean isExpired() {
+        return this.expired;
+    }
+
+    public void setExpired() {
+        this.expired = true;
     }
 
     @Override

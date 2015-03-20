@@ -39,7 +39,7 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsTo
         assert g.isMostRecentObject(i);
         assert !g.isFlowSensitivePointsToGraphNode(n);
 
-        if (g.isAllocInScope(rvr, i, null)) {
+        if (g.isAllocInScope(rvr, i, this)) {
             GraphDelta changes = g.addEdge(g.lookupPointsToGraphNodeDictionary(n),
                                            g.lookupInstanceKeyDictionary(g.nonMostRecentVersion(i)),
                                            null);

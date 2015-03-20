@@ -191,19 +191,31 @@ public final class ProgramPointReachability {
         // check the caches
         List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
         for (InterProgramPointReplica src : sources) {
-            int mr = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
-                                                                                    destination,
-                                                                                    noKill,
-                                                                                    noAlloc,
-                                                                                    forbidden));
+            int mr = ProgramPointSubQuery.lookupDictionary(src,
+                                                           destination,
+                                                           noKill,
+                                                           noAlloc,
+                                                           forbidden,
+                                                           origin);
             if (this.positiveCache.contains(mr)) {
                 // We have already computed that the destination is reachable from src
                 if (PRINT_DIAGNOSTICS) {
                     cachedResponses.incrementAndGet();
                 }
+                for (InterProgramPointReplica s : sources) {
+                    int query = ProgramPointSubQuery.lookupDictionary(s,
+                                                                      destination,
+                                                                      noKill,
+                                                                      noAlloc,
+                                                                      forbidden,
+                                                                      origin);
+
+                    ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(query);
+                    sq.setExpired();
+                }
+
                 return true;
             }
-            addQueryDependency(mr, origin);
             if (this.negativeCache.contains(mr)) {
                 // We know it's a negative result for this one, keep looking
                 if (DEBUG) {
@@ -231,7 +243,17 @@ public final class ProgramPointReachability {
         if (PRINT_DIAGNOSTICS) {
             this.reachabilityRequests.incrementAndGet();
         }
-        boolean b = computeQuery(unknown, destination, noKill, noAlloc, forbidden);
+        boolean b = computeQuery(unknown, destination, noKill, noAlloc, forbidden, origin);
+
+        if (b) {
+            for (InterProgramPointReplica s : sources) {
+                int query = ProgramPointSubQuery.lookupDictionary(s, destination, noKill, noAlloc, forbidden, origin);
+
+                ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(query);
+                sq.setExpired();
+            }
+        }
+
         if (PRINT_DIAGNOSTICS) {
             reachableImplTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -290,12 +312,13 @@ public final class ProgramPointReachability {
      * @param noKill set of points-to graph nodes that must not be killed
      * @param noAlloc set of instance keys that must not be allocated
      * @param forbidden set of program points that must not be passed through
+     * @param origin
      *
      * @return true if the destination is reachable from anys source
      */
     private boolean computeQuery(Collection<InterProgramPointReplica> sources, InterProgramPointReplica destination,
     /*Set<PointsToGraphNode>*/IntSet noKill, /*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                                 Set<InterProgramPointReplica> forbidden) {
+                                 Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
         // Uncomment for debugging output for a particular destination
         //        if (destination.toString().contains("**17558_pre**")) {
         //            DEBUG = true;
@@ -338,11 +361,7 @@ public final class ProgramPointReachability {
 
         // try to solve it for each source.
         for (InterProgramPointReplica src : sources) {
-            int queryInt = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
-                                                                                          destination,
-                                                                                          noKill,
-                                                                                          noAlloc,
-                                                                                          forbidden));
+            int queryInt = ProgramPointSubQuery.lookupDictionary(src, destination, noKill, noAlloc, forbidden, origin);
             if (PRINT_DIAGNOSTICS) {
                 totalDestQuery.incrementAndGet();
             }
@@ -362,7 +381,7 @@ public final class ProgramPointReachability {
                 startDest = System.currentTimeMillis();
             }
 
-            boolean found = prq.executeSubQuery(src);
+            boolean found = prq.executeSubQuery(src, origin);
 
             if (PRINT_DIAGNOSTICS) {
                 destQueryTime.addAndGet(System.currentTimeMillis() - startDest);
@@ -876,26 +895,12 @@ public final class ProgramPointReachability {
     private void queryResultChanged(/*ProgramPointSubQuery*/int mr) {
         assert this.positiveCache.contains(mr);
 
-        // since the query is positive, it will never change in the future.
-        // Let's save some memory by removing the set of dependent SaCs.
-        Set<ReachabilityQueryOrigin> deps = this.queryDependencies.remove(mr);
-        if (deps == null) {
-            if (DEBUG) {
-                System.err.println("NO DEPS " + mr);
-            }
-            // nothing to do.
-            return;
-        }
-        // immediately execute the tasks that depended on this.
+        ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(mr);
         if (DEBUG) {
             System.err.println("DEPS " + mr);
         }
-        for (ReachabilityQueryOrigin task : deps) {
-            if (DEBUG) {
-                System.err.println("\tDEP: " + task);
-            }
-            task.trigger(this.analysisHandle);
-        }
+        assert sq.origin != null;
+        sq.origin.trigger(this.analysisHandle);
     }
 
     /**
@@ -911,35 +916,6 @@ public final class ProgramPointReachability {
         this.methodReachability.addCallGraphEdge(callerSite, calleeCGNode);
         this.calleeAddedTo(callerSite);
         this.callerAddedTo(calleeCGNode);
-    }
-
-    /**
-     * Add a dependency that originatingSaC depends on the result of query.
-     *
-     * @param query
-     * @param origin to be triggered if the query results change
-     */
-    private void addQueryDependency(/*ProgramPointSubQuery*/int query, ReachabilityQueryOrigin origin) {
-        long start = 0L;
-        if (PRINT_DIAGNOSTICS) {
-            start = System.currentTimeMillis();
-        }
-        if (origin == null) {
-            // nothing to do
-            return;
-        }
-        Set<ReachabilityQueryOrigin> deps = this.queryDependencies.get(query);
-        if (deps == null) {
-            deps = AnalysisUtil.createConcurrentSet();
-            Set<ReachabilityQueryOrigin> existing = queryDependencies.putIfAbsent(query, deps);
-            if (existing != null) {
-                deps = existing;
-            }
-        }
-        deps.add(origin);
-        if (PRINT_DIAGNOSTICS) {
-            queryDepTime.addAndGet(System.currentTimeMillis() - start);
-        }
     }
 
     /**
@@ -979,7 +955,11 @@ public final class ProgramPointReachability {
     }
 
     public void processSubQuery(ProgramPointSubQuery sq) {
-        this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden);
+        if (sq.isExpired()) {
+            // Don't rerun expired queries
+            return;
+        }
+        this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden, sq.origin);
     }
 
     /**

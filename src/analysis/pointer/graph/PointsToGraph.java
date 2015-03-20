@@ -379,7 +379,7 @@ public final class PointsToGraph {
                                  new Stack<Set<TypeFilter>>(),
                                  new Stack<ExplicitProgramPointSet>());
         }
-        else if (node.isFlowSensitive() && !this.pointsTo(n, h, ippr, null)) {
+        else if (node.isFlowSensitive()) {
             // in this case, heapContext should be nullInstanceKey
             assert h == this.nullInstanceKeyInt;
             addToSetAndSupersets(delta,

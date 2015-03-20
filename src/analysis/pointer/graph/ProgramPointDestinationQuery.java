@@ -100,6 +100,11 @@ public final class ProgramPointDestinationQuery {
     private int currentSubQuery;
 
     /**
+     * Call graph node containing the destination program point
+     */
+    private/*OrderedPair<IMethod,Context>*/int currentSourceCGNode;
+
+    /**
      * Has the destination CG node entry program point been reached yet? If so, there is no need to explore callees, we
      * just really need to explore callers...
      */
@@ -152,10 +157,10 @@ public final class ProgramPointDestinationQuery {
      * Execute a subquery for a single source
      *
      * @param src source to search from
-     * @param relevantNodes call graph nodes that must be inspected and cannot be summarized
+     * @param origin reason this query is being rerun
      * @return whether the destination was found
      */
-    public boolean executeSubQuery(InterProgramPointReplica src) {
+    public boolean executeSubQuery(InterProgramPointReplica src, ReachabilityQueryOrigin origin) {
         if (DEBUG) {
             System.err.println("PPDQ%% \nEXECUTING " + this.currentSubQuery);
             IntIterator iter = this.noAlloc.intIterator();
@@ -178,23 +183,24 @@ public final class ProgramPointDestinationQuery {
         this.resultCache = new HashMap<>();
         this.workItemDependencies = new HashMap<>();
 
-        //for (InterProgramPointReplica src : sources) {
-            this.currentSubQuery = ProgramPointSubQuery.lookupDictionary(new ProgramPointSubQuery(src,
-                                                                                                  this.dest,
-                                                                                                  this.noKill,
-                                                                                                  this.noAlloc,
-                                                                                                  this.forbidden));
+        OrderedPair<IMethod, Context> sourceCGNode = new OrderedPair<>(src.getContainingProcedure(), src.getContext());
+        this.currentSourceCGNode = g.lookupCallGraphNodeDictionary(sourceCGNode);
+        this.currentSubQuery = ProgramPointSubQuery.lookupDictionary(src,
+                                                                     this.dest,
+                                                                     this.noKill,
+                                                                     this.noAlloc,
+                                                                     this.forbidden,
+                                                                     origin);
         searchQ.add(new WorkItem(src.getInterPP(), src.getContext(), false));
-            while (!searchQ.isEmpty()) {
-                WorkItem wi = searchQ.poll();
+        while (!searchQ.isEmpty()) {
+            WorkItem wi = searchQ.poll();
             if (search(wi)) {
-                    if (DEBUG) {
-                        System.err.println("PPDQ%% FOUND DESTINATION " + this.currentSubQuery + "\n");
-                    }
-                    return true;
+                if (DEBUG) {
+                    System.err.println("PPDQ%% FOUND DESTINATION " + this.currentSubQuery + "\n");
                 }
+                return true;
             }
-        //}
+        }
         if (DEBUG) {
             System.err.println("PPDQ%% DID NOT FIND DEST " + this.currentSubQuery + "\n");
         }
@@ -317,13 +323,13 @@ public final class ProgramPointDestinationQuery {
                     }
 
                     // This is a program point for a method call
-                    if (inSameCallGraphNode && !onDelayed) {
-                        if (DEBUG2) {
-                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameCallGraphNode);
-                        }
-                        delayedQ.add(ipp);
-                        continue;
-                    }
+                    //                    if (inSameCallGraphNode && !onDelayed) {
+                    //                        if (DEBUG2) {
+                    //                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameCallGraphNode);
+                    //                        }
+                    //                        delayedQ.add(ipp);
+                    //                        continue;
+                    //                    }
 
                     if (!addedCalleeDependency) {
                         // we haven't already registered the dependency, so do so now.
@@ -424,6 +430,7 @@ public final class ProgramPointDestinationQuery {
                         q.add(succIPP);
                     }
                 }
+
             }
             else {
                 throw new IllegalArgumentException("Don't know about this kind of interprogrampoint");
