@@ -2,6 +2,7 @@ package analysis.pointer.graph;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -21,6 +22,8 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
  * KilledAndAlloced objects are used as program analysis facts. That is, when analyzing a method, we may record for each
  * program point pp in the method, which PointsToGraphNodes must have been killed on all path from the method entry to
  * pp, and which InstanceKeyRecency must have been newly allocated on all paths from the method entry to pp.
+ *
+ * The super class presents a read-only interface. Only the subclasses present a mutable interface.
  */
 public abstract class KilledAndAlloced {
     protected/*Set<PointsToGraphNode>*/MutableIntSet killed;
@@ -58,19 +61,6 @@ public abstract class KilledAndAlloced {
     public abstract boolean isEmpty();
 
     /**
-     * Set this KilledAndAlloced to empty. This should only be called if this is unreachable.
-     */
-    public abstract void setEmpty();
-
-    /**
-     * Take the meet of this KilledAndAlloced with kaa, and return true if and only if this object was modified.
-     *
-     * @param kaa
-     * @return
-     */
-    public abstract boolean meet(KilledAndAlloced kaa);
-
-    /**
      * Returns false if this.killed intersects with noKill, or if this.alloced intersects with noAlloc. Otherwise, it
      * returns true.
      *
@@ -106,17 +96,17 @@ public abstract class KilledAndAlloced {
     }
 
 
-    public abstract boolean addAlloced(int justAllocatedKey);
-
-    public abstract boolean addMaybeKilledField(FieldReference maybeKilledField);
-
-    public abstract boolean addKill(/*PointsToGraphNode*/int n);
-
-    public static KilledAndAlloced createLocalUnreachable() {
+    public static ThreadLocalKilledAndAlloced createLocalUnreachable() {
         return new ThreadLocalKilledAndAlloced(null, null, null);
     }
 
-    public static KilledAndAlloced createThreadSafeUnreachable() {
+    public static ThreadLocalKilledAndAlloced createLocalEmpty() {
+        return new ThreadLocalKilledAndAlloced(MutableSparseIntSet.makeEmpty(),
+                                               new HashSet<FieldReference>(),
+                                               MutableSparseIntSet.makeEmpty());
+    }
+
+    public static ThreadSafeKilledAndAlloced createThreadSafeUnreachable() {
         return new ThreadSafeKilledAndAlloced();
     }
 
@@ -125,7 +115,7 @@ public abstract class KilledAndAlloced {
      * accessed concurrently.
      */
     static class ThreadLocalKilledAndAlloced extends KilledAndAlloced {
-        private ThreadLocalKilledAndAlloced(MutableIntSet killed, Set<FieldReference> maybeKilledFields,
+        ThreadLocalKilledAndAlloced(MutableIntSet killed, Set<FieldReference> maybeKilledFields,
                                             MutableIntSet alloced) {
             this.killed = killed;
             this.maybeKilledFields = maybeKilledFields;
@@ -185,7 +175,6 @@ public abstract class KilledAndAlloced {
          * imperatively updates the killed and alloced sets. It returns true if and only if the killed or alloced sets
          * of this object changed.
          */
-        @Override
         public boolean meet(KilledAndAlloced res) {
             assert (this.killed == null && this.maybeKilledFields == null && this.alloced == null)
                     || (this.killed != null && this.maybeKilledFields != null && this.alloced != null) : "this has violated the invariants that either all fields are null or none of them are: "
@@ -223,13 +212,11 @@ public abstract class KilledAndAlloced {
         /**
          * Add a points to graph node to the kill set.
          */
-        @Override
         public boolean addKill(/*PointsToGraphNode*/int n) {
             assert killed != null;
             return this.killed.add(n);
         }
 
-        @Override
         public boolean addMaybeKilledField(FieldReference f) {
             assert maybeKilledFields != null;
             return this.maybeKilledFields.add(f);
@@ -238,7 +225,6 @@ public abstract class KilledAndAlloced {
         /**
          * Add an instance key to the alloced set.
          */
-        @Override
         public boolean addAlloced(/*InstanceKeyRecency*/int justAllocatedKey) {
             assert alloced != null;
             return this.alloced.add(justAllocatedKey);
@@ -248,7 +234,6 @@ public abstract class KilledAndAlloced {
          * Set the killed and alloced sets to empty. This should be used only as the first operation called after the
          * constructor.
          */
-        @Override
         public void setEmpty() {
             assert this.isUnreachable();
             assert killed == null;
@@ -275,7 +260,7 @@ public abstract class KilledAndAlloced {
      * A thread-safe version of KilledAndAlloced, which is used for any KilledAndAlloced that may be accessed
      * concurrently.
      */
-    private static class ThreadSafeKilledAndAlloced extends KilledAndAlloced {
+    public static class ThreadSafeKilledAndAlloced extends KilledAndAlloced {
         private volatile boolean isUnreachable = true;
         private volatile boolean isEmpty = false;
 
@@ -312,7 +297,6 @@ public abstract class KilledAndAlloced {
             return this.isEmpty;
         }
 
-        @Override
         public void setEmpty() {
             // install the new sets, ensuring that we don't overwrite a non-null value.
             if (!UNSAFE.compareAndSwapObject(this, KILLEDOFFSET, null, AnalysisUtil.createConcurrentIntSet())) {
@@ -329,7 +313,6 @@ public abstract class KilledAndAlloced {
             this.isEmpty = true;
         }
 
-        @Override
         public boolean meet(KilledAndAlloced kaa) {
             if (this == kaa || this.isEmpty || kaa.isUnreachable()) {
                 // no change to this object.
@@ -407,21 +390,6 @@ public abstract class KilledAndAlloced {
             boolean changed = this.maybeKilledFields.retainAll(kaa.maybeKilledFields);
             this.isEmpty = (this.killed.isEmpty() && this.alloced.isEmpty() && this.maybeKilledFields.isEmpty());
             return changed || (this.killed.size() != origKilledSize || this.alloced.size() != origAllocedSize);
-        }
-
-        @Override
-        public boolean addAlloced(int justAllocatedKey) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean addMaybeKilledField(FieldReference maybeKilledField) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean addKill(int n) {
-            throw new UnsupportedOperationException();
         }
     }
 }
