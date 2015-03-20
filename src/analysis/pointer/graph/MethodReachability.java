@@ -166,11 +166,7 @@ public class MethodReachability {
         }
 
         // we have now finished all the recomputation of the summaries. Let ppr know.
-        IntIterator changedIter = summaryChanged.keyIterator();
-        while (changedIter.hasNext()) {
-            int cgNode = changedIter.next();
-            this.ppr.methodSummaryChanged(cgNode, summaryChanged.get(cgNode));
-        }
+        this.ppr.methodSummariesChanged(summaryChanged);
     }
 
     /**

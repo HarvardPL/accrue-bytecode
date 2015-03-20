@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
+import util.intmap.IntMap;
 import util.intset.EmptyIntSet;
 import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
@@ -826,42 +827,40 @@ public final class ProgramPointReachability {
         }
     }
 
-    void methodSummaryChanged(/*OrderedPair<IMethod, Context>*/int cgNode, MethodSummaryKillAndAllocChanges changes) {
-        if (changes.resultsChanged()) {
-            MutableIntSet queries = methodResultQueryDependencies.remove(cgNode);
-            if (queries != null) {
-                IntIterator iter = queries.intIterator();
-                MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
+    void methodSummariesChanged(/*Map<OrderedPair<IMethod, Context>,MethodSummaryKillAndAllocChanges>*/IntMap<MethodSummaryKillAndAllocChanges> allChanges) {
+        MutableIntSet queriesToRerun = MutableSparseIntSet.makeEmpty();
+        IntIterator cgNodes = allChanges.keyIterator();
+        while (cgNodes.hasNext()) {
 
-                while (iter.hasNext()) {
-                    int mr = iter.next();
-                    if (PRINT_DIAGNOSTICS) {
-                        methodQueryRequests.incrementAndGet();
+            int cgNode = cgNodes.next();
+            MethodSummaryKillAndAllocChanges changes = allChanges.get(cgNode);
+            if (changes.resultsChanged()) {
+                MutableIntSet queries = methodResultQueryDependencies.remove(cgNode);
+                if (queries != null) {
+                    queriesToRerun.addAll(queries);
+                }
+            }
+
+            ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
+            if (m != null) {
+                IntIterator changedTunnels = changes.changedTunnels().intIterator();
+                while (changedTunnels.hasNext()) {
+                    int destCGNode = changedTunnels.next();
+                    IntSet s = m.remove(destCGNode);
+                    if (s != null) {
+                        queriesToRerun.addAll(s);
                     }
-                    // need to re-run the query of mr
-                    requestRerunQuery(mr);
                 }
             }
         }
-
-        ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
-        if (m != null) {
-            IntIterator changedTunnels = changes.changedTunnels().intIterator();
-            while (changedTunnels.hasNext()) {
-                int destCGNode = changedTunnels.next();
-                IntSet s = m.remove(destCGNode);
-                if (s != null) {
-                    IntIterator qs = s.intIterator();
-                    while (qs.hasNext()) {
-                        int q = qs.next();
-                        if (PRINT_DIAGNOSTICS) {
-                            methodQueryRequests.incrementAndGet();
-                        }
-                        // need to re-run the query
-                        requestRerunQuery(q);
-                    }
-                }
+        IntIterator iter = queriesToRerun.intIterator();
+        while (iter.hasNext()) {
+            int mr = iter.next();
+            if (PRINT_DIAGNOSTICS) {
+                methodQueryRequests.incrementAndGet();
             }
+            // need to re-run the query of mr
+            requestRerunQuery(mr);
         }
     }
 

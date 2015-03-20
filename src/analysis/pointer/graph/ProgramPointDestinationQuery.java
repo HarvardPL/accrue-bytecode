@@ -505,6 +505,7 @@ public final class ProgramPointDestinationQuery {
                     // Otherwise, if the result is true, we don't need to be notified if it changes.
                     // XXX could also do this only if we have not yet been able to reach destinationEntryIPPR.
                     ppr.addMethodTunnelQueryDependency(this.currentSubQuery, calleeInt, this.destinationCGNode);
+                    tunnelToDestination = calleeResults.tunnel.get(this.destinationCGNode);
                 }
                 if (tunnelToDestination != null && !tunnelToDestination.isUnreachable()
                         && tunnelToDestination.allows(this.noKill, this.noAlloc, this.g)) {
