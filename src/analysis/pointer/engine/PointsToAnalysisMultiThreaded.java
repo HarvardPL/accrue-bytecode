@@ -685,6 +685,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                         + totalPPSubQueryTasks.get() + "; approximatedCallSites: " + approximatedCallSites
                         + "; approximatedFieldAssigns: " + approximatedFieldAssigns);
                 System.err.println(sb.toString());
+                g.ppReach.printDiagnostics();
             }
         }
 

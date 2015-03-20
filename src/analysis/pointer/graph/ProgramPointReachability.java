@@ -1003,6 +1003,7 @@ public final class ProgramPointReachability {
     AtomicInteger totalMethodReach = new AtomicInteger(0);
     AtomicInteger cachedMethodReach = new AtomicInteger(0);
     AtomicInteger computedMethodReach = new AtomicInteger(0);
+    AtomicInteger totalComputeMethodReachability = new AtomicInteger(0);
     // Destination query counts
     private AtomicInteger totalDestQuery = new AtomicInteger(0);
     private AtomicInteger cachedDestQuery = new AtomicInteger(0);
@@ -1029,9 +1030,11 @@ public final class ProgramPointReachability {
                 + " computed ("
                 + (int) (100 * (cachedResponses.floatValue() / (cachedResponses.floatValue() + computedResponses.floatValue())))
                 + "% hit rate)\n");
-        sb.append("Total method requests: " + totalMethodReach + "  ;  " + cachedMethodReach + "  cached "
+        sb.append("Total getReachabilityForMethod requests: " + totalMethodReach + "  ;  " + cachedMethodReach
+                + "  cached "
                 + computedMethodReach + " computed ("
                 + (int) (100 * (cachedMethodReach.floatValue() / totalMethodReach.floatValue())) + "% hit rate)\n");
+        sb.append("Total computeMethodReachability calls: " + totalComputeMethodReachability + "\n");
         sb.append("Total subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  races "
                 + computedDestQuery + " computed ("
                 + (int) (100 * (cachedDestQuery.floatValue() / totalDestQuery.floatValue())) + "% race rate)\n");
@@ -1095,7 +1098,9 @@ public final class ProgramPointReachability {
                 + (reachabilityRequestCount / totalRequests.get()) + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
         System.err.println(sb.toString());
-        callGraphReachability.printDiagnostics();
+        if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
+            callGraphReachability.printDiagnostics();
+        }
     }
 
     public MethodSummaryKillAndAlloc getReachabilityForMethod(int cgNode) {
