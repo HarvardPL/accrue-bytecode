@@ -22,6 +22,7 @@ public final class ProgramPointSubQuery {
     final ReachabilityQueryOrigin origin;
     private volatile boolean expired;
     private final int hashcode;
+    private final QueryCacheKey cacheKey;
     private static AtomicInteger counter = new AtomicInteger(0);
     private static final ConcurrentIntMap<ProgramPointSubQuery> dictionary = AnalysisUtil.createConcurrentIntMap();
     private static final ConcurrentMap<ProgramPointSubQuery, Integer> reverseDictionary = AnalysisUtil.createConcurrentHashMap();
@@ -50,6 +51,7 @@ public final class ProgramPointSubQuery {
         this.origin = origin;
         this.hashcode = computeHashCode();
         this.expired = false;
+        this.cacheKey = new QueryCacheKey();
     }
 
     /**
@@ -123,6 +125,7 @@ public final class ProgramPointSubQuery {
             return false;
         }
         ProgramPointSubQuery other = (ProgramPointSubQuery) obj;
+
         if (!source.equals(other.source)) {
             return false;
         }
@@ -170,39 +173,21 @@ public final class ProgramPointSubQuery {
      */
     @SuppressWarnings("synthetic-access")
     public QueryCacheKey getCacheKey() {
-        return new QueryCacheKey(source, destination, noKill, noAlloc, forbidden);
+        return cacheKey;
     }
 
     /**
      * Key used to cache the results of a query. This key does not use the origin since the result of the query does not
      * depend on the origin.
      */
-    public static class QueryCacheKey {
-        final InterProgramPointReplica source;
-        final InterProgramPointReplica destination;
-        final/*Set<PointsToGraphNode>*/IntSet noKill;
-        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
-        final Set<InterProgramPointReplica> forbidden;
+    public class QueryCacheKey {
         private final int hashcode;
 
         /**
-         * Create a new sub query from source to destination
+         * Cache key for the enclosing ProgramPointSubQuery
          *
-         * @param source program point to search from
-         * @param destination program point to find
-         * @param noKill points-to graph nodes that must not be killed on a valid path from source to destination
-         * @param noAlloc instance key that must not be allocated on a valid path from source to destination
-         * @param forbidden program points that must not be traversed on a valid path from source to destination
-         * @param origin Reachability query origin that triggered this subquery
          */
-        private QueryCacheKey(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
-                              IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
-                              Set<InterProgramPointReplica> forbidden) {
-            this.source = source;
-            this.destination = destination;
-            this.noKill = noKill;
-            this.noAlloc = noAlloc;
-            this.forbidden = forbidden;
+        private QueryCacheKey() {
             this.hashcode = computeHashCode();
         }
 
@@ -230,28 +215,38 @@ public final class ProgramPointSubQuery {
                 return false;
             }
             QueryCacheKey other = (QueryCacheKey) obj;
-            if (!source.equals(other.source)) {
+            if (this.hashcode != other.hashcode) {
                 return false;
             }
-            if (!destination.equals(other.destination)) {
+
+            ProgramPointSubQuery otherPPSQ = other.ppsq();
+
+            if (!source.equals(otherPPSQ.source)) {
                 return false;
             }
-            if (noAlloc.isEmpty() != other.noAlloc.isEmpty()) {
+            if (!destination.equals(otherPPSQ.destination)) {
                 return false;
             }
-            if (!noAlloc.sameValue(other.noAlloc)) {
+            if (noAlloc.isEmpty() != otherPPSQ.noAlloc.isEmpty()) {
                 return false;
             }
-            if (noKill.isEmpty() != other.noKill.isEmpty()) {
+            if (!noAlloc.sameValue(otherPPSQ.noAlloc)) {
                 return false;
             }
-            if (!noKill.sameValue(other.noKill)) {
+            if (noKill.isEmpty() != otherPPSQ.noKill.isEmpty()) {
                 return false;
             }
-            if (!forbidden.equals(other.forbidden)) {
+            if (!noKill.sameValue(otherPPSQ.noKill)) {
+                return false;
+            }
+            if (!forbidden.equals(otherPPSQ.forbidden)) {
                 return false;
             }
             return true;
+        }
+
+        private ProgramPointSubQuery ppsq() {
+            return ProgramPointSubQuery.this;
         }
 
         @Override
