@@ -110,17 +110,8 @@ public class ApproximateCallSitesAndFieldAssignments {
             while (iter.hasNext()) {
                 int i = iter.next();
                 // if call site i really has no (non-null) targets, then approximate it.
-                boolean targetFound = false;
-                IntIterator trgs = g.getCalleesOf(i).intIterator();
-                while (trgs.hasNext()) {
-                    int trg = trgs.next();
-                    if (g.isNullInstanceKey(trg)) {
-                        continue;
-                    }
-                    targetFound = true;
-                    break;
-                }
-                if (!targetFound) {
+                if (g.getCalleesOf(i).isEmpty()) {
+                    // callsite i has no callees!
                     if (approxCallSites.add(i)) {
                         if (DETERMINISTIC) {
                             newApproxCallSites.add(i);
