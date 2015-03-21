@@ -395,7 +395,7 @@ public final class ProgramPointReachability {
 
             if (positiveCache.contains(key)) {
                 // The result was computed by another thread before this thread ran
-                recordQueryResult(key, true);
+                recordQueryResult(key, origin, true);
                 if (PRINT_DIAGNOSTICS) {
                     cachedDestQuery.incrementAndGet();
                 }
@@ -416,7 +416,7 @@ public final class ProgramPointReachability {
             }
 
             if (found) {
-                recordQueryResult(key, true);
+                recordQueryResult(key, origin, true);
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + sources + " -> " + destination);
                     System.err.println("PPR%%\ttrue because query returned true");
@@ -431,7 +431,7 @@ public final class ProgramPointReachability {
                 System.err.println("PPR%%\t" + sources + " -> " + destination);
                 System.err.println("PPR%%\tfalse because query returned false");
             }
-            if (recordQueryResult(key, false)) {
+            if (recordQueryResult(key, origin, false)) {
                 // We computed false, but the cache already had true
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + sources + " -> " + destination);
@@ -466,7 +466,7 @@ public final class ProgramPointReachability {
      * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
      *         the cache already has a positive result.
      */
-    private boolean recordQueryResult(QueryCacheKey key, boolean b) {
+    private boolean recordQueryResult(QueryCacheKey key, ReachabilityQueryOrigin origin, boolean b) {
         long start = System.currentTimeMillis();
         if (b) {
             positiveCache.add(key);
@@ -479,6 +479,7 @@ public final class ProgramPointReachability {
         }
 
         // Recording a false result
+        addQueryDependency(key, origin);
         negativeCache.add(key);
         if (positiveCache.contains(key)) {
             this.negativeCache.remove(key);
