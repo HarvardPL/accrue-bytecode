@@ -107,6 +107,11 @@ public class ArrayToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean isImportant() {
+        return value.isFlowSensitive();
+    }
+
+    @Override
     public String toString() {
         return value + " = " + array + "." + PointsToGraph.ARRAY_CONTENTS;
     }

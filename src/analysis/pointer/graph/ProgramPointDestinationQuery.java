@@ -232,6 +232,7 @@ public final class ProgramPointDestinationQuery {
 
         // Is the destination node in the same node as the source
         final boolean inSameCallGraphNode = (currentCGNode == this.destinationCGNode);
+        final boolean isSourceOrDest = inSameCallGraphNode || currentCGNode == this.currentSourceCGNode;
         Set<InterProgramPoint> visited = new HashSet<>();
 
         // try searching forward from src, carefully handling calls.
@@ -259,6 +260,7 @@ public final class ProgramPointDestinationQuery {
 
             // pull from the regular queue first
             InterProgramPoint ipp = q.isEmpty() ? delayedQ.poll() : q.poll();
+
             if (DEBUG) {
                 System.err.println("PPDQ%% \t\tQ " + ipp + " isDelayed? " + isDelayed + " anyDelayed? " + anyDelayed
                         + " " + ipp.getClass());
@@ -278,7 +280,6 @@ public final class ProgramPointDestinationQuery {
 
             if (ipp instanceof PreProgramPoint) {
                 if (pp instanceof CallSiteProgramPoint) {
-
                     if (DEBUG2) {
                         System.err.println("PPDQ%% \t\t\tCALL SITE: " + ipp);
                     }
@@ -321,15 +322,6 @@ public final class ProgramPointDestinationQuery {
                             continue;
                         }
                     }
-
-                    // This is a program point for a method call
-                    //                    if (inSameCallGraphNode && !onDelayed) {
-                    //                        if (DEBUG2) {
-                    //                            System.err.println("PPDQ%% \t\t\tDelayed: " + pp + " inSameMethod? " + inSameCallGraphNode);
-                    //                        }
-                    //                        delayedQ.add(ipp);
-                    //                        continue;
-                    //                    }
 
                     if (!addedCalleeDependency) {
                         // we haven't already registered the dependency, so do so now.
@@ -423,7 +415,13 @@ public final class ProgramPointDestinationQuery {
                 if (DEBUG2) {
                     System.err.println("PPDQ%% \t\t\tPOST: " + ipp);
                 }
-                Set<ProgramPoint> ppSuccs = pp.succs();
+                Set<ProgramPoint> ppSuccs;
+                if (isSourceOrDest) {
+                    ppSuccs = pp.succs();
+                }
+                else {
+                    ppSuccs = pp.importantSuccs();
+                }
                 for (ProgramPoint succ : ppSuccs) {
                     InterProgramPoint succIPP = succ.pre();
                     if (visited.add(succIPP)) {
@@ -600,6 +598,7 @@ public final class ProgramPointDestinationQuery {
      */
     private boolean handlePossibleKill(PointsToStatement stmt, Context currentContext) {
         if (stmt.mayKillNode(currentContext, g)) {
+            assert stmt.isImportant();
             // record the dependency before we call stmt.killsNode
             ppr.addKillQueryDependency(this.currentSubQuery,
                                        stmt.getReadDependencyForKillField(currentContext, g.getHaf()));

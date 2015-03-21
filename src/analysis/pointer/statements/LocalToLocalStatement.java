@@ -74,6 +74,11 @@ public class LocalToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean isImportant() {
+        return left.isFlowSensitive();
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         if (!left.isFlowSensitive()) {
             return null;

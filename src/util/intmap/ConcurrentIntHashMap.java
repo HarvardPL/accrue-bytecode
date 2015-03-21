@@ -14,6 +14,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
  *
  * This class is based on ConcurrentHashMap from the java.util.concurrency package.
  */
+@SuppressWarnings("restriction")
 public class ConcurrentIntHashMap<V> implements ConcurrentIntMap<V> {
 
     /* ---------------- Constants -------------- */

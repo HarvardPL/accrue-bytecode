@@ -29,7 +29,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
-     * 
+     *
      * @param thrown reference variable for the exception being thrown
      * @param caught reference variable for the caught exception (or summary for the method exit)
      * @param notType types that the exception being caught cannot have since those types must have been caught by
@@ -119,7 +119,7 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
 
     /**
      * Get the exception being assigned to (either the catch formal or the procedure exit exception summary)
-     * 
+     *
      * @return variable for exception being assigned to
      */
     public ReferenceVariable getCaughtException() {
@@ -135,4 +135,8 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
         return this.thrown.hasLocalScope();
     }
 
+    @Override
+    public boolean isImportant() {
+        return false;
+    }
 }

@@ -21,12 +21,18 @@ public class ProgramPoint {
     private final boolean isNormalExitSummaryNode;
     private final boolean isExceptionExitSummaryNode;
 
+    public static final boolean TRACK_IMPORTANT = true;
+
     /**
      * Is this program point discarded, or is it still relevant.
      */
     private boolean isDiscarded = false;
 
     private Set<ProgramPoint> succs;
+    /**
+     * Successors that affect control-flow are method calls or have a possible kill or alloc effect
+     */
+    private Set<ProgramPoint> importantSuccs;
 
     private static int generator;
 
@@ -69,6 +75,27 @@ public class ProgramPoint {
             return Collections.emptySet();
         }
         return this.succs;
+    }
+
+    /**
+     * Successors that affect control-flow are method calls or have a possible kill or alloc effect
+     */
+    public Set<ProgramPoint> importantSuccs() {
+        if (!TRACK_IMPORTANT) {
+            return this.succs();
+        }
+
+        if (this.importantSuccs == null) {
+            return Collections.emptySet();
+        }
+        return this.importantSuccs;
+    }
+
+    /**
+     * Set the successors that affect control-flow are method calls or have a possible kill or alloc effect
+     */
+    public void setImportantSuccs(Set<ProgramPoint> importantSuccs) {
+        this.importantSuccs = importantSuccs;
     }
 
     public boolean addSucc(ProgramPoint succ) {
@@ -352,7 +379,6 @@ public class ProgramPoint {
     public void removeSucc(ProgramPoint pp) {
         assert this.succs.contains(pp);
         this.succs.remove(pp);
-
     }
 
     public void clearSuccs() {

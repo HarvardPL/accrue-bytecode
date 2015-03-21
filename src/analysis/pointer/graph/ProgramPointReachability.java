@@ -248,7 +248,6 @@ public final class ProgramPointReachability {
         if (b) {
             for (InterProgramPointReplica s : sources) {
                 int query = ProgramPointSubQuery.lookupDictionary(s, destination, noKill, noAlloc, forbidden, origin);
-
                 ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(query);
                 sq.setExpired();
             }
@@ -504,11 +503,6 @@ public final class ProgramPointReachability {
      *
      * The following code is responsible for recording dependencies
      */
-    /**
-     * Reachability queries depend on a sub queries
-     */
-    // ConcurrentMap<ProgramPointSubQuery, Set<ReachabilityQueryOrigin>>
-    private final ConcurrentIntMap<Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentIntMap();
     /**
      * Sub queries depend on the callees from a particular call site (ProgramPointReplica)
      */
@@ -913,7 +907,7 @@ public final class ProgramPointReachability {
         if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
             this.callGraphReachability.addCallGraphEdge(callerSite, calleeCGNode);
         }
-        this.methodReachability.addCallGraphEdge(callerSite, calleeCGNode);
+        this.methodReachability.addCallGraphEdge(callerSite);
         this.calleeAddedTo(callerSite);
         this.callerAddedTo(calleeCGNode);
     }
@@ -954,9 +948,12 @@ public final class ProgramPointReachability {
         }
     }
 
+    public AtomicInteger numExpired = new AtomicInteger(0);
+
     public void processSubQuery(ProgramPointSubQuery sq) {
         if (sq.isExpired()) {
             // Don't rerun expired queries
+            numExpired.incrementAndGet();
             return;
         }
         this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden, sq.origin);

@@ -124,6 +124,11 @@ public class FieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean isImportant() {
+        return true;
+    }
+
+    @Override
     public List<ReferenceVariable> getDefs() {
         return Collections.singletonList(assignee);
     }

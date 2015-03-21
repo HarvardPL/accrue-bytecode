@@ -12,6 +12,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
  * A thread-safe lock-free implementation of a bit-vector int set. It has restricted functionality, and in particular,
  * the set can only increase (there is no way to remove elements).
  */
+@SuppressWarnings("restriction")
 public final class ConcurrentBitVectorIntSet implements MutableIntSet {
 
     protected final static int LOG_BITS_PER_UNIT = 5;

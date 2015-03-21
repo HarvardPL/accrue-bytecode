@@ -221,7 +221,7 @@ public class MethodReachability {
 
             if (ipp instanceof PostProgramPoint) {
                 Set<ProgramPoint> ppSuccs = pp.succs();
-                // Add all the successor program points
+                // Add all the relevant successor program points
                 for (ProgramPoint succ : ppSuccs) {
                     ThreadLocalKilledAndAlloced succResults = getOrCreate(facts, succ.pre());
                     if (succResults.meet(inputFact)) {
@@ -292,7 +292,7 @@ public class MethodReachability {
                 if (this.ppr.getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, context)) {
                     if (killed.fst()) {
                         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
-                            this.ppr.nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt, context));
+                            ProgramPointReachability.nonEmptyApproximatedKillSets.add(new OrderedPair<>(stmt, context));
                         }
                         if (PointsToAnalysis.outputLevel > 0) {
                             System.err.println("APPROXIMATING kill set for field assign with receivers. " + stmt
@@ -359,7 +359,7 @@ public class MethodReachability {
         if (this.ppr.getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
             if (!calleeSet.isEmpty()) {
                 if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
-                    this.ppr.nonEmptyApproximatedCallSites.add(callSite);
+                    ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
                 }
                 if (PointsToAnalysis.outputLevel > 0) {
                     System.err.println("APPROXIMATING non-empty call site "
@@ -618,13 +618,11 @@ public class MethodReachability {
      * the call graph. This allows us to retrigger computation as needed.
      *
      */
-    public void addCallGraphEdge(/*ProgramPointReplica*/int callerSite, /*OrderedPair<IMethod, Context>*/
-                                 int calleeCGNode) {
+    public void addCallGraphEdge(/*ProgramPointReplica*/int callerSite) {
         // the call site changed! Recompute the reachability of the caller, if we have computed it previously
         ProgramPointReplica callerSitePPR = this.g.lookupCallSiteReplicaDictionary(callerSite);
-        OrderedPair<IMethod, Context> caller = new OrderedPair<IMethod, Context>(callerSitePPR.getPP()
-                                                                                              .getContainingProcedure(),
-                                                                                 callerSitePPR.getContext());
+        OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSitePPR.getPP().getContainingProcedure(),
+                                                                 callerSitePPR.getContext());
 
         int callerCGNode = g.lookupCallGraphNodeDictionary(caller);
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
@@ -642,9 +640,8 @@ public class MethodReachability {
     public void addApproximateCallSite(int callSite) {
         // the call site changed! Recompute the reachability of the caller, if we have computed it previously
         ProgramPointReplica callerSitePPR = this.g.lookupCallSiteReplicaDictionary(callSite);
-        OrderedPair<IMethod, Context> caller = new OrderedPair<IMethod, Context>(callerSitePPR.getPP()
-                                                                                              .getContainingProcedure(),
-                                                                                 callerSitePPR.getContext());
+        OrderedPair<IMethod, Context> caller = new OrderedPair<>(callerSitePPR.getPP().getContainingProcedure(),
+                                                                 callerSitePPR.getContext());
 
         int callerCGNode = g.lookupCallGraphNodeDictionary(caller);
         if (methodSummaryMemoization.containsKey(callerCGNode)) {

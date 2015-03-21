@@ -100,7 +100,7 @@ class CallSiteOrdering {
     private Set<ProgramPoint> getPreds(ProgramPoint pp) {
         Set<ProgramPoint> s = this.preds.get(pp);
         if (s == null) {
-            return Collections.EMPTY_SET;
+            return Collections.emptySet();
         }
         return s;
     }

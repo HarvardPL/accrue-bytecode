@@ -16,6 +16,7 @@ import analysis.AnalysisUtil;
 import analysis.ClassInitFinder;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
+import analysis.pointer.statements.ProgramPoint;
 import analysis.pointer.statements.StatementFactory;
 
 import com.ibm.wala.classLoader.IClass;
@@ -233,6 +234,8 @@ public class StatementRegistrationPass {
 
         }
         registrar.computeFakeRootOrdering();
+        registrar.setImportantProgramPoints(registrar.findOrCreateMethodSummary(registrar.getEntryPoint()),
+                                            new HashSet<ProgramPoint>());
 
         this.registrar.reportStats();
         if (PointsToAnalysis.outputLevel >= 1) {

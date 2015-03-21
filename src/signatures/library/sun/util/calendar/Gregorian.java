@@ -4,6 +4,7 @@ import java.util.TimeZone;
 
 import sun.util.calendar.CalendarDate;
 
+@SuppressWarnings("restriction")
 public class Gregorian extends sun.util.calendar.BaseCalendar {
     public Gregorian() {
     }

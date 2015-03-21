@@ -56,6 +56,11 @@ public class NullToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean isImportant() {
+        return result.isFlowSensitive();
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         if (!result.isFlowSensitive()) {
             return null;

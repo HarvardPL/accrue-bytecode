@@ -80,6 +80,11 @@ public class PhiStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean isImportant() {
+        return assignee.isFlowSensitive();
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         if (!assignee.isFlowSensitive()) {
             return null;

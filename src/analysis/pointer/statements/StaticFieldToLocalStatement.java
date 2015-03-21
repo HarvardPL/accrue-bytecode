@@ -68,6 +68,11 @@ public class StaticFieldToLocalStatement extends PointsToStatement {
     }
 
     @Override
+    public boolean isImportant() {
+        return true;
+    }
+
+    @Override
     public OrderedPair<Boolean, PointsToGraphNode> killsNode(Context context, PointsToGraph g) {
         if (!local.isFlowSensitive()) {
             return null;

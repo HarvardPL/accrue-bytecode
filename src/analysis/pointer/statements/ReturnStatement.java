@@ -86,4 +86,8 @@ public class ReturnStatement extends PointsToStatement {
         return result.hasLocalScope();
     }
 
+    @Override
+    public boolean isImportant() {
+        return false;
+    }
 }

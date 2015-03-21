@@ -114,6 +114,13 @@ public abstract class PointsToStatement {
     }
 
     /**
+     * Whether the program point for this statement needs to retained for search purposes.
+     * 
+     * @return
+     */
+    public abstract boolean isImportant();
+
+    /**
      * Return the field that this statement may kill.
      *
      * @return
@@ -207,10 +214,12 @@ public abstract class PointsToStatement {
      * @return false if the check fails and all the conditions required to perform the check hold
      */
     protected final boolean checkForNonEmpty(Set<InstanceKey> pointsToSet, PointsToGraphNode r, String description) {
-        if (PointsToAnalysis.DEBUG && PointsToAnalysis.outputLevel >= 6 && pointsToSet.isEmpty()) {
-            System.err.println("EMPTY: " + r + " in " + this + " " + description + " from "
-                    + PrettyPrinter.methodString(getMethod()));
-            return false;
+        if (PointsToAnalysis.DEBUG) {
+            if (PointsToAnalysis.outputLevel >= 6 && pointsToSet.isEmpty()) {
+                System.err.println("EMPTY: " + r + " in " + this + " " + description + " from "
+                        + PrettyPrinter.methodString(getMethod()));
+                return false;
+            }
         }
         return true;
     }

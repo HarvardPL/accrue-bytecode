@@ -17,6 +17,7 @@ import com.ibm.wala.util.intset.MutableIntSet;
  * This class is based on ConcurrentHashMap from the java.util.concurrency package, but is specialized for an int hash
  * set.
  */
+@SuppressWarnings("restriction")
 public class ConcurrentIntHashSet extends AbstractIntSet implements MutableIntSet {
 
     /* ---------------- Constants -------------- */

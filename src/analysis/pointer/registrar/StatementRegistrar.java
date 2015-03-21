@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -359,6 +360,9 @@ public class StatementRegistrar {
 
         // clean up graph
         cleanUpProgramPoints(methSumm, callExits);
+        if (ProgramPoint.TRACK_IMPORTANT) {
+            setImportantProgramPoints(methSumm, callExits);
+        }
 
         // now try to remove duplicates
         Set<PointsToStatement> oldStatements = this.getStatementsForMethod(m);
@@ -393,10 +397,6 @@ public class StatementRegistrar {
                 throw new RuntimeException();
             }
         }
-
-        // int[] stats = df.cleanUpProgramPoints();
-        // removedProgramPoints += stats[1];
-        // totalProgramPoints += stats[0] - stats[1];
 
         for (PointsToStatement stmt : newStatements) {
             if (stmt.programPoint() instanceof CallSiteProgramPoint) {
@@ -597,9 +597,9 @@ public class StatementRegistrar {
      * Remove unnecessary program points from the program point graph
      *
      * @param methSumm method summary nodes for this method (should not be removed)
-     * @param callExceptions exceptions at call sites (should not be removed)
+     * @param callExits program points for normal exit and exceptions at call-sites (should not be removed)
      */
-    private void cleanUpProgramPoints(MethodSummaryNodes methSumm, Set<ProgramPoint> callExceptions) {
+    private void cleanUpProgramPoints(MethodSummaryNodes methSumm, Set<ProgramPoint> callExits) {
         // try to clean up the program points. Let's first get a reverse mapping, and then check to see if there are any we can merge
         Map<ProgramPoint, Set<ProgramPoint>> preds = new HashMap<>();
 
@@ -647,8 +647,8 @@ public class StatementRegistrar {
                 // don't try to remove summary nodes
                 continue;
             }
-            if (callExceptions.contains(pp)) {
-                // don't remove program points for exceptions at call-sites
+            if (callExits.contains(pp)) {
+                // don't remove program points for call-site exits
                 continue;
             }
             if (catchEntries.contains(pp)) {
@@ -724,6 +724,84 @@ public class StatementRegistrar {
     }
 
     /**
+     * Remove program points that do not explicitly have important side effects from the important-program-point graph
+     *
+     * @param methSumm method summary nodes for this method (should not be removed)
+     * @param callExits program points for normal exit and exceptions at call-sites (should not be removed)
+     */
+    void setImportantProgramPoints(MethodSummaryNodes methSumm, Set<ProgramPoint> callExits) {
+        Set<ProgramPoint> visitedImportantNodes = new HashSet<>();
+        ArrayDeque<ProgramPoint> q = new ArrayDeque<>();
+        visitedImportantNodes.add(methSumm.getEntryPP());
+        q.add(methSumm.getEntryPP());
+        while (!q.isEmpty()) {
+            ProgramPoint current = q.poll();
+            totalImportantProgramPoints++;
+            // do a search from current to find the successor important program points.
+
+            // the unimportant nodes that are reachable from current without going through an important node (and also current).
+            Set<ProgramPoint> currentVisited = new HashSet<>();
+            ArrayDeque<ProgramPoint> currentQ = new ArrayDeque<>();
+            Set<ProgramPoint> currentImportantSuccs = new HashSet<>();
+            currentVisited.add(current);
+            currentQ.add(current);
+            while (!currentQ.isEmpty()) {
+                ProgramPoint c = currentQ.poll();
+                // get the (normal) successors of c
+                for (ProgramPoint d : c.succs()) {
+                    if (isImportant(d, callExits)) {
+                        currentImportantSuccs.add(d);
+                        if (visitedImportantNodes.add(d)) {
+                            q.add(d);
+                        }
+                    }
+                    else {
+                        if (currentVisited.add(d)) {
+                            currentQ.add(d);
+                        }
+                    }
+                }
+            }
+            // now currentImportantSuccs are the important successors of current.
+            current.setImportantSuccs(currentImportantSuccs);
+        }
+        assert visitedImportantNodes.contains(methSumm.getNormalExitPP())
+                || visitedImportantNodes.contains(methSumm.getExceptionExitPP()) : PrettyPrinter.methodString(methSumm.getEntryPP()
+                                                                                                               .getContainingProcedure());
+    }
+
+    private boolean isImportant(ProgramPoint pp, Set<ProgramPoint> callExits) {
+        if (getStmtAtPP(pp) != null) {
+            PointsToStatement stmt = getStmtAtPP(pp);
+            if (stmt.isImportant()) {
+                // this pp may kill or alloc something
+                return true;
+            }
+        }
+        if (pp.isEntrySummaryNode() || pp.isExceptionExitSummaryNode() || pp.isNormalExitSummaryNode()) {
+            // don't remove summary nodes
+            return true;
+        }
+        if (callExits.contains(pp)) {
+            // don't remove program points for call-site exits
+            return true;
+        }
+        if (catchEntries.contains(pp)) {
+            // do not remove the program point for an entry to a catch block (these are the "def" site for the formal)
+            return true;
+        }
+        if (pp instanceof CallSiteProgramPoint) {
+            // don't remove call sites
+            return true;
+        }
+        if (pp.getContainingProcedure().equals(getEntryPoint())) {
+            // don't remove any program points in the entry method
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * A listener that will get notified of newly created statements.
      */
     private StatementListener stmtListener = null;
@@ -732,6 +810,8 @@ public class StatementRegistrar {
     private static int removedStmts = 0;
     private static int removedProgramPoints = 0;
     private static int totalProgramPoints = 0;
+    private static int removedImportantProgramPoints = 0;
+    private static int totalImportantProgramPoints = 0;
 
     /**
      * Handle a particular instruction, this dispatches on the type of the instruction
@@ -1421,12 +1501,20 @@ public class StatementRegistrar {
     }
 
     public void reportStats() {
-        System.err.println("REGISTERED statements: " + (this.size + StatementRegistrar.removedStmts) + ", removed: "
-                + StatementRegistrar.removedStmts + ", effective: " + this.size + "\n           program points:  "
-                + (totalProgramPoints() + totalProgramPointsRemoved()) + ", removed: " + totalProgramPointsRemoved()
-                + ", effective: " + totalProgramPoints() + ", with stmt that may modify or use graph: "
-                + this.ppToStmtMap.size());
+        StringBuilder sb = new StringBuilder();
+        sb.append("REGISTERED statements: " + (this.size + StatementRegistrar.removedStmts) + ", removed: "
+                + StatementRegistrar.removedStmts + ", effective: " + this.size + "\n");
+        sb.append("\tprogram points:  " + totalProgramPoints() + ", removed: " + totalProgramPointsRemoved()
+                + ", effective: " + (totalProgramPoints() - totalProgramPointsRemoved())
+                + ", with stmt that may modify or use graph: " + this.ppToStmtMap.size() + "\n");
+        if (ProgramPoint.TRACK_IMPORTANT) {
+            sb.append("\tmaybe important program points:  " + totalProgramPoints() + ", removed: "
+                    + (totalProgramPoints() - totalImportantProgramPoints()) + ", important: "
+                    + totalImportantProgramPoints() + " RATIO: "
+                    + ((double) totalImportantProgramPoints() / (double) totalProgramPoints()) + "\n");
+        }
 
+        System.err.print(sb.toString());
     }
 
     /**
@@ -2033,6 +2121,20 @@ public class StatementRegistrar {
      */
     public static int totalProgramPointsRemoved() {
         return removedProgramPoints;
+    }
+
+    /**
+     * Total number of important (kill, alloc, call, control-flow relevant) program points
+     */
+    public static int totalImportantProgramPoints() {
+        return totalImportantProgramPoints;
+    }
+
+    /**
+     * Total number of unimportant (not kill, alloc, call, or control-flow relevant) program points that were removed
+     */
+    public static int totalImportantProgramPointsRemoved() {
+        return removedImportantProgramPoints;
     }
 
     /**

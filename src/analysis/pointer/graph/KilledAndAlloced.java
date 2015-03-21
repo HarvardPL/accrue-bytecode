@@ -260,6 +260,7 @@ public abstract class KilledAndAlloced {
      * A thread-safe version of KilledAndAlloced, which is used for any KilledAndAlloced that may be accessed
      * concurrently.
      */
+    @SuppressWarnings("restriction")
     public static class ThreadSafeKilledAndAlloced extends KilledAndAlloced {
         private volatile boolean isUnreachable = true;
         private volatile boolean isEmpty = false;

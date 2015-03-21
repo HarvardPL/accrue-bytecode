@@ -167,7 +167,12 @@ public abstract class CallStatement extends PointsToStatement {
 
     @Override
     public boolean mayKillNode(Context context, PointsToGraph g) {
-        return result.isFlowSensitive();
+        return result != null && result.isFlowSensitive();
+    }
+
+    @Override
+    public boolean isImportant() {
+        return result != null && result.isFlowSensitive();
     }
 
     /**
