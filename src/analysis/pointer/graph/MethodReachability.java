@@ -2,7 +2,6 @@ package analysis.pointer.graph;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import util.OrderedPair;
 import util.WorkQueue;
@@ -220,9 +219,8 @@ public class MethodReachability {
             assert !inputFact.isUnreachable() : "Program point " + ipp + " appears to be unreachable";
 
             if (ipp instanceof PostProgramPoint) {
-                Set<ProgramPoint> ppSuccs = pp.succs();
                 // Add all the relevant successor program points
-                for (ProgramPoint succ : ppSuccs) {
+                for (ProgramPoint succ : pp.succs()) {
                     ThreadLocalKilledAndAlloced succResults = getOrCreate(facts, succ.pre());
                     if (succResults.meet(inputFact)) {
                         // the successor's results changed.
