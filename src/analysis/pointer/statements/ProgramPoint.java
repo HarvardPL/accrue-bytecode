@@ -1,10 +1,9 @@
 package analysis.pointer.statements;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
-
-import analysis.AnalysisUtil;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
@@ -28,11 +27,11 @@ public class ProgramPoint {
      */
     private boolean isDiscarded = false;
 
-    private Set<ProgramPoint> succs;
+    private ArrayList<ProgramPoint> succs;
     /**
      * Successors that affect control-flow are method calls or have a possible kill or alloc effect
      */
-    private Set<ProgramPoint> importantSuccs;
+    private ArrayList<ProgramPoint> importantSuccs;
 
     private static int generator;
 
@@ -70,17 +69,23 @@ public class ProgramPoint {
         return this.containingProcedure;
     }
 
-    public Set<ProgramPoint> succs() {
+    public Collection<ProgramPoint> succs() {
         if (this.succs == null) {
             return Collections.emptySet();
         }
         return this.succs;
     }
 
+    public void compactSuccs() {
+        if (this.succs != null) {
+            this.succs.trimToSize();
+        }
+    }
+
     /**
      * Successors that affect control-flow are method calls or have a possible kill or alloc effect
      */
-    public Set<ProgramPoint> importantSuccs() {
+    public Collection<ProgramPoint> importantSuccs() {
         if (!TRACK_IMPORTANT) {
             return this.succs();
         }
@@ -95,12 +100,18 @@ public class ProgramPoint {
      * Set the successors that affect control-flow are method calls or have a possible kill or alloc effect
      */
     public void setImportantSuccs(Set<ProgramPoint> importantSuccs) {
-        this.importantSuccs = importantSuccs;
+        this.importantSuccs = new ArrayList<>(importantSuccs);
     }
 
     public boolean addSucc(ProgramPoint succ) {
         if (this.succs == null) {
-            this.succs = AnalysisUtil.createConcurrentSet();
+            this.succs = new ArrayList<>();
+            this.succs.add(succ);
+            return true;
+        }
+        // maintain a set-like discipline
+        if (this.succs.contains(succ)) {
+            return false;
         }
         return this.succs.add(succ);
     }

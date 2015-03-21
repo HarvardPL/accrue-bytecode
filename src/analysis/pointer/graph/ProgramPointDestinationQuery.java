@@ -1,6 +1,7 @@
 package analysis.pointer.graph;
 
 import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -415,7 +416,7 @@ public final class ProgramPointDestinationQuery {
                 if (DEBUG2) {
                     System.err.println("PPDQ%% \t\t\tPOST: " + ipp);
                 }
-                Set<ProgramPoint> ppSuccs;
+                Collection<ProgramPoint> ppSuccs;
                 if (isSourceOrDest) {
                     ppSuccs = pp.succs();
                 }

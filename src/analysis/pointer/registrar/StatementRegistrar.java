@@ -349,7 +349,7 @@ public class StatementRegistrar {
             }
             if (first != null) {
                 // Some program points were added
-                Set<ProgramPoint> succs = entry.succs();
+                Collection<ProgramPoint> succs = entry.succs();
                 entry.clearSuccs();
                 entry.addSucc(first);
                 // prev is now the last pp added
@@ -745,8 +745,13 @@ public class StatementRegistrar {
             Set<ProgramPoint> currentImportantSuccs = new HashSet<>();
             currentVisited.add(current);
             currentQ.add(current);
+
             while (!currentQ.isEmpty()) {
                 ProgramPoint c = currentQ.poll();
+
+                // tidy up the successors while we're at it.
+                c.compactSuccs();
+
                 // get the (normal) successors of c
                 for (ProgramPoint d : c.succs()) {
                     if (isImportant(d, callExits)) {
@@ -2533,7 +2538,7 @@ public class StatementRegistrar {
         void replaceEntryWithCallSitePP(CallSiteProgramPoint cspp) {
             assert (this.entry != this.normExit) : "Should be an exception PP at this point.";
 
-            Set<ProgramPoint> succs = this.entry.succs();
+            Collection<ProgramPoint> succs = this.entry.succs();
             this.entry = cspp;
             this.entry.addSuccs(succs);
         }
