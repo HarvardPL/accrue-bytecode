@@ -242,8 +242,8 @@ public final class ProgramPointReachability {
                     }
                     else {
                         // we got a rare race condition, where after adding the dependency
-                        // result change from positive to negative.
-                        // Just left done remain false, so that we re-check the positive cache.
+                        // the result change from negative to positive.
+                        // Set done to false, so that we re-check the positive cache.
                         done = false;
                     }
                 }
