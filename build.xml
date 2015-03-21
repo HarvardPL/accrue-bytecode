@@ -50,7 +50,8 @@
 	<target name="build-subprojects"/>
 	<target depends="init" name="build-project">
 		<echo message="${ant.project.name}: ${ant.file}"/>
-		<javac debug="true" debuglevel="${debuglevel}" destdir="classes" includeantruntime="false" source="${source}" target="${target}">
+		<javac debug="true" debuglevel="${debuglevel}" destdir="classes" includeantruntime="false" source="${source}" target="${target}" >
+			<compilerarg line="-XDignore.symbol.file"/>
 			<src path="src"/>
 			<src path="test"/>
 			<src path="generated-sources"/>
