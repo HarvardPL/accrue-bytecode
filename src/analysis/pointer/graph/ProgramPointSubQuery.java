@@ -161,6 +161,103 @@ public final class ProgramPointSubQuery {
     @Override
     public String toString() {
         return source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc + ", forbidden="
-                + forbidden;
+                + forbidden + ", origin=" + origin + ", expired=" + expired;
+    }
+
+    /**
+     * Key used to cache the results of a query. This key does not use the origin since the result does not depend on the origin.
+     */
+    @SuppressWarnings("synthetic-access")
+    public QueryCacheKey getCacheKey() {
+        return new QueryCacheKey(source, destination, noKill, noAlloc, forbidden);
+    }
+
+    public static class QueryCacheKey {
+        final InterProgramPointReplica source;
+        final InterProgramPointReplica destination;
+        final/*Set<PointsToGraphNode>*/IntSet noKill;
+        final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
+        final Set<InterProgramPointReplica> forbidden;
+        private final int hashcode;
+
+        /**
+         * Create a new sub query from source to destination
+         *
+         * @param source program point to search from
+         * @param destination program point to find
+         * @param noKill points-to graph nodes that must not be killed on a valid path from source to destination
+         * @param noAlloc instance key that must not be allocated on a valid path from source to destination
+         * @param forbidden program points that must not be traversed on a valid path from source to destination
+         * @param origin Reachability query origin that triggered this subquery
+         */
+        private QueryCacheKey(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
+                              IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
+                              Set<InterProgramPointReplica> forbidden) {
+            this.source = source;
+            this.destination = destination;
+            this.noKill = noKill;
+            this.noAlloc = noAlloc;
+            this.forbidden = forbidden;
+            this.hashcode = computeHashCode();
+        }
+
+        /**
+         * compute memoized hashcode
+         *
+         * @return hashcode
+         */
+        private int computeHashCode() {
+            final int prime = 31;
+            int result = destination.hashCode();
+            result = prime * result + source.hashCode();
+            result = prime * result + noAlloc.size();
+            result = prime * result + noKill.size();
+            result = prime * result + forbidden.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof ProgramPointSubQuery)) {
+                return false;
+            }
+            ProgramPointSubQuery other = (ProgramPointSubQuery) obj;
+            if (!source.equals(other.source)) {
+                return false;
+            }
+            if (!destination.equals(other.destination)) {
+                return false;
+            }
+            if (noAlloc.isEmpty() != other.noAlloc.isEmpty()) {
+                return false;
+            }
+            if (!noAlloc.sameValue(other.noAlloc)) {
+                return false;
+            }
+            if (noKill.isEmpty() != other.noKill.isEmpty()) {
+                return false;
+            }
+            if (!noKill.sameValue(other.noKill)) {
+                return false;
+            }
+            if (!forbidden.equals(other.forbidden)) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashcode;
+        }
+
+        @Override
+        public String toString() {
+            return source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc + ", forbidden="
+                    + forbidden;
+        }
     }
 }
