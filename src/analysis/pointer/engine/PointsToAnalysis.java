@@ -68,11 +68,11 @@ public abstract class PointsToAnalysis {
         /**
          * Code context
          */
-        final Context context;
+        public final Context context;
         /**
          * Points-to statement
          */
-        final PointsToStatement stmt;
+        public final PointsToStatement stmt;
 
         /**
          * Combination of a points-to statement and a code context

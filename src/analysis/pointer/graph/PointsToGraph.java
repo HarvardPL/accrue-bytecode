@@ -498,12 +498,12 @@ public final class PointsToGraph {
         return n;
     }
 
-    ProgramPointReplica lookupCallSiteReplicaDictionary(int key) {
+    public ProgramPointReplica lookupCallSiteReplicaDictionary(int key) {
         assert this.callSiteReplicaDictionary.containsKey(key) : "No replica for " + key;
         return this.callSiteReplicaDictionary.get(key);
     }
 
-    int lookupCallSiteReplicaDictionary(ProgramPointReplica key) {
+    public int lookupCallSiteReplicaDictionary(ProgramPointReplica key) {
         assert key.getPP() instanceof CallSiteProgramPoint : key + " is not a call site replica.";
         Integer n = this.reverseCallSiteReplicaDictionary.get(key);
         if (n == null) {
