@@ -479,7 +479,9 @@ public final class ProgramPointReachability {
                 // we previously thought it was negative.
                 queryResultChanged(key);
             }
-            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+            if (PRINT_DIAGNOSTICS) {
+                recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+            }
             return true;
         }
 
@@ -492,10 +494,14 @@ public final class ProgramPointReachability {
                 queryResultChanged(key);
             }
             // A positive result has already been computed return it
-            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+            if (PRINT_DIAGNOSTICS) {
+                recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+            }
             return true;
         }
-        recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+        if (PRINT_DIAGNOSTICS) {
+            recordResultsTime.addAndGet(System.currentTimeMillis() - start);
+        }
         return false;
     }
 
@@ -1042,7 +1048,9 @@ public final class ProgramPointReachability {
         if (sq.isExpired()) {
             if (!sq.isCacheRepresentative()) {
                 // Don't rerun expired queries unless other queries are relying on the results
-                numExpired.incrementAndGet();
+                if (PRINT_DIAGNOSTICS) {
+                    numExpired.incrementAndGet();
+                }
                 return;
             }
             QueryCacheKey key = sq.getCacheKey();
@@ -1064,11 +1072,8 @@ public final class ProgramPointReachability {
                 int dep = iter.next();
                 ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
                 if (!depQuery.isExpired()) {
-                    // At least one of the dependencies has not yet expired. Rerun the query.
-                    IntIterator remove = toRemove.intIterator();
-                    while (remove.hasNext()) {
-                        deps.remove(remove.next());
-                    }
+                    // At least one of the dependencies has not yet expired.
+                    // We definitely need to rerun the query.
                     rerun = true;
                     break;
                 }
@@ -1082,27 +1087,38 @@ public final class ProgramPointReachability {
                 deps.remove(remove.next());
             }
 
-            // All of the dependencies are expired
-            // Make sure there isn't a race where something adds itself as a dependency here
+            if (!rerun) {
+                // As far as we know, all of the dependencies are expired.
+                // But there may have been races, if something added itself to the dependencies
+                // while we were checking.
 
-            // remove from negative cache so that any newly arrived query will be sure to execute
-            negativeCache.remove(key);
+                // So, we will remove the key from the negative cache (so that any newly arriving
+                // queries will be sure to execute), and remove the dependencies to make sure
+                // that we are checking them thoroughly.
+                negativeCache.remove(key);
 
-            // Remove the dependencies and double check that they are all expired
-            MutableIntSet deps2 = queryDependencies.remove(sq.getCacheKey());
-            /*Iterator<ProgramPointSubQuery>*/IntIterator iter2 = deps2.intIterator();
-            while (iter2.hasNext()) {
-                int dep = iter2.next();
-                ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
-                if (!depQuery.isExpired()) {
-                    // At least one of the new dependencies has not yet expired.
-                    // Add all the dependencies back and rerun the query
-                    IntIterator iter3 = deps2.intIterator();
-                    while (iter3.hasNext()) {
-                        addQueryDependency(key, iter3.next());
+                // Remove the dependencies and double check that they are all expired
+                deps = queryDependencies.remove(sq.getCacheKey());
+                if (deps != null) {
+                    /*Iterator<ProgramPointSubQuery>*/IntIterator iter2 = deps.intIterator();
+                    while (iter2.hasNext()) {
+                        int dep = iter2.next();
+                        ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
+                        if (!depQuery.isExpired()) {
+                            // At least one of the new dependencies has not yet expired.
+
+                            // add it back to the negative cache...
+                            negativeCache.add(key);
+
+                            // Add all the dependencies back and rerun the query
+                            IntIterator iter3 = deps.intIterator();
+                            while (iter3.hasNext()) {
+                                addQueryDependency(key, iter3.next());
+                            }
+                            rerun = true;
+                            break;
+                        }
                     }
-                    rerun = true;
-                    break;
                 }
             }
 
