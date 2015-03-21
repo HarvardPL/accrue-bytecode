@@ -194,13 +194,13 @@ public final class ProgramPointReachability {
         // check the caches
         List<InterProgramPointReplica> unknown = new ArrayList<>(sources.size());
         for (InterProgramPointReplica src : sources) {
-            int mr = ProgramPointSubQuery.lookupDictionary(src,
-                                                           destination,
-                                                           noKill,
-                                                           noAlloc,
-                                                           forbidden,
-                                                           origin);
-            QueryCacheKey key = ProgramPointSubQuery.lookupDictionary(mr).getCacheKey();
+            int currentQuery = ProgramPointSubQuery.lookupDictionary(src,
+                                                                     destination,
+                                                                     noKill,
+                                                                     noAlloc,
+                                                                     forbidden,
+                                                                     origin);
+            QueryCacheKey key = ProgramPointSubQuery.lookupDictionary(currentQuery).getCacheKey();
             boolean foundInCache = false;
             boolean done;
             do {
@@ -232,7 +232,7 @@ public final class ProgramPointReachability {
                     // a dependency before getting a hit in the negative cache, in order
                     // to make sure the dependency is registered before the cache is updated.
                     // So after adding the dependency we check the cache again.
-                    addQueryDependency(key, origin);
+                    addQueryDependency(key, currentQuery);
                     if (this.negativeCache.contains(key)) {
                         // We know it's a negative result for this one, keep looking
                         if (DEBUG) {
@@ -388,14 +388,15 @@ public final class ProgramPointReachability {
         // try to solve it for each source.
         for (InterProgramPointReplica src : sources) {
             int queryInt = ProgramPointSubQuery.lookupDictionary(src, destination, noKill, noAlloc, forbidden, origin);
-            QueryCacheKey key = ProgramPointSubQuery.lookupDictionary(queryInt).getCacheKey();
+            ProgramPointSubQuery query = ProgramPointSubQuery.lookupDictionary(queryInt);
+            QueryCacheKey key = query.getCacheKey();
             if (PRINT_DIAGNOSTICS) {
                 totalDestQuery.incrementAndGet();
             }
 
             if (positiveCache.contains(key)) {
                 // The result was computed by another thread before this thread ran
-                recordQueryResult(key, origin, true);
+                recordQueryResult(queryInt, true);
                 if (PRINT_DIAGNOSTICS) {
                     cachedDestQuery.incrementAndGet();
                 }
@@ -408,6 +409,8 @@ public final class ProgramPointReachability {
                 startDest = System.currentTimeMillis();
             }
 
+            // This query will be awakened on a change and is responsible for notifying any dependencies
+            query.setCacheRepresentative(true);
             boolean found = prq.executeSubQuery(src, origin);
 
             if (PRINT_DIAGNOSTICS) {
@@ -416,7 +419,7 @@ public final class ProgramPointReachability {
             }
 
             if (found) {
-                recordQueryResult(key, origin, true);
+                recordQueryResult(queryInt, true);
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + sources + " -> " + destination);
                     System.err.println("PPR%%\ttrue because query returned true");
@@ -431,7 +434,7 @@ public final class ProgramPointReachability {
                 System.err.println("PPR%%\t" + sources + " -> " + destination);
                 System.err.println("PPR%%\tfalse because query returned false");
             }
-            if (recordQueryResult(key, origin, false)) {
+            if (recordQueryResult(queryInt, false)) {
                 // We computed false, but the cache already had true
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + sources + " -> " + destination);
@@ -466,8 +469,10 @@ public final class ProgramPointReachability {
      * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
      *         the cache already has a positive result.
      */
-    private boolean recordQueryResult(QueryCacheKey key, ReachabilityQueryOrigin origin, boolean b) {
+    private boolean recordQueryResult(/*ProgramPointSubQuery*/int query, boolean b) {
         long start = System.currentTimeMillis();
+        ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(query);
+        QueryCacheKey key = sq.getCacheKey();
         if (b) {
             positiveCache.add(key);
             if (negativeCache.remove(key)) {
@@ -479,10 +484,13 @@ public final class ProgramPointReachability {
         }
 
         // Recording a false result
-        addQueryDependency(key, origin);
+        addQueryDependency(key, query);
         negativeCache.add(key);
         if (positiveCache.contains(key)) {
-            this.negativeCache.remove(key);
+            if (negativeCache.remove(key)) {
+                // we previously thought it was negative.
+                queryResultChanged(key);
+            }
             // A positive result has already been computed return it
             recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
@@ -492,29 +500,25 @@ public final class ProgramPointReachability {
     }
 
     /**
-     * Add a dependency that originatingSaC depends on the result of query.
+     * Add a dependency that the origin in a query depends on the result of query.
      *
-     * @param query
-     * @param origin to be triggered if the query results change
+     * @param key key into the cache for which results may change
+     * @param query containing the origin to be triggered if the query results change
      */
-    private void addQueryDependency(QueryCacheKey key, ReachabilityQueryOrigin origin) {
+    private void addQueryDependency(QueryCacheKey key, /*ProgramPointSubQuery*/int query) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
         }
-        if (origin == null) {
-            // nothing to do
-            return;
-        }
-        Set<ReachabilityQueryOrigin> deps = this.queryDependencies.get(key);
+        /*Set<ProgramPointSubQuery>*/MutableIntSet deps = this.queryDependencies.get(key);
         if (deps == null) {
-            deps = AnalysisUtil.createConcurrentSet();
-            Set<ReachabilityQueryOrigin> existing = queryDependencies.putIfAbsent(key, deps);
+            deps = AnalysisUtil.createConcurrentIntSet();
+            MutableIntSet existing = queryDependencies.putIfAbsent(key, deps);
             if (existing != null) {
                 deps = existing;
             }
         }
-        deps.add(origin);
+        deps.add(query);
         if (PRINT_DIAGNOSTICS) {
             queryDepTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -648,7 +652,7 @@ public final class ProgramPointReachability {
      * @param callGraphNode
      */
     void addMethodResultQueryDependency(/*ProgramPointSubQuery*/int query, /*OrderedPair<IMethod, Context>*/
-                                  int callGraphNode) {
+                                        int callGraphNode) {
         long start = 0L;
         if (PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -689,7 +693,7 @@ public final class ProgramPointReachability {
         if (s == null) {
             s = AnalysisUtil.createConcurrentIntSet();
             MutableIntSet existing = m.putIfAbsent(destCallGraphNode, s);
-            if (existing!=null) {
+            if (existing != null) {
                 s = existing;
             }
         }
@@ -821,7 +825,7 @@ public final class ProgramPointReachability {
     public void addApproximateFieldAssign(StmtAndContext fieldAssign) {
         assert fieldAssign.stmt instanceof LocalToFieldStatement;
         ReferenceVariableReplica killDep = fieldAssign.stmt.getReadDependencyForKillField(fieldAssign.context,
-                                                                                           g.getHaf());
+                                                                                          g.getHaf());
         int killDepInt = g.lookupDictionary(killDep);
         this.methodReachability.addApproximateFieldAssign(killDepInt);
 
@@ -945,8 +949,8 @@ public final class ProgramPointReachability {
     /**
      * Reachability origins that depend on a particular cached value
      */
-    // ConcurrentMap<ProgramPointSubQuery, Set<ReachabilityQueryOrigin>>
-    private final ConcurrentMap<QueryCacheKey, Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentHashMap();
+    // ConcurrentMap<QueryCacheKey, Set<ProgramPointSubQuery>>
+    private final ConcurrentMap<QueryCacheKey, MutableIntSet> queryDependencies = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * The result of the query changed, from negative to positive. Make sure to reprocess any StmtAndContexts that
@@ -958,7 +962,7 @@ public final class ProgramPointReachability {
 
         // since the query is positive, it will never change in the future.
         // Let's save some memory by removing the set of dependent SaCs.
-        Set<ReachabilityQueryOrigin> deps = this.queryDependencies.remove(key);
+        /*Set<ProgramPointSubQuery>*/MutableIntSet deps = this.queryDependencies.remove(key);
         if (deps == null) {
             if (DEBUG) {
                 System.err.println("NO DEPS " + key);
@@ -967,17 +971,16 @@ public final class ProgramPointReachability {
             return;
         }
 
-        if (deps.isEmpty()) {
-            if (DEBUG) {
+        if (DEBUG) {
+            if (deps.isEmpty()) {
                 System.err.println("\tEMPTY DEPS");
             }
         }
 
         // immediately execute the tasks that depended on this.
-        for (ReachabilityQueryOrigin task : deps) {
-            if (DEBUG) {
-                System.err.println("\tDEP: " + task);
-            }
+        IntIterator iter = deps.intIterator();
+        while (iter.hasNext()) {
+            ReachabilityQueryOrigin task = ProgramPointSubQuery.lookupDictionary(iter.next()).origin;
             task.trigger(this.analysisHandle);
         }
     }
@@ -1037,11 +1040,88 @@ public final class ProgramPointReachability {
 
     public void processSubQuery(ProgramPointSubQuery sq) {
         if (sq.isExpired()) {
-            // Don't rerun expired queries
-            numExpired.incrementAndGet();
-            return;
+            if (!sq.isCacheRepresentative()) {
+                // Don't rerun expired queries unless other queries are relying on the results
+                numExpired.incrementAndGet();
+                return;
+            }
+            QueryCacheKey key = sq.getCacheKey();
+
+            // Other queries may be relying on the results of this one since it is the representative in the negative cache
+            MutableIntSet deps = queryDependencies.get(key);
+            if (deps == null) {
+                // no dependencies
+                return;
+            }
+
+            // Whether the query should be rerun even though it is expired
+            boolean rerun = false;
+
+            /*Iterator<ProgramPointSubQuery>*/IntIterator iter = deps.intIterator();
+            // Set of expired queries to remove when iteration is done
+            MutableIntSet toRemove = MutableSparseIntSet.makeEmpty();
+            while (iter.hasNext()) {
+                int dep = iter.next();
+                ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
+                if (!depQuery.isExpired()) {
+                    // At least one of the dependencies has not yet expired. Rerun the query.
+                    IntIterator remove = toRemove.intIterator();
+                    while (remove.hasNext()) {
+                        deps.remove(remove.next());
+                    }
+                    rerun = true;
+                    break;
+                }
+                // no need to keep expired dependencies
+                toRemove.add(dep);
+            }
+
+            // Remove expired dependencies
+            IntIterator remove = toRemove.intIterator();
+            while (remove.hasNext()) {
+                deps.remove(remove.next());
+            }
+
+            // All of the dependencies are expired
+            // Make sure there isn't a race where something adds itself as a dependency here
+
+            // remove from negative cache so that any newly arrived query will be sure to execute
+            negativeCache.remove(key);
+
+            // Remove the dependencies and double check that they are all expired
+            MutableIntSet deps2 = queryDependencies.remove(sq.getCacheKey());
+            /*Iterator<ProgramPointSubQuery>*/IntIterator iter2 = deps2.intIterator();
+            while (iter2.hasNext()) {
+                int dep = iter2.next();
+                ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
+                if (!depQuery.isExpired()) {
+                    // At least one of the new dependencies has not yet expired.
+                    // Add all the dependencies back and rerun the query
+                    IntIterator iter3 = deps2.intIterator();
+                    while (iter3.hasNext()) {
+                        addQueryDependency(key, iter3.next());
+                    }
+                    rerun = true;
+                    break;
+                }
+            }
+
+            if (!rerun) {
+                // At this point the query is no longer in the cache and any dependencies were expired.
+                // No need to rerun the query and this query is no longer responsible for notifying dependencies of any change.
+                // Whoever recomputes the result will notify the dependencies
+                // We are basically starting over as if the query was never computed
+                sq.setCacheRepresentative(false);
+
+                return;
+            }
         }
-        this.computeQuery(Collections.singleton(sq.source), sq.destination, sq.noKill, sq.noAlloc, sq.forbidden, sq.origin);
+        this.computeQuery(Collections.singleton(sq.source),
+                          sq.destination,
+                          sq.noKill,
+                          sq.noAlloc,
+                          sq.forbidden,
+                          sq.origin);
     }
 
     /**
@@ -1113,8 +1193,7 @@ public final class ProgramPointReachability {
                 + (int) (100 * (cachedResponses.floatValue() / (cachedResponses.floatValue() + computedResponses.floatValue())))
                 + "% hit rate)\n");
         sb.append("Total getReachabilityForMethod requests: " + totalMethodReach + "  ;  " + cachedMethodReach
-                + "  cached "
-                + computedMethodReach + " computed ("
+                + "  cached " + computedMethodReach + " computed ("
                 + (int) (100 * (cachedMethodReach.floatValue() / totalMethodReach.floatValue())) + "% hit rate)\n");
         sb.append("Total computeMethodReachability calls: " + totalComputeMethodReachability + "\n");
         sb.append("Total subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery + "  races "

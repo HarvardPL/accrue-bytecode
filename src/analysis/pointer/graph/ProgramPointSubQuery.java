@@ -20,7 +20,15 @@ public final class ProgramPointSubQuery {
     final/*Set<InstanceKeyRecency>*/IntSet noAlloc;
     final Set<InterProgramPointReplica> forbidden;
     final ReachabilityQueryOrigin origin;
+    /**
+     * An expired query does not need to run since the origin already evaluated to true
+     */
     private volatile boolean expired;
+    /**
+     * Is this query the query that represents the set of queries with the same (src, dest, noKill, noAlloc, forbidden)
+     * in the cache? If so it is responsible for notifying dependencies if the query result changes.
+     */
+    private volatile boolean cacheRepresentative = false;
     private final int hashcode;
     private final QueryCacheKey cacheKey;
     private static AtomicInteger counter = new AtomicInteger(0);
@@ -37,6 +45,7 @@ public final class ProgramPointSubQuery {
      * @param forbidden program points that must not be traversed on a valid path from source to destination
      * @param origin Reachability query origin that triggered this subquery
      */
+    @SuppressWarnings("synthetic-access")
     private ProgramPointSubQuery(InterProgramPointReplica source, InterProgramPointReplica destination, /*Set<PointsToGraphNode>*/
                                  IntSet noKill, final/*Set<InstanceKeyRecency>*/IntSet noAlloc,
                                  Set<InterProgramPointReplica> forbidden, ReachabilityQueryOrigin origin) {
@@ -161,6 +170,26 @@ public final class ProgramPointSubQuery {
         this.expired = true;
     }
 
+    /**
+     * Is this query the query that represents the set of queries with the same (src, dest, noKill, noAlloc, forbidden)
+     * in the negative result cache? This means that it is responsible for making sure to rerun and notify on change if
+     * there are any other queries (with the same parameters) relying on the results of this query even if this
+     * particular query (with its unique origin) has expired.
+     */
+    public boolean isCacheRepresentative() {
+        return this.cacheRepresentative;
+    }
+
+    /**
+     * Set whether this query is the query that represents the set of queries with the same (src, dest, noKill, noAlloc,
+     * forbidden) in the negative result cache. This means that it is responsible for making sure to rerun and notify on
+     * change if there are any other queries (with the same parameters) relying on the results of this query even if
+     * this particular query (with its unique origin) has expired.
+     */
+    public void setCacheRepresentative(boolean isCacheRepresentative) {
+        this.cacheRepresentative = isCacheRepresentative;
+    }
+
     @Override
     public String toString() {
         return source + " => " + destination + ", noKill=" + noKill + ", noAlloc=" + noAlloc + ", forbidden="
@@ -171,7 +200,6 @@ public final class ProgramPointSubQuery {
      * Key used to cache the results of a query. This key does not use the origin since the result pf the query does not
      * depend on the origin.
      */
-    @SuppressWarnings("synthetic-access")
     public QueryCacheKey getCacheKey() {
         return cacheKey;
     }
