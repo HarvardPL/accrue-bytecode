@@ -201,33 +201,55 @@ public final class ProgramPointReachability {
                                                            forbidden,
                                                            origin);
             QueryCacheKey key = ProgramPointSubQuery.lookupDictionary(mr).getCacheKey();
-            if (this.positiveCache.contains(key)) {
-                // We have already computed that the destination is reachable from src
-                if (PRINT_DIAGNOSTICS) {
-                    cachedResponses.incrementAndGet();
-                }
-                for (InterProgramPointReplica s : sources) {
-                    int query = ProgramPointSubQuery.lookupDictionary(s,
-                                                                      destination,
-                                                                      noKill,
-                                                                      noAlloc,
-                                                                      forbidden,
-                                                                      origin);
+            boolean foundInCache = false;
+            boolean done;
+            do {
+                // Be default, we will do this loop once, but in a certain race
+                // we may need to run it again.
+                done = true;
 
-                    ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(query);
-                    sq.setExpired();
-                }
+                if (this.positiveCache.contains(key)) {
+                    // We have already computed that the destination is reachable from src
+                    if (PRINT_DIAGNOSTICS) {
+                        cachedResponses.incrementAndGet();
+                    }
+                    for (InterProgramPointReplica s : sources) {
+                        int query = ProgramPointSubQuery.lookupDictionary(s,
+                                                                          destination,
+                                                                          noKill,
+                                                                          noAlloc,
+                                                                          forbidden,
+                                                                          origin);
 
-                return true;
-            }
-            addQueryDependency(key, origin);
-            if (this.negativeCache.contains(key)) {
-                // We know it's a negative result for this one, keep looking
-                if (DEBUG) {
-                    System.err.println("PPR%%negative cache " + src + " -> " + destination);
+                        ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(query);
+                        sq.setExpired();
+                    }
+
+                    return true;
                 }
-            }
-            else {
+                if (this.negativeCache.contains(key)) {
+                    // it's a negative result! But we need ot have added
+                    // a dependency before getting a hit in the negative cache, in order
+                    // to make sure the depedency is registered before the cache is updated.
+                    addQueryDependency(key, origin);
+                    // to avoid races, check the cache again
+                    if (this.negativeCache.contains(key)) {
+                        // We know it's a negative result for this one, keep looking
+                        if (DEBUG) {
+                            System.err.println("PPR%%negative cache " + src + " -> " + destination);
+                        }
+                        foundInCache = true;
+                    }
+                    else {
+                        // we got a rare race condition, where after adding the dependency
+                        // result change from positive to negative.
+                        // Just left done remain false, so that we re-check the positive cache.
+                        done = false;
+                    }
+                }
+            } while (!done);
+
+            if (!foundInCache) {
                 unknown.add(src);
             }
         }
