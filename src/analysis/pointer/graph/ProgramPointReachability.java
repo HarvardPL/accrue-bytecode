@@ -764,7 +764,7 @@ public final class ProgramPointReachability {
         ProgramPointReplica callSiteRep = g.lookupCallSiteReplicaDictionary(callSite);
         int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(callSiteRep.getPP().getContainingProcedure(),
                                                                        callSiteRep.getContext()));
-        MutableIntSet queries = calleeQueryDependencies.get(caller);
+        MutableIntSet queries = calleeQueryDependencies.remove(caller);
         if (queries != null) {
             IntIterator iter = queries.intIterator();
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
@@ -799,7 +799,7 @@ public final class ProgramPointReachability {
         ProgramPointReplica callSiteRep = g.lookupCallSiteReplicaDictionary(callSite);
         int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(callSiteRep.getPP().getContainingProcedure(),
                                                                        callSiteRep.getContext()));
-        MutableIntSet queries = calleeQueryDependencies.get(caller);
+        MutableIntSet queries = calleeQueryDependencies.remove(caller);
         if (queries != null) {
             IntIterator iter = queries.intIterator();
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
@@ -835,7 +835,7 @@ public final class ProgramPointReachability {
         int killDepInt = g.lookupDictionary(killDep);
         this.methodReachability.addApproximateFieldAssign(killDepInt);
 
-        MutableIntSet queries = killQueryDependencies.get(killDepInt);
+        MutableIntSet queries = killQueryDependencies.remove(killDepInt);
         if (queries != null) {
             IntIterator iter = queries.intIterator();
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
@@ -868,7 +868,7 @@ public final class ProgramPointReachability {
      * @param callSite
      */
     private void callerAddedTo(/*OrderedPair<IMethod, Context>*/int callGraphNode) {
-        MutableIntSet queries = callerQueryDependencies.get(callGraphNode);
+        MutableIntSet queries = callerQueryDependencies.remove(callGraphNode);
         if (queries != null) {
             IntIterator iter = queries.intIterator();
             MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);
@@ -906,7 +906,7 @@ public final class ProgramPointReachability {
                 }
             }
 
-            ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
+            ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.remove(cgNode);
             if (m != null) {
                 IntIterator changedTunnels = changes.changedTunnels().intIterator();
                 while (changedTunnels.hasNext()) {
@@ -1017,7 +1017,7 @@ public final class ProgramPointReachability {
         IntIterator domainIter = delta.domainIterator();
         while (domainIter.hasNext()) {
             int n = domainIter.next();
-            MutableIntSet queries = killQueryDependencies.get(n);
+            MutableIntSet queries = killQueryDependencies.remove(n);
             if (queries != null) {
                 IntIterator iter = queries.intIterator();
                 MutableIntSet toRemove = MutableSparseIntSet.createMutableSparseIntSet(2);

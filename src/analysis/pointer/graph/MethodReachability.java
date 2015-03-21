@@ -156,7 +156,7 @@ public class MethodReachability {
                     summaryChanged.put(cgNode, changed);
                 }
                 // this may cause us to recompute some other methods.
-                /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.get(cgNode);
+                /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.remove(cgNode);
                 if (meths != null) {
                     toRecompute.addAll(meths);
                 }
@@ -714,7 +714,7 @@ public class MethodReachability {
     }
 
     void addApproximateFieldAssign(/*ReferenceVariableReplica*/int killDependency) {
-        /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.get(killDependency);
+        /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.remove(killDependency);
         if (meths != null) {
             recomputeMethodReachability(MutableSparseIntSet.make(meths));
         }
@@ -726,7 +726,7 @@ public class MethodReachability {
         MutableIntSet toRecompute = MutableSparseIntSet.makeEmpty();
         while (domainIter.hasNext()) {
             int n = domainIter.next();
-            /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.get(n);
+            /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.remove(n);
             if (meths != null) {
                 toRecompute.addAll(meths);
             }

@@ -862,7 +862,7 @@ public final class ProgramPointDestinationQuery {
                 System.err.println("PPDQ%% \t\tResults changed for: " + wi + " from " + previous + " to" + res);
             }
             // result changed, add any dependencies back onto the queue
-            Set<WorkItem> deps = workItemDependencies.get(wi);
+            Set<WorkItem> deps = workItemDependencies.remove(wi);
             if (DEBUG2) {
                 System.err.println("PPDQ%% \t\tadding dependencies back into queue");
             }
