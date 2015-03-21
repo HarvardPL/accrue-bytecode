@@ -230,9 +230,9 @@ public final class ProgramPointReachability {
                 if (this.negativeCache.contains(key)) {
                     // it's a negative result! But we need ot have added
                     // a dependency before getting a hit in the negative cache, in order
-                    // to make sure the depedency is registered before the cache is updated.
+                    // to make sure the dependency is registered before the cache is updated.
+                    // So after adding the dependency we check the cache again.
                     addQueryDependency(key, origin);
-                    // to avoid races, check the cache again
                     if (this.negativeCache.contains(key)) {
                         // We know it's a negative result for this one, keep looking
                         if (DEBUG) {
