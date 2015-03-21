@@ -1056,37 +1056,37 @@ public final class ProgramPointReachability {
             QueryCacheKey key = sq.getCacheKey();
 
             // Other queries may be relying on the results of this one since it is the representative in the negative cache
-            MutableIntSet deps = queryDependencies.get(key);
-            if (deps == null) {
-                // no dependencies
-                return;
-            }
-
             // Whether the query should be rerun even though it is expired
             boolean rerun = false;
 
-            /*Iterator<ProgramPointSubQuery>*/IntIterator iter = deps.intIterator();
-            // Set of expired queries to remove when iteration is done
-            MutableIntSet toRemove = MutableSparseIntSet.makeEmpty();
-            while (iter.hasNext()) {
-                int dep = iter.next();
-                ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
-                if (!depQuery.isExpired()) {
-                    // At least one of the dependencies has not yet expired.
-                    // We definitely need to rerun the query.
-                    rerun = true;
-                    break;
+            MutableIntSet deps = queryDependencies.get(key);
+            if (deps == null) {
+                // no dependencies!
+                // But we still need to check for races...
+            }
+            else {
+                /*Iterator<ProgramPointSubQuery>*/IntIterator iter = deps.intIterator();
+                // Set of expired queries to remove when iteration is done
+                MutableIntSet toRemove = MutableSparseIntSet.makeEmpty();
+                while (iter.hasNext()) {
+                    int dep = iter.next();
+                    ProgramPointSubQuery depQuery = ProgramPointSubQuery.lookupDictionary(dep);
+                    if (!depQuery.isExpired()) {
+                        // At least one of the dependencies has not yet expired.
+                        // We definitely need to rerun the query.
+                        rerun = true;
+                        break;
+                    }
+                    // no need to keep expired dependencies
+                    toRemove.add(dep);
                 }
-                // no need to keep expired dependencies
-                toRemove.add(dep);
-            }
 
-            // Remove expired dependencies
-            IntIterator remove = toRemove.intIterator();
-            while (remove.hasNext()) {
-                deps.remove(remove.next());
+                // Remove expired dependencies
+                IntIterator remove = toRemove.intIterator();
+                while (remove.hasNext()) {
+                    deps.remove(remove.next());
+                }
             }
-
             if (!rerun) {
                 // As far as we know, all of the dependencies are expired.
                 // But there may have been races, if something added itself to the dependencies
