@@ -906,7 +906,7 @@ public final class ProgramPointReachability {
                 }
             }
 
-            ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.remove(cgNode);
+            ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
             if (m != null) {
                 IntIterator changedTunnels = changes.changedTunnels().intIterator();
                 while (changedTunnels.hasNext()) {
