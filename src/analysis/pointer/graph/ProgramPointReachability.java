@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -18,6 +19,7 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAllocChanges;
+import analysis.pointer.graph.ProgramPointSubQuery.QueryCacheKey;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.PointsToStatement;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
@@ -198,7 +200,8 @@ public final class ProgramPointReachability {
                                                            noAlloc,
                                                            forbidden,
                                                            origin);
-            if (this.positiveCache.contains(mr)) {
+            QueryCacheKey key = ProgramPointSubQuery.lookupDictionary(mr).getCacheKey();
+            if (this.positiveCache.contains(key)) {
                 // We have already computed that the destination is reachable from src
                 if (PRINT_DIAGNOSTICS) {
                     cachedResponses.incrementAndGet();
@@ -217,7 +220,8 @@ public final class ProgramPointReachability {
 
                 return true;
             }
-            if (this.negativeCache.contains(mr)) {
+            addQueryDependency(key, origin);
+            if (this.negativeCache.contains(key)) {
                 // We know it's a negative result for this one, keep looking
                 if (DEBUG) {
                     System.err.println("PPR%%negative cache " + src + " -> " + destination);
@@ -362,13 +366,14 @@ public final class ProgramPointReachability {
         // try to solve it for each source.
         for (InterProgramPointReplica src : sources) {
             int queryInt = ProgramPointSubQuery.lookupDictionary(src, destination, noKill, noAlloc, forbidden, origin);
+            QueryCacheKey key = ProgramPointSubQuery.lookupDictionary(queryInt).getCacheKey();
             if (PRINT_DIAGNOSTICS) {
                 totalDestQuery.incrementAndGet();
             }
 
-            if (positiveCache.contains(queryInt)) {
+            if (positiveCache.contains(key)) {
                 // The result was computed by another thread before this thread ran
-                recordQueryResult(queryInt, true);
+                recordQueryResult(key, true);
                 if (PRINT_DIAGNOSTICS) {
                     cachedDestQuery.incrementAndGet();
                 }
@@ -389,7 +394,7 @@ public final class ProgramPointReachability {
             }
 
             if (found) {
-                recordQueryResult(queryInt, true);
+                recordQueryResult(key, true);
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + sources + " -> " + destination);
                     System.err.println("PPR%%\ttrue because query returned true");
@@ -404,7 +409,7 @@ public final class ProgramPointReachability {
                 System.err.println("PPR%%\t" + sources + " -> " + destination);
                 System.err.println("PPR%%\tfalse because query returned false");
             }
-            if (recordQueryResult(queryInt, false)) {
+            if (recordQueryResult(key, false)) {
                 // We computed false, but the cache already had true
                 if (DEBUG) {
                     System.err.println("PPR%%\t" + sources + " -> " + destination);
@@ -439,28 +444,57 @@ public final class ProgramPointReachability {
      * @return Whether the actual result is "true" or "false". When recording false, it is possible to return true if
      *         the cache already has a positive result.
      */
-    private boolean recordQueryResult(/*ProgramPointSubQuery*/int query, boolean b) {
+    private boolean recordQueryResult(QueryCacheKey key, boolean b) {
         long start = System.currentTimeMillis();
         if (b) {
-            positiveCache.add(query);
-            if (negativeCache.remove(query)) {
+            positiveCache.add(key);
+            if (negativeCache.remove(key)) {
                 // we previously thought it was negative.
-                queryResultChanged(query);
+                queryResultChanged(key);
             }
             recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
         }
 
         // Recording a false result
-        negativeCache.add(query);
-        if (positiveCache.contains(query)) {
-            this.negativeCache.remove(query);
+        negativeCache.add(key);
+        if (positiveCache.contains(key)) {
+            this.negativeCache.remove(key);
             // A positive result has already been computed return it
             recordResultsTime.addAndGet(System.currentTimeMillis() - start);
             return true;
         }
         recordResultsTime.addAndGet(System.currentTimeMillis() - start);
         return false;
+    }
+
+    /**
+     * Add a dependency that originatingSaC depends on the result of query.
+     *
+     * @param query
+     * @param origin to be triggered if the query results change
+     */
+    private void addQueryDependency(QueryCacheKey key, ReachabilityQueryOrigin origin) {
+        long start = 0L;
+        if (PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
+        if (origin == null) {
+            // nothing to do
+            return;
+        }
+        Set<ReachabilityQueryOrigin> deps = this.queryDependencies.get(key);
+        if (deps == null) {
+            deps = AnalysisUtil.createConcurrentSet();
+            Set<ReachabilityQueryOrigin> existing = queryDependencies.putIfAbsent(key, deps);
+            if (existing != null) {
+                deps = existing;
+            }
+        }
+        deps.add(origin);
+        if (PRINT_DIAGNOSTICS) {
+            queryDepTime.addAndGet(System.currentTimeMillis() - start);
+        }
     }
 
     /**
@@ -495,8 +529,8 @@ public final class ProgramPointReachability {
      * path from source to destination that does not kill any object in noKill, nor does it allocate any object in
      * noAlloc.
      */
-    private MutableIntSet positiveCache = AnalysisUtil.createConcurrentIntSet();
-    private MutableIntSet negativeCache = AnalysisUtil.createConcurrentIntSet();
+    private Set<QueryCacheKey> positiveCache = AnalysisUtil.createConcurrentSet();
+    private Set<QueryCacheKey> negativeCache = AnalysisUtil.createConcurrentSet();
 
     /* *****************************************************************************
      *
@@ -872,31 +906,57 @@ public final class ProgramPointReachability {
         if (PRINT_DIAGNOSTICS) {
             totalRequests.incrementAndGet();
         }
-        if (this.positiveCache.contains(ppSubQuery)) {
+        ProgramPointSubQuery query = ProgramPointSubQuery.lookupDictionary(ppSubQuery);
+        QueryCacheKey key = query.getCacheKey();
+        if (this.positiveCache.contains(key)) {
             // the query is already guaranteed to be true.
             if (PRINT_DIAGNOSTICS) {
                 cachedResponses.incrementAndGet();
             }
             return false;
         }
-        this.analysisHandle.submitReachabilityQuery(ProgramPointSubQuery.lookupDictionary(ppSubQuery));
+        this.analysisHandle.submitReachabilityQuery(query);
         return true;
     }
+
+    /**
+     * Reachability origins that depend on a particular cached value
+     */
+    // ConcurrentMap<ProgramPointSubQuery, Set<ReachabilityQueryOrigin>>
+    private final ConcurrentMap<QueryCacheKey, Set<ReachabilityQueryOrigin>> queryDependencies = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * The result of the query changed, from negative to positive. Make sure to reprocess any StmtAndContexts that
      * depended on it, either by adding it to toReprocess, or giving it to the engine immediately.
      *
      */
-    private void queryResultChanged(/*ProgramPointSubQuery*/int mr) {
-        assert this.positiveCache.contains(mr);
+    private void queryResultChanged(QueryCacheKey key) {
+        assert this.positiveCache.contains(key);
 
-        ProgramPointSubQuery sq = ProgramPointSubQuery.lookupDictionary(mr);
-        if (DEBUG) {
-            System.err.println("DEPS " + mr);
+        // since the query is positive, it will never change in the future.
+        // Let's save some memory by removing the set of dependent SaCs.
+        Set<ReachabilityQueryOrigin> deps = this.queryDependencies.remove(key);
+        if (deps == null) {
+            if (DEBUG) {
+                System.err.println("NO DEPS " + key);
+            }
+            // nothing to do.
+            return;
         }
-        assert sq.origin != null;
-        sq.origin.trigger(this.analysisHandle);
+
+        if (deps.isEmpty()) {
+            if (DEBUG) {
+                System.err.println("\tEMPTY DEPS");
+            }
+        }
+
+        // immediately execute the tasks that depended on this.
+        for (ReachabilityQueryOrigin task : deps) {
+            if (DEBUG) {
+                System.err.println("\tDEP: " + task);
+            }
+            task.trigger(this.analysisHandle);
+        }
     }
 
     /**
@@ -966,8 +1026,8 @@ public final class ProgramPointReachability {
      */
     public void clearCaches() {
         System.err.println("Clearing reachability cache.");
-        positiveCache = AnalysisUtil.createConcurrentIntSet();
-        negativeCache = AnalysisUtil.createConcurrentIntSet();
+        positiveCache = AnalysisUtil.createConcurrentSet();
+        negativeCache = AnalysisUtil.createConcurrentSet();
         if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
             callGraphReachability.clearCaches();
         }

@@ -165,13 +165,18 @@ public final class ProgramPointSubQuery {
     }
 
     /**
-     * Key used to cache the results of a query. This key does not use the origin since the result does not depend on the origin.
+     * Key used to cache the results of a query. This key does not use the origin since the result pf the query does not
+     * depend on the origin.
      */
     @SuppressWarnings("synthetic-access")
     public QueryCacheKey getCacheKey() {
         return new QueryCacheKey(source, destination, noKill, noAlloc, forbidden);
     }
 
+    /**
+     * Key used to cache the results of a query. This key does not use the origin since the result of the query does not
+     * depend on the origin.
+     */
     public static class QueryCacheKey {
         final InterProgramPointReplica source;
         final InterProgramPointReplica destination;
@@ -221,10 +226,10 @@ public final class ProgramPointSubQuery {
             if (this == obj) {
                 return true;
             }
-            if (!(obj instanceof ProgramPointSubQuery)) {
+            if (!(obj instanceof QueryCacheKey)) {
                 return false;
             }
-            ProgramPointSubQuery other = (ProgramPointSubQuery) obj;
+            QueryCacheKey other = (QueryCacheKey) obj;
             if (!source.equals(other.source)) {
                 return false;
             }
