@@ -77,7 +77,6 @@ public class StringConstraints {
     }
 
     public StringConstraintDelta activate(StringVariableReplica x) {
-        Logger.println("[StringConstraints.activate] Activating: " + x);
         Set<StringVariableReplica> activatedSVRs = this.stringDependencies.activate(x);
         if (activatedSVRs.isEmpty()) {
             return StringConstraintDelta.makeEmpty(this);
