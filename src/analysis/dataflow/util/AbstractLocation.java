@@ -153,4 +153,8 @@ public class AbstractLocation {
         }
         return field.getFieldTypeReference();
     }
+
+    public IField getField() {
+        return field;
+    }
 }

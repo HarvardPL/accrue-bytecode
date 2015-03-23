@@ -163,6 +163,10 @@ public class CollectNonNullClassCastResultsDataFlow extends InstructionDispatchD
                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                       ISSABasicBlock current) {
         collected.recordCast();
+        if (AnalysisUtil.getIR(currentMethod).getSymbolTable().isNullConstant(i.getVal())) {
+            // Null constant cast always succeeds just return
+            return factToMap(Unit.VALUE, current, cfg);
+        }
 
         // check whether cast will always succeed
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();

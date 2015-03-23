@@ -213,6 +213,12 @@ public final class AccrueAnalysisOptions {
             if (value.equals("nonnull")) {
                 return;
             }
+            if (value.equals("interval")) {
+                return;
+            }
+            if (value.equals("collect")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);
@@ -841,7 +847,7 @@ public final class AccrueAnalysisOptions {
 
     /**
      * Number of threads to use for the multi-threaded points-to analysis
-     * 
+     *
      * @return number of threads
      */
     public int getNumThreads() {

@@ -111,7 +111,7 @@ public class ReachabilityDataFlow extends IntraproceduralDataFlow<ReachabilityAb
 
         if (outputLevel >= 1) {
             System.err.println("WARNING: unreachable BB " + current + " in "
-                    + PrettyPrinter.methodString(g.getMethod()));
+                    + PrettyPrinter.methodString(currentNode.getMethod()));
         }
 
         // If these blocks are not the input block then they are unnecessary catch blocks

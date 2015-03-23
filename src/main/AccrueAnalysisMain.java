@@ -14,16 +14,20 @@ import java.util.zip.GZIPOutputStream;
 
 import org.json.JSONException;
 
+import results.CollectResultsPass;
+import results.CollectedResults;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
+import analysis.dataflow.interprocedural.accessible.AccessibleLocationResults;
+import analysis.dataflow.interprocedural.accessible.AccessibleLocationsInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
-import analysis.dataflow.interprocedural.collect.CollectResultsInterproceduralDataFlow;
-import analysis.dataflow.interprocedural.collect.CollectedResults;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
+import analysis.dataflow.interprocedural.interval.IntervalInterProceduralDataFlow;
+import analysis.dataflow.interprocedural.interval.IntervalResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullInterProceduralDataFlow;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
 import analysis.dataflow.interprocedural.pdg.PDGInterproceduralDataFlow;
@@ -34,7 +38,6 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
-import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -132,6 +135,7 @@ public class AccrueAnalysisMain {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results;
         PointsToGraph g;
         ReferenceVariableCache rvCache;
+        AccessibleLocationResults alr;
         switch (analysisName) {
         case "pointsto":
             AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
@@ -152,7 +156,7 @@ public class AccrueAnalysisMain {
             g = results.fst();
 //            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
             if (fileLevel > 0) {
-                ((HafCallGraph) g.getCallGraph()).dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
+                g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
             }
 //            System.err.println(g.getNodes().size() + " Nodes");
             int num = 0;
@@ -207,23 +211,59 @@ public class AccrueAnalysisMain {
             if (fileLevel > 0) {
                 nonNull.writeAllToFiles(r, outputDir);
             }
+        case "interval":
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            useSingleThreadedPointerAnalysis,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString,
+                                            singleWrappers);
+            g = results.fst();
+            rvCache = results.snd();
+            r = runReachability(otherOutputLevel, g, rvCache, null);
+            alr = runAccesibleLocations(otherOutputLevel, g, r, rvCache);
+            IntervalResults interval = runInterval(outputLevel, g, r, rvCache, alr);
+            if (fileLevel > 0) {
+                interval.writeAllToFiles(r, outputDir);
+            }
+            break;
+        case "collect":
+            // Collect and print results for the flow sensitive points-to analysis
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            useSingleThreadedPointerAnalysis,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString,
+                                            singleWrappers);
+            g = results.fst();
+            rvCache = results.snd();
+            r = runReachability(otherOutputLevel, g, rvCache, null);
+            alr = runAccesibleLocations(otherOutputLevel, g, r, rvCache);
+            interval = runInterval(outputLevel, g, r, rvCache, alr);
+            nonNull = runNonNull(outputLevel, g, r, rvCache);
 
-            CollectResultsInterproceduralDataFlow cr = new CollectResultsInterproceduralDataFlow(g,
-                                                                                                 r,
-                                                                                                 rvCache,
-                                                                                                 nonNull,
-                                                                                                 null);
-            cr.setOutputLevel(otherOutputLevel);
-            cr.runAnalysis();
-            CollectedResults cResults = (CollectedResults) cr.getAnalysisResults();
+            CollectResultsPass cr = new CollectResultsPass(nonNull, interval, g);
+            CollectedResults cResults = cr.run();
             System.err.println("NPE: "
                     + cResults.getNullPointerExceptionCount()
                     + "/"
                     + cResults.getPossibleNullPointerExceptionCount()
                     + " = "
                     + ((double) cResults.getNullPointerExceptionCount() / (double) cResults.getPossibleNullPointerExceptionCount()));
-            System.err.println("Casts Removed: " + cResults.getCastRemovalCount() + "/" + cResults.getTotalCastCount()
-                    + " = " + ((double) cResults.getCastRemovalCount() / (double) cResults.getTotalCastCount()));
+            System.err.println("Casts Not Removed: " + cResults.getCastsNotRemovedCount() + "/"
+                    + cResults.getTotalCastCount() + " = "
+                    + ((double) cResults.getCastsNotRemovedCount() / cResults.getTotalCastCount()));
+            System.err.println("Zero intervals: " + cResults.getZeroIntervalCount() + "/"
+                    + cResults.getPossibleZeroIntervalCount() + " = "
+                    + ((double) cResults.getZeroIntervalCount() / (double) cResults.getPossibleZeroIntervalCount()));
             System.err.println("Arithmetic: "
                     + cResults.getArithmeticExceptionCount()
                     + "/"
@@ -749,5 +789,40 @@ public class AccrueAnalysisMain {
             System.err.println("Could not find methods in: " + entryPoint);
             return;
         }
+    }
+
+    /**
+     * Run the accessible locations analysis and return the results
+     *
+     * @param outputLevel amount of printing
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @return the results of the accessible locations analysis
+     */
+    private static AccessibleLocationResults runAccesibleLocations(int outputLevel, PointsToGraph g,
+                                                                   ReachabilityResults r, ReferenceVariableCache rvCache) {
+        AccessibleLocationsInterproceduralDataFlow analysis = new AccessibleLocationsInterproceduralDataFlow(g,
+                                                                                                             r,
+                                                                                                             rvCache);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        return analysis.getAnalysisResults();
+    }
+
+    /**
+     * Run the interval analysis and return the results
+     *
+     * @param method method to print the results for
+     * @param g points-to graph
+     * @param r results of a reachability analysis
+     * @return the results of the non-null analysis
+     */
+    private static IntervalResults runInterval(int outputLevel, PointsToGraph g, ReachabilityResults r,
+                                               ReferenceVariableCache rvCache, AccessibleLocationResults alr) {
+        // XXX change true to false to be flow insensitive
+        IntervalInterProceduralDataFlow analysis = new IntervalInterProceduralDataFlow(g, r, rvCache, true, alr);
+        analysis.setOutputLevel(outputLevel);
+        analysis.runAnalysis();
+        return analysis.getAnalysisResults();
     }
 }
