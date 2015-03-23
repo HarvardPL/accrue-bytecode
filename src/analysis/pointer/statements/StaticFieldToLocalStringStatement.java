@@ -29,13 +29,17 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
         StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
         StringVariableReplica fRVR = new StringVariableReplica(context, this.f);
 
+        GraphDelta newDelta = new GraphDelta(g);
+
         g.recordStringStatementDefineDependency(vRVR, originator);
 
         g.recordStringStatementDependency(fRVR, originator);
 
-        g.recordStringVariableDependency(vRVR, fRVR);
+        newDelta.combine(g.recordStringVariableDependency(vRVR, fRVR));
 
-        return g.stringVariableReplicaUpperBounds(vRVR, fRVR);
+        newDelta.combine(g.stringVariableReplicaUpperBounds(vRVR, fRVR));
+
+        return newDelta;
     }
 
     @Override

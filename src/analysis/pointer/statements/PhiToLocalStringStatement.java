@@ -30,22 +30,21 @@ public class PhiToLocalStringStatement extends StringStatement {
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
                                   GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica assigneeRVR = new StringVariableReplica(context, this.assignee);
-//        List<StringVariableReplica> useRVRs = uses.stream()
-//                                                  .map(use -> new StringVariableReplica(context, use, haf))
-//                                                  .collect(Collectors.toList());
+
+        GraphDelta newDelta = new GraphDelta(g);
+
         g.recordStringStatementDefineDependency(assigneeRVR, originator);
 
         List<StringVariableReplica> useRVRs = new ArrayList<>();
         for(StringVariable use : uses) {
             StringVariableReplica usesvr = new StringVariableReplica(context, use);
             g.recordStringStatementDependency(usesvr, originator);
-            g.recordStringVariableDependency(assigneeRVR, usesvr);
             useRVRs.add(usesvr);
         }
-        GraphDelta newDelta = new GraphDelta(g);
 
         //        useRVRs.forEach(useRVR -> newDelta.combine(g.isSuperSetOf(assigneeRVR, useRVR)));
         for (StringVariableReplica useRVR : useRVRs) {
+            newDelta.combine(g.recordStringVariableDependency(assigneeRVR, useRVR));
             newDelta.combine(g.stringVariableReplicaUpperBounds(assigneeRVR, useRVR));
         }
 
