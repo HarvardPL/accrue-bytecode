@@ -93,7 +93,7 @@ public final class ProgramPointReachability {
         this.g = g;
         this.analysisHandle = analysisHandle;
         this.approx = new ApproximateCallSitesAndFieldAssignments(g);
-        this.methodReachability = new MethodReachability(this, g);
+        this.methodReachability = new MethodReachability(this, g, analysisHandle);
         if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
             this.callGraphReachability = new CallGraphReachability(this, g);
         }
@@ -1042,6 +1042,9 @@ public final class ProgramPointReachability {
         }
     }
 
+    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+        this.methodReachability.processMethodReachabilityRecomputation(toRecompute);
+    }
     public AtomicInteger numExpired = new AtomicInteger(0);
 
     public void processSubQuery(ProgramPointSubQuery sq) {

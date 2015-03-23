@@ -7,6 +7,8 @@ import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ProgramPointSubQuery;
 
+import com.ibm.wala.util.intset.MutableIntSet;
+
 /**
  * This interface provides a mechanism to submit StmtAndContexts to the PointsToAnalysis.
  */
@@ -33,12 +35,18 @@ public interface PointsToAnalysisHandle {
 
 
     /**
-     * Request the the PointsToAnalysis process the AddToSetOrigin.
+     * Request that the PointsToAnalysis process the AddToSetOrigin.
      *
      * @param task
      */
     void submitAddToSetTask(AddToSetOrigin task);
 
+    /**
+     * Request that the PointsToAnalysis recompute the method summaries for the cgNodes in toRecompute
+     *
+     * @param toRecompute
+     */
+    void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute);
 
     /**
      * Request that the ProgramPointReachability query be processed.
@@ -67,4 +75,5 @@ public interface PointsToAnalysisHandle {
      * @return number of threads
      */
     int numThreads();
+
 }

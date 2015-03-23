@@ -31,6 +31,7 @@ import analysis.pointer.statements.PointsToStatement;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
@@ -416,6 +417,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             exec.execute(new RunnablePointsToTask(new StmtAndContextTask(sac, delta)));
         }
 
+        public void submitMethodReachabilityRecomputeTask(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute) {
+            this.numRemainingTasks.incrementAndGet();
+            exec.execute(new RunnablePointsToTask(new MethodReachabilityRecomputeTask(toRecompute)));
+        }
+
         public void submitTask(ProgramPointSubQuery sq) {
             // make sure we add it to the current pending set,
             // by looping until we know that we added it to the set that is in the reference.
@@ -688,6 +694,19 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         }
 
+        public class MethodReachabilityRecomputeTask implements PointsToTask {
+            private final MutableIntSet toRecompute;
+            public MethodReachabilityRecomputeTask(MutableIntSet toRecompute) {
+                this.toRecompute = toRecompute;
+            }
+
+            @Override
+            public void process(PointsToAnalysisHandle analysisHandle) {
+                analysisHandle.pointsToGraph().ppReach.processMethodReachabilityRecomputation(toRecompute);
+            }
+
+        }
+
         public class PPSubQueryTask implements PointsToTask {
             private final ProgramPointSubQuery sq;
 
@@ -792,6 +811,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         @Override
         public void submitStmtAndContext(StmtAndContext sac, GraphDelta delta) {
             execService.submitTask(sac, delta);
+        }
+
+        @Override
+        public void submitMethodReachabilityRecomputation(MutableIntSet toRecompute) {
+            execService.submitMethodReachabilityRecomputeTask(toRecompute);
         }
 
         @Override

@@ -12,6 +12,7 @@ import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
+import analysis.pointer.engine.PointsToAnalysisHandle;
 import analysis.pointer.graph.KilledAndAlloced.ThreadLocalKilledAndAlloced;
 import analysis.pointer.graph.KilledAndAlloced.ThreadSafeKilledAndAlloced;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -33,6 +34,7 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
 public class MethodReachability {
     private final ProgramPointReachability ppr;
     private final PointsToGraph g;
+    private final PointsToAnalysisHandle analysisHandle;
 
     /**
      * Method reachability queries indicated by the start node depend on method reachability queries starting at a
@@ -48,9 +50,10 @@ public class MethodReachability {
     // ConcurrentMap<ReferenceVariableReplica, Set<OrderedPair<IMethod, Context>>>
     private final ConcurrentIntMap<MutableIntSet> killMethodDependencies = AnalysisUtil.createConcurrentIntMap();
 
-    MethodReachability(ProgramPointReachability ppr, PointsToGraph g) {
+    MethodReachability(ProgramPointReachability ppr, PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
         this.ppr = ppr;
         this.g = g;
+        this.analysisHandle = analysisHandle;
     }
 
     private MethodSummaryKillAndAllocChanges recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode,
@@ -116,7 +119,7 @@ public class MethodReachability {
         // Let's compute it! The call to recomputeMethodReachability will imperatively update res.
         MutableIntSet mis = MutableSparseIntSet.createMutableSparseIntSet(2);
         mis.add(cgNode);
-        this.recomputeMethodReachability(mis);
+        this.submitMethodReachabilityRecomputation(mis);
 
         if (ProgramPointReachability.DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
@@ -131,6 +134,19 @@ public class MethodReachability {
     }
 
     /**
+     * Trigger recomputation of all of the call graph nodes in the set cgnodes. This will submit it to the analysis
+     * handle to execute concurrently. If the recomputation triggers dependencies for other methods to be recomputed,
+     * this will be done.
+     *
+     * This method assumes that it owns toRecompute, and can modify it at will.
+     *
+     * @param cgNodes
+     */
+    private void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+        this.analysisHandle.submitMethodReachabilityRecomputation(toRecompute);
+    }
+
+    /**
      * Trigger recomputation of all of the call graph nodes in the set cgnodes. If the recomputation triggers
      * dependencies for other methods to be recomputed, this will be done.
      *
@@ -138,7 +154,8 @@ public class MethodReachability {
      *
      * @param cgNodes
      */
-    private void recomputeMethodReachability(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+
         IntMap<MethodSummaryKillAndAllocChanges> summaryChanged = new SparseIntMap<>();
         while (!toRecompute.isEmpty()) {
             // get the next node to recompute.
@@ -626,7 +643,7 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            recomputeMethodReachability(s);
+            submitMethodReachabilityRecomputation(s);
         }
     }
 
@@ -645,7 +662,7 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            recomputeMethodReachability(s);
+            submitMethodReachabilityRecomputation(s);
         }
     }
 
@@ -716,7 +733,7 @@ public class MethodReachability {
     void addApproximateFieldAssign(/*ReferenceVariableReplica*/int killDependency) {
         /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.remove(killDependency);
         if (meths != null) {
-            recomputeMethodReachability(MutableSparseIntSet.make(meths));
+            submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths));
         }
 
     }
@@ -732,7 +749,7 @@ public class MethodReachability {
             }
         }
         if (!toRecompute.isEmpty()) {
-            recomputeMethodReachability(toRecompute);
+            submitMethodReachabilityRecomputation(toRecompute);
         }
     }
 
