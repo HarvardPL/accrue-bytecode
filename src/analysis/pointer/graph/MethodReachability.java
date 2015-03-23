@@ -176,7 +176,8 @@ public class MethodReachability {
                 // this may cause us to recompute some other methods.
                 /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.remove(cgNode);
                 if (meths != null) {
-                    toRecompute.addAll(meths);
+                    // launch the other method reachability computations concurrently.
+                    submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths));
                 }
             }
 
