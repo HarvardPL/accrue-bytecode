@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import types.TypeRepository;
@@ -188,7 +187,7 @@ public class TypeFilter {
                 + ", notTypes=" + notTypes + "]";
     }
 
-    private static ConcurrentMap<Set<TypeFilter>, TypeFilter> cachedCompose = new ConcurrentHashMap<>();
+    private static ConcurrentMap<Set<TypeFilter>, TypeFilter> cachedCompose = AnalysisUtil.createConcurrentHashMap();
 
     public static TypeFilter compose(TypeFilter f1, TypeFilter f2) {
         if (f1 == null) {
@@ -284,7 +283,7 @@ public class TypeFilter {
         return create(AnalysisUtil.getClassHierarchy().lookupClass(isType), allowNullType);
     }
 
-    private static final ConcurrentMap<TypeFilterWrapper, TypeFilter> memoized = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<TypeFilterWrapper, TypeFilter> memoized = AnalysisUtil.createConcurrentHashMap();
 
     static {
         // make sure we memoize IMPOSSIBLE

@@ -4,6 +4,8 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import analysis.AnalysisUtil;
+
 import com.ibm.wala.util.intset.IntIterator;
 
 /**
@@ -12,7 +14,7 @@ import com.ibm.wala.util.intset.IntIterator;
  * @param <T>
  */
 public class SimpleConcurrentIntMap<T> implements ConcurrentIntMap<T> {
-    public final ConcurrentHashMap<Integer, T> map = new ConcurrentHashMap<>();
+    public final ConcurrentHashMap<Integer, T> map = AnalysisUtil.createConcurrentHashMap();
 
     /**
      * Best guess at the max key.
