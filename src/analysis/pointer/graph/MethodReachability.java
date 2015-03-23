@@ -119,7 +119,8 @@ public class MethodReachability {
         // Let's compute it! The call to recomputeMethodReachability will imperatively update res.
         MutableIntSet mis = MutableSparseIntSet.createMutableSparseIntSet(2);
         mis.add(cgNode);
-        this.submitMethodReachabilityRecomputation(mis);
+        // note that we want to compute it now, and wait for the result.
+        this.processMethodReachabilityRecomputation(mis);
 
         if (ProgramPointReachability.DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
