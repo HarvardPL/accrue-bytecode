@@ -71,6 +71,7 @@ public class StringConstraintDelta {
     }
 
     public void combine(StringConstraintDelta that) {
+        assert this.sc == that.sc;
         this.needUses.addAll(that.needUses);
         this.needDefs.addAll(that.needDefs);
 
