@@ -32,7 +32,6 @@ public class StringInitStatement extends StringStatement {
                               StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica svr = new StringVariableReplica(context, this.sv);
 
-        Logger.println("[StringInitStatement.process] ");
         GraphDelta newDelta = new GraphDelta(g);
 
         g.recordStringStatementDefineDependency(svr, originator);
