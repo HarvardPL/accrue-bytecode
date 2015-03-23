@@ -14,6 +14,8 @@ import java.util.zip.GZIPOutputStream;
 
 import org.json.JSONException;
 
+import results.CollectResultsPass;
+import results.CollectedResults;
 import util.OrderedPair;
 import util.print.CFGWriter;
 import util.print.PrettyPrinter;
@@ -22,8 +24,6 @@ import analysis.dataflow.interprocedural.accessible.AccessibleLocationResults;
 import analysis.dataflow.interprocedural.accessible.AccessibleLocationsInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantDataFlow;
 import analysis.dataflow.interprocedural.bool.BooleanConstantResults;
-import analysis.dataflow.interprocedural.collect.CollectResultsInterproceduralDataFlow;
-import analysis.dataflow.interprocedural.collect.CollectedResults;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionInterproceduralDataFlow;
 import analysis.dataflow.interprocedural.exceptions.PreciseExceptionResults;
 import analysis.dataflow.interprocedural.interval.IntervalInterProceduralDataFlow;
@@ -225,29 +225,6 @@ public class AccrueAnalysisMain {
             if (fileLevel > 0) {
                 nonNull.writeAllToFiles(r, outputDir);
             }
-
-            CollectResultsInterproceduralDataFlow cr = new CollectResultsInterproceduralDataFlow(g,
-                                                                                                 r,
-                                                                                                 rvCache,
-                                                                                                 nonNull,
-                                                                                                 null);
-            cr.setOutputLevel(otherOutputLevel);
-            cr.runAnalysis();
-            CollectedResults cResults = (CollectedResults) cr.getAnalysisResults();
-            System.err.println("NPE: "
-                    + cResults.getNullPointerExceptionCount()
-                    + "/"
-                    + cResults.getPossibleNullPointerExceptionCount()
-                    + " = "
-                    + ((double) cResults.getNullPointerExceptionCount() / (double) cResults.getPossibleNullPointerExceptionCount()));
-            System.err.println("Casts Removed: " + cResults.getCastRemovalCount() + "/" + cResults.getTotalCastCount()
-                    + " = " + ((double) cResults.getCastRemovalCount() / (double) cResults.getTotalCastCount()));
-            System.err.println("Arithmetic: "
-                    + cResults.getArithmeticExceptionCount()
-                    + "/"
-                    + cResults.getPossibleArithmeticExceptionCount()
-                    + " = "
-                    + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
             break;
         case "interval":
             results = generatePointsToGraph(outputLevel,
@@ -271,6 +248,49 @@ public class AccrueAnalysisMain {
             if (fileLevel > 0) {
                 interval.writeAllToFiles(r, outputDir);
             }
+            break;
+        case "collect":
+            // Collect and print results for the flow sensitive points-to analysis
+            results = generatePointsToGraph(outputLevel,
+                                            haf,
+                                            useSingleThreadedPointerAnalysis,
+                                            isOnline,
+                                            singleGenEx,
+                                            singleThrowable,
+                                            singlePrimArray,
+                                            singleString,
+                                            singleWrappers,
+                                            simplePrint,
+                                            outputDir,
+                                            fileName,
+                                            numThreads);
+            g = results.fst();
+            rvCache = results.snd();
+            r = runReachability(otherOutputLevel, g, rvCache, null);
+            alr = runAccesibleLocations(otherOutputLevel, g, r, rvCache);
+            interval = runInterval(outputLevel, g, r, rvCache, alr);
+            nonNull = runNonNull(outputLevel, g, r, rvCache, alr);
+
+            CollectResultsPass cr = new CollectResultsPass(nonNull, interval, g);
+            CollectedResults cResults = cr.run();
+            System.err.println("NPE: "
+                    + cResults.getNullPointerExceptionCount()
+                    + "/"
+                    + cResults.getPossibleNullPointerExceptionCount()
+                    + " = "
+                    + ((double) cResults.getNullPointerExceptionCount() / (double) cResults.getPossibleNullPointerExceptionCount()));
+            System.err.println("Casts Not Removed: " + cResults.getCastsNotRemovedCount() + "/"
+                    + cResults.getTotalCastCount() + " = "
+                    + ((double) cResults.getCastsNotRemovedCount() / cResults.getTotalCastCount()));
+            System.err.println("Zero intervals: " + cResults.getZeroIntervalCount() + "/"
+                    + cResults.getPossibleZeroIntervalCount() + " = "
+                    + ((double) cResults.getZeroIntervalCount() / (double) cResults.getPossibleZeroIntervalCount()));
+            System.err.println("Arithmetic: "
+                    + cResults.getArithmeticExceptionCount()
+                    + "/"
+                    + cResults.getPossibleArithmeticExceptionCount()
+                    + " = "
+                    + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
             break;
         case "precise-ex":
             results = generatePointsToGraph(outputLevel,

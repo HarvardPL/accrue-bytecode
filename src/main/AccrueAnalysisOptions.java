@@ -224,6 +224,9 @@ public final class AccrueAnalysisOptions {
             if (value.equals("accessible-locations")) {
                 return;
             }
+            if (value.equals("collect")) {
+                return;
+            }
             System.err.println("Invalid analysis name: " + value);
             System.err.println(analysisNameUsage());
             throw new ParameterException("Invalid analysis name: " + value);
@@ -732,14 +735,16 @@ public final class AccrueAnalysisOptions {
     static String analysisNameUsage() {
         StringBuilder sb = new StringBuilder();
         sb.append("Supported analyses:\n");
-        sb.append("\tpointsto - runs the points-to analysis, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
+        sb.append("\tpointsto2 - runs the points-to analysis, saves graph in tests folder with the name: \"entryClassName_ptg.dot\"\n");
         sb.append("\tmaincfg - prints the cfg for the main method to the tests folder with the name: \"entryClassName_main_cfg.dot\"\n");
-        sb.append("\tnonnull - prints the results of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
+        sb.append("\tnonnull - prints the results (if fileLevel > 0) of an interprocedural non-null analysis to the tests folder prepended with \"nonnull_\" \n");
         sb.append("\tprecise-ex - prints the results of an interprocedural precise exception analysis to the tests folder prepended with \"precise_ex_\"\n");
         sb.append("\treachability - prints the results of an interprocedural reachability analysis to the tests folder prepended with \"reachability_\"\n");
         sb.append("\tcfg - prints the cfg for the all methods to the tests folder prepended with : \"cfg_\"\n");
         sb.append("\tpdg - prints the pdg in graphviz dot format to the tests folder prepended with : \"pdg_\"\n");
         sb.append("\tbool - prints the results of an analysis determining which variables are boolean constants in graphviz dot format to the tests folder prepended with : \"bool_\"\n");
+        sb.append("\tinterval - runs a primitive value interval analysis prints results if fileLevel > 0");
+        sb.append("\tcollect - runs a primitive value interval analysis and non-null analysis and prints summary results.");
         return sb.toString();
     }
 

@@ -1,4 +1,4 @@
-package analysis.dataflow.interprocedural.collect;
+package results;
 
 import analysis.dataflow.interprocedural.AnalysisResults;
 
@@ -8,8 +8,10 @@ public class CollectedResults implements AnalysisResults {
     private int possibleNullPointerCounter;
     private int arithmeticExceptionCounter;
     private int possibleArithmeticExceptionCounter;
-    private int castsRemoved;
+    private int castsNotRemoved;
     private int totalCasts;
+    private int zeroIntervals;
+    private int possibleZeroIntervals;
 
     public void recordNullPointerException() {
         nullPointerCounter++;
@@ -43,12 +45,28 @@ public class CollectedResults implements AnalysisResults {
         possibleArithmeticExceptionCounter++;
     }
 
-    public int getCastRemovalCount() {
-        return castsRemoved;
+    public int getZeroIntervalCount() {
+        return zeroIntervals;
     }
 
-    public void recordCastRemoval() {
-        castsRemoved++;
+    public void recordZeroInterval() {
+        zeroIntervals++;
+    }
+
+    public int getPossibleZeroIntervalCount() {
+        return possibleZeroIntervals;
+    }
+
+    public void recordPossibleZeroInterval() {
+        possibleZeroIntervals++;
+    }
+
+    public int getCastsNotRemovedCount() {
+        return castsNotRemoved;
+    }
+
+    public void recordCastNotRemoved() {
+        castsNotRemoved++;
     }
 
     public int getTotalCastCount() {

@@ -200,7 +200,7 @@ public final class ProgramPointSetClosure {
     public String toString() {
         StringBuilder s = new StringBuilder();
         s.append("{");
-        for (InterProgramPointReplica ippr : this.getSources(null)) {
+        for (InterProgramPointReplica ippr : this.getSources(DoNothingOrigin.INSTANCE)) {
             s.append(ippr + ",");
         }
         s.append("}");

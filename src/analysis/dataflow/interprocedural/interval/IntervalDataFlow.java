@@ -899,6 +899,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
     protected void postBasicBlock(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock justProcessed,
                                   Map<ISSABasicBlock, VarContext<IntervalAbsVal>> outItems) {
         IntervalResults results = ((IntervalInterProceduralDataFlow) interProc).getAnalysisResults();
+        SSAInstruction last = getLastInstruction(justProcessed);
         for (SSAInstruction i : justProcessed) {
             assert getAnalysisRecord(i) != null : "No analysis record for " + i + " in "
                     + PrettyPrinter.cgNodeString(currentNode);
@@ -913,6 +914,21 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             results.replaceIntervalMapForLocals(intervalMapLocals, i, currentNode);
             results.replaceIntervalMapForLocations(intervalMapLocations, i, currentNode);
+
+            // Produce results leaving each instruction as well
+            VarContext<IntervalAbsVal> out;
+            if (i != last) {
+                out = getAnalysisRecord(i).getOutput().values().iterator().next();
+            }
+            else {
+                out = getAnalysisRecord(i).getOutput().get(getNormalSuccs(justProcessed, cfg).iterator().next());
+            }
+
+            Map<Integer, IntervalAbsVal> intervalExitMap = new HashMap<>();
+            for (Integer j : out.getLocals()) {
+                intervalExitMap.put(j, getLocal(out, j));
+            }
+            results.replaceIntervalExitMapForLocals(intervalExitMap, i, currentNode);
         }
         super.postBasicBlock(cfg, justProcessed, outItems);
     }

@@ -1938,7 +1938,6 @@ public final class PointsToGraph {
 
         // construct the call graph before we clear out a lot of stuff.
         this.getCallGraph();
-        this.reachableContexts = null;
         this.classInitializers = null;
         this.entryPoints = null;
 
@@ -1951,6 +1950,7 @@ public final class PointsToGraph {
             pointsToFI.put(key, newMS);
         }
 
+        this.reachableContexts = compact(this.reachableContexts);
         this.pointsToFI = compact(this.pointsToFI);
         this.instanceKeyDictionary = compact(this.instanceKeyDictionary);
         this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
@@ -2336,7 +2336,8 @@ public final class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(rvr))) {
-                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(null);
+                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t)
+                                                                              .getSources(DoNothingOrigin.INSTANCE);
                         if (!sources.isEmpty()) {
                             repMap.addPrint(rvr);
                             repMap.addPrint(to);
@@ -2361,7 +2362,8 @@ public final class PointsToGraph {
                     InstanceKeyRecency to = lookupInstanceKeyDictionary(t);
                     String toNode = repMap.getRepOrPutIfAbsent(to);
                     if (!registrar.shouldUseSimplePrint() || (shouldPrint(to) && shouldPrint(fromIkr))) {
-                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t).getSources(null);
+                        Collection<InterProgramPointReplica> sources = ikrToPP.get(t)
+                                                                              .getSources(DoNothingOrigin.INSTANCE);
                         if (!sources.isEmpty()) {
                             repMap.addPrint(fromIkr);
                             repMap.addPrint(to);

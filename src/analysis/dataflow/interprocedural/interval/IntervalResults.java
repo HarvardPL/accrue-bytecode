@@ -24,7 +24,18 @@ public class IntervalResults implements AnalysisResults {
 
     private final Map<CGNode, ResultsForNode> allResults = new HashMap<>();
 
-    public void replaceIntervalMapForLocals(Map<Integer, IntervalAbsVal> intervalMap, SSAInstruction i,
+    public void replaceIntervalExitMapForLocals(Map<Integer, IntervalAbsVal> intervalExitMap, SSAInstruction i,
+                                                CGNode containingNode) {
+        ResultsForNode resultsForNode = allResults.get(containingNode);
+        if (resultsForNode == null) {
+            resultsForNode = new ResultsForNode();
+            allResults.put(containingNode, resultsForNode);
+        }
+        resultsForNode.replaceIntervalExitMapForLocals(intervalExitMap, i);
+    }
+
+
+    void replaceIntervalMapForLocals(Map<Integer, IntervalAbsVal> intervalMap, SSAInstruction i,
                                             CGNode containingNode) {
         ResultsForNode resultsForNode = allResults.get(containingNode);
         if (resultsForNode == null) {
@@ -34,7 +45,7 @@ public class IntervalResults implements AnalysisResults {
         resultsForNode.replaceIntervalMapForLocals(intervalMap, i);
     }
 
-    public void replaceIntervalMapForLocations(Map<AbstractLocation, IntervalAbsVal> intervalMap, SSAInstruction i,
+    void replaceIntervalMapForLocations(Map<AbstractLocation, IntervalAbsVal> intervalMap, SSAInstruction i,
                                         CGNode containingNode) {
         ResultsForNode resultsForNode = allResults.get(containingNode);
         if (resultsForNode == null) {
@@ -142,11 +153,81 @@ public class IntervalResults implements AnalysisResults {
         w.writeVerbose(writer, "", "\\l");
     }
 
+    /**
+     * Get the interval for the given local right before executing the given instruction. Returns null if the local is
+     * not a primitive or the results are not found.
+     */
+    public IntervalAbsVal getLocalIntervalBefore(int local, SSAInstruction i, CGNode n) {
+        ResultsForNode res = allResults.get(n);
+        if (res == null) {
+            return null;
+        }
+
+        Map<Integer, IntervalAbsVal> intervalMapForLocals = res.getIntervalMapForLocals(i);
+        if (intervalMapForLocals == null) {
+            return null;
+        }
+
+        IntervalAbsVal interval = intervalMapForLocals.get(local);
+        if (interval == null) {
+            return null;
+        }
+        return interval;
+    }
+
+    /**
+     * Get the interval for the given local right after executing the given instruction. Returns null if the local is
+     * not a primitive or the results are not found.
+     */
+    public IntervalAbsVal getLocalIntervalAfter(int local, SSAInstruction i, CGNode n) {
+        ResultsForNode res = allResults.get(n);
+        if (res == null) {
+            return null;
+        }
+
+        Map<Integer, IntervalAbsVal> intervalMapForLocals = res.getIntervalExitMapForLocals(i);
+        if (intervalMapForLocals == null) {
+            return null;
+        }
+
+        IntervalAbsVal interval = intervalMapForLocals.get(local);
+        if (interval == null) {
+            return null;
+        }
+        return interval;
+    }
+
+    /**
+     * Get the interval for the given location right before executing the given instruction. Returns null if the
+     * location is not a primitive or the results are not found.
+     */
+    public IntervalAbsVal getLocationlIntervalBefore(AbstractLocation location, SSAInstruction i, CGNode n) {
+        ResultsForNode res = allResults.get(n);
+        if (res == null) {
+            return null;
+        }
+
+        Map<AbstractLocation, IntervalAbsVal> intervalMapForLocations = res.getIntervalMapForLocations(i);
+        if (intervalMapForLocations == null) {
+            return null;
+        }
+
+        IntervalAbsVal interval = intervalMapForLocations.get(location);
+        if (interval == null) {
+            return null;
+        }
+        return interval;
+    }
+
     private static class ResultsForNode {
         /**
          * Map from instruction to a map from variables to their value intervals.
          */
         private final Map<SSAInstruction, Map<Integer, IntervalAbsVal>> resultLocals = new HashMap<>();
+        /**
+         * Map from instruction to a map from variables to their value right after the instruction.
+         */
+        private final Map<SSAInstruction, Map<Integer, IntervalAbsVal>> resultExitLocals = new HashMap<>();
         /**
          * Map from instruction to a map from abstract locations to their value intervals.
          */
@@ -154,6 +235,14 @@ public class IntervalResults implements AnalysisResults {
 
         public ResultsForNode() {
             // intentionally blank
+        }
+
+        public void replaceIntervalExitMapForLocals(Map<Integer, IntervalAbsVal> intervalExitMap, SSAInstruction i) {
+            resultExitLocals.put(i, intervalExitMap);
+        }
+
+        public Map<Integer, IntervalAbsVal> getIntervalExitMapForLocals(SSAInstruction i) {
+            return resultExitLocals.get(i);
         }
 
         public Map<Integer, IntervalAbsVal> getIntervalMapForLocals(SSAInstruction i) {
@@ -176,7 +265,9 @@ public class IntervalResults implements AnalysisResults {
         public int hashCode() {
             final int prime = 31;
             int result = 1;
-            result = prime * result + ((resultLocals == null) ? 0 : resultLocals.hashCode());
+            result = prime * result + ((this.resultExitLocals == null) ? 0 : this.resultExitLocals.hashCode());
+            result = prime * result + ((this.resultLocals == null) ? 0 : this.resultLocals.hashCode());
+            result = prime * result + ((this.resultLocations == null) ? 0 : this.resultLocations.hashCode());
             return result;
         }
 
@@ -192,16 +283,31 @@ public class IntervalResults implements AnalysisResults {
                 return false;
             }
             ResultsForNode other = (ResultsForNode) obj;
-            if (resultLocals == null) {
+            if (this.resultExitLocals == null) {
+                if (other.resultExitLocals != null) {
+                    return false;
+                }
+            }
+            else if (!this.resultExitLocals.equals(other.resultExitLocals)) {
+                return false;
+            }
+            if (this.resultLocals == null) {
                 if (other.resultLocals != null) {
                     return false;
                 }
             }
-            else if (!resultLocals.equals(other.resultLocals)) {
+            else if (!this.resultLocals.equals(other.resultLocals)) {
+                return false;
+            }
+            if (this.resultLocations == null) {
+                if (other.resultLocations != null) {
+                    return false;
+                }
+            }
+            else if (!this.resultLocations.equals(other.resultLocations)) {
                 return false;
             }
             return true;
         }
     }
-
 }
