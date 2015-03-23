@@ -209,7 +209,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         g.ppReach.printDiagnostics();
         System.err.println("\n\n  ***************************** \n\n");
-        System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
+        System.out.println(totalTime / 1000.0);
         System.err.println("   Number of threads used : " + this.numThreads);
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
 
