@@ -1429,8 +1429,8 @@ public final class PointsToGraph implements PointsToIterable {
         this.sc.recordStringStatementUseDependency(x, s);
     }
 
-    public void recordStringVariableDependency(StringVariableReplica x, StringVariableReplica y) {
-        this.sc.recordDependency(x, y);
+    public GraphDelta recordStringVariableDependency(StringVariableReplica x, StringVariableReplica y) {
+        return new GraphDelta(this, this.sc.recordDependency(x, y));
     }
 
     public void recordStringStatementDefineDependency(StringVariableReplica x, StmtAndContext s) {

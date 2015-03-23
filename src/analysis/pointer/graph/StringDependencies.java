@@ -25,11 +25,14 @@ public class StringDependencies {
         this.usedBy = AnalysisUtil.createConcurrentHashMap();
     }
 
-    public void recordDependency(StringVariableReplica x, StringVariableReplica y) {
+    public Set<StringVariableReplica> recordDependency(StringVariableReplica x, StringVariableReplica y) {
         setMapPut(this.dependsOn, x, y);
 
         if (isActive(x)) {
-            activate(y);
+            return activate(y);
+        }
+        else {
+            return AnalysisUtil.createConcurrentSet();
         }
     }
 

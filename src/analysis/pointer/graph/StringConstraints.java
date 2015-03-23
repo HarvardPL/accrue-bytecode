@@ -72,8 +72,8 @@ public class StringConstraints {
         }
     }
 
-    public void recordDependency(StringVariableReplica x, StringVariableReplica y) {
-        this.stringDependencies.recordDependency(x, y);
+    public StringConstraintDelta recordDependency(StringVariableReplica x, StringVariableReplica y) {
+        return StringConstraintDelta.makeWithNeedDefs(this, this.stringDependencies.recordDependency(x, y));
     }
 
     public StringConstraintDelta activate(StringVariableReplica x) {
