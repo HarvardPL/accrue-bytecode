@@ -184,11 +184,9 @@ public abstract class KilledAndAlloced {
                 // we represent the "universal" sets, so intersecting with
                 // the sets in res just gives us directly the sets in res.
                 // So copy over the sets res.killed and res.alloced.
-                this.killed = MutableSparseIntSet.createMutableSparseIntSet(res.killed.size());
-                this.killed.copySet(res.killed);
+                this.killed = MutableSparseIntSet.make(res.killed);
                 this.maybeKilledFields = new LinkedHashSet<>(res.maybeKilledFields);
-                this.alloced = MutableSparseIntSet.createMutableSparseIntSet(res.alloced.size());
-                this.alloced.copySet(res.alloced);
+                this.alloced = MutableSparseIntSet.make(res.alloced);
                 return true;
             }
             assert !res.isUnreachable() && (res.killed != null && res.maybeKilledFields != null && res.alloced != null);
