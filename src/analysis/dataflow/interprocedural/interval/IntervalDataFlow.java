@@ -735,8 +735,8 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         boolean strongUpdate = false;
 
         ReferenceVariableCache rvCache = ptg.getRegistrar().getRvCache();
-        if (rvCache.getMethodSummary(cfg.getMethod()) != null) {
-            ReferenceVariable recRV = rvCache.getReferenceVariable(i.getRef(), cfg.getMethod());
+        if (rvCache.getMethodSummary(currentNode.getMethod()) != null) {
+            ReferenceVariable recRV = rvCache.getReferenceVariable(i.getRef(), currentNode.getMethod());
             PointsToGraphNode recRVR = new ReferenceVariableReplica(currentNode.getContext(), recRV, ptg.getHaf());
             Iterator<? extends InstanceKey> receivers = ptg.pointsToIterator(recRVR, ippr);
 
@@ -916,17 +916,23 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             results.replaceIntervalMapForLocations(intervalMapLocations, i, currentNode);
 
             // Produce results leaving each instruction as well
-            VarContext<IntervalAbsVal> out;
+            VarContext<IntervalAbsVal> out = null;
             if (i != last) {
                 out = getAnalysisRecord(i).getOutput().values().iterator().next();
             }
             else {
-                out = getAnalysisRecord(i).getOutput().get(getNormalSuccs(justProcessed, cfg).iterator().next());
+                Iterator<ISSABasicBlock> iter = getNormalSuccs(justProcessed, cfg).iterator();
+                if (iter.hasNext()) {
+                    // There is a normal successor get the results for it
+                    out = getAnalysisRecord(i).getOutput().get(getNormalSuccs(justProcessed, cfg).iterator().next());
+                }
             }
 
             Map<Integer, IntervalAbsVal> intervalExitMap = new HashMap<>();
-            for (Integer j : out.getLocals()) {
-                intervalExitMap.put(j, getLocal(out, j));
+            if (out != null) {
+                for (Integer j : out.getLocals()) {
+                    intervalExitMap.put(j, getLocal(out, j));
+                }
             }
             results.replaceIntervalExitMapForLocals(intervalExitMap, i, currentNode);
         }

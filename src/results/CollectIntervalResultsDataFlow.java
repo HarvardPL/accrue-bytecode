@@ -48,20 +48,22 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     private final PointsToGraph g;
     private final CollectedResults collected;
     private final Set<Context> allContexts;
+    private final IMethod currentMethod;
 
     public CollectIntervalResultsDataFlow(IntervalResults interval, PointsToGraph g, CollectedResults collected,
-                                          Set<Context> allContexts) {
+                                          Set<Context> allContexts, IMethod m) {
         super(true);
         this.interval = interval;
         this.g = g;
         this.collected = collected;
         this.allContexts = allContexts;
+        this.currentMethod = m;
     }
 
     @Override
     protected Unit flowBinaryOp(SSABinaryOpInstruction i, Set<Unit> previousItems,
                                 ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return Unit.VALUE;
     }
 
@@ -86,7 +88,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     @Override
     protected Unit flowGetStatic(SSAGetInstruction i, Set<Unit> previousItems,
                                  ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return Unit.VALUE;
     }
 
@@ -99,7 +101,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     @Override
     protected Unit flowPhi(SSAPhiInstruction i, Set<Unit> previousItems,
                            ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return Unit.VALUE;
     }
 
@@ -112,7 +114,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     @Override
     protected Unit flowUnaryNegation(SSAUnaryOpInstruction i, Set<Unit> previousItems,
                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg, ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return Unit.VALUE;
     }
 
@@ -120,7 +122,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowArrayLength(SSAArrayLengthInstruction i, Set<Unit> previousItems,
                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                         ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -128,7 +130,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowArrayLoad(SSAArrayLoadInstruction i, Set<Unit> previousItems,
                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                       ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -143,8 +145,8 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowBinaryOpWithException(SSABinaryOpInstruction i, Set<Unit> previousItems,
                                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                                   ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
-        this.recordPossibleArithmeticException(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
+        this.recordPossibleArithmeticException(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -167,7 +169,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowGetField(SSAGetInstruction i, Set<Unit> previousItems,
                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                      ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -175,7 +177,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeInterface(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                             ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -183,7 +185,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeSpecial(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -191,7 +193,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeStatic(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                          ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                          ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -199,7 +201,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeVirtual(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
-        this.recordPossibleZeroIntervalForDef(i, cfg);
+        this.recordPossibleZeroIntervalForDef(i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -283,12 +285,11 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
         return false;
     }
 
-    private Set<CGNode> getAllCGNodes(ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    private Set<CGNode> getAllCGNodes() {
         Set<CGNode> allNodes = new HashSet<>();
-        IMethod m = cfg.getMethod();
         for (Context c : this.allContexts) {
             try {
-                CGNode n = g.getCallGraph().findOrCreateNode(m, c);
+                CGNode n = g.getCallGraph().findOrCreateNode(currentMethod, c);
                 allNodes.add(n);
             }
             catch (CancelException e) {
@@ -304,14 +305,14 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
      *
      * @param i instruction that may define a primitive value
      */
-    private void recordPossibleZeroIntervalForDef(SSAInstruction i, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
-        int def = i.getDef();
-        if (def < 0) {
+    private void recordPossibleZeroIntervalForDef(SSAInstruction i) {
+        if (!i.hasDef()) {
             // no def here
             return;
         }
+        int def = i.getDef();
         collected.recordPossibleZeroInterval();
-        for (CGNode n : getAllCGNodes(cfg)) {
+        for (CGNode n : getAllCGNodes()) {
             IntervalAbsVal inter = interval.getLocalIntervalAfter(def, i, n);
             if (inter != null && inter.containsZero()) {
                 collected.recordZeroInterval();
@@ -325,11 +326,10 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
      *
      * @param i instruction that may define a primitive value
      */
-    private void recordPossibleArithmeticException(SSABinaryOpInstruction i,
-                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    private void recordPossibleArithmeticException(SSABinaryOpInstruction i) {
         int use = i.getUse(1);
         collected.recordPossibleArithmeticException();
-        for (CGNode n : getAllCGNodes(cfg)) {
+        for (CGNode n : getAllCGNodes()) {
             IntervalAbsVal inter = interval.getLocalIntervalBefore(use, i, n);
             if (inter != null && inter.containsZero()) {
                 collected.recordArithmeticException();
@@ -339,12 +339,10 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     }
 
     /**
-     * Run the dataflow for the given method
-     *
-     * @param m method
+     * Run the dataflow
      */
-    void run(IMethod m) {
-        IR ir = AnalysisUtil.getIR(m);
+    void run() {
+        IR ir = AnalysisUtil.getIR(currentMethod);
         assert ir != null;
         this.dataflow(ir);
     }

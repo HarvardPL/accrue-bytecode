@@ -50,7 +50,7 @@ import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.CancelException;
 
-public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<Unit> {
+public class CollectNonNullClassCastResultsDataFlow extends InstructionDispatchDataFlow<Unit> {
 
     private final NonNullResults nonnull;
     private final TypeRepository types;
@@ -58,10 +58,11 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     private final CollectedResults collected;
     private final Set<Context> allContexts;
     private final ReferenceVariableCache rvCache;
+    private final IMethod currentMethod;
 
-    public CollectNonNullClassCastResults(IMethod m, NonNullResults nonnull, PointsToGraph g,
-                                          CollectedResults collected, Set<Context> allContexts,
-                                          ReferenceVariableCache rvCache) {
+    public CollectNonNullClassCastResultsDataFlow(NonNullResults nonnull, PointsToGraph g, CollectedResults collected,
+                                          Set<Context> allContexts, ReferenceVariableCache rvCache,
+                                          IMethod m) {
         super(true);
         this.nonnull = nonnull;
         this.g = g;
@@ -69,6 +70,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
         this.allContexts = allContexts;
         this.types = new TypeRepository(AnalysisUtil.getIR(m));
         this.rvCache = rvCache;
+        this.currentMethod = m;
     }
 
     @Override
@@ -129,7 +131,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowArrayLength(SSAArrayLengthInstruction i, Set<Unit> previousItems,
                                                         ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                         ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getArrayRef(), i, cfg);
+        this.recordPossibleNullPointerException(i.getArrayRef(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -137,7 +139,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowArrayLoad(SSAArrayLoadInstruction i, Set<Unit> previousItems,
                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                       ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getArrayRef(), i, cfg);
+        this.recordPossibleNullPointerException(i.getArrayRef(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -145,7 +147,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowArrayStore(SSAArrayStoreInstruction i, Set<Unit> previousItems,
                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                        ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getArrayRef(), i, cfg);
+        this.recordPossibleNullPointerException(i.getArrayRef(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -166,8 +168,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
         IClassHierarchy cha = AnalysisUtil.getClassHierarchy();
         TypeReference tr = i.getDeclaredResultTypes()[0];
         IClass castClass = cha.lookupClass(tr);
-        IMethod m = cfg.getMethod();
-        ReferenceVariable rv = rvCache.getReferenceVariable(i.getVal(), m);
+        ReferenceVariable rv = rvCache.getReferenceVariable(i.getVal(), currentMethod);
 
         boolean castAlwaysSucceeds = true;
         OUTER: for (Context c : allContexts) {
@@ -203,7 +204,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowGetField(SSAGetInstruction i, Set<Unit> previousItems,
                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                      ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getRef(), i, cfg);
+        this.recordPossibleNullPointerException(i.getRef(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -211,7 +212,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeInterface(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                             ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                             ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getReceiver(), i, cfg);
+        this.recordPossibleNullPointerException(i.getReceiver(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -219,7 +220,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeSpecial(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getReceiver(), i, cfg);
+        this.recordPossibleNullPointerException(i.getReceiver(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -234,7 +235,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowInvokeVirtual(SSAInvokeInstruction i, Set<Unit> previousItems,
                                                           ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                           ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getReceiver(), i, cfg);
+        this.recordPossibleNullPointerException(i.getReceiver(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -256,7 +257,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowMonitor(SSAMonitorInstruction i, Set<Unit> previousItems,
                                                     ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                     ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getRef(), i, cfg);
+        this.recordPossibleNullPointerException(i.getRef(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -278,7 +279,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowPutField(SSAPutInstruction i, Set<Unit> previousItems,
                                                      ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                      ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getRef(), i, cfg);
+        this.recordPossibleNullPointerException(i.getRef(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -300,7 +301,7 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowThrow(SSAThrowInstruction i, Set<Unit> previousItems,
                                                   ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                   ISSABasicBlock current) {
-        this.recordPossibleNullPointerException(i.getException(), i, cfg);
+        this.recordPossibleNullPointerException(i.getException(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -327,13 +328,12 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
      * @param couldBeNullLocal local that will cause an NPE if null
      * @param i instruction that could throw the NPE
      */
-    private void recordPossibleNullPointerException(int couldBeNullLocal, SSAInstruction i, ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg) {
+    private void recordPossibleNullPointerException(int couldBeNullLocal, SSAInstruction i) {
         collected.recordPossibleNullPointerException();
-        IMethod m = cfg.getMethod();
         for (Context c : allContexts) {
             CGNode n;
             try {
-                n = g.getCallGraph().findOrCreateNode(m, c);
+                n = g.getCallGraph().findOrCreateNode(currentMethod, c);
             }
             catch (CancelException e) {
                 throw new RuntimeException(e);
@@ -346,8 +346,8 @@ public class CollectNonNullClassCastResults extends InstructionDispatchDataFlow<
         }
     }
 
-    void run(IMethod m) {
-        IR ir = AnalysisUtil.getIR(m);
+    void run() {
+        IR ir = AnalysisUtil.getIR(currentMethod);
         assert ir != null;
         dataflow(ir);
     }

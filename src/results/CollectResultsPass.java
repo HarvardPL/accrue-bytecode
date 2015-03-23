@@ -2,6 +2,7 @@ package results;
 
 import java.util.Set;
 
+import signatures.Signatures;
 import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.interval.IntervalResults;
 import analysis.dataflow.interprocedural.nonnull.NonNullResults;
@@ -33,6 +34,11 @@ public class CollectResultsPass {
                 continue;
             }
 
+            if (Signatures.isSigType(m.getDeclaringClass().getReference())) {
+                // Skip the signature methods themselves
+                continue;
+            }
+
             IR ir = AnalysisUtil.getIR(m);
             if (ir == null) {
                 assert m.isNative();
@@ -40,8 +46,8 @@ public class CollectResultsPass {
                 continue;
             }
 
-            new CollectIntervalResultsDataFlow(interval, g, results, contexts).run(m);
-            new CollectNonNullClassCastResults(m, nonnull, g, results, contexts, g.getRegistrar().getRvCache()).run(m);
+            new CollectIntervalResultsDataFlow(interval, g, results, contexts, m).run();
+            new CollectNonNullClassCastResultsDataFlow(nonnull, g, results, contexts, g.getRegistrar().getRvCache(), m).run();
 
         } // end of method loop
 

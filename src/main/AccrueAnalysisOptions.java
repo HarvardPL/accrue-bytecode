@@ -28,7 +28,7 @@ public final class AccrueAnalysisOptions {
     /**
      * Classpath to use when none is specified
      */
-    private static final String DEFAULT_CLASSPATH = "classes/test";
+    private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
     /**
      * Run single-threaded pointer analysis.
