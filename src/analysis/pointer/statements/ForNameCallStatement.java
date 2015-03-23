@@ -71,6 +71,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);
 
+        Logger.println("[ForNameCallStatement] in method: " + this.getMethod());
         GraphDelta changed = new GraphDelta(g);
 
         changed.combine(g.activateStringVariable(nameSVR));
@@ -124,7 +125,7 @@ public class ForNameCallStatement extends PointsToStatement {
                                     .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application, "L"
                                             + string.replace(".", "/")));
         if (result == null) {
-            Logger.println("Could not find class for: " + string);
+            Logger.println("[ForNameCallStatement] Could not find class for: " + string);
             return Optional.none();
         }
         else {
