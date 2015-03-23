@@ -110,7 +110,7 @@ public class AnalysisUtil {
      *
      * XXX initialized to total processors to make sure there is something here during initialization
      */
-    private static int numThreads = Runtime.getRuntime().availableProcessors();
+    public static int numThreads = Runtime.getRuntime().availableProcessors();
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -399,7 +399,7 @@ public class AnalysisUtil {
     }
 
     public static <W, T> ConcurrentHashMap<W, T> createConcurrentHashMap() {
-        return new ConcurrentHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentHashMap<>(16, 0.75f, numThreads);
     }
 
     public static <T> Set<T> createConcurrentSet() {

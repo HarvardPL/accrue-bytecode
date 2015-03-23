@@ -43,8 +43,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     private static boolean paranoidMode = false;
 
     int numThreads() {
-        //return 1;
-        return Runtime.getRuntime().availableProcessors();
+        return AnalysisUtil.numThreads;
     }
 
     public PointsToAnalysisMultiThreaded(HeapAbstractionFactory haf) {
@@ -427,11 +426,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public static MutableIntSet makeConcurrentIntSet() {
-        return new ConcurrentIntHashSet(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentIntHashSet(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     public static <T> ConcurrentIntMap<T> makeConcurrentIntMap() {
-        return new ConcurrentIntHashMap<>(16, 0.75f, Runtime.getRuntime().availableProcessors());
+        return new ConcurrentIntHashMap<>(16, 0.75f, AnalysisUtil.numThreads);
     }
 
     /**
