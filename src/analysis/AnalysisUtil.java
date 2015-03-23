@@ -106,6 +106,13 @@ public class AnalysisUtil {
     public static final Signatures signatures = new Signatures();
 
     /**
+     * Number of threads to use for concurrent data structures
+     *
+     * XXX initialized to total processors to make sure there is something here during initialization
+     */
+    private static int numThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
      * an analysis
      */
@@ -156,9 +163,10 @@ public class AnalysisUtil {
      * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
      *             class path and for other reasons see {@link ClassHierarchy}
      */
-    public static void init(String classPath, String entryPoint, String outputDirectory) throws IOException,
+    public static void init(String classPath, String entryPoint, String outputDirectory, int numThreads)
+                                                                                                        throws IOException,
                                                                                         ClassHierarchyException {
-
+        AnalysisUtil.numThreads = numThreads;
         AnalysisUtil.outputDirectory = outputDirectory;
         AnalysisUtil.cache = new AnalysisCache();
 

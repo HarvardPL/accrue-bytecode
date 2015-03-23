@@ -23,6 +23,14 @@ public final class AccrueAnalysisOptions {
     private static final String DEFAULT_CLASSPATH = "classes/test:classes/signatures";
 
     /**
+     * Number of threads for multi-threaded pointer analysis.
+     */
+    @Parameter(
+        names = { "-numThreads" },
+        description = "Number of threads for the multi threaded pointer analysis. Default is the number of processors available to the JVM.")
+    private int numThreads = Runtime.getRuntime().availableProcessors();
+
+    /**
      * Run single-threaded pointer analysis.
      */
     @Parameter(
@@ -829,5 +837,14 @@ public final class AccrueAnalysisOptions {
      */
     public boolean isTestMode() {
         return testMode;
+    }
+
+    /**
+     * Number of threads to use for the multi-threaded points-to analysis
+     * 
+     * @return number of threads
+     */
+    public int getNumThreads() {
+        return this.numThreads;
     }
 }

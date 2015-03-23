@@ -103,6 +103,7 @@ public class AccrueAnalysisMain {
         HeapAbstractionFactory haf = options.getHaf();
         boolean isOnline = options.registerOnline();
         boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
+        int numThreads = useSingleThreadedPointerAnalysis ? 1 : options.getNumThreads();
         testMode = options.isTestMode();
 
         // Trade-offs for points-to analysis precision vs. size/time
@@ -133,12 +134,12 @@ public class AccrueAnalysisMain {
         ReferenceVariableCache rvCache;
         switch (analysisName) {
         case "pointsto":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             System.err.println("STARTING WALA POINTER ANALYSIS");
             runWalaPointerAnalysis(haf, singleGenEx, singleThrowable, singlePrimArray, singleString, singleWrappers);
             break;
         case "pointsto2":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -169,13 +170,13 @@ public class AccrueAnalysisMain {
             System.err.println(numNodes + " CGNodes");
             break;
         case "maincfg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
             ir = AnalysisUtil.getIR(entry.getMethod());
             printSingleCFG(ir, outputDir + "/" + fileName + "_main");
             break;
         case "bool":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             runBooleanConstant(entryPoint,
                                outputLevel,
                                haf,
@@ -189,7 +190,7 @@ public class AccrueAnalysisMain {
                                singleWrappers);
             break;
         case "nonnull":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -231,7 +232,7 @@ public class AccrueAnalysisMain {
                     + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
             break;
         case "precise-ex":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -249,7 +250,7 @@ public class AccrueAnalysisMain {
             preciseEx.writeAllToFiles(r, outputDir);
             break;
         case "reachability":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -265,7 +266,7 @@ public class AccrueAnalysisMain {
             r.writeAllToFiles(outputDir);
             break;
         case "cfg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -279,7 +280,7 @@ public class AccrueAnalysisMain {
             printAllCFG(g, outputDir);
             break;
         case "cfg-for-class":
-            AnalysisUtil.init(classPath, null, outputDir);
+            AnalysisUtil.init(classPath, null, outputDir, numThreads);
             String name = "L" + options.getClassNameForCFG().replace(".", "/");
             System.err.println("Printing CFGs for " + name);
             TypeReference type = TypeReference.findOrCreate(ClassLoaderReference.Application, name);
@@ -298,7 +299,7 @@ public class AccrueAnalysisMain {
             }
             break;
         case "pdg":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             results = generatePointsToGraph(outputLevel,
                                             haf,
                                             useSingleThreadedPointerAnalysis,
@@ -371,7 +372,7 @@ public class AccrueAnalysisMain {
         //            printAllCFG(g);
         //            break;
         case "string-main":
-            AnalysisUtil.init(classPath, entryPoint, outputDir);
+            AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);
             StringVariableFactory factory = new StringVariableFactory();
             StringAnalysisResults stringResults = new StringAnalysisResults(factory);
             IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();
