@@ -62,7 +62,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
-        System.err.println("Starting points to engine using " + this.haf);
+        System.err.println("Starting points to engine using " + this.haf + " " + this.numThreads() + " threads");
         long startTime = System.currentTimeMillis();
 
 
