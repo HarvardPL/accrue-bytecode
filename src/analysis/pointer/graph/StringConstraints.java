@@ -40,32 +40,20 @@ public class StringConstraints {
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
-        if (svr.toString().contains("LSV 69_0")) {
-            Logger.println("[joinAt] " + svr + " `join` " + shat);
-        }
-
         if (this.stringDependencies.isActive(svr)) {
+            Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
             if (this.map.containsKey(svr)) {
-                if (svr.toString().contains("LSV 69_0")) {
-                    Logger.println("[joinAt] before " + svr + " = " + this.map.get(svr));
-                }
                 boolean changedp = this.map.get(svr).join(shat);
-                if (svr.toString().contains("LSV 69_0")) {
-                    Logger.println("[joinAt] after " + svr + " = " + this.map.get(svr));
-                    Logger.println("[joinAt] changed = " + changedp);
-                }
                 return changedp ? StringConstraintDelta.makeWithNeedUses(this, svr)
                         : StringConstraintDelta.makeEmpty(this);
             }
             else {
-                if (svr.toString().contains("LSV 69_0")) {
-                    Logger.println("[joinAt] nothing in 69_0 yet, setting to copy of " + shat);
-                }
                 this.map.put(svr, shat.copy());
                 return StringConstraintDelta.makeWithNeedUses(this, svr);
             }
         }
         else {
+            Logger.println("[joinAt] Inactive variable: " + svr);
             return StringConstraintDelta.makeEmpty(this);
         }
     }
