@@ -42,7 +42,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
      */
     private static boolean paranoidMode = false;
 
-    int numThreads() {
+    static int numThreads() {
         return AnalysisUtil.numThreads;
     }
 
@@ -62,12 +62,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     }
 
     public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
-        System.err.println("Starting points to engine using " + this.haf + " " + this.numThreads() + " threads");
+        System.err.println("Starting points to engine using " + this.haf + " "
+                + PointsToAnalysisMultiThreaded.numThreads() + " threads");
         long startTime = System.currentTimeMillis();
 
 
         //final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(this.numThreads()));
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads()));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(PointsToAnalysisMultiThreaded.numThreads()));
         //        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads(),
         //                                                                                               ForkJoinPool.defaultForkJoinWorkerThreadFactory,
         //                                                                                               null,
@@ -160,7 +161,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.err.println("   Number of threads used : " + this.numThreads());
+        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
         if (!AccrueAnalysisMain.testMode) {

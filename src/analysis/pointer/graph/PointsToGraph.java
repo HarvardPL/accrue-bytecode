@@ -31,7 +31,6 @@ import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.CGNode;
-import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.util.CancelException;
@@ -174,6 +173,8 @@ public final class PointsToGraph {
 
     private final DependencyRecorder depRecorder;
 
+    private final StatementRegistrar registrar;
+
 
     /**
      * Is the graph still being constructed, or is it finished? Certain operations should be called only once the graph
@@ -185,6 +186,7 @@ public final class PointsToGraph {
         this.depRecorder = depRecorder;
 
         this.haf = haf;
+        this.registrar = registrar;
 
         this.populateInitialContexts(registrar.getInitialContextMethods());
     }
@@ -735,7 +737,7 @@ public final class PointsToGraph {
      * @return call graph
      */
     @SuppressWarnings("deprecation")
-    public CallGraph getCallGraph() {
+    public HafCallGraph getCallGraph() {
         assert graphFinished;
         if (this.callGraph != null) {
             return this.callGraph;
@@ -1236,7 +1238,6 @@ public final class PointsToGraph {
 
         // construct the call graph before we clear out a lot of stuff.
         this.getCallGraph();
-        this.reachableContexts = null;
         this.classInitializers = null;
         this.entryPoints = null;
         this.callGraphMap = null;
@@ -1250,6 +1251,7 @@ public final class PointsToGraph {
             pointsTo.put(key, newMS);
         }
 
+        // this.reachableContexts = compact(this.reachableContexts);
         this.pointsTo = compact(this.pointsTo, "pointsTo");
         this.instanceKeyDictionary = compact(this.instanceKeyDictionary, "instanceKeyDictionary");
         this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary, "reverseGraphNodeDictionary");
@@ -1376,4 +1378,7 @@ public final class PointsToGraph {
 
     }
 
+    public StatementRegistrar getRegistrar() {
+        return registrar;
+    }
 }
