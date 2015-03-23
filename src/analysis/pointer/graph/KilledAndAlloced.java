@@ -6,7 +6,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import util.intset.EmptyIntSet;
 import analysis.AnalysisUtil;
 
 import com.ibm.wala.types.FieldReference;
@@ -148,24 +147,19 @@ public abstract class KilledAndAlloced {
                 // b is the bottom of the lattice
                 return a;
             }
-            int killedSize = a.killed.size() + b.killed.size();
-            MutableIntSet killed = killedSize == 0 ? EmptyIntSet.INSTANCE
-                    : MutableSparseIntSet.createMutableSparseIntSet(killedSize);
+            MutableIntSet killed = MutableSparseIntSet.createMutableSparseIntSet(2);
             Set<FieldReference> maybeKilledFields = new LinkedHashSet<>();
-            int allocedSize = a.alloced.size() + b.alloced.size();
-            MutableIntSet alloced = allocedSize == 0 ? EmptyIntSet.INSTANCE
-                    : MutableSparseIntSet.createMutableSparseIntSet(allocedSize);
 
-            if (killedSize > 0) {
-                killed.addAll(a.killed);
-                killed.addAll(b.killed);
-            }
+            MutableIntSet alloced = MutableSparseIntSet.createMutableSparseIntSet(2);
+
+            killed.addAll(a.killed);
+            killed.addAll(b.killed);
+
             maybeKilledFields.addAll(a.maybeKilledFields);
             maybeKilledFields.addAll(b.maybeKilledFields);
-            if (allocedSize > 0) {
-                alloced.addAll(a.alloced);
-                alloced.addAll(b.alloced);
-            }
+
+            alloced.addAll(a.alloced);
+            alloced.addAll(b.alloced);
 
             return new ThreadLocalKilledAndAlloced(killed, maybeKilledFields, alloced);
         }
@@ -190,10 +184,10 @@ public abstract class KilledAndAlloced {
                 // we represent the "universal" sets, so intersecting with
                 // the sets in res just gives us directly the sets in res.
                 // So copy over the sets res.killed and res.alloced.
-                this.killed = MutableSparseIntSet.createMutableSparseIntSet(2);
+                this.killed = MutableSparseIntSet.createMutableSparseIntSet(res.killed.size());
                 this.killed.copySet(res.killed);
                 this.maybeKilledFields = new LinkedHashSet<>(res.maybeKilledFields);
-                this.alloced = MutableSparseIntSet.createMutableSparseIntSet(2);
+                this.alloced = MutableSparseIntSet.createMutableSparseIntSet(res.alloced.size());
                 this.alloced.copySet(res.alloced);
                 return true;
             }

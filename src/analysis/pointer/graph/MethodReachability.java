@@ -372,13 +372,15 @@ public class MethodReachability {
                             WorkQueue<InterProgramPoint> q, int cgNode) {
         /*Set<OrderedPair<IMethod, Context>>*/IntSet calleeSet = g.getCalleesOf(callSite);
         if (this.ppr.getApproximateCallSitesAndFieldAssigns().isApproximate(callSite)) {
-            if (!calleeSet.isEmpty()) {
-                if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
-                    ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
-                }
-                if (PointsToAnalysis.outputLevel > 0) {
-                    System.err.println("APPROXIMATING non-empty call site "
-                            + g.lookupCallSiteReplicaDictionary(callSite));
+            if (ProgramPointReachability.PRINT_DIAGNOSTICS || PointsToAnalysis.outputLevel > 0) {
+                if (!calleeSet.isEmpty()) {
+                    if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+                        ProgramPointReachability.nonEmptyApproximatedCallSites.add(callSite);
+                    }
+                    if (PointsToAnalysis.outputLevel > 0) {
+                        System.err.println("APPROXIMATING non-empty call site "
+                                + g.lookupCallSiteReplicaDictionary(callSite));
+                    }
                 }
             }
             // This is a call site with no callees that we approximate by assuming it returns normally
