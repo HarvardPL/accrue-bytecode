@@ -4,7 +4,8 @@ import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.Set;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -110,7 +111,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         PointsToAnalysis.startTime = System.currentTimeMillis();
 
 
-        final ExecutorServiceCounter execService = new ExecutorServiceCounter(new ForkJoinPool(this.numThreads));
+        final ExecutorServiceCounter execService = new ExecutorServiceCounter(Executors.newFixedThreadPool(numThreads));
 
         DependencyRecorder depRecorder = new DependencyRecorder() {
 
@@ -314,7 +315,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     class ExecutorServiceCounter {
         public PointsToGraph g;
         public StatementRegistrar registrar;
-        private ForkJoinPool exec;
+        private ExecutorService exec;
 
         /**
          * The number of tasks currently to be executed
@@ -356,7 +357,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private boolean approximationFinished = false;
 
-        public ExecutorServiceCounter(ForkJoinPool exec) {
+        public ExecutorServiceCounter(ExecutorService exec) {
             this.exec = exec;
             // Statement and context tasks
             this.numRemainingTasks = new AtomicLong(0);
@@ -460,7 +461,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // added to the service.
 
             // Check if we should add any pending tasks.
-            int bound = (int) (exec.getParallelism() * 1.5);
+            int bound = (int) (numThreads * 1.5);
             if (this.numRemainingTasks.get() <= bound) {
                 // the number of remaining tasks is below the threshold, so possibly we want to empty
                 // the pending queues.
