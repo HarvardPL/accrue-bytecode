@@ -69,7 +69,7 @@ public class ForNameCallStatement extends PointsToStatement {
 
         GraphDelta changed = new GraphDelta(g);
 
-        g.recordStringStatementDependency(nameSVR, originator);
+        g.recordStringStatementUseDependency(nameSVR, originator);
 
         Logger.println("[ForNameCallStatement] in method: " + this.getMethod());
         Logger.println("[ForNameCallStatement] recording a dependency on " + nameSVR);

@@ -32,7 +32,7 @@ public class LocalToStaticFieldStringStatement extends StringStatement {
 
         g.recordStringStatementDefineDependency(fsvr, originator);
 
-        g.recordStringStatementDependency(vsvr, originator);
+        g.recordStringStatementUseDependency(vsvr, originator);
 
         newDelta.combine(g.recordStringVariableDependency(fsvr, vsvr));
 
