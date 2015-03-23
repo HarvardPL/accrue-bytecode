@@ -39,12 +39,14 @@ public class StringDependencies {
 
     public Set<StringVariableReplica> activate(StringVariableReplica x) {
         if (isActive(x)) {
+            Logger.println("[StringDependencies.activate] Already active: " + x);
             return AnalysisUtil.createConcurrentSet();
         }
         else {
             this.active.add(x);
 
             Logger.println("[StringDependencies.activate] Activating: " + x);
+            Logger.println("[StringDependencies.activate] Known definers: " + this.setMapGet(this.definedBy, x));
 
             Set<StringVariableReplica> sources = new HashSet<>();
             sources.add(x);
