@@ -258,18 +258,27 @@ public class AccrueAnalysisMain {
                     + cResults.getPossibleNullPointerExceptionCount()
                     + " = "
                     + ((double) cResults.getNullPointerExceptionCount() / (double) cResults.getPossibleNullPointerExceptionCount()));
+            System.out.println(cResults.getNullPointerExceptionCount());
+            System.out.println(cResults.getPossibleNullPointerExceptionCount() + "\n");
             System.err.println("Casts Not Removed: " + cResults.getCastsNotRemovedCount() + "/"
                     + cResults.getTotalCastCount() + " = "
                     + ((double) cResults.getCastsNotRemovedCount() / cResults.getTotalCastCount()));
-            System.err.println("Zero intervals: " + cResults.getZeroIntervalCount() + "/"
-                    + cResults.getPossibleZeroIntervalCount() + " = "
-                    + ((double) cResults.getZeroIntervalCount() / (double) cResults.getPossibleZeroIntervalCount()));
+            System.out.println(cResults.getCastsNotRemovedCount());
+            System.out.println(cResults.getTotalCastCount() + "\n");
             System.err.println("Arithmetic: "
                     + cResults.getArithmeticExceptionCount()
                     + "/"
                     + cResults.getPossibleArithmeticExceptionCount()
                     + " = "
                     + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
+            System.out.println(cResults.getArithmeticExceptionCount());
+            System.out.println(cResults.getPossibleArithmeticExceptionCount() + "\n");
+            System.err.println("Zero intervals: " + cResults.getZeroIntervalCount() + "/"
+                    + cResults.getPossibleZeroIntervalCount() + " = "
+                    + ((double) cResults.getZeroIntervalCount() / (double) cResults.getPossibleZeroIntervalCount()));
+            System.out.println(cResults.getZeroIntervalCount());
+            System.out.println(cResults.getPossibleZeroIntervalCount() + "\n");
+            System.out.println(g.getCallGraph().getNumberOfNodes());
             break;
         case "precise-ex":
             AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads);

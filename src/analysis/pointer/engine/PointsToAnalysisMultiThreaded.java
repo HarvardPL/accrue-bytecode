@@ -161,6 +161,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
+        System.out.println(totalTime / 1000.0);
         System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
@@ -182,9 +183,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
             System.err.println("   Memory utilization     : "
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.out.println(ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000);
             System.gc();
             System.err.println("   Memory utilization post GC : "
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
+            System.out.println(ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000);
             System.err.println("\n\n");
         }
         if (paranoidMode) {
