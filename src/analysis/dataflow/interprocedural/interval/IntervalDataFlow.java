@@ -793,8 +793,11 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
     private IntervalAbsVal getLocal(VarContext<IntervalAbsVal> in, int var) {
         Double d = getDoubleFromVar(var);
         if (d == null) {
-            // not numeric value
+            // not constant value
             IntervalAbsVal itvl = in.getLocal(var);
+            if (itvl != null) {
+                return itvl;
+            }
 
             TypeReference tr;
 
@@ -807,7 +810,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 return IntervalAbsVal.BOTTOM_ELEMENT;
             }
 
-            if (itvl == null && tr.isPrimitiveType()) {
+            if (tr.isPrimitiveType()) {
                 return IntervalAbsVal.BOTTOM_ELEMENT;
             }
             return itvl;
