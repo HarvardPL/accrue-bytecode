@@ -498,17 +498,7 @@ public final class ProgramPointDestinationQuery {
             /*OrderedPair<IMethod, Context>*/int calleeInt = calleeIter.next();
             OrderedPair<IMethod, Context> callee = g.lookupCallGraphNodeDictionary(calleeInt);
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
-            long startCG = 0L;
-            if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
-                startCG = System.currentTimeMillis();
-            }
-
             MethodSummaryKillAndAlloc calleeResults = this.ppr.getReachabilityForMethod(calleeInt);
-
-
-            if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
-                ppr.callGraphReachabilityTime.addAndGet(System.currentTimeMillis() - startCG);
-            }
             if (USE_TUNNELS) {
                 if (!this.destCGNodeEntryReached) {
                     // we haven't reached the destination CG node yet, so keep trying to find it.

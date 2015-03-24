@@ -40,6 +40,10 @@ public final class ProgramPointReachability {
      * Whether to incrementally print diagnostic timing and count information
      */
     public static final boolean PRINT_DIAGNOSTICS = false;
+    /**
+     * If printing diagnostics, reset all the counts after every print.
+     */
+    private static final boolean PRINT_AND_RESET = false;
 
     /**
      * Print debug info
@@ -549,6 +553,7 @@ public final class ProgramPointReachability {
 
     public static final MutableIntSet nonEmptyApproximatedCallSites = AnalysisUtil.createConcurrentIntSet();
     public static final Set<OrderedPair<PointsToStatement, Context>> nonEmptyApproximatedKillSets = AnalysisUtil.createConcurrentSet();
+
 
     /* *****************************************************************************
      *
@@ -1161,7 +1166,6 @@ public final class ProgramPointReachability {
 
     // Times
     private AtomicLong queryDepTime = new AtomicLong(0);
-    AtomicLong callGraphReachabilityTime = new AtomicLong(0);
     private AtomicLong recordResultsTime = new AtomicLong(0);
     private AtomicLong totalTime = new AtomicLong(0);
     private AtomicLong destQueryTime = new AtomicLong(0);
@@ -1200,6 +1204,10 @@ public final class ProgramPointReachability {
         if (!PRINT_DIAGNOSTICS) {
             return;
         }
+        if (PRINT_AND_RESET) {
+            printAndReset();
+            return;
+        }
         StringBuffer sb = new StringBuffer();
         sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
         sb.append("\nTotal requests: "
@@ -1221,7 +1229,6 @@ public final class ProgramPointReachability {
 
         double analysisTime = (System.currentTimeMillis() - PointsToAnalysis.startTime) / 1000.0;
         double total = totalTime.get() / 1000.0;
-        double callGraphReach = callGraphReachabilityTime.get() / 1000.0;
         double methodReach = methodReachTime.get() / 1000.0;
         double destQuery = destQueryTime.get() / 1000.0;
 
@@ -1249,7 +1256,6 @@ public final class ProgramPointReachability {
         // Multiply by the number of threads to get the right ratios
         analysisTime *= analysisHandle.numThreads();
         sb.append("\tReachability: " + total + "s; RATIO: " + total / analysisTime + "\n");
-        sb.append("\tCGReachability: " + callGraphReach + "s; RATIO: " + callGraphReach / analysisTime + "\n");
         sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
         sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
         sb.append("\tReachableImpl: " + reachableImpl + "s; RATIO: " + reachableImpl / analysisTime + "\n");
@@ -1276,6 +1282,101 @@ public final class ProgramPointReachability {
                 + (methodQueryRequestCount / totalRequests.get()) + "\n");
         sb.append("\treachabilityRequests: " + reachabilityRequestCount + " RATIO: "
                 + (reachabilityRequestCount / totalRequests.get()) + "\n");
+        sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
+        System.err.println(sb.toString());
+        if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
+            callGraphReachability.printDiagnostics();
+        }
+    }
+
+    private long epochTime = -1;
+
+    public void printAndReset() {
+        if (!PRINT_DIAGNOSTICS) {
+            return;
+        }
+        StringBuffer sb = new StringBuffer();
+        sb.append("\n%%%%%%%%%%%%%%%%% REACHABILITY STATISTICS %%%%%%%%%%%%%%%%%\n");
+        sb.append("\nTotal requests: "
+                + totalRequests
+                + "  ;  "
+                + cachedResponses
+                + "  cached "
+                + computedResponses
+                + " computed ("
+                + (int) (100 * (cachedResponses.getAndSet(0) / ((double) cachedResponses.getAndSet(0) + (double) computedResponses.getAndSet(0))))
+                + "% hit rate)\n");
+        sb.append("Total getReachabilityForMethod requests: " + totalMethodReach + "  ;  " + cachedMethodReach
+                + "  cached " + computedMethodReach.getAndSet(0) + " computed ("
+                + (int) (100 * (cachedMethodReach.getAndSet(0) / (double) totalMethodReach.getAndSet(0)))
+                + "% hit rate)\n");
+        sb.append("Total computeMethodReachability calls: " + totalComputeMethodReachability.getAndSet(0) + "\n");
+        sb.append("Total subquery requests: " + totalDestQuery + "  ;  " + cachedDestQuery
+                + "  races " + computedDestQuery.getAndSet(0) + " computed ("
+                + (int) (100 * (cachedDestQuery.getAndSet(0) / (double) totalDestQuery.getAndSet(0)))
+                + "% race rate)\n");
+
+        if (epochTime < 0) {
+            epochTime = PointsToAnalysis.startTime;
+        }
+        long endTime = System.currentTimeMillis();
+        double analysisTime = (endTime - epochTime) / 1000.0;
+        epochTime = endTime;
+        double total = totalTime.getAndSet(0) / 1000.0;
+        double methodReach = methodReachTime.getAndSet(0) / 1000.0;
+        double destQuery = destQueryTime.getAndSet(0) / 1000.0;
+
+        double recordResults = recordResultsTime.getAndSet(0) / 1000.0;
+        double recordMethod = recordMethodTime.getAndSet(0) / 1000.0;
+
+        double queryDep = queryDepTime.getAndSet(0) / 1000.0;
+        double calleeDep = calleeDepTime.getAndSet(0) / 1000.0;
+        double callerDep = callerDepTime.getAndSet(0) / 1000.0;
+        double methodDep = methodDepTime.getAndSet(0) / 1000.0;
+        double killQueryDep = killQueryDepTime.getAndSet(0) / 1000.0;
+        double killCallerDep = killCallerDepTime.getAndSet(0) / 1000.0;
+        double methodCalleeDep = methodCalleeDepTime.getAndSet(0) / 1000.0;
+        double methodCallerDep = methodCallerDepTime.getAndSet(0) / 1000.0;
+        double reachableImpl = reachableImplTime.getAndSet(0) / 1000.0;
+
+        double calleeQueryRequestCount = calleeQueryRequests.getAndSet(0);
+        double callerQueryRequestCount = callerQueryRequests.getAndSet(0);
+        double killQueryRequestCount = killQueryRequests.getAndSet(0);
+        double methodQueryRequestCount = methodQueryRequests.getAndSet(0);
+        double reachabilityRequestCount = reachabilityRequests.getAndSet(0);
+        double requestCount = totalRequests.getAndSet(0);
+
+        sb.append("REACHABILITY QUERY EXECUTION\n");
+        sb.append("\tTotal: " + analysisTime + "s;\n");
+        // Multiply by the number of threads to get the right ratios
+        analysisTime *= analysisHandle.numThreads();
+        sb.append("\tReachability: " + total + "s; RATIO: " + total / analysisTime + "\n");
+        sb.append("\tMethod: " + methodReach + "s; RATIO: " + methodReach / analysisTime + "\n");
+        sb.append("\tDestination: " + destQuery + "s; RATIO: " + destQuery / analysisTime + "\n");
+        sb.append("\tReachableImpl: " + reachableImpl + "s; RATIO: " + reachableImpl / analysisTime + "\n");
+        sb.append("RECORD RESULTS" + "\n");
+        sb.append("\tQuery results: " + recordResults + "s; RATIO: " + recordResults / analysisTime + "\n");
+        sb.append("\tMethod Query results: " + recordMethod + "s; RATIO: " + recordMethod / analysisTime + "\n");
+        sb.append("RECORD DEPENDENCIES" + "\n");
+        sb.append("\tQuery deps: " + queryDep + "s; RATIO: " + queryDep / analysisTime + "\n");
+        sb.append("\tCallee deps: " + calleeDep + "s; RATIO: " + calleeDep / analysisTime + "\n");
+        sb.append("\tCaller deps: " + callerDep + "s; RATIO: " + callerDep / analysisTime + "\n");
+        sb.append("\tMethod deps: " + methodDep + "s; RATIO: " + methodDep / analysisTime + "\n");
+        sb.append("\tKill query deps: " + killQueryDep + "s; RATIO: " + killQueryDep / analysisTime + "\n");
+        sb.append("\tKill caller deps: " + killCallerDep + "s; RATIO: " + killCallerDep / analysisTime + "\n");
+        sb.append("\tMethod callee deps: " + methodCalleeDep + "s; RATIO: " + methodCalleeDep / analysisTime + "\n");
+        sb.append("\tMethod caller deps: " + methodCallerDep + "s; RATIO: " + methodCallerDep / analysisTime + "\n");
+        sb.append("TRIGGERED DEPENDENCIES" + "\n");
+        sb.append("\tcalleeQueryRequests: " + calleeQueryRequestCount + " RATIO: "
+                + (calleeQueryRequestCount / requestCount) + "\n");
+        sb.append("\tcallerQueryRequests: " + callerQueryRequestCount + " RATIO: "
+                + (callerQueryRequestCount / requestCount) + "\n");
+        sb.append("\tkillQueryRequests: " + killQueryRequestCount + " RATIO: " + (killQueryRequestCount / requestCount)
+                + "\n");
+        sb.append("\tmethodQueryRequests: " + methodQueryRequestCount + " RATIO: "
+                + (methodQueryRequestCount / requestCount) + "\n");
+        sb.append("\treachabilityRequests: " + reachabilityRequestCount + " RATIO: "
+                + (reachabilityRequestCount / requestCount) + "\n");
         sb.append("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n");
         System.err.println(sb.toString());
         if (CallGraphReachability.USE_CALL_GRAPH_REACH) {
