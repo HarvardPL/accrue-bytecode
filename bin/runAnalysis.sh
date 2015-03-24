@@ -1,6 +1,6 @@
 #!/bin/sh
 
-vmargs="-Xmx14G -Xms14G -Xss30m"
+vmargs="-Xmx25G -Xms25G -Xss30m"
 dir=`dirname "$0"`/..
 
 if [ -z "$ACCRUE_BYTECODE" ]; then
