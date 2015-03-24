@@ -146,7 +146,8 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
                 for (int j = 0; j < formals.length; j++) {
-                    if (types.getType(i.getUse(j)).isPrimitiveType() && !fakeFormals) {
+                    if (i.getDeclaredTarget().getParameterType(j).isPrimitiveType() && !fakeFormals) {
+                        assert getLocal(normal, formals[j]) != null;
                         IntervalAbsVal newVal = getLocal(normal, formals[j]).join(newNormalActualValues.get(j));
                         newNormalActualValues.set(j, newVal);
                     }
@@ -159,7 +160,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 canThrowException = true;
                 // If the method can throw an exception record any changes to the arguments
                 for (int j = 0; j < formals.length; j++) {
-                    if (types.getType(i.getUse(j)).isPrimitiveType() && !fakeFormals) {
+                    if (i.getDeclaredTarget().getParameterType(j).isPrimitiveType() && !fakeFormals) {
                         IntervalAbsVal newVal = getLocal(exception, formals[j]).join(newExceptionActualValues.get(j));
                         newExceptionActualValues.set(j, newVal);
                     }
