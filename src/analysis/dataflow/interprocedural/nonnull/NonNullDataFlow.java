@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import types.TypeRepository;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.dataflow.interprocedural.ExitType;
@@ -55,7 +54,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
     /**
      * Type inference results
      */
-    private final TypeRepository types;
     private final SymbolTable st;
 
     /**
@@ -68,7 +66,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
      */
     public NonNullDataFlow(CGNode currentNode, NonNullInterProceduralDataFlow interProc) {
         super(currentNode, interProc);
-        this.types = new TypeRepository(currentNode.getIR());
         this.st = currentNode.getIR().getSymbolTable();
     }
 
@@ -120,7 +117,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             for (int j = 0; j < numParams; j++) {
                 NonNullAbsVal actualVal = getLocal(actuals.get(j), nonNull);
                 if (actualVal == null) {
-                    if (types.getType(actuals.get(j)).isPrimitiveType()) {
+                    if (i.getDeclaredTarget().getParameterType(j).isPrimitiveType()) {
                         actualVal = NonNullAbsVal.NON_NULL;
                     } else if (currentNode.getIR().getSymbolTable().isConstant(actuals.get(j))) {
                         if (currentNode.getIR().getSymbolTable().isNullConstant(actuals.get(j))) {

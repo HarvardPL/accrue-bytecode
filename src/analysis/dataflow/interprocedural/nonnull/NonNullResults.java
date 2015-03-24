@@ -20,6 +20,7 @@ import com.ibm.wala.cfg.ControlFlowGraph;
 import com.ibm.wala.ipa.callgraph.CGNode;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAInstruction;
+import com.ibm.wala.types.TypeReference;
 
 /**
  * Results of an inter-procedural non-null analysis
@@ -40,7 +41,12 @@ public class NonNullResults implements AnalysisResults {
      * @return true if the variable represented by the value number is definitely not null
      */
     public boolean isNonNull(int valNum, SSAInstruction i, CGNode containingNode, TypeRepository types) {
-        if (types != null && types.getType(valNum).isPrimitiveType()) {
+        if (containingNode.getIR().getSymbolTable().isNullConstant(valNum)) {
+            return false;
+        }
+
+        if (types != null && types.getType(valNum).isPrimitiveType()
+                && !types.getType(valNum).equals(TypeReference.Null)) {
             // All primitives are non-null
             return true;
         }
@@ -196,7 +202,7 @@ public class NonNullResults implements AnalysisResults {
 
     /**
      * Write the results for each call graph node to the sepcified directory
-     * 
+     *
      * @param reachable results of a reachability analysis
      * @param directory directory to print to
      * @throws IOException file trouble
