@@ -83,12 +83,8 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         int numParams = i.getNumberOfParameters();
         List<Integer> actuals = new ArrayList<>(numParams);
-        List<NonNullAbsVal> newNormalActualValues = new ArrayList<>(numParams);
-        List<NonNullAbsVal> newExceptionActualValues = new ArrayList<>(numParams);
         for (int j = 0; j < numParams; j++) {
             actuals.add(i.getUse(j));
-            newNormalActualValues.add(null);
-            newExceptionActualValues.add(null);
         }
 
         NonNullAbsVal calleeReturn = null;
@@ -145,22 +141,11 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                                     + PrettyPrinter.methodString(i.getDeclaredTarget());
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
-                for (int j = 0; j < formals.length; j++) {
-                    NonNullAbsVal newVal = getLocal(formals[j], normal).join(newNormalActualValues.get(j));
-                    newNormalActualValues.set(j, newVal);
-                }
             }
 
             VarContext<NonNullAbsVal> exception = out.get(ExitType.EXCEPTIONAL);
             if (exception != null) {
                 canThrowException = true;
-                // If the method can throw an exception record any changes to
-                // the arguments
-                for (int j = 0; j < formals.length; j++) {
-                    assert getLocal(formals[j], exception) != null;
-                    NonNullAbsVal newVal = getLocal(formals[j], exception).join(newExceptionActualValues.get(j));
-                    newExceptionActualValues.set(j, newVal);
-                }
             }
         }
 
@@ -171,9 +156,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             VarContext<NonNullAbsVal> normal = null;
             if (!returnAlwaysNonNull) {
                 normal = nonNull.setLocal(i.getReturnValue(0), calleeReturn);
-                normal = updateActuals(newNormalActualValues, actuals, normal);
-            } else {
-                normal = updateActuals(newNormalActualValues, actuals, nonNull);
             }
 
             for (ISSABasicBlock normalSucc : getNormalSuccs(bb, cfg)) {
@@ -195,7 +177,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         // Exceptional return
         if (canThrowException) {
             VarContext<NonNullAbsVal> callerExContext = nonNull.setExceptionValue(NonNullAbsVal.NON_NULL);
-            callerExContext = updateActuals(newExceptionActualValues, actuals, callerExContext);
 
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
@@ -237,28 +218,6 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
         }
         VarContext<NonNullAbsVal> exception = input.setExceptionValue(NonNullAbsVal.NON_NULL);
         return factsToMapWithExceptions(normal, exception, bb, cfg);
-    }
-
-    /**
-     * The values for the local variables (in the caller) passed into the procedure can be changed by the callee. This
-     * method copies the new value into the variable context.
-     *
-     * @param newActualValues
-     *            abstract values for the local variables passed in after analyzing a procedure call
-     * @param actuals
-     *            value numbers for actual arguments
-     * @param to
-     *            context to copy into
-     * @return new context with values copied in
-     */
-    private static VarContext<NonNullAbsVal> updateActuals(List<NonNullAbsVal> newActualValues, List<Integer> actuals,
-                                    VarContext<NonNullAbsVal> to) {
-
-        VarContext<NonNullAbsVal> out = to;
-        for (int j = 1; j < actuals.size(); j++) {
-            out = out.setLocal(actuals.get(j), newActualValues.get(j));
-        }
-        return out;
     }
 
     @Override

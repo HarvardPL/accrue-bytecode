@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import util.OrderedPair;
+import util.print.CFGWriter;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 
@@ -78,6 +79,7 @@ public class TypeRepository {
                 return TypeReference.JavaLangThrowable;
             }
             PrettyPrinter pp = new PrettyPrinter(ti.getIR());
+            CFGWriter.writeToFile(ti.getIR());
             throw new RuntimeException("No type for " + pp.valString(valNum) + " in "
                                             + PrettyPrinter.methodString(ti.getIR().getMethod())
                                             + " Could be an element of an array that was set to Object at some point.");

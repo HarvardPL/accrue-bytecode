@@ -83,12 +83,8 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         int numParams = i.getNumberOfParameters();
         List<Integer> actuals = new ArrayList<>(numParams);
-        List<IntervalAbsVal> newNormalActualValues = new ArrayList<>(numParams);
-        List<IntervalAbsVal> newExceptionActualValues = new ArrayList<>(numParams);
         for (int j = 0; j < numParams; j++) {
             actuals.add(i.getUse(j));
-            newNormalActualValues.add(null);
-            newExceptionActualValues.add(null);
         }
 
         IntervalAbsVal calleeReturn = null;
@@ -145,26 +141,12 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 if (normal.getReturnResult() != null) {
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
-                for (int j = 0; j < i.getNumberOfParameters(); j++) {
-                    if (i.getDeclaredTarget().getParameterType(j).isPrimitiveType() && !fakeFormals) {
-                        assert getLocal(normal, formals[j]) != null;
-                        IntervalAbsVal newVal = getLocal(normal, formals[j]).join(newNormalActualValues.get(j));
-                        newNormalActualValues.set(j, newVal);
-                    }
-                }
                 joinLocations(normalLocations, normal);
             }
 
             VarContext<IntervalAbsVal> exception = out.get(ExitType.EXCEPTIONAL);
             if (exception != null) {
                 canThrowException = true;
-                // If the method can throw an exception record any changes to the arguments
-                for (int j = 0; j < formals.length; j++) {
-                    if (i.getDeclaredTarget().getParameterType(j).isPrimitiveType() && !fakeFormals) {
-                        IntervalAbsVal newVal = getLocal(exception, formals[j]).join(newExceptionActualValues.get(j));
-                        newExceptionActualValues.set(j, newVal);
-                    }
-                }
                 joinLocations(exceptionalLocations, exception);
             }
         } // End of handling single callee
@@ -173,13 +155,9 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         // Normal return
         if (canTerminateNormally) {
-            VarContext<IntervalAbsVal> normal = null;
+            VarContext<IntervalAbsVal> normal = in;
             if (i.getNumberOfReturnValues() == 1 && calleeReturn != null) {
-                normal = in.setLocal(i.getReturnValue(0), calleeReturn);
-                normal = updateActuals(newNormalActualValues, actuals, normal);
-            }
-            else {
-                normal = updateActuals(newNormalActualValues, actuals, in);
+                normal = normal.setLocal(i.getReturnValue(0), calleeReturn);
             }
             normal = normal.setLocations(normalLocations);
 
@@ -193,8 +171,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         // Exceptional return
         if (canThrowException) {
-            VarContext<IntervalAbsVal> callerExContext = updateActuals(newExceptionActualValues, actuals, in);
-            callerExContext = callerExContext.setLocations(exceptionalLocations);
+            VarContext<IntervalAbsVal> callerExContext = in.setLocations(exceptionalLocations);
 
             for (ISSABasicBlock exSucc : getExceptionalSuccs(bb, cfg)) {
                 if (!isUnreachable(bb, exSucc)) {
@@ -850,27 +827,6 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 accumulated.put(loc, VarContext.safeJoinValues(getLocation(newContext, loc), accumulated.get(loc)));
             }
         }
-    }
-
-    /**
-     * The values for the local variables (in the caller) passed into the procedure can be changed by the callee. This
-     * method copies the new value into the variable context.
-     *
-     * @param newActualValues abstract values for the local variables passed in after analyzing a procedure call
-     * @param actuals value numbers for actual arguments
-     * @param to context to copy into
-     * @return new context with values copied in
-     */
-    private VarContext<IntervalAbsVal> updateActuals(List<IntervalAbsVal> newActualValues,
-                                                            List<Integer> actuals, VarContext<IntervalAbsVal> to) {
-
-        VarContext<IntervalAbsVal> out = to;
-        for (int j = 1; j < actuals.size(); j++) {
-            if (!isConstant(actuals.get(j)) && newActualValues.get(j) != null) {
-                out = out.setLocal(actuals.get(j), newActualValues.get(j));
-            }
-        }
-        return out;
     }
 
     @Override
