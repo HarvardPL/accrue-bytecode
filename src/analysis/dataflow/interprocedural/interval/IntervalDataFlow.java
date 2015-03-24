@@ -145,7 +145,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 if (normal.getReturnResult() != null) {
                     calleeReturn = normal.getReturnResult().join(calleeReturn);
                 }
-                for (int j = 0; j < formals.length; j++) {
+                for (int j = 0; j < i.getNumberOfParameters(); j++) {
                     if (i.getDeclaredTarget().getParameterType(j).isPrimitiveType() && !fakeFormals) {
                         assert getLocal(normal, formals[j]) != null;
                         IntervalAbsVal newVal = getLocal(normal, formals[j]).join(newNormalActualValues.get(j));
