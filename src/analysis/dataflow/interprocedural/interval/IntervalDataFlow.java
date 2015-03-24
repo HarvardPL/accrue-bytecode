@@ -803,7 +803,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             catch (RuntimeException e) {
                 // TODO: imprecision in type inference
-                System.err.println(e);
+                // System.err.println(e);
                 return IntervalAbsVal.BOTTOM_ELEMENT;
             }
 
@@ -812,7 +812,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             return itvl;
         }
-        if (d == Double.NaN) {
+        if (d.isNaN()) {
             return IntervalAbsVal.TOP_ELEMENT;
         }
         return new IntervalAbsVal(d, d, false);
