@@ -795,10 +795,25 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         if (d == null) {
             // not numeric value
             IntervalAbsVal itvl = in.getLocal(var);
-            if (itvl == null && types.getType(var).isPrimitiveType()) {
+
+            TypeReference tr;
+
+            try {
+                tr = types.getType(var);
+            }
+            catch (RuntimeException e) {
+                // TODO: imprecision in type inference
+                System.err.println(e);
+                return IntervalAbsVal.BOTTOM_ELEMENT;
+            }
+
+            if (itvl == null && tr.isPrimitiveType()) {
                 return IntervalAbsVal.BOTTOM_ELEMENT;
             }
             return itvl;
+        }
+        if (d == Double.NaN) {
+            return IntervalAbsVal.TOP_ELEMENT;
         }
         return new IntervalAbsVal(d, d, false);
     }
