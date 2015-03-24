@@ -18,6 +18,7 @@ import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ObjectField;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.PointsToGraphNode;
@@ -984,45 +985,16 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
                                      .getReferenceVariable(i.getRef(), currentNode.getMethod());
         PointsToGraphNode recRVR = new ReferenceVariableReplica(currentNode.getContext(), recRV, ptg.getHaf());
         Iterator<? extends InstanceKey> receivers = ptg.pointsToIterator(recRVR, ippr);
-        Set<InstanceKeyRecency> fieldPointsTo = new HashSet<>();
-        boolean singletonPointsTo = true;
-        outer: while (receivers.hasNext()) {
-            InstanceKeyRecency rec = (InstanceKeyRecency) receivers.next();
-            if (ptg.isNullInstanceKey(rec)) {
-                continue;
-            }
-            ObjectField of = new ObjectField(rec, i.getDeclaredField());
-            Iterator<? extends InstanceKey> fieldPT = ptg.pointsToIterator(of, ippr);
-            if (!fieldPT.hasNext() && outputLevel > 0) {
-                System.err.println("Nothing pointed to by nonstatic field " + of + " at " + ippr + " in " + i + " "
-                        + PrettyPrinter.cgNodeString(currentNode));
-            }
-            while (fieldPT.hasNext()) {
-                fieldPointsTo.add((InstanceKeyRecency) fieldPT.next());
-                if (fieldPointsTo.size() > 1) {
-                    // This field cannot be strongly updated since the points-to set has more than one element
-                    singletonPointsTo = false;
-                    break outer;
-                }
-            }
+
+        boolean strongUpdate = false;
+        if (receivers.hasNext()) {
+            InstanceKeyRecency next = (InstanceKeyRecency) receivers.next();
+            strongUpdate = !receivers.hasNext() && (next.isRecent() || ptg.isNullInstanceKey(next));
         }
 
-        boolean strongUpdate;
-        Iterator<InstanceKeyRecency> iter = fieldPointsTo.iterator();
-        if (iter.hasNext()) {
-            InstanceKeyRecency next = iter.next();
-            strongUpdate = singletonPointsTo && (next.isRecent() || ptg.isNullInstanceKey(next));
-        }
-        else {
-            if (outputLevel > 0) {
-                System.err.println("No locations found for field put " + i + " in "
-                        + PrettyPrinter.cgNodeString(currentNode));
-            }
-            strongUpdate = false;
-        }
 
         for (AbstractLocation loc : locs) {
-            if (strongUpdate) {
+            if (!PointsToAnalysis.ALWAYS_WEAK_UPDATE && strongUpdate) {
                 // Can strongly update the value of the field since it
                 //     1. has a singleton points-to set
                 //     2. the singleton element is the most recent

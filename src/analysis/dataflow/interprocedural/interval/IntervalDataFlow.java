@@ -19,6 +19,8 @@ import analysis.dataflow.interprocedural.InterproceduralDataFlow;
 import analysis.dataflow.interprocedural.IntraproceduralDataFlow;
 import analysis.dataflow.util.AbstractLocation;
 import analysis.dataflow.util.VarContext;
+import analysis.pointer.analyses.recency.InstanceKeyRecency;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.PointsToGraphNode;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.graph.ReferenceVariableReplica;
@@ -731,6 +733,14 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         // Get new value
         IntervalAbsVal inVal = getLocal(in, i.getVal());
+        if (PointsToAnalysis.ALWAYS_WEAK_UPDATE) {
+            for (AbstractLocation loc : locs) {
+                // weak update update
+                IntervalAbsVal inLoc = getLocation(in, loc);
+                normal = normal.setLocation(loc, VarContext.safeJoinValues(inLoc, inVal));
+            }
+            return factsToMapWithExceptions(normal, in, current, cfg);
+        }
 
         boolean strongUpdate = false;
 
@@ -741,10 +751,9 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             Iterator<? extends InstanceKey> receivers = ptg.pointsToIterator(recRVR, ippr);
 
             if (receivers.hasNext()) {
-                receivers.next();
+                InstanceKeyRecency next = (InstanceKeyRecency) receivers.next();
+                strongUpdate = !receivers.hasNext() && (next.isRecent() || ptg.isNullInstanceKey(next));
             }
-
-            strongUpdate = !receivers.hasNext();
         }
 
         for (AbstractLocation loc : locs) {

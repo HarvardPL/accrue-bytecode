@@ -20,6 +20,13 @@ public abstract class PointsToAnalysis {
      * produced. Adjust {@link PointsToAnalysis#outputLevel} for more verbose console output.
      */
     public static final boolean DEBUG = false;
+
+    /**
+     * If this is true then the points-to analysis will not attempt to perform strong update for fields, but will always
+     * perform weak update
+     */
+    public static final boolean ALWAYS_WEAK_UPDATE = false;
+
     /**
      * Defining abstraction factory for this points-to analysis
      */

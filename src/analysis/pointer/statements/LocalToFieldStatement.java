@@ -9,6 +9,7 @@ import util.OrderedPair;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -122,6 +123,11 @@ public class LocalToFieldStatement extends PointsToStatement {
         StmtAndContext sac = new StmtAndContext(this, context);
         Iterator<InstanceKeyRecency> iter = g.pointsToIterator(receiverReplica, pre, sac);
 
+        if (PointsToAnalysis.ALWAYS_WEAK_UPDATE) {
+            // Weak update never kills a field
+            return new OrderedPair<>(Boolean.TRUE, null);
+        }
+
         if (!iter.hasNext()) {
             // the receiver currently point to nothing. Too early to tell if we kill a node
             g.ppReach.getApproximateCallSitesAndFieldAssigns().addEmptyTargetFieldAssignment(sac);
@@ -131,7 +137,7 @@ public class LocalToFieldStatement extends PointsToStatement {
         InstanceKeyRecency pointedTo = iter.next();
 
         if (!iter.hasNext() && pointedTo.isRecent()) {
-            // The receiver points to exactly one object, and it is the most recent.
+            // The receiver points to exactly one object, and it is the most recent. Strong update!
             // So we will kill the field!
             // We definitely kill the ObjectField(pointedTo, field);
             return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ObjectField(pointedTo, field));
