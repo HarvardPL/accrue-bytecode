@@ -153,9 +153,9 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
 
         // Normal return
         if (canTerminateNormally) {
-            VarContext<NonNullAbsVal> normal = null;
+            VarContext<NonNullAbsVal> normal = nonNull;
             if (!returnAlwaysNonNull) {
-                normal = nonNull.setLocal(i.getReturnValue(0), calleeReturn);
+                normal = normal.setLocal(i.getReturnValue(0), calleeReturn);
             }
 
             for (ISSABasicBlock normalSucc : getNormalSuccs(bb, cfg)) {
