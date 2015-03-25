@@ -190,7 +190,7 @@ public class MethodReachability {
                 // the method summary changed!
                 if (changed.tunnelsChanged()) {
                     // propagate the tunnel changes.
-                    propagateTunnelChanges(cgNode, changed.changedTunnels);
+                    propagateTunnelChanges(cgNode, changed.changedTunnels());
                 }
 
                 if (summaryChanged.containsKey(cgNode)) {
@@ -200,14 +200,16 @@ public class MethodReachability {
                     summaryChanged.put(cgNode, changed);
                 }
                 // this may cause us to recompute some other methods.
-                /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.remove(cgNode);
-                int msize;
-                if (meths != null && (msize = meths.size()) > 0) {
-                    // launch the other method reachability computations concurrently.
-                    MutableSparseIntSet submitted = MutableSparseIntSet.createMutableSparseIntSet(msize);
-                    submitted.addAll(meths);
-                    // Don't need to compute the tunnel changes, since we propagated those already.
-                    submitMethodReachabilityRecomputation(submitted, false);
+                if (changed.resultsChanged()) {
+                    /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.remove(cgNode);
+                    int msize;
+                    if (meths != null && (msize = meths.size()) > 0) {
+                        // launch the other method reachability computations concurrently.
+                        MutableSparseIntSet submitted = MutableSparseIntSet.createMutableSparseIntSet(msize);
+                        submitted.addAll(meths);
+                        // Don't need to compute the tunnel changes, since we propagated those already.
+                        submitMethodReachabilityRecomputation(submitted, false);
+                    }
                 }
             }
 
@@ -277,6 +279,7 @@ public class MethodReachability {
             this.ppr.totalComputeMethodReachability.incrementAndGet();
         }
 
+
         OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
         Context context = n.snd();
         if (ProgramPointReachability.DEBUG) {
@@ -298,13 +301,10 @@ public class MethodReachability {
 
         // The map facts records what facts are true at each interprogram point.
         Map<InterProgramPoint, ThreadLocalKilledAndAlloced> facts = new HashMap<>();
-        IntMap<ThreadLocalKilledAndAlloced> tunnel = computeTunnels ? new SparseIntMap<ThreadLocalKilledAndAlloced>()
-                : null;
-        if (computeTunnels) {
-            ThreadLocalKilledAndAlloced kaa = KilledAndAlloced.createLocalUnreachable();
-            kaa.setEmpty();
-            tunnel.put(cgNode, kaa);
-        }
+        IntMap<ThreadLocalKilledAndAlloced> tunnel = new SparseIntMap<ThreadLocalKilledAndAlloced>();
+        ThreadLocalKilledAndAlloced kaa = KilledAndAlloced.createLocalUnreachable();
+        kaa.setEmpty();
+        tunnel.put(cgNode, kaa);
 
         IntMap<ThreadLocalKilledAndAlloced> callSiteSumm = new SparseIntMap<>();
 
@@ -351,10 +351,15 @@ public class MethodReachability {
                 // this is a method call!
                 /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(context));
 
-                if (!callSiteSumm.containsKey(callSite)) {
-                    callSiteSumm.put(callSite, ThreadLocalKilledAndAlloced.createLocalUnreachable());
+                {
+                    // record in the call site summary the path that we took to get to this call site.
+                    ThreadLocalKilledAndAlloced x = callSiteSumm.get(callSite);
+                    if (x == null) {
+                        x = ThreadLocalKilledAndAlloced.createLocalUnreachable();
+                        callSiteSumm.put(callSite, x);
+                    }
+                    x.meet(inputFact);
                 }
-                callSiteSumm.get(callSite).meet(inputFact);
 
                 CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
                 handleCall(callSite, cspp, inputFact, facts, tunnel, q, cgNode);
@@ -531,20 +536,18 @@ public class MethodReachability {
             postExChanged |= postEx.meet(ThreadLocalKilledAndAlloced.join(inputFact, exRet));
 
             if (ProgramPointReachability.USE_TUNNELS) {
-                if (tunnel != null) {
-                    // add to the tunnel. That is, everything that can be reached from callee is reachable from
-                    // this node, albeit, with killed and alloced as indicated by current.
-                    IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
-                    while (reachableFromCalleeIterator.hasNext()) {
-                        int reachableFromCallee = reachableFromCalleeIterator.next();
-                        ThreadLocalKilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
-                        if (tunnelToCallee == null) {
-                            tunnelToCallee = KilledAndAlloced.createLocalUnreachable();
-                            tunnel.put(reachableFromCallee, tunnelToCallee);
-                        }
-                        tunnelToCallee.meet(ThreadLocalKilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee),
-                                                                             inputFact));
+                // add to the tunnel. That is, everything that can be reached from callee is reachable from
+                // this node, albeit, with killed and alloced as indicated by current.
+                IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
+                while (reachableFromCalleeIterator.hasNext()) {
+                    int reachableFromCallee = reachableFromCalleeIterator.next();
+                    ThreadLocalKilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
+                    if (tunnelToCallee == null) {
+                        tunnelToCallee = KilledAndAlloced.createLocalUnreachable();
+                        tunnel.put(reachableFromCallee, tunnelToCallee);
                     }
+                    tunnelToCallee.meet(ThreadLocalKilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee),
+                                                                         inputFact));
                 }
             }
         }
@@ -812,7 +815,6 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            // XXX!@! could be smarter here and just propagate tunnels...
             submitMethodReachabilityRecomputation(s, true);
         }
     }
