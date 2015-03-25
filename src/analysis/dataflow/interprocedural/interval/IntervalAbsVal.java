@@ -7,31 +7,35 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
     final Double min;
     final Double max;
     protected final boolean containsNaN;
+    protected final boolean containsZero;
 
     private static final double BOUND = 10.0;
 
     static final IntervalAbsVal TOP_ELEMENT = new IntervalAbsVal(Double.NEGATIVE_INFINITY,
-                                                                           Double.POSITIVE_INFINITY,
-                                                                           true);
+                                                                 Double.POSITIVE_INFINITY,
+                                                                 true,
+                                                                 true);
 
-    static final IntervalAbsVal BOTTOM_ELEMENT = new IntervalAbsVal(false);
+    static final IntervalAbsVal BOTTOM_ELEMENT = new IntervalAbsVal(false, false);
 
-    public IntervalAbsVal(double min, double max, boolean containsNaN) {
+    public IntervalAbsVal(double min, double max, boolean containsNaN, boolean containsZero) {
         if (Double.isNaN(min) || Double.isNaN(max)) {
             throw new RuntimeException("NaN is not allowed as a max or min. " + max + " " + min);
         }
         this.min = min > BOUND || min < (-1) * BOUND ? Double.NEGATIVE_INFINITY : min;
         this.max = max > BOUND || max < (-1) * BOUND ? Double.POSITIVE_INFINITY : max;
         this.containsNaN = containsNaN;
+        this.containsZero = containsZero;
     }
 
     /**
      * Create the bottom element
      */
-    private IntervalAbsVal(boolean containsNaN) {
+    private IntervalAbsVal(boolean containsNaN, boolean containsZero) {
         this.min = null;
         this.max = null;
         this.containsNaN = containsNaN;
+        this.containsZero = containsZero;
     }
 
     @Override
@@ -65,11 +69,12 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
 
         double minBoundary = Math.min(this.min, that.min);
         double maxBoundary = Math.max(this.max, that.max);
-        return new IntervalAbsVal(minBoundary, maxBoundary, this.containsNaN || that.containsNaN);
+        return new IntervalAbsVal(minBoundary, maxBoundary, this.containsNaN || that.containsNaN, this.containsZero
+                || that.containsZero);
     }
 
     public boolean containsZero() {
-        return this != BOTTOM_ELEMENT && min <= 0. && max >= 0.;
+        return this.containsZero;
     }
 
     /**
@@ -82,37 +87,74 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
         if (this == BOTTOM_ELEMENT) {
             return BOTTOM_ELEMENT;
         }
-        return new IntervalAbsVal(-this.max, -this.min, this.containsNaN);
+        return new IntervalAbsVal(-this.max, -this.min, this.containsNaN, this.containsZero);
+    }
+
+    /**
+     * Return same interval but doesn't contain zero.
+     */
+    public IntervalAbsVal excludeZero() {
+        return new IntervalAbsVal(this.min, this.max, this.containsNaN, false);
     }
 
     /**
      * Constrain to be less than a number.
      */
-    public IntervalAbsVal le(double n) {
+    public IntervalAbsVal lt(double n) {
         if (this == BOTTOM_ELEMENT) {
             // We didn't know anything, now we know that it is less than n
-            return new IntervalAbsVal(Double.NEGATIVE_INFINITY, n, false);
+            return new IntervalAbsVal(Double.NEGATIVE_INFINITY, n, false, n > 0);
+        }
+        if (n <= this.min) {
+            // Impossible constraint
+            return BOTTOM_ELEMENT;
+        }
+        return new IntervalAbsVal(this.min, Math.min(this.max, n), this.containsNaN, (n > 0) && this.containsZero);
+    }
+
+    /**
+     * Constrain to be less than or equal to a number.
+     */
+    public IntervalAbsVal lte(double n) {
+        if (this == BOTTOM_ELEMENT) {
+            // We didn't know anything, now we know that it is less than n
+            return new IntervalAbsVal(Double.NEGATIVE_INFINITY, n, false, n >= 0);
         }
         if (n < this.min) {
             // Impossible constraint
             return BOTTOM_ELEMENT;
         }
-        return new IntervalAbsVal(this.min, Math.min(this.max, n), this.containsNaN);
+        return new IntervalAbsVal(this.min, Math.min(this.max, n), this.containsNaN, (n >= 0) && this.containsZero);
     }
 
     /**
      * Constrain to be greater than a number.
      */
-    public IntervalAbsVal ge(double n) {
+    public IntervalAbsVal gt(double n) {
         if (this == BOTTOM_ELEMENT) {
             // We didn't know anything, now we know that it is bigger than n
-            return new IntervalAbsVal(n, Double.POSITIVE_INFINITY, false);
+            return new IntervalAbsVal(n, Double.POSITIVE_INFINITY, false, n < 0);
+        }
+        if (n >= this.max) {
+            // Impossible constraint
+            return BOTTOM_ELEMENT;
+        }
+        return new IntervalAbsVal(Math.max(this.min, n), this.max, this.containsNaN, (n < 0) && this.containsZero);
+    }
+
+    /**
+     * Constrain to be greater than a number.
+     */
+    public IntervalAbsVal gte(double n) {
+        if (this == BOTTOM_ELEMENT) {
+            // We didn't know anything, now we know that it is bigger than n
+            return new IntervalAbsVal(n, Double.POSITIVE_INFINITY, false, n <= 0);
         }
         if (n > this.max) {
             // Impossible constraint
             return BOTTOM_ELEMENT;
         }
-        return new IntervalAbsVal(Math.max(this.min, n), this.max, this.containsNaN);
+        return new IntervalAbsVal(Math.max(this.min, n), this.max, this.containsNaN, (n <= 0) && this.containsZero);
     }
 
     @Override
