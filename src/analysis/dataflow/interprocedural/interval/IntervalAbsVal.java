@@ -51,7 +51,7 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
     @Override
     public boolean isBottom() {
         // null is bottom
-        return false;
+        return this == BOTTOM_ELEMENT;
     }
 
     @Override
