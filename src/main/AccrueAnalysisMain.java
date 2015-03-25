@@ -291,6 +291,19 @@ public class AccrueAnalysisMain {
                     + cResults.getPossibleArithmeticExceptionCount()
                     + " = "
                     + ((double) cResults.getArithmeticExceptionCount() / (double) cResults.getPossibleArithmeticExceptionCount()));
+            System.out.println(cResults.getArithmeticExceptionCount());
+            System.out.println(cResults.getPossibleArithmeticExceptionCount() + "\n");
+            System.err.println("Zero intervals: " + cResults.getZeroIntervalCount() + "/"
+                    + cResults.getPossibleZeroIntervalCount() + " = "
+                    + ((double) cResults.getZeroIntervalCount() / (double) cResults.getPossibleZeroIntervalCount()));
+            System.out.println(cResults.getZeroIntervalCount());
+            System.out.println(cResults.getPossibleZeroIntervalCount() + "\n");
+            System.err.println("Negative indices " + cResults.getNegIndex() + "/" + cResults.getPossibleNegIndex()
+                    + " = " + ((double) cResults.getNegIndex() / (double) cResults.getPossibleNegIndex()));
+            System.out.println(cResults.getNegIndex());
+            System.out.println(cResults.getPossibleNegIndex() + "\n");
+
+            System.out.println(g.getCallGraph().getNumberOfNodes());
             break;
         case "precise-ex":
             results = generatePointsToGraph(outputLevel,

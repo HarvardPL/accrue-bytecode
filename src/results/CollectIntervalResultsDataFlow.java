@@ -19,6 +19,7 @@ import com.ibm.wala.ssa.IR;
 import com.ibm.wala.ssa.ISSABasicBlock;
 import com.ibm.wala.ssa.SSAArrayLengthInstruction;
 import com.ibm.wala.ssa.SSAArrayLoadInstruction;
+import com.ibm.wala.ssa.SSAArrayReferenceInstruction;
 import com.ibm.wala.ssa.SSAArrayStoreInstruction;
 import com.ibm.wala.ssa.SSABinaryOpInstruction;
 import com.ibm.wala.ssa.SSACheckCastInstruction;
@@ -131,6 +132,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
                                                       ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                       ISSABasicBlock current) {
         this.recordPossibleZeroIntervalForDef(i);
+        this.recordPossibleNegIndex(i.getIndex(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -138,6 +140,7 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
     protected Map<ISSABasicBlock, Unit> flowArrayStore(SSAArrayStoreInstruction i, Set<Unit> previousItems,
                                                        ControlFlowGraph<SSAInstruction, ISSABasicBlock> cfg,
                                                        ISSABasicBlock current) {
+        this.recordPossibleNegIndex(i.getIndex(), i);
         return factToMap(Unit.VALUE, current, cfg);
     }
 
@@ -333,6 +336,17 @@ public class CollectIntervalResultsDataFlow extends InstructionDispatchDataFlow<
             IntervalAbsVal inter = interval.getLocalIntervalBefore(use, i, n);
             if (inter != null && inter.containsZero()) {
                 collected.recordArithmeticException();
+                return;
+            }
+        }
+    }
+
+    private void recordPossibleNegIndex(int index, SSAArrayReferenceInstruction i) {
+        collected.recordPossibleNegIndex();
+        for (CGNode n : getAllCGNodes()) {
+            IntervalAbsVal inter = interval.getLocalIntervalBefore(index, i, n);
+            if (inter != null && inter.isNonNegative()) {
+                collected.recordNegIndex();
                 return;
             }
         }

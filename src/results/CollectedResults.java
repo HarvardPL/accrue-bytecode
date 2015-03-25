@@ -12,6 +12,8 @@ public class CollectedResults implements AnalysisResults {
     private int totalCasts;
     private int zeroIntervals;
     private int possibleZeroIntervals;
+    private int negIndexExceptionCounter;
+    private int possibleNegIndexCounter;
 
     public void recordNullPointerException() {
         nullPointerCounter++;
@@ -75,5 +77,21 @@ public class CollectedResults implements AnalysisResults {
 
     public void recordCast() {
         totalCasts++;
+    }
+
+    public void recordPossibleNegIndex() {
+        possibleNegIndexCounter++;
+    }
+
+    public void recordNegIndex() {
+        negIndexExceptionCounter++;
+    }
+
+    public int getPossibleNegIndex() {
+        return possibleNegIndexCounter;
+    }
+
+    public int getNegIndex() {
+        return negIndexExceptionCounter;
     }
 }
