@@ -48,7 +48,7 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
     @Override
     public boolean isBottom() {
         // null is bottom
-        return false;
+        return this == BOTTOM_ELEMENT;
     }
 
     @Override
@@ -83,6 +83,10 @@ public class IntervalAbsVal implements AbstractValue<IntervalAbsVal> {
             return BOTTOM_ELEMENT;
         }
         return new IntervalAbsVal(-this.max, -this.min, this.containsNaN);
+    }
+
+    public boolean isNonNegative() {
+        return this.isBottom() || this.min >= 0;
     }
 
     /**
