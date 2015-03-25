@@ -177,7 +177,9 @@ public class MethodReachability {
                 /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = methodMethodDependencies.remove(cgNode);
                 if (meths != null) {
                     // launch the other method reachability computations concurrently.
-                    submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths));
+                    MutableSparseIntSet submitted = MutableSparseIntSet.createMutableSparseIntSet(meths.size());
+                    submitted.addAll(meths);
+                    submitMethodReachabilityRecomputation(submitted);
                 }
             }
 

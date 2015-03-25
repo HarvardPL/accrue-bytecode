@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -488,6 +489,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
         }
 
+        AtomicInteger numThreadsApproximating = new AtomicInteger(0);
+
         /**
          * Check if the number of remaining tasks is less than the bound, and if so, add tasks from the pending queues,
          * in the appropriate priority order.
@@ -496,6 +499,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private boolean checkPendingQueues(int bound) {
             while (!containsPending() && isWorkToFinish()) {
+                numThreadsApproximating.incrementAndGet();
                 // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
                 if (PRINT_QUEUE_SWAPS) {
                     printDiagnostics();
@@ -512,7 +516,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     approximatedFieldAssigns = approx.numApproximatedFieldAssigns();
                     approximationTime.addAndGet(System.currentTimeMillis() - start);
                 }
-                if (numApproximated == 0) {
+                if (numThreadsApproximating.decrementAndGet() == 0 && numApproximated == 0) {
                     approximationFinished = true;
                 }
                 System.err.println("in checkPendingQueues: " + numApproximated + " and approx finished: "
