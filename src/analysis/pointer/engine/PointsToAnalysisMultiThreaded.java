@@ -418,9 +418,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             exec.execute(new RunnablePointsToTask(new StmtAndContextTask(sac, delta)));
         }
 
-        public void submitMethodReachabilityRecomputeTask(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute) {
+        public void submitMethodReachabilityRecomputeTask(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute,
+                                                          boolean computeTunnels) {
             this.numRemainingTasks.incrementAndGet();
-            exec.execute(new RunnablePointsToTask(new MethodReachabilityRecomputeTask(toRecompute)));
+            exec.execute(new RunnablePointsToTask(new MethodReachabilityRecomputeTask(toRecompute, computeTunnels)));
         }
 
         public void submitTask(ProgramPointSubQuery sq) {
@@ -700,13 +701,17 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public class MethodReachabilityRecomputeTask implements PointsToTask {
             private final MutableIntSet toRecompute;
-            public MethodReachabilityRecomputeTask(MutableIntSet toRecompute) {
+            private final boolean computeTunnels;
+
+            public MethodReachabilityRecomputeTask(MutableIntSet toRecompute, boolean computeTunnels) {
                 this.toRecompute = toRecompute;
+                this.computeTunnels = computeTunnels;
             }
 
             @Override
             public void process(PointsToAnalysisHandle analysisHandle) {
-                analysisHandle.pointsToGraph().ppReach.processMethodReachabilityRecomputation(toRecompute);
+                analysisHandle.pointsToGraph().ppReach.processMethodReachabilityRecomputation(toRecompute,
+                                                                                              computeTunnels);
             }
 
         }
@@ -818,8 +823,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public void submitMethodReachabilityRecomputation(MutableIntSet toRecompute) {
-            execService.submitMethodReachabilityRecomputeTask(toRecompute);
+        public void submitMethodReachabilityRecomputation(MutableIntSet toRecompute, boolean computeTunnels) {
+            execService.submitMethodReachabilityRecomputeTask(toRecompute, computeTunnels);
         }
 
         @Override

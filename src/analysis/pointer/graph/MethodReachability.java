@@ -59,14 +59,33 @@ public class MethodReachability {
     private MethodSummaryKillAndAllocChanges recordMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode,
                                                                       KilledAndAlloced normalExitResults,
                                                                       KilledAndAlloced exceptionalExitResults,
-                                                                      IntMap<? extends KilledAndAlloced> tunnel) {
+                                                                      IntMap<? extends KilledAndAlloced> tunnel,
+                                                                      IntMap<? extends KilledAndAlloced> callSiteSumm) {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
         }
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
-        MethodSummaryKillAndAllocChanges changed = (existing.update(normalExitResults, exceptionalExitResults, tunnel));
+        MethodSummaryKillAndAllocChanges changed = (existing.update(normalExitResults,
+                                                                    exceptionalExitResults,
+                                                                    tunnel,
+                                                                    callSiteSumm));
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
+        }
+        return changed;
+    }
+
+    private IntMap<KilledAndAlloced> recordUpdatedTunnelMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, /*Map<CallGraphNode, KilledAndAlloced>*/
+                                                                                   IntMap<KilledAndAlloced> tunnelChanges) {
+        long start = 0L;
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
+        MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
+        assert existing != null;
+        IntMap<KilledAndAlloced> changed = (existing.updateTunnels(tunnelChanges));
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -120,7 +139,7 @@ public class MethodReachability {
         MutableIntSet mis = MutableSparseIntSet.createMutableSparseIntSet(2);
         mis.add(cgNode);
         // note that we want to compute it now, and wait for the result.
-        this.processMethodReachabilityRecomputation(mis);
+        this.processMethodReachabilityRecomputation(mis, true);
 
         if (ProgramPointReachability.DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
@@ -143,8 +162,9 @@ public class MethodReachability {
      *
      * @param cgNodes
      */
-    private void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
-        this.analysisHandle.submitMethodReachabilityRecomputation(toRecompute);
+    private void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute,
+                                                       boolean computeTunnels) {
+        this.analysisHandle.submitMethodReachabilityRecomputation(toRecompute, computeTunnels);
     }
 
     /**
@@ -155,7 +175,8 @@ public class MethodReachability {
      *
      * @param cgNodes
      */
-    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute,
+                                                       boolean computeTunnels) {
 
         IntMap<MethodSummaryKillAndAllocChanges> summaryChanged = new SparseIntMap<>();
         while (!toRecompute.isEmpty()) {
@@ -164,9 +185,14 @@ public class MethodReachability {
             int cgNode = toRecompute.max();
             toRecompute.remove(cgNode);
 
-            MethodSummaryKillAndAllocChanges changed = computeMethodSummary(cgNode);
+            MethodSummaryKillAndAllocChanges changed = computeMethodSummary(cgNode, computeTunnels);
             if (changed != null) {
                 // the method summary changed!
+                if (changed.tunnelsChanged()) {
+                    // propagate the tunnel changes.
+                    propagateTunnelChanges(cgNode, changed.changedTunnels);
+                }
+
                 if (summaryChanged.containsKey(cgNode)) {
                     summaryChanged.get(cgNode).merge(changed);
                 }
@@ -180,7 +206,8 @@ public class MethodReachability {
                     // launch the other method reachability computations concurrently.
                     MutableSparseIntSet submitted = MutableSparseIntSet.createMutableSparseIntSet(msize);
                     submitted.addAll(meths);
-                    submitMethodReachabilityRecomputation(submitted);
+                    // Don't need to compute the tunnel changes, since we propagated those already.
+                    submitMethodReachabilityRecomputation(submitted, false);
                 }
             }
 
@@ -191,16 +218,59 @@ public class MethodReachability {
     }
 
     /**
+     * Call graph node cgNode has just had it's tunnels changed. Propagate the changes immediately to its callers, and
+     * recursively.
+     *
+     * @param cgNode
+     * @param changedTunnels
+     * @param visited
+     */
+    private void propagateTunnelChanges(/*OrderedPair<IMethod, Context>*/int cgNode,
+                                        IntMap<? extends KilledAndAlloced> changedTunnels) {
+        // get the callers of cgNode
+        /*Set<ProgramPointReplica>*/IntSet callSitesOf = g.getCallersOf(cgNode);
+        IntIterator iter = callSitesOf.intIterator();
+        while (iter.hasNext()) {
+            int callSite = iter.next();
+            ProgramPointReplica callSitePPR = g.lookupCallSiteReplicaDictionary(callSite);
+            // get the method summary
+            /*OrderedPair<IMethod, Context>*/int caller = g.lookupCallGraphNodeDictionary(new OrderedPair<>(callSitePPR.getPP()
+                                                                                                                        .getContainingProcedure(),
+                                                                                                             callSitePPR.getContext()));
+            MethodSummaryKillAndAlloc sum = getReachabilityForMethod(caller);
+            KilledAndAlloced pathToCallSite = sum.callSiteSumm.get(callSite);
+            if (pathToCallSite != null) {
+                // go through each of the changed tunnels, joining it with pathToCallSite, and updating the method summary...
+                IntMap<KilledAndAlloced> modifiedTunnels = new SparseIntMap<>();
+                IntIterator tunnels = changedTunnels.keyIterator();
+                while (tunnels.hasNext()) {
+                    int tunnel = tunnels.next();
+                    KilledAndAlloced newTunnelResult = changedTunnels.get(tunnel);
+                    assert newTunnelResult != null;
+                    modifiedTunnels.put(tunnel, ThreadLocalKilledAndAlloced.join(pathToCallSite, newTunnelResult));
+                }
+
+                IntMap<KilledAndAlloced> newChanges = recordUpdatedTunnelMethodReachability(caller, modifiedTunnels);
+                if (!newChanges.isEmpty()) {
+                    // we need to recurse!
+                    propagateTunnelChanges(caller, newChanges);
+                }
+            }
+        }
+    }
+
+    /**
      * Compute the summary for the specified call-graph node, and record the result. Returns true if and only if the
      * result differed from the existing result.
      *
-     * THIS METHOD SHOULD ONLY BE CALLED BY recomputeMethodReachability, TO ENSURE THAT DEPENDENCIES ARE UPDATED
-     * CORRECTLY.
+     * THIS METHOD SHOULD ONLY BE CALLED BY processMethodReachabilityRecomputation, TO ENSURE THAT DEPENDENCIES ARE
+     * UPDATED CORRECTLY.
      *
      * @param cgNode
      * @return
      */
-    private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode) {
+    private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode,
+                                                                  boolean computeTunnels) {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -213,14 +283,30 @@ public class MethodReachability {
             System.err.println("PPR%% COMPUTING FOR " + PrettyPrinter.methodString(n.fst()) + " in " + context);
         }
 
+        if (!computeTunnels) {
+            // check to see if we want to bother...
+            MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgNode);
+            if (existing != null) {
+                if (existing.normalExitSummary.isEmpty() && existing.exceptionalExitSummary.isEmpty()) {
+                    // nothing to do!
+                    return null;
+                }
+            }
+
+        }
         // do a dataflow over the program points.
 
         // The map facts records what facts are true at each interprogram point.
         Map<InterProgramPoint, ThreadLocalKilledAndAlloced> facts = new HashMap<>();
-        IntMap<ThreadLocalKilledAndAlloced> tunnel = new SparseIntMap<>();
-        ThreadLocalKilledAndAlloced kaa = KilledAndAlloced.createLocalUnreachable();
-        kaa.setEmpty();
-        tunnel.put(cgNode, kaa);
+        IntMap<ThreadLocalKilledAndAlloced> tunnel = computeTunnels ? new SparseIntMap<ThreadLocalKilledAndAlloced>()
+                : null;
+        if (computeTunnels) {
+            ThreadLocalKilledAndAlloced kaa = KilledAndAlloced.createLocalUnreachable();
+            kaa.setEmpty();
+            tunnel.put(cgNode, kaa);
+        }
+
+        IntMap<ThreadLocalKilledAndAlloced> callSiteSumm = new SparseIntMap<>();
 
         WorkQueue<InterProgramPoint> q = new WorkQueue<>();
 
@@ -265,6 +351,11 @@ public class MethodReachability {
                 // this is a method call!
                 /*ProgramPointReplica*/int callSite = g.lookupCallSiteReplicaDictionary(pp.getReplica(context));
 
+                if (!callSiteSumm.containsKey(callSite)) {
+                    callSiteSumm.put(callSite, ThreadLocalKilledAndAlloced.createLocalUnreachable());
+                }
+                callSiteSumm.get(callSite).meet(inputFact);
+
                 CallSiteProgramPoint cspp = (CallSiteProgramPoint) pp;
                 handleCall(callSite, cspp, inputFact, facts, tunnel, q, cgNode);
                 continue;
@@ -292,7 +383,8 @@ public class MethodReachability {
         MethodSummaryKillAndAllocChanges changed = recordMethodReachability(cgNode,
                                                                             getOrCreate(facts, normExitIPP),
                                                                             getOrCreate(facts, exExitIPP),
-                                                                            tunnel);
+                                                                            tunnel,
+                                                                            callSiteSumm);
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.methodReachTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -439,18 +531,20 @@ public class MethodReachability {
             postExChanged |= postEx.meet(ThreadLocalKilledAndAlloced.join(inputFact, exRet));
 
             if (ProgramPointReachability.USE_TUNNELS) {
-                // add to the tunnel. That is, everything that can be reached from callee is reachable from
-                // this node, albeit, with killed and alloced as indicated by current.
-                IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
-                while (reachableFromCalleeIterator.hasNext()) {
-                    int reachableFromCallee = reachableFromCalleeIterator.next();
-                    ThreadLocalKilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
-                    if (tunnelToCallee == null) {
-                        tunnelToCallee = KilledAndAlloced.createLocalUnreachable();
-                        tunnel.put(reachableFromCallee, tunnelToCallee);
+                if (tunnel != null) {
+                    // add to the tunnel. That is, everything that can be reached from callee is reachable from
+                    // this node, albeit, with killed and alloced as indicated by current.
+                    IntIterator reachableFromCalleeIterator = calleeResults.tunnel.keyIterator();
+                    while (reachableFromCalleeIterator.hasNext()) {
+                        int reachableFromCallee = reachableFromCalleeIterator.next();
+                        ThreadLocalKilledAndAlloced tunnelToCallee = tunnel.get(reachableFromCallee);
+                        if (tunnelToCallee == null) {
+                            tunnelToCallee = KilledAndAlloced.createLocalUnreachable();
+                            tunnel.put(reachableFromCallee, tunnelToCallee);
+                        }
+                        tunnelToCallee.meet(ThreadLocalKilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee),
+                                                                             inputFact));
                     }
-                    tunnelToCallee.meet(ThreadLocalKilledAndAlloced.join(calleeResults.tunnel.get(reachableFromCallee),
-                                                                         inputFact));
                 }
             }
         }
@@ -492,6 +586,12 @@ public class MethodReachability {
          */
         final ConcurrentIntMap<ThreadSafeKilledAndAlloced> tunnel = AnalysisUtil.createConcurrentIntMap();
 
+        /**
+         * Map from call site replcas to KilledAndAlloced info. If callSiteSumm(cs) = kaa, then kaa summarizes the
+         * killed and alloced on all paths from the entry of this method to call site cs (which is in this method).
+         */
+        final ConcurrentIntMap<ThreadSafeKilledAndAlloced> callSiteSumm = AnalysisUtil.createConcurrentIntMap();
+
         private MethodSummaryKillAndAlloc(/*OrderedPair<IMethod, Context>*/int cgnode) {
             if (ProgramPointReachability.USE_TUNNELS) {
                 // the method that this summary is for is reachable without killing or allocating anything.
@@ -502,6 +602,7 @@ public class MethodReachability {
             this.normalExitSummary = KilledAndAlloced.createThreadSafeUnreachable();
             this.exceptionalExitSummary = KilledAndAlloced.createThreadSafeUnreachable();
         }
+
 
         /**
          * Create a result in which every result is unreachable. cgnode indicates the call graph node that this summary
@@ -529,33 +630,74 @@ public class MethodReachability {
          */
         public MethodSummaryKillAndAllocChanges update(KilledAndAlloced normalExitSummary,
                                                        KilledAndAlloced exceptionalExitSummary,
-                                                       IntMap<? extends KilledAndAlloced> tunnel) {
+                                                       IntMap<? extends KilledAndAlloced> tunnel,
+                                                       IntMap<? extends KilledAndAlloced> callSiteSumm) {
             boolean resultsChanged;
             resultsChanged = this.normalExitSummary.meet(normalExitSummary);
             resultsChanged |= this.exceptionalExitSummary.meet(exceptionalExitSummary);
 
-            MutableIntSet changedTunnels = MutableSparseIntSet.makeEmpty();
+            IntMap<ThreadLocalKilledAndAlloced> changedTunnels = new SparseIntMap<>();
             if (ProgramPointReachability.USE_TUNNELS) {
-                IntIterator iter = tunnel.keyIterator();
-                while (iter.hasNext()) {
-                    int key = iter.next();
-                    ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
-                    if (kaa == null) {
-                        kaa = KilledAndAlloced.createThreadSafeUnreachable();
-                        ThreadSafeKilledAndAlloced existing = this.tunnel.putIfAbsent(key, kaa);
-                        if (existing != null) {
-                            kaa = existing;
+                if (tunnel != null) {
+                    IntIterator iter = tunnel.keyIterator();
+                    while (iter.hasNext()) {
+                        int key = iter.next();
+                        ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
+                        if (kaa == null) {
+                            kaa = KilledAndAlloced.createThreadSafeUnreachable();
+                            ThreadSafeKilledAndAlloced existing = this.tunnel.putIfAbsent(key, kaa);
+                            if (existing != null) {
+                                kaa = existing;
+                            }
                         }
-                    }
-                    if (kaa.meet(tunnel.get(key))) {
-                        changedTunnels.add(key);
+                        if (kaa.meet(tunnel.get(key))) {
+                            ThreadLocalKilledAndAlloced tlkaa = ThreadLocalKilledAndAlloced.createLocalUnreachable();
+                            tlkaa.meet(kaa);
+                            changedTunnels.put(key, tlkaa);
+                        }
                     }
                 }
             }
+            IntIterator iter = callSiteSumm.keyIterator();
+            while (iter.hasNext()) {
+                int callSite = iter.next();
+                ThreadSafeKilledAndAlloced kaa = this.callSiteSumm.get(callSite);
+                if (kaa == null) {
+                    kaa = KilledAndAlloced.createThreadSafeUnreachable();
+                    ThreadSafeKilledAndAlloced existing = this.tunnel.putIfAbsent(callSite, kaa);
+                    if (existing != null) {
+                        kaa = existing;
+                    }
+                }
+                kaa.meet(callSiteSumm.get(callSite));
+            }
+
             if (resultsChanged || !changedTunnels.isEmpty()) {
                 return new MethodSummaryKillAndAllocChanges(resultsChanged, changedTunnels);
             }
             return null;
+        }
+
+        public IntMap<KilledAndAlloced> updateTunnels(IntMap<KilledAndAlloced> tunnelChanges) {
+            IntMap<KilledAndAlloced> changedTunnels = new SparseIntMap<>();
+            IntIterator iter = tunnelChanges.keyIterator();
+            while (iter.hasNext()) {
+                int key = iter.next();
+                ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
+                if (kaa == null) {
+                    kaa = KilledAndAlloced.createThreadSafeUnreachable();
+                    ThreadSafeKilledAndAlloced existing = this.tunnel.putIfAbsent(key, kaa);
+                    if (existing != null) {
+                        kaa = existing;
+                    }
+                }
+                if (kaa.meet(tunnel.get(key))) {
+                    ThreadLocalKilledAndAlloced tlkaa = ThreadLocalKilledAndAlloced.createLocalUnreachable();
+                    tlkaa.meet(kaa);
+                    changedTunnels.put(key, tlkaa);
+                }
+            }
+            return changedTunnels;
         }
 
         @Override
@@ -591,9 +733,10 @@ public class MethodReachability {
      */
     static class MethodSummaryKillAndAllocChanges {
         private boolean resultsChanged;
-        private MutableIntSet changedTunnels;
+        private IntMap<ThreadLocalKilledAndAlloced> changedTunnels;
 
-        public MethodSummaryKillAndAllocChanges(boolean resultsChanged, MutableIntSet changedTunnels) {
+        public MethodSummaryKillAndAllocChanges(boolean resultsChanged,
+                                                IntMap<ThreadLocalKilledAndAlloced> changedTunnels) {
             assert resultsChanged || !changedTunnels.isEmpty();
             this.resultsChanged = resultsChanged;
             this.changedTunnels = changedTunnels;
@@ -601,14 +744,27 @@ public class MethodReachability {
 
         public void merge(MethodSummaryKillAndAllocChanges changed) {
             this.resultsChanged |= changed.resultsChanged;
-            this.changedTunnels.addAll(changed.changedTunnels);
+            IntIterator keys = changed.changedTunnels.keyIterator();
+            while (keys.hasNext()) {
+                int key = keys.next();
+                if (this.changedTunnels.containsKey(key)) {
+                    this.changedTunnels.get(key).meet(changed.changedTunnels.get(key));
+                }
+                else {
+                    this.changedTunnels.put(key, changed.changedTunnels.get(key));
+                }
+            }
         }
 
         public boolean resultsChanged() {
             return this.resultsChanged;
         }
 
-        public IntSet changedTunnels() {
+        public boolean tunnelsChanged() {
+            return !this.changedTunnels.isEmpty();
+        }
+
+        public IntMap<ThreadLocalKilledAndAlloced> changedTunnels() {
             return this.changedTunnels;
         }
 
@@ -656,7 +812,8 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            submitMethodReachabilityRecomputation(s);
+            // XXX!@! could be smarter here and just propagate tunnels...
+            submitMethodReachabilityRecomputation(s, true);
         }
     }
 
@@ -675,7 +832,7 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            submitMethodReachabilityRecomputation(s);
+            submitMethodReachabilityRecomputation(s, true);
         }
     }
 
@@ -746,7 +903,7 @@ public class MethodReachability {
     void addApproximateFieldAssign(/*ReferenceVariableReplica*/int killDependency) {
         /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.remove(killDependency);
         if (meths != null) {
-            submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths));
+            submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths), true);
         }
 
     }
@@ -762,7 +919,7 @@ public class MethodReachability {
             }
         }
         if (!toRecompute.isEmpty()) {
-            submitMethodReachabilityRecomputation(toRecompute);
+            submitMethodReachabilityRecomputation(toRecompute, true);
         }
     }
 

@@ -913,7 +913,7 @@ public final class ProgramPointReachability {
 
             ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
             if (m != null) {
-                IntIterator changedTunnels = changes.changedTunnels().intIterator();
+                IntIterator changedTunnels = changes.changedTunnels().keyIterator();
                 while (changedTunnels.hasNext()) {
                     int destCGNode = changedTunnels.next();
                     IntSet s = m.remove(destCGNode);
@@ -1047,8 +1047,9 @@ public final class ProgramPointReachability {
         }
     }
 
-    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
-        this.methodReachability.processMethodReachabilityRecomputation(toRecompute);
+    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute,
+                                                       boolean computeTunnels) {
+        this.methodReachability.processMethodReachabilityRecomputation(toRecompute, computeTunnels);
     }
     public AtomicInteger numExpired = new AtomicInteger(0);
 

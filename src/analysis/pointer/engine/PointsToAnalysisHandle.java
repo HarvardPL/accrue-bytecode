@@ -46,7 +46,8 @@ public interface PointsToAnalysisHandle {
      *
      * @param toRecompute
      */
-    void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute);
+    void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute,
+                                               boolean computeTunnels);
 
     /**
      * Request that the ProgramPointReachability query be processed.
