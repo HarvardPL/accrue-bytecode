@@ -247,8 +247,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 joined = IntervalAbsVal.TOP_ELEMENT;
                 break;
             }
-            joined = new IntervalAbsVal(newMin, newMax, interval1.containsNaN || interval2.containsNaN, newMin <= 0
-                    && newMax >= 0);
+            joined = new IntervalAbsVal(newMin, newMax, interval1.containsNaN || interval2.containsNaN);
             break;
         case SUB:
             newMin = interval1.min - interval2.max;
@@ -258,8 +257,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                 joined = IntervalAbsVal.TOP_ELEMENT;
                 break;
             }
-            joined = new IntervalAbsVal(newMin, newMax, interval1.containsNaN || interval2.containsNaN, newMin <= 0
-                    && newMax >= 0);
+            joined = new IntervalAbsVal(newMin, newMax, interval1.containsNaN || interval2.containsNaN);
             break;
         case MUL:
             double[] possibleMul = { interval1.min * interval2.min, interval1.min * interval2.max,
@@ -274,8 +272,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             joined = new IntervalAbsVal(possibleMul[0],
                                         possibleMul[3],
-                                        interval1.containsNaN || interval2.containsNaN,
-                                        possibleMul[0] <= 0 && possibleMul[3] >= 0);
+ interval1.containsNaN || interval2.containsNaN);
             break;
         case DIV:
             if (interval2.containsZero()) {
@@ -302,19 +299,17 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
             }
             joined = new IntervalAbsVal(possibleDiv[0],
                                         possibleDiv[3],
-                                        interval1.containsNaN || interval2.containsNaN,
-                                        possibleDiv[0] <= 0 && possibleDiv[3] >= 0);
+ interval1.containsNaN || interval2.containsNaN);
             break;
         case REM:
             joined = new IntervalAbsVal(0.0,
                                         Math.max(Math.abs(interval2.min), Math.abs(interval2.max)),
-                                        interval1.containsNaN || interval2.containsNaN,
-                                        true);
+                                        interval1.containsNaN || interval2.containsNaN);
             break;
         case AND:
         case OR:
         case XOR:
-            joined = new IntervalAbsVal(0.0, 1.0, interval1.containsNaN || interval2.containsNaN, true);
+            joined = new IntervalAbsVal(0.0, 1.0, interval1.containsNaN || interval2.containsNaN);
             break;
         }
 
@@ -427,8 +422,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         VarContext<IntervalAbsVal> norm = in.setLocal(i.getDef(), new IntervalAbsVal(0.0,
                                                                                      Double.POSITIVE_INFINITY,
-                                                                                     false,
-                                                                                     true));
+                                                                                     false));
         return factsToMapWithExceptions(norm, in, current, cfg);
     }
 
@@ -464,14 +458,14 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
 
         VarContext<IntervalAbsVal> in = confluence(previousItems, current);
         VarContext<IntervalAbsVal> vc = flowBinaryOp(i, previousItems, cfg, current);
-        VarContext<IntervalAbsVal> norm = in.setLocal(i.getDef(), getLocal(vc, i.getDef()));
         VarContext<IntervalAbsVal> ae = in;
         if (!isConstant(i.getUse(1))) {
             // If an exception is thrown we know the second argument is zero
             boolean containsNaN = getLocal(vc, i.getUse(1)).containsNaN;
-            ae = in.setLocal(i.getUse(1), new IntervalAbsVal(0.0, 0.0, containsNaN, true));
+            ae = in.setLocal(i.getUse(1), new IntervalAbsVal(0.0, 0.0, containsNaN));
+            vc = vc.setLocal(i.getUse(1), getLocal(vc, i.getUse(1)).excludeZero());
         }
-        return factsToMapWithExceptions(norm, ae, current, cfg);
+        return factsToMapWithExceptions(vc, ae, current, cfg);
     }
 
     @Override
@@ -506,14 +500,14 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         case EQ:
             if (fst != null && snd == null) {
                 // first argument is constant
-                trueContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst, containsNaN, fst == 0));
+                trueContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst, containsNaN));
                 if (fst == 0) {
                     falseContext = in.setLocal(i.getUse(1), getLocal(in, i.getUse(1)).excludeZero());
                 }
             }
             else if (snd != null && fst == null) {
                 // second argument is constant
-                trueContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd, containsNaN, snd == 0));
+                trueContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd, containsNaN));
                 if (snd == 0) {
                     falseContext = in.setLocal(i.getUse(0), getLocal(in, i.getUse(0)).excludeZero());
                 }
@@ -570,14 +564,14 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         case NE:
             if (fst != null && snd == null) {
                 // first argument is constant
-                falseContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst, containsNaN, fst == 0));
+                falseContext = in.setLocal(i.getUse(1), new IntervalAbsVal(fst, fst, containsNaN));
                 if (fst == 0) {
                     trueContext = in.setLocal(i.getUse(1), getLocal(in, i.getUse(1)).excludeZero());
                 }
             }
             else if (snd != null && fst == null) {
                 // second argument is constant
-                falseContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd, containsNaN, snd == 0));
+                falseContext = in.setLocal(i.getUse(0), new IntervalAbsVal(snd, snd, containsNaN));
                 if (snd == 0) {
                     trueContext = in.setLocal(i.getUse(0), getLocal(in, i.getUse(0)).excludeZero());
                 }
@@ -724,7 +718,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
                                                                                      currentNode,
                                                                                      ippr);
                 for (AbstractLocation loc : locs) {
-                    normalOut = normalOut.setLocation(loc, new IntervalAbsVal(0.0, 0.0, false, true));
+                    normalOut = normalOut.setLocation(loc, new IntervalAbsVal(0.0, 0.0, false));
                 }
             }
         }
@@ -891,7 +885,7 @@ public class IntervalDataFlow extends IntraproceduralDataFlow<VarContext<Interva
         if (d == Double.NaN) {
             return IntervalAbsVal.TOP_ELEMENT;
         }
-        return new IntervalAbsVal(d, d, false, d == 0);
+        return new IntervalAbsVal(d, d, false);
     }
 
     /**
