@@ -67,25 +67,26 @@ public class MethodReachability {
         }
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
-        MethodSummaryKillAndAllocChanges changed = (existing.update(normalExitResults,
+        MethodSummaryKillAndAllocChanges changed = existing.update(normalExitResults,
                                                                     exceptionalExitResults,
                                                                     tunnel,
-                                                                    callSiteSumm));
+                                                                   callSiteSumm);
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
         return changed;
     }
 
-    private IntMap<KilledAndAlloced> recordUpdatedTunnelMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, /*Map<CallGraphNode, KilledAndAlloced>*/
-                                                                                   IntMap<KilledAndAlloced> tunnelChanges) {
+    private MethodSummaryKillAndAllocChanges recordUpdatedTunnelMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, /*Map<CallGraphNode, KilledAndAlloced>*/
+                                                                           IntMap<KilledAndAlloced> tunnelChanges,
+                                                                           IntMap<MethodSummaryKillAndAllocChanges> summaryChanged) {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
         }
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
-        IntMap<KilledAndAlloced> changed = (existing.updateTunnels(tunnelChanges));
+        MethodSummaryKillAndAllocChanges changed = existing.updateTunnels(tunnelChanges);
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -190,7 +191,7 @@ public class MethodReachability {
                 // the method summary changed!
                 if (changed.tunnelsChanged()) {
                     // propagate the tunnel changes.
-                    propagateTunnelChanges(cgNode, changed.changedTunnels());
+                    propagateTunnelChanges(cgNode, changed.changedTunnels(), summaryChanged);
                 }
 
                 if (summaryChanged.containsKey(cgNode)) {
@@ -225,10 +226,12 @@ public class MethodReachability {
      *
      * @param cgNode
      * @param changedTunnels
+     * @param summaryChanged
      * @param visited
      */
     private void propagateTunnelChanges(/*OrderedPair<IMethod, Context>*/int cgNode,
-                                        IntMap<? extends KilledAndAlloced> changedTunnels) {
+                                        IntMap<? extends KilledAndAlloced> changedTunnels,
+                                        IntMap<MethodSummaryKillAndAllocChanges> summaryChanged) {
         // get the callers of cgNode
         /*Set<ProgramPointReplica>*/IntSet callSitesOf = g.getCallersOf(cgNode);
         IntIterator iter = callSitesOf.intIterator();
@@ -252,10 +255,19 @@ public class MethodReachability {
                     modifiedTunnels.put(tunnel, ThreadLocalKilledAndAlloced.join(pathToCallSite, newTunnelResult));
                 }
 
-                IntMap<KilledAndAlloced> newChanges = recordUpdatedTunnelMethodReachability(caller, modifiedTunnels);
-                if (!newChanges.isEmpty()) {
+                MethodSummaryKillAndAllocChanges newChanges = recordUpdatedTunnelMethodReachability(caller,
+                                                                                            modifiedTunnels,
+                                                                                            summaryChanged);
+                if (newChanges.tunnelsChanged()) {
+                    if (summaryChanged.containsKey(caller)) {
+                        summaryChanged.get(caller).merge(newChanges);
+                    }
+                    else {
+                        summaryChanged.put(caller, newChanges);
+                    }
+
                     // we need to recurse!
-                    propagateTunnelChanges(caller, newChanges);
+                    propagateTunnelChanges(caller, newChanges.changedTunnels(), summaryChanged);
                 }
             }
         }
@@ -681,8 +693,8 @@ public class MethodReachability {
             return null;
         }
 
-        public IntMap<KilledAndAlloced> updateTunnels(IntMap<KilledAndAlloced> tunnelChanges) {
-            IntMap<KilledAndAlloced> changedTunnels = new SparseIntMap<>();
+        public MethodSummaryKillAndAllocChanges updateTunnels(IntMap<KilledAndAlloced> tunnelChanges) {
+            IntMap<ThreadLocalKilledAndAlloced> changedTunnels = new SparseIntMap<>();
             IntIterator iter = tunnelChanges.keyIterator();
             while (iter.hasNext()) {
                 int key = iter.next();
@@ -700,7 +712,10 @@ public class MethodReachability {
                     changedTunnels.put(key, tlkaa);
                 }
             }
-            return changedTunnels;
+            if (!changedTunnels.isEmpty()) {
+                return new MethodSummaryKillAndAllocChanges(false, changedTunnels);
+            }
+            return null;
         }
 
         @Override

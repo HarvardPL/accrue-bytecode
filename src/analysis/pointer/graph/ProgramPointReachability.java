@@ -911,14 +911,16 @@ public final class ProgramPointReachability {
                 }
             }
 
-            ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
-            if (m != null) {
-                IntIterator changedTunnels = changes.changedTunnels().keyIterator();
-                while (changedTunnels.hasNext()) {
-                    int destCGNode = changedTunnels.next();
-                    IntSet s = m.remove(destCGNode);
-                    if (s != null) {
-                        queriesToRerun.addAll(s);
+            if (changes.tunnelsChanged()) {
+                ConcurrentIntMap<MutableIntSet> m = this.methodTunnelQueryDependencies.get(cgNode);
+                if (m != null) {
+                    IntIterator changedTunnels = changes.changedTunnels().keyIterator();
+                    while (changedTunnels.hasNext()) {
+                        int destCGNode = changedTunnels.next();
+                        IntSet s = m.remove(destCGNode);
+                        if (s != null) {
+                            queriesToRerun.addAll(s);
+                        }
                     }
                 }
             }
