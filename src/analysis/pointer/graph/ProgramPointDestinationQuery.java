@@ -594,7 +594,13 @@ public final class ProgramPointDestinationQuery {
             ppr.addKillQueryDependency(this.currentSubQuery,
                                        stmt.getReadDependencyForKillField(currentContext, g.getHaf()));
 
-            OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(currentContext, g);
+            OrderedPair<Boolean, PointsToGraphNode> killed;
+            if (PointsToAnalysis.ALWAYS_WEAK_UPDATE) {
+                killed = new OrderedPair<>(true, null);
+            }
+            else {
+                killed = stmt.killsNode(currentContext, g);
+            }
             if (killed != null) {
 
                 if (ppr.getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, currentContext)) {

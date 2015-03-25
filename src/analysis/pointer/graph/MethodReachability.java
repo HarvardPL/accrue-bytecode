@@ -307,7 +307,13 @@ public class MethodReachability {
             // record the dependency before we call stmt.killsNode
             addKillMethodDependency(cgNode, stmt.getReadDependencyForKillField(context, g.getHaf()));
 
-            OrderedPair<Boolean, PointsToGraphNode> killed = stmt.killsNode(context, g);
+            OrderedPair<Boolean, PointsToGraphNode> killed;
+            if (PointsToAnalysis.ALWAYS_WEAK_UPDATE) {
+                killed = new OrderedPair<>(true, null);
+            }
+            else {
+                killed = stmt.killsNode(context, g);
+            }
             if (killed != null) {
                 if (this.ppr.getApproximateCallSitesAndFieldAssigns().isApproximateKillSet(stmt, context)) {
                     if (killed.fst()) {

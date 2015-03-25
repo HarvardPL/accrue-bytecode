@@ -9,7 +9,6 @@ import util.OrderedPair;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
-import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -122,11 +121,6 @@ public class LocalToFieldStatement extends PointsToStatement {
         InterProgramPointReplica pre = InterProgramPointReplica.create(context, this.programPoint().pre());
         StmtAndContext sac = new StmtAndContext(this, context);
         Iterator<InstanceKeyRecency> iter = g.pointsToIterator(receiverReplica, pre, sac);
-
-        if (PointsToAnalysis.ALWAYS_WEAK_UPDATE) {
-            // Weak update never kills a field
-            return new OrderedPair<>(Boolean.TRUE, null);
-        }
 
         if (!iter.hasNext()) {
             // the receiver currently point to nothing. Too early to tell if we kill a node

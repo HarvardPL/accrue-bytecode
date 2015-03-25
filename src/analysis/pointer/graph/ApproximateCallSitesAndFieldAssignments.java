@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import util.OrderedPair;
 import analysis.AnalysisUtil;
+import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.statements.PointsToStatement;
 
@@ -140,7 +141,13 @@ public class ApproximateCallSitesAndFieldAssignments {
             while (iter.hasNext()) {
                 StmtAndContext i = iter.next();
                 // if field really has no targets, then approximate it.
-                OrderedPair<Boolean, PointsToGraphNode> killed = i.stmt.killsNode(i.context, g);
+                OrderedPair<Boolean, PointsToGraphNode> killed;
+                if (PointsToAnalysis.ALWAYS_WEAK_UPDATE) {
+                    killed = new OrderedPair<>(true, null);
+                }
+                else {
+                    killed = i.stmt.killsNode(i.context, g);
+                }
                 if (!killed.fst()) {
                     if (approxFieldAssignments.add(i)) {
                         if (DETERMINISTIC) {
