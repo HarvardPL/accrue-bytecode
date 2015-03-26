@@ -1049,9 +1049,8 @@ public final class ProgramPointReachability {
         }
     }
 
-    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute,
-                                                       boolean computeTunnels) {
-        this.methodReachability.processMethodReachabilityRecomputation(toRecompute, computeTunnels);
+    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+        this.methodReachability.processMethodReachabilityRecomputation(toRecompute);
     }
     public AtomicInteger numExpired = new AtomicInteger(0);
 

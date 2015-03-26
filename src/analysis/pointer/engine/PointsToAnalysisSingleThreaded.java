@@ -297,7 +297,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
                     }
                     else {
                         // methodreach recompute
-                        g.ppReach.processMethodReachabilityRecomputation(methodReachRecomputeQueue.poll(), true);;
+                        g.ppReach.processMethodReachabilityRecomputation(methodReachRecomputeQueue.poll());
                     }
                     continue;
                 }
@@ -692,7 +692,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         }
 
         @Override
-        public void submitMethodReachabilityRecomputation(MutableIntSet toRecompute, boolean computeTunnels) {
+        public void submitMethodReachabilityRecomputation(MutableIntSet toRecompute) {
             this.methodReachRecomputeQueue.add(toRecompute);
         }
 

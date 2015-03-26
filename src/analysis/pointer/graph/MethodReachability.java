@@ -140,7 +140,7 @@ public class MethodReachability {
         MutableIntSet mis = MutableSparseIntSet.createMutableSparseIntSet(2);
         mis.add(cgNode);
         // note that we want to compute it now, and wait for the result.
-        this.processMethodReachabilityRecomputation(mis, true);
+        this.processMethodReachabilityRecomputation(mis);
 
         if (ProgramPointReachability.DEBUG) {
             OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);
@@ -163,9 +163,8 @@ public class MethodReachability {
      *
      * @param cgNodes
      */
-    private void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute,
-                                                       boolean computeTunnels) {
-        this.analysisHandle.submitMethodReachabilityRecomputation(toRecompute, computeTunnels);
+    private void submitMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
+        this.analysisHandle.submitMethodReachabilityRecomputation(toRecompute);
     }
 
     /**
@@ -176,8 +175,7 @@ public class MethodReachability {
      *
      * @param cgNodes
      */
-    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute,
-                                                       boolean computeTunnels) {
+    public void processMethodReachabilityRecomputation(/*Set<OrderedPair<IMethod, Context>>*/MutableIntSet toRecompute) {
 
         IntMap<MethodSummaryKillAndAllocChanges> summaryChanged = new SparseIntMap<>();
         while (!toRecompute.isEmpty()) {
@@ -186,11 +184,13 @@ public class MethodReachability {
             int cgNode = toRecompute.max();
             toRecompute.remove(cgNode);
 
-            MethodSummaryKillAndAllocChanges changed = computeMethodSummary(cgNode, computeTunnels);
+            MethodSummaryKillAndAllocChanges changed = computeMethodSummary(cgNode);
             if (changed != null) {
                 // the method summary changed!
                 if (changed.tunnelsChanged()) {
-                    // propagate the tunnel changes.
+                    // propagate the tunnel changes. This is not required for correctness,
+                    // but eagerly propagating the information helps to reduce
+                    // recomputation of method summaries
                     propagateTunnelChanges(cgNode, changed.changedTunnels(), summaryChanged);
                 }
 
@@ -209,7 +209,7 @@ public class MethodReachability {
                         MutableSparseIntSet submitted = MutableSparseIntSet.createMutableSparseIntSet(msize);
                         submitted.addAll(meths);
                         // Don't need to compute the tunnel changes, since we propagated those already.
-                        submitMethodReachabilityRecomputation(submitted, false);
+                        submitMethodReachabilityRecomputation(submitted);
                     }
                 }
             }
@@ -283,8 +283,7 @@ public class MethodReachability {
      * @param cgNode
      * @return
      */
-    private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode,
-                                                                  boolean computeTunnels) {
+    private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode) {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -298,17 +297,6 @@ public class MethodReachability {
             System.err.println("PPR%% COMPUTING FOR " + PrettyPrinter.methodString(n.fst()) + " in " + context);
         }
 
-        if (!computeTunnels) {
-            // check to see if we want to bother...
-            MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgNode);
-            if (existing != null) {
-                if (existing.normalExitSummary.isEmpty() && existing.exceptionalExitSummary.isEmpty()) {
-                    // nothing to do!
-                    return null;
-                }
-            }
-
-        }
         // do a dataflow over the program points.
 
         // The map facts records what facts are true at each interprogram point.
@@ -830,7 +818,7 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            submitMethodReachabilityRecomputation(s, true);
+            submitMethodReachabilityRecomputation(s);
         }
     }
 
@@ -849,7 +837,7 @@ public class MethodReachability {
         if (methodSummaryMemoization.containsKey(callerCGNode)) {
             MutableIntSet s = MutableSparseIntSet.createMutableSparseIntSet(2);
             s.add(callerCGNode);
-            submitMethodReachabilityRecomputation(s, true);
+            submitMethodReachabilityRecomputation(s);
         }
     }
 
@@ -920,7 +908,7 @@ public class MethodReachability {
     void addApproximateFieldAssign(/*ReferenceVariableReplica*/int killDependency) {
         /*Set<OrderedPair<IMethod, Context>>*/IntSet meths = killMethodDependencies.remove(killDependency);
         if (meths != null) {
-            submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths), true);
+            submitMethodReachabilityRecomputation(MutableSparseIntSet.make(meths));
         }
 
     }
@@ -936,7 +924,7 @@ public class MethodReachability {
             }
         }
         if (!toRecompute.isEmpty()) {
-            submitMethodReachabilityRecomputation(toRecompute, true);
+            submitMethodReachabilityRecomputation(toRecompute);
         }
     }
 
