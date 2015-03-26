@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -15,7 +14,6 @@ import analysis.pointer.registrar.strings.StringVariable;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 public class LocalFromFormalStringStatement extends StringStatement {
 
@@ -40,11 +38,8 @@ public class LocalFromFormalStringStatement extends StringStatement {
 
         g.recordStringStatementDefineDependency(localRVR, originator);
 
-        for (InstanceKey formalIK : pti.pointsToIterable(formalRVR, originator)) {
-            for (AString sik : g.stringsForInstanceKey(formalIK)) {
-                newDelta.combine(g.stringVariableReplicaJoinAt(localRVR, sik));
-            }
-        }
+        newDelta.combine(g.stringVariableReplicaJoinAt(localRVR, g.astringForPointsToGraphNode(formalRVR, originator)));
+
         return newDelta;
     }
 

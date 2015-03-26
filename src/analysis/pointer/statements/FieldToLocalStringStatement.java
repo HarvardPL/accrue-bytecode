@@ -1,6 +1,5 @@
 package analysis.pointer.statements;
 
-import analysis.pointer.analyses.AString;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -34,8 +33,8 @@ public class FieldToLocalStringStatement extends StringStatement {
     }
 
     @Override
-    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g,
-                              GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
+    public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
+                              StatementRegistrar registrar, StmtAndContext originator) {
         StringVariableReplica vSVR = new StringVariableReplica(context, this.v);
         PointsToGraphNode oRVR = new ReferenceVariableReplica(context, this.o, haf);
 
@@ -48,18 +47,14 @@ public class FieldToLocalStringStatement extends StringStatement {
         for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
             ObjectField f = new ObjectField(oIK, this.field);
 
-            for (InstanceKey fIK : pti.pointsToIterable(f, originator)) {
-                for (AString sik : g.stringsForInstanceKey(fIK)) {
-                    newDelta.combine(g.stringVariableReplicaJoinAt(vSVR, sik));
-                }
-            }
+            newDelta.combine(g.stringVariableReplicaJoinAt(vSVR, g.astringForPointsToGraphNode(f, originator)));
         }
         return newDelta;
     }
 
     @Override
     public String toString() {
-        return v + " = " + o + "." + field;
+        return this.v + " = " + o + "." + field;
     }
 
 }

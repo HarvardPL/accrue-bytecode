@@ -3,6 +3,7 @@ package analysis.pointer.registrar;
 import java.util.HashMap;
 import java.util.Map;
 
+import types.TypeRepository;
 import util.Triplet;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
@@ -48,23 +49,33 @@ public final class FlowSensitiveStringVariableFactory {
 
     /* Logic */
 
-    public StringVariable getOrCreateLocalDef(SSAInstruction i, int defNum, IMethod method, PrettyPrinter pp) {
-        return getOrCreateLocal(this.defSensitizerAtInstruction.get(i), defNum, method, pp);
+    public StringVariable getOrCreateLocalDef(SSAInstruction i, int defNum, IMethod method, TypeRepository types, PrettyPrinter pp) {
+        return getOrCreateLocal(this.defSensitizerAtInstruction.get(i), defNum, method, types, pp);
     }
 
-    public StringVariable getOrCreateLocalUse(SSAInstruction i, int useNum, IMethod method, PrettyPrinter pp) {
-        return getOrCreateLocal(this.useSensitizerAtInstruction.get(i), useNum, method, pp);
+    public StringVariable getOrCreateLocalUse(SSAInstruction i, int useNum, IMethod method, TypeRepository types,
+                                              PrettyPrinter pp) {
+        return getOrCreateLocal(this.useSensitizerAtInstruction.get(i), useNum, method, types, pp);
     }
 
     private StringVariable getOrCreateLocal(Map<Integer, Integer> sensitizer, Integer varNum, IMethod m,
-                                            @SuppressWarnings("unused") PrettyPrinter pp) {
-        return getOrCreateLocalWithSubscript(varNum, getOrDefaultSensitizer(sensitizer, varNum), m);
+                                            TypeRepository types, @SuppressWarnings("unused") PrettyPrinter pp) {
+        return getOrCreateLocalWithSubscript(varNum, getOrDefaultSensitizer(sensitizer, varNum), m, types);
     }
 
-    public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript, IMethod m) {
+    public StringVariable getOrCreateLocalWithSubscript(int varNum, int sensitizingSubscript, IMethod m,
+                                                        TypeRepository types) {
         StringVariable maybeValue = localsCache.get(new Triplet<>(m, varNum, sensitizingSubscript));
         if (maybeValue == null) {
-            return StringVariableFactory.makeLocal(m, varNum, sensitizingSubscript);
+            if (types.getType(varNum).equals(TypeReference.JavaLangString)) {
+                return StringVariableFactory.makeLocalString(m, varNum, sensitizingSubscript);
+            }
+            else if (types.getType(varNum).equals(TypeReference.JavaLangStringBuilder)) {
+                return StringVariableFactory.makeLocalStringBuilder(m, varNum, sensitizingSubscript);
+            }
+            else {
+                throw new RuntimeException("String variables may only be created for objects of class String or StringBuilder");
+            }
         }
         else {
             return maybeValue;
@@ -85,8 +96,9 @@ public final class FlowSensitiveStringVariableFactory {
 
     }
 
-    public StringVariable getOrCreateParamDef(int varNum, IMethod m, @SuppressWarnings("unused") PrettyPrinter pp) {
-        return getOrCreateLocalWithSubscript(varNum, initialSubscript, m);
+    public StringVariable getOrCreateParamDef(int varNum, IMethod m, TypeRepository types,
+                                              @SuppressWarnings("unused") PrettyPrinter pp) {
+        return getOrCreateLocalWithSubscript(varNum, initialSubscript, m, types);
     }
 
     private static Integer getOrDefaultSensitizer(Map<Integer, Integer> m, Integer a) {

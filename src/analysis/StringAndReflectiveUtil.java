@@ -58,8 +58,16 @@ public class StringAndReflectiveUtil {
                                                                           "toString",
                                                                           "()Ljava/lang/String;");
 
+    public static final IClass stringIClass = getIClass("Ljava/lang/StringBuilder");
+
     private static IMethod methodReferenceToIMethod(MethodReference m) {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
+    }
+
+    private static IClass getIClass(String name) {
+        return AnalysisUtil.getClassHierarchy()
+                           .lookupClass(TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                   TypeName.string2TypeName(name)));
     }
 
     private static IMethod getIMethod(TypeReference type, String atom, String desc) {

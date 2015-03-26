@@ -45,6 +45,10 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
         return ClassInstanceKey.make(classes, this.wrappedHAF.record(allocationSite, context));
     }
 
+    public InstanceKey recordStringlike(AString shat, AllocSiteNode allocationSite, Context context) {
+        return StringInstanceKey.make(shat, this.wrappedHAF.record(allocationSite, context));
+    }
+
     public FiniteSet<IClass> getAClassTop() {
         return FiniteSet.makeTop(this.MAX_CLASS_SET_SIZE);
     }

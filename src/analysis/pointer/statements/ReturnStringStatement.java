@@ -2,6 +2,7 @@ package analysis.pointer.statements;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
+import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -35,21 +36,24 @@ public class ReturnStringStatement extends StringStatement {
     @Override
     public GraphDelta process(Context context, HeapAbstractionFactory haf, PointsToGraph g, GraphDelta delta,
                               StatementRegistrar registrar, StmtAndContext originator) {
-        StringVariableReplica vRVR = new StringVariableReplica(context, this.v);
-        AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("stringAnalysisReturn",
-                                                                 JavaLangStringIClass,
-                                                                 this.method,
-                                                                 null, /* XXX: this is probably a bug, not sure why cannot generate more than one IK for a given result */
-                                                                 false);
-        InstanceKey newIK = haf.record(asn, context);
-        assert newIK != null;
-
-        g.ikDependsOnStringVariable(newIK, vRVR);
-
-        g.recordStringStatementUseDependency(vRVR, originator);
-
+        StringVariableReplica vsvr = new StringVariableReplica(context, this.v);
         ReferenceVariableReplica summaryRVR = new ReferenceVariableReplica(context, summary, haf);
-        return g.addEdge(summaryRVR, newIK);
+        AllocSiteNode allocationSite = AllocSiteNodeFactory.createGenerated("stringAnalysisReturn",
+                                                                            AnalysisUtil.getClassHierarchy()
+                                                                                        .lookupClass(vsvr.getExpectedType()),
+                                                                            this.method,
+                                                                            null, /* XXX: this is probably a bug, not sure why cannot generate more than one IK for a given result */
+                                                                            false);
+
+        GraphDelta newDelta = new GraphDelta(g);
+
+        g.recordStringStatementUseDependency(vsvr, originator);
+
+        InstanceKey ik = ((ReflectiveHAF) haf).recordStringlike(g.getAStringFor(vsvr), allocationSite, context);
+
+        newDelta.combine(g.addEdge(summaryRVR, ik));
+
+        return newDelta;
     }
 
     @Override

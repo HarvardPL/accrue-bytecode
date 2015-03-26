@@ -6,8 +6,12 @@ import com.ibm.wala.classLoader.IMethod;
 public class StringVariableFactory {
     /* Factory Methods */
 
-    public static StringVariable makeLocal(IMethod m, int varNum, int sensitizingSubscript) {
-        return LocalStringVariable.make(m, varNum, sensitizingSubscript);
+    public static StringVariable makeLocalString(IMethod m, int varNum, int sensitizingSubscript) {
+        return LocalStringVariable.makeString(m, varNum, sensitizingSubscript);
+    }
+
+    public static StringVariable makeLocalStringBuilder(IMethod m, int varNum, int sensitizingSubscript) {
+        return LocalStringVariable.makeStringBuilder(m, varNum, sensitizingSubscript);
     }
 
     public static StringVariable makeField(IField f) {

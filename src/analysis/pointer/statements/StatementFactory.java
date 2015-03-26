@@ -657,6 +657,19 @@ public class StatementFactory {
         return new PhiToLocalStringStatement(svassignee, svuses, method);
     }
 
+    public StringStatement localToFieldString(StringVariable svvDef, StringVariable svvUse, ReferenceVariable o,
+                                              FieldReference f, IMethod method) {
+        assert svvDef != null;
+        assert svvUse != null;
+        assert o != null;
+        assert f != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(svvDef, svvUse, o, f, method));
+
+        return new LocalToFieldStringStatement(svvDef, svvUse, o, f, method);
+    }
+
     public StringStatement localToStaticFieldString(StringVariable svf, StringVariable svv, IMethod method) {
         assert svf != null;
         assert svv != null;
@@ -700,6 +713,28 @@ public class StatementFactory {
         assert stringStatementNeverCreatedBefore(new StatementKey(sv, dependentSVs));
 
         return new StringPhiNode(method, sv, dependentSVs);
+    }
+
+    public StringStatement escapeViaReturnStringStatement(ReferenceVariable rv, StringVariable sv, IMethod method) {
+        assert rv != null;
+        assert sv != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(rv, sv, method));
+
+        return new EscapeViaReturnStringStatement(rv, sv, method);
+    }
+
+    public StringStatement escapeViaMethodStringStatement(ReferenceVariable rv, StringVariable svuse,
+                                                            StringVariable svdef, IMethod method) {
+        assert rv != null;
+        assert svuse != null;
+        assert svdef != null;
+        assert method != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(rv, svuse, svdef, method));
+
+        return new EscapeViaMethodStringStatement(rv, svuse, svdef, method);
     }
 
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
@@ -793,6 +828,16 @@ public class StatementFactory {
             this.key3 = key3;
             this.key4 = key4;
             this.key5 = null;
+            this.key6 = null;
+            this.key7 = null;
+        }
+
+        public StatementKey(Object key1, Object key2, Object key3, Object key4, Object key5) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.key3 = key3;
+            this.key4 = key4;
+            this.key5 = key5;
             this.key6 = null;
             this.key7 = null;
         }
@@ -898,4 +943,5 @@ public class StatementFactory {
                     + key5 + ", key6=" + key6 + ", key7=" + key7 + "]";
         }
     }
+
 }

@@ -7,27 +7,32 @@ public class LocalStringVariable implements StringVariable {
     private final IMethod m;
     private final int varNum;
     private final int sensitizingSubscript;
+    private final TypeReference klass;
 
     /* Factory Methods */
 
-    public static LocalStringVariable make(IMethod m, int varNum, int sensitizingSubscript) {
-        return new LocalStringVariable(m, varNum, sensitizingSubscript);
+    public static LocalStringVariable makeString(IMethod m, int varNum, int sensitizingSubscript) {
+        return new LocalStringVariable(m, varNum, sensitizingSubscript, TypeReference.JavaLangString);
+    }
+
+    public static LocalStringVariable makeStringBuilder(IMethod m, int varNum, int sensitizingSubscript) {
+        return new LocalStringVariable(m, varNum, sensitizingSubscript, TypeReference.JavaLangStringBuilder);
     }
 
     /* Constructor */
 
-    private LocalStringVariable(IMethod m, int varNum, int sensitizingSubscript) {
+    private LocalStringVariable(IMethod m, int varNum, int sensitizingSubscript, TypeReference klass) {
         this.m = m;
         this.varNum = varNum;
         this.sensitizingSubscript = sensitizingSubscript;
+        this.klass = klass;
     }
 
     /* Logic */
 
     @Override
     public TypeReference getExpectedType() {
-        // XXX: Unimplemented
-        throw new RuntimeException("unimplemented");
+        return this.klass;
     }
 
     @Override
