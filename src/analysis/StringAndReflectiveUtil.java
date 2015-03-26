@@ -81,8 +81,13 @@ public class StringAndReflectiveUtil {
     }
 
     public static boolean isStringType(TypeReference resultType) {
-        IClass iclass = typeReferenceToIClass(resultType);
-        return iclass.equals(JavaLangStringIClass) || iclass.equals(JavaLangStringBuilderIClass);
+        if (resultType == null) {
+            return false;
+        } else {
+            IClass iclass = typeReferenceToIClass(resultType);
+            return iclass != null
+                    && (iclass.equals(JavaLangStringIClass) || iclass.equals(JavaLangStringBuilderIClass));
+        }
     }
 
     public static boolean isStringMutatingMethod(MethodReference m) {
