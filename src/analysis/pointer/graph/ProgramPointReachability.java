@@ -73,7 +73,7 @@ public final class ProgramPointReachability {
     /**
      * Used to compute and summarize the reachability information for methods.
      */
-    private final MethodReachability methodReachability;
+    public final MethodReachability methodReachability;
 
     /**
      * Used to check whether one call graph node is reachable from another
@@ -459,6 +459,9 @@ public final class ProgramPointReachability {
         if (PRINT_DIAGNOSTICS) {
             totalTime.addAndGet(System.currentTimeMillis() - start);
         }
+
+        // we still didn't find it. Mark the destination as interesting, since we would benefit from using tunnels.
+        this.methodReachability.addInterestingDestination(prq.destinationCGNode);
         return false;
     }
 

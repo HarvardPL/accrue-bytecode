@@ -50,6 +50,17 @@ public class MethodReachability {
     // ConcurrentMap<ReferenceVariableReplica, Set<OrderedPair<IMethod, Context>>>
     private final ConcurrentIntMap<MutableIntSet> killMethodDependencies = AnalysisUtil.createConcurrentIntMap();
 
+    /**
+     * The "interesting destinations", i.e., call graph nodes for which some pp reachability query could use tunnel
+     * information for this node.
+     */
+    private final/*Set<OrderedPair<IMethod, Context>*/MutableIntSet interestingDestinations = AnalysisUtil.createDenseConcurrentIntSet();
+
+    /**
+     * Approximate count of the number of interesting destinations (not thread safe).
+     */
+    private int approxNumInterestingDestinations = 0;
+
     MethodReachability(ProgramPointReachability ppr, PointsToGraph g, PointsToAnalysisHandle analysisHandle) {
         this.ppr = ppr;
         this.g = g;
@@ -78,8 +89,7 @@ public class MethodReachability {
     }
 
     private MethodSummaryKillAndAllocChanges recordUpdatedTunnelMethodReachability(/*OrderedPair<IMethod, Context>*/int cgnode, /*Map<CallGraphNode, KilledAndAlloced>*/
-                                                                           IntMap<KilledAndAlloced> tunnelChanges,
-                                                                           IntMap<MethodSummaryKillAndAllocChanges> summaryChanged) {
+                                                                                   IntMap<KilledAndAlloced> tunnelChanges) {
         long start = 0L;
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
@@ -87,6 +97,24 @@ public class MethodReachability {
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
         MethodSummaryKillAndAllocChanges changed = existing.updateTunnels(tunnelChanges);
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
+        }
+        return changed;
+    }
+
+    private MethodSummaryKillAndAllocChanges recordTunnelToSelf(/*OrderedPair<IMethod, Context>*/int cgnode) {
+        long start = 0L;
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+            start = System.currentTimeMillis();
+        }
+        MethodSummaryKillAndAllocChanges changed = null;
+        MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
+        if (existing != null) {
+            IntMap<KilledAndAlloced> tunnelToSelf = new SparseIntMap<>(1);
+            tunnelToSelf.put(cgnode, KilledAndAlloced.createLocalEmpty());
+            changed = existing.updateTunnels(tunnelToSelf);
+        }
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -120,7 +148,7 @@ public class MethodReachability {
             return res;
         }
         // no results yet.
-        res = MethodSummaryKillAndAlloc.createInitial(cgNode);
+        res = MethodSummaryKillAndAlloc.createInitial(cgNode, this.isInterestingDestination(cgNode));
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.putIfAbsent(cgNode, res);
         if (existing != null) {
             // someone beat us to it, and is currently working on the results.
@@ -152,6 +180,39 @@ public class MethodReachability {
             this.ppr.computedMethodReach.incrementAndGet();
         }
         return res;
+    }
+
+    /**
+     * Is this call graph node an interesting destination?
+     */
+    public boolean isInterestingDestination(/*OrderedPair<IMethod, Context>*/int cgnode) {
+        return this.interestingDestinations.contains(cgnode);
+    }
+
+    /**
+     * Is this call graph node an interesting destination?
+     */
+    public boolean addInterestingDestination(/*OrderedPair<IMethod, Context>*/int cgnode) {
+        if (this.interestingDestinations.add(cgnode)) {
+            this.approxNumInterestingDestinations += 1;
+
+            // add a tunnel to cgnode, and start the tunnel propagation!
+            MethodSummaryKillAndAllocChanges changes = recordTunnelToSelf(cgnode);
+            if (changes != null) {
+                IntMap<MethodSummaryKillAndAllocChanges> summaryChanged = new SparseIntMap<>();
+                summaryChanged.put(cgnode, changes);
+                propagateTunnelChanges(cgnode, changes.changedTunnels(), summaryChanged);
+
+                // we have now finished the tunnel propagation, let ppr know.
+                this.ppr.methodSummariesChanged(summaryChanged);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public int approxNumInterestingDestinations() {
+        return this.approxNumInterestingDestinations;
     }
 
     /**
@@ -256,8 +317,7 @@ public class MethodReachability {
                 }
 
                 MethodSummaryKillAndAllocChanges newChanges = recordUpdatedTunnelMethodReachability(caller,
-                                                                                            modifiedTunnels,
-                                                                                            summaryChanged);
+                                                                                                    modifiedTunnels);
                 if (newChanges.tunnelsChanged()) {
                     if (summaryChanged.containsKey(caller)) {
                         summaryChanged.get(caller).merge(newChanges);
@@ -302,9 +362,13 @@ public class MethodReachability {
         // The map facts records what facts are true at each interprogram point.
         Map<InterProgramPoint, ThreadLocalKilledAndAlloced> facts = new HashMap<>();
         IntMap<ThreadLocalKilledAndAlloced> tunnel = new SparseIntMap<ThreadLocalKilledAndAlloced>();
-        ThreadLocalKilledAndAlloced kaa = KilledAndAlloced.createLocalUnreachable();
-        kaa.setEmpty();
-        tunnel.put(cgNode, kaa);
+
+        // only create a tunnel if this is an interesting destination.
+        if (isInterestingDestination(cgNode)) {
+            ThreadLocalKilledAndAlloced kaa = KilledAndAlloced.createLocalUnreachable();
+            kaa.setEmpty();
+            tunnel.put(cgNode, kaa);
+        }
 
         IntMap<ThreadLocalKilledAndAlloced> callSiteSumm = new SparseIntMap<>();
 
@@ -595,12 +659,14 @@ public class MethodReachability {
          */
         final ConcurrentIntMap<ThreadSafeKilledAndAlloced> callSiteSumm = AnalysisUtil.createConcurrentIntMap();
 
-        private MethodSummaryKillAndAlloc(/*OrderedPair<IMethod, Context>*/int cgnode) {
+        private MethodSummaryKillAndAlloc(/*OrderedPair<IMethod, Context>*/int cgnode, boolean addTunnelToSelf) {
             if (ProgramPointReachability.USE_TUNNELS) {
-                // the method that this summary is for is reachable without killing or allocating anything.
-                ThreadSafeKilledAndAlloced kaa = KilledAndAlloced.createThreadSafeUnreachable();
-                kaa.setEmpty();
-                this.tunnel.put(cgnode, kaa);
+                if (addTunnelToSelf) {
+                    // the method that this summary is for is reachable without killing or allocating anything.
+                    ThreadSafeKilledAndAlloced kaa = KilledAndAlloced.createThreadSafeUnreachable();
+                    kaa.setEmpty();
+                    this.tunnel.put(cgnode, kaa);
+                }
             }
             this.normalExitSummary = KilledAndAlloced.createThreadSafeUnreachable();
             this.exceptionalExitSummary = KilledAndAlloced.createThreadSafeUnreachable();
@@ -613,8 +679,9 @@ public class MethodReachability {
          *
          * @return
          */
-        public static MethodSummaryKillAndAlloc createInitial(/*OrderedPair<IMethod, Context>*/int cgnode) {
-            return new MethodSummaryKillAndAlloc(cgnode);
+        public static MethodSummaryKillAndAlloc createInitial(/*OrderedPair<IMethod, Context>*/int cgnode,
+                                                              boolean addTunnelToSelf) {
+            return new MethodSummaryKillAndAlloc(cgnode, addTunnelToSelf);
         }
 
         public KilledAndAlloced getNormalExitResult() {

@@ -638,7 +638,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                         + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
                         + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size() + "; approximationTime: "
                         + approximationTime.get() / 1000.0 + "; numExpired: " + g.ppReach.numExpired
-                        + "; approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
+                        + "; approxCGNodes: " + g.getApproxCallGraphSize() + "; approxNumInterestingCGNodes: "
+                        + g.ppReach.methodReachability.approxNumInterestingDestinations() + "\n");
                 sb.append("\ttotalStmtAndCtxtNoDeltaTasks: " + totalStmtAndCtxtNoDeltaTasks.get()
                         + "; totalStmtAndCtxtWithDeltaTasks: " + totalStmtAndCtxtWithDeltaTasks.get()
                         + "; totalAddNonMostRecentOriginTasks: " + totalAddNonMostRecentOriginTasks.get()
