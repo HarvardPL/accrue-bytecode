@@ -715,12 +715,13 @@ public class StatementFactory {
         return new StringPhiNode(method, sv, dependentSVs);
     }
 
-    public StringStatement escapeViaReturnStringStatement(ReferenceVariable rv, StringVariable sv, IMethod method) {
+    public StringStatement escapeViaReturnStringStatement(ReferenceVariable rv, StringVariable sv, IMethod method,
+                                                          SSAReturnInstruction i) {
         assert rv != null;
         assert sv != null;
         assert method != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(rv, sv, method));
+        assert stringStatementNeverCreatedBefore(new StatementKey(rv, sv, method, i));
 
         return new EscapeViaReturnStringStatement(rv, sv, method);
     }

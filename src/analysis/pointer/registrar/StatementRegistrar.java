@@ -1031,7 +1031,7 @@ public class StatementRegistrar {
             if (StringAndReflectiveUtil.isStringType(paramType)) {
                 ReferenceVariable rv = methodSummary.getFormal(j);
                 StringVariable sv = stringVariableFactory.getOrCreateLocalUse(i, paramNum, ir.getMethod(), types, pp);
-                this.addStringStatement(stmtFactory.escapeViaReturnStringStatement(rv, sv, ir.getMethod()));
+                this.addStringStatement(stmtFactory.escapeViaReturnStringStatement(rv, sv, ir.getMethod(), i));
             }
         }
     }
