@@ -6,6 +6,7 @@ import com.ibm.wala.classLoader.Language;
 import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.Descriptor;
 import com.ibm.wala.types.MethodReference;
+import com.ibm.wala.types.Selector;
 import com.ibm.wala.types.TypeName;
 import com.ibm.wala.types.TypeReference;
 import com.ibm.wala.util.strings.Atom;
@@ -57,6 +58,8 @@ public class StringAndReflectiveUtil {
     public static final IMethod stringBuilderToStringIMethod = getIMethod(JavaLangStringBuilderTypeReference,
                                                                           "toString",
                                                                           "()Ljava/lang/String;");
+    private static final IMethod stringInitMethod = getIMethod(JavaLangStringTypeReference,
+                                                               MethodReference.initSelector);
 
     public static final IClass stringIClass = getIClass("Ljava/lang/StringBuilder");
 
@@ -74,6 +77,10 @@ public class StringAndReflectiveUtil {
         return methodReferenceToIMethod(MethodReference.findOrCreate(type,
                                                                      Atom.findOrCreateUnicodeAtom(atom),
                                                                      Descriptor.findOrCreateUTF8(Language.JAVA, desc)));
+    }
+
+    private static IMethod getIMethod(TypeReference type, Selector selector) {
+        return methodReferenceToIMethod(MethodReference.findOrCreate(type, selector));
     }
 
     private static IClass typeReferenceToIClass(TypeReference tr) {
@@ -104,6 +111,6 @@ public class StringAndReflectiveUtil {
 
     public static boolean isStringInitMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
-        return im.equals(stringBuilderInitIMethod) || im.equals(abstractStringBuilderInitIMethod);
+        return im.equals(stringBuilderInitIMethod) || im.equals(stringInitMethod);
     }
 }
