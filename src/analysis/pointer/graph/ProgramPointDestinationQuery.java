@@ -195,6 +195,29 @@ public final class ProgramPointDestinationQuery {
         searchQ.add(new WorkItem(src.getInterPP(), src.getContext(), false));
         while (!searchQ.isEmpty()) {
             WorkItem wi = searchQ.poll();
+
+            // check to see if we want to register an interesting destination...
+            if (this.currentSourceCGNode != this.destinationCGNode
+                    && !this.ppr.methodReachability.isInterestingDestination(this.destinationCGNode)) {
+                // check to see if any of the callees of this method is the destination
+                boolean destIsCallee = false;
+                IntIterator callSites = g.getCallSitesWithinMethod(this.currentSourceCGNode).intIterator();
+                while (callSites.hasNext()) {
+                    int callSite = callSites.next();
+                    if (g.getCalleesOf(callSite).contains(this.destinationCGNode)) {
+                        // the destination is an immediate callee!
+                        destIsCallee = true;
+                        break;
+                    }
+                }
+                if (!destIsCallee) {
+                    // let's proactively mark this as an interesting destination, so that the
+                    // tunnels are prepopulated before we perform the search.
+                    this.ppr.methodReachability.addInterestingDestination(this.destinationCGNode);
+                }
+
+            }
+
             if (search(wi)) {
                 if (DEBUG) {
                     System.err.println("PPDQ%% FOUND DESTINATION " + this.currentSubQuery + "\n");
@@ -484,7 +507,6 @@ public final class ProgramPointDestinationQuery {
             return ReachabilityResult.NORMAL_AND_EXCEPTION_EXIT;
         }
 
-
         // The exit nodes that are reachable from this call-site, initialize to UNREACHABLE
         ReachabilityResult reachableExits = ReachabilityResult.UNREACHABLE;
         IntIterator calleeIter = calleeSet.intIterator();
@@ -495,6 +517,7 @@ public final class ProgramPointDestinationQuery {
                 // from this call site...
                 break;
             }
+
             /*OrderedPair<IMethod, Context>*/int calleeInt = calleeIter.next();
             OrderedPair<IMethod, Context> callee = g.lookupCallGraphNodeDictionary(calleeInt);
             MethodSummaryNodes calleeSummary = g.getRegistrar().getMethodSummary(callee.fst());
