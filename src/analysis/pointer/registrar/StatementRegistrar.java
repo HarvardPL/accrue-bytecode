@@ -62,6 +62,7 @@ import com.ibm.wala.ssa.SSAPhiInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.ssa.SSAReturnInstruction;
 import com.ibm.wala.ssa.SSAThrowInstruction;
+import com.ibm.wala.types.ClassLoaderReference;
 import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
@@ -966,7 +967,11 @@ public class StatementRegistrar {
                                                                                   pp);
             List<StringVariable> svuses = new ArrayList<>(i.getNumberOfUses());
             for (int j = 0; j < i.getNumberOfUses(); ++j) {
-                svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                if (!types.getType(i.getUse(j)).equals(TypeReference.findOrCreate(ClassLoaderReference.Primordial,
+                                                                                  "null"))) {
+                    // XXX: Wtf, how can type names be the string "null"?
+                    svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                }
             }
             this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
         }
