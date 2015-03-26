@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import util.OrderedPair;
+
 public class SensitizerFact {
     private final Map<Integer, Set<Integer>> m;
 
@@ -38,6 +40,18 @@ public class SensitizerFact {
         Map<Integer, Set<Integer>> m = deepCopyMap(this.m);
 
         m.put(var, s);
+
+        return new SensitizerFact(m);
+    }
+
+    public SensitizerFact replaceSetsAt(Set<OrderedPair<Integer, Set<Integer>>> updates) {
+        Map<Integer, Set<Integer>> m = deepCopyMap(this.m);
+
+        for (OrderedPair<Integer, Set<Integer>> update : updates) {
+            Integer key = update.fst();
+            Set<Integer> s = update.snd();
+            m.put(key, s);
+        }
 
         return new SensitizerFact(m);
     }

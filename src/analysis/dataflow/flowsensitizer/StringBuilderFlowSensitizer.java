@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import types.TypeRepository;
+import util.OrderedPair;
 import analysis.AnalysisUtil;
 import analysis.StringAndReflectiveUtil;
 import analysis.dataflow.InstructionDispatchDataFlow;
@@ -46,21 +48,23 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
 
     private final Map<SSAInstruction, Integer> subscriptForInstruction;
     private int prevSubscript = 0;
+    private final TypeRepository typeRepository;
 
     /*
      * Factory Methods
      */
 
-    public static StringBuilderFlowSensitizer make(boolean forward) {
-        return new StringBuilderFlowSensitizer(forward);
+    public static StringBuilderFlowSensitizer make(boolean forward, TypeRepository typeRepository) {
+        return new StringBuilderFlowSensitizer(forward, typeRepository);
     }
 
     /*
      * Constructors
      */
-    private StringBuilderFlowSensitizer(boolean forward) {
+    private StringBuilderFlowSensitizer(boolean forward, TypeRepository typeRepository) {
         super(forward);
         this.subscriptForInstruction = new HashMap<>();
+        this.typeRepository = typeRepository;
     }
 
     /*
@@ -75,6 +79,19 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
         SensitizerFact fact2 = fact.replaceSetAt(varNum, s);
         //        System.err.println("[definedAt] after: " + fact2);
         return fact2;
+    }
+
+    private SensitizerFact manyDefinedAt(SensitizerFact fact, Set<Integer> varNums, SSAInstruction i) {
+        Set<OrderedPair<Integer, Set<Integer>>> updates = new HashSet<>();
+
+        for (Integer varNum : varNums) {
+            Set<Integer> s = new HashSet<>();
+            s.add(getSubscriptForInstruction(i));
+            OrderedPair<Integer, Set<Integer>> update = new OrderedPair<>(varNum, s);
+            updates.add(update);
+        }
+
+        return fact.replaceSetsAt(updates);
     }
 
     private int getSubscriptForInstruction(SSAInstruction i) {
@@ -223,8 +240,18 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
             int arg = i.getUse(0);
             return sameForAllSuccessors(succNodes, definedAt(fact, arg, i));
         }
-
-        return sameForAllSuccessors(succNodes, fact);
+        else {
+            Set<Integer> possiblyDefined = new HashSet<>();
+            if (StringAndReflectiveUtil.isStringType(this.typeRepository.getType(i.getDef()))) {
+                possiblyDefined.add(i.getDef());
+            }
+            for (int j = 0; j < i.getNumberOfParameters(); ++j) {
+                if (StringAndReflectiveUtil.isStringType(this.typeRepository.getType(i.getUse(j)))) {
+                    possiblyDefined.add(i.getUse(j));
+                }
+            }
+            return sameForAllSuccessors(succNodes, manyDefinedAt(fact, possiblyDefined, i));
+        }
     }
 
     /*

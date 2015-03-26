@@ -230,7 +230,7 @@ public class StatementRegistrar {
             }
             debugPrint(m, "\n-------");
 
-            StringBuilderFlowSensitizer sbfs = StringBuilderFlowSensitizer.make(true);
+            StringBuilderFlowSensitizer sbfs = StringBuilderFlowSensitizer.make(true, types);
             Solution sensitizerSolution = sbfs.runDataFlowAnalysisAndReturnDefUseMaps(m);
             FlowSensitiveStringVariableFactory stringVariableFactory = FlowSensitiveStringVariableFactory.make(sensitizerSolution.getDefMap(),
                                                                                                                sensitizerSolution.getUseMap());
