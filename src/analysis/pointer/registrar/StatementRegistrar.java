@@ -958,12 +958,18 @@ public class StatementRegistrar {
         }
         this.addStatement(stmtFactory.phiToLocal(assignee, uses, ir.getMethod()));
 
-        StringVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
-        List<StringVariable> svuses = new ArrayList<>(i.getNumberOfUses());
-        for (int j = 0; j < i.getNumberOfUses(); ++j) {
-            svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+        if (StringAndReflectiveUtil.isStringType(phiType)) {
+            StringVariable svassignee = stringVariableFactory.getOrCreateLocalDef(i,
+                                                                                  i.getDef(),
+                                                                                  ir.getMethod(),
+                                                                                  types,
+                                                                                  pp);
+            List<StringVariable> svuses = new ArrayList<>(i.getNumberOfUses());
+            for (int j = 0; j < i.getNumberOfUses(); ++j) {
+                svuses.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+            }
+            this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
         }
-        this.addStringStatement(stmtFactory.phiToLocalString(svassignee, svuses, ir.getMethod(), pp));
     }
 
     /**
