@@ -816,7 +816,7 @@ public class StatementRegistrar {
             ReferenceVariable rv = rvFactory.getOrCreateLocal(s, types.getType(s), method, pp);
             StringVariable svuse = stringVariableFactory.getOrCreateLocalUse(i, s, method, types, pp);
             StringVariable svdef = stringVariableFactory.getOrCreateLocalDef(i, s, method, types, pp);
-            this.addStringStatement(stmtFactory.escapeViaMethodStringStatement(rv, svuse, svdef, method));
+            this.addStringStatement(stmtFactory.escapeViaMethodStringStatement(rv, svuse, svdef, method, i));
         }
     }
 

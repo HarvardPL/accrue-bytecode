@@ -727,13 +727,14 @@ public class StatementFactory {
     }
 
     public StringStatement escapeViaMethodStringStatement(ReferenceVariable rv, StringVariable svuse,
-                                                            StringVariable svdef, IMethod method) {
+                                                          StringVariable svdef, IMethod method, SSAInstruction i) {
         assert rv != null;
         assert svuse != null;
         assert svdef != null;
         assert method != null;
+        assert i != null;
 
-        assert stringStatementNeverCreatedBefore(new StatementKey(rv, svuse, svdef, method));
+        assert stringStatementNeverCreatedBefore(new StatementKey(rv, svuse, svdef, method, i));
 
         return new EscapeViaMethodStringStatement(rv, svuse, svdef, method);
     }
