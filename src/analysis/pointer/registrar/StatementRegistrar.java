@@ -1028,7 +1028,7 @@ public class StatementRegistrar {
                 continue;
             }
             int paramNum = ir.getParameter(j);
-            if (paramType.equals(TypeReference.JavaLangString) || paramType.equals(TypeReference.JavaLangStringBuilder)) {
+            if (StringAndReflectiveUtil.isStringType(paramType)) {
                 ReferenceVariable rv = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
                 StringVariable sv = stringVariableFactory.getOrCreateLocalUse(i, paramNum, ir.getMethod(), types, pp);
                 this.addStringStatement(stmtFactory.escapeViaReturnStringStatement(rv, sv, ir.getMethod()));
