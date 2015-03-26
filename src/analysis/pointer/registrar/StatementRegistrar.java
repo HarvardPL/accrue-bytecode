@@ -704,7 +704,7 @@ public class StatementRegistrar {
 
             }
             else {
-                List<Integer> stringArguments = getStringArgumentsForMethod(i, types);
+                Set<Integer> stringArguments = getStringArgumentsForMethod(i, types);
                 generateEscapeViaMethodStatements(stringArguments, i, ir.getMethod(), types, stringVariableFactory, pp);
             }
         }
@@ -735,7 +735,7 @@ public class StatementRegistrar {
                 this.addStringStatement(stmtFactory.stringInit(i.getCallSite(), ir.getMethod(), svreceiverDef));
             }
             else {
-                List<Integer> stringArguments = getStringArgumentsForMethod(i, types);
+                Set<Integer> stringArguments = getStringArgumentsForMethod(i, types);
                 generateEscapeViaMethodStatements(stringArguments, i, ir.getMethod(), types, stringVariableFactory, pp);
             }
 
@@ -776,7 +776,7 @@ public class StatementRegistrar {
                                                                      stringVariableFactory));
             }
             else {
-                List<Integer> stringArguments = getStringArgumentsForMethod(i, types);
+                Set<Integer> stringArguments = getStringArgumentsForMethod(i, types);
                 generateEscapeViaMethodStatements(stringArguments, i, ir.getMethod(), types, stringVariableFactory, pp);
             }
 
@@ -796,8 +796,8 @@ public class StatementRegistrar {
 
     }
 
-    private List<Integer> getStringArgumentsForMethod(SSAInvokeInstruction i, TypeRepository types) {
-        List<Integer> result = new ArrayList<>();
+    private Set<Integer> getStringArgumentsForMethod(SSAInvokeInstruction i, TypeRepository types) {
+        Set<Integer> result = new HashSet<>();
 
         for (int j = 0; j < i.getNumberOfParameters(); ++j) {
             if (StringAndReflectiveUtil.isStringType(types.getType(i.getUse(j)))) {
@@ -808,7 +808,7 @@ public class StatementRegistrar {
         return result;
     }
 
-    private void generateEscapeViaMethodStatements(List<Integer> stringArguments, SSAInstruction i, IMethod method,
+    private void generateEscapeViaMethodStatements(Set<Integer> stringArguments, SSAInstruction i, IMethod method,
                                                    TypeRepository types,
                                                    FlowSensitiveStringVariableFactory stringVariableFactory,
                                                    PrettyPrinter pp) {
