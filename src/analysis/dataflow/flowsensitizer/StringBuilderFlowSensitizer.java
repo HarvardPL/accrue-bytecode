@@ -242,7 +242,8 @@ public class StringBuilderFlowSensitizer extends InstructionDispatchDataFlow<Sen
         }
         else {
             Set<Integer> possiblyDefined = new HashSet<>();
-            if (StringAndReflectiveUtil.isStringType(this.typeRepository.getType(i.getDef()))) {
+            if (i.getNumberOfReturnValues() != 0
+                    && StringAndReflectiveUtil.isStringType(this.typeRepository.getType(i.getDef()))) {
                 possiblyDefined.add(i.getDef());
             }
             for (int j = 0; j < i.getNumberOfParameters(); ++j) {
