@@ -525,8 +525,10 @@ public class StatementRegistrar {
         FieldReference f = i.getDeclaredField();
         this.addStatement(stmtFactory.fieldToLocal(v, o, f, ir.getMethod()));
 
-        StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
-        this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
+        if (StringAndReflectiveUtil.isStringType(resultType)) {
+            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
+            this.addStringStatement(stmtFactory.fieldToLocalString(svv, o, f, ir.getMethod()));
+        }
     }
 
     /**
@@ -548,9 +550,11 @@ public class StatementRegistrar {
         ReferenceVariable f = rvFactory.getOrCreateStaticField(i.getDeclaredField());
         this.addStatement(stmtFactory.staticFieldToLocal(v, f, ir.getMethod()));
 
-        StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
-        StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-        this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, ir.getMethod()));
+        if (StringAndReflectiveUtil.isStringType(resultType)) {
+            StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
+            StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
+            this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, ir.getMethod()));
+        }
     }
 
     /**
@@ -574,13 +578,11 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), receiverType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToField(o, f, v, ir.getMethod(), i));
 
-        StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal(), ir.getMethod(), types, pp);
-        StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), ir.getMethod(), types, pp);
-        this.addStringStatement(stmtFactory.localToFieldString(svvDef,
-                                                               svvUse,
-                                                               o,
-                                                               f,
-                                                               ir.getMethod()));
+        if (StringAndReflectiveUtil.isStringType(valueType)) {
+            StringVariable svvDef = stringVariableFactory.getOrCreateLocalDef(i, i.getVal(), ir.getMethod(), types, pp);
+            StringVariable svvUse = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), ir.getMethod(), types, pp);
+            this.addStringStatement(stmtFactory.localToFieldString(svvDef, svvUse, o, f, ir.getMethod()));
+        }
     }
 
     /**
@@ -601,9 +603,11 @@ public class StatementRegistrar {
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getVal(), valueType, ir.getMethod(), pp);
         this.addStatement(stmtFactory.localToStaticField(f, v, ir.getMethod(), i));
 
-        StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-        StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), ir.getMethod(), types, pp);
-        this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svv, ir.getMethod()));
+        if (StringAndReflectiveUtil.isStringType(valueType)) {
+            StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
+            StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getVal(), ir.getMethod(), types, pp);
+            this.addStringStatement(stmtFactory.localToStaticFieldString(svf, svv, ir.getMethod()));
+        }
     }
 
     /**
@@ -994,8 +998,10 @@ public class StatementRegistrar {
         ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
 
-        StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult(), ir.getMethod(), types, pp);
-        this.addStringStatement(stmtFactory.returnString(svv, summary, ir.getMethod(), i));
+        if (StringAndReflectiveUtil.isStringType(valType)) {
+            StringVariable svv = stringVariableFactory.getOrCreateLocalUse(i, i.getResult(), ir.getMethod(), types, pp);
+            this.addStringStatement(stmtFactory.returnString(svv, summary, ir.getMethod(), i));
+        }
 
         registerEscapeOfFormals(i, ir, stringVariableFactory, types, pp);
     }
@@ -1497,11 +1503,14 @@ public class StatementRegistrar {
             int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
             this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod(), true));
-            StringVariable sv = stringVariableFactory.getOrCreateParamDef(paramNum, ir.getMethod(), types, pp);
-            this.addStringStatement(stmtFactory.localFromFormalString(sv,
-                                                                      methodSummary.getFormal(i),
-                                                                      ir.getMethod(),
-                                                                      true));
+
+            if (StringAndReflectiveUtil.isStringType(paramType)) {
+                StringVariable sv = stringVariableFactory.getOrCreateParamDef(paramNum, ir.getMethod(), types, pp);
+                this.addStringStatement(stmtFactory.localFromFormalString(sv,
+                                                                          methodSummary.getFormal(i),
+                                                                          ir.getMethod(),
+                                                                          true));
+            }
         }
     }
 
