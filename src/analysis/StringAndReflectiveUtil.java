@@ -80,11 +80,11 @@ public class StringAndReflectiveUtil {
         return AnalysisUtil.getClassHierarchy().lookupClass(tr);
     }
 
-    public static boolean isStringType(TypeReference resultType) {
-        if (resultType == null) {
+    public static boolean isStringType(TypeReference t) {
+        if (t == null) {
             return false;
         } else {
-            IClass iclass = typeReferenceToIClass(resultType);
+            IClass iclass = typeReferenceToIClass(t);
             return iclass != null
                     && (iclass.equals(JavaLangStringIClass) || iclass.equals(JavaLangStringBuilderIClass));
         }
