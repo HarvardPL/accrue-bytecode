@@ -36,6 +36,9 @@ public class ReflectiveHAF extends HeapAbstractionFactory {
         if (receiver instanceof ClassInstanceKey) {
             return wrappedHAF.merge(callSite, ((ClassInstanceKey) receiver).getInnerIK(), callerContext);
         }
+        else if (receiver instanceof StringInstanceKey) {
+            return wrappedHAF.merge(callSite, ((StringInstanceKey) receiver).getInnerIK(), callerContext);
+        }
         else {
             return wrappedHAF.merge(callSite, receiver, callerContext);
         }
