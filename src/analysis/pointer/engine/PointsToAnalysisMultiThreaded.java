@@ -674,6 +674,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 sb.append("approxNumInterestingCGNodes: "
                         + g.ppReach.methodReachability.approxNumInterestingDestinations() + "; ");
                 sb.append("approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
+                sb.append("CGNodes: " + g.getApproxCallGraphSize() + "\n");
 
                 // Print number of statements that have been queued
                 String f = "SaCNoDelta: %-8d; SaCWithDelta: %-8d; MethodTask: %-8d; AddToSet: %-8d; AddNonMostRecent: %-8d; PPTask: %-8d";

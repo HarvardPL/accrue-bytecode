@@ -470,7 +470,7 @@ public final class PointsToGraph {
     }
 
     public int getApproxCallGraphSize() {
-        return callGraphNodeCounter.get();
+        return reverseCallGraphNodeDictionary.size();
     }
 
     int lookupCallGraphNodeDictionary(OrderedPair<IMethod, Context> key) {
