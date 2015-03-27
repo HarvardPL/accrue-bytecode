@@ -79,9 +79,10 @@ public class MethodReachability {
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
         MethodSummaryKillAndAllocChanges changed = existing.update(normalExitResults,
-                                                                    exceptionalExitResults,
-                                                                    tunnel,
-                                                                   callSiteSumm);
+                                                                   exceptionalExitResults,
+                                                                   tunnel,
+                                                                   callSiteSumm,
+                                                                   g);
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -96,7 +97,7 @@ public class MethodReachability {
         }
         MethodSummaryKillAndAlloc existing = methodSummaryMemoization.get(cgnode);
         assert existing != null;
-        MethodSummaryKillAndAllocChanges changed = existing.updateTunnels(tunnelChanges);
+        MethodSummaryKillAndAllocChanges changed = existing.updateTunnels(tunnelChanges, g);
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
         }
@@ -113,7 +114,7 @@ public class MethodReachability {
         if (existing != null) {
             IntMap<KilledAndAlloced> tunnelToSelf = new SparseIntMap<>(1);
             tunnelToSelf.put(cgnode, KilledAndAlloced.createLocalEmpty());
-            changed = existing.updateTunnels(tunnelToSelf);
+            changed = existing.updateTunnels(tunnelToSelf, g);
         }
         if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
             this.ppr.recordMethodTime.addAndGet(System.currentTimeMillis() - start);
@@ -696,12 +697,14 @@ public class MethodReachability {
          * Update the summary. Return a description of how this object was modified, or null if no modifications were
          * made.
          *
+         * @param g
+         *
          * @return
          */
         public MethodSummaryKillAndAllocChanges update(KilledAndAlloced normalExitSummary,
                                                        KilledAndAlloced exceptionalExitSummary,
                                                        IntMap<? extends KilledAndAlloced> tunnel,
-                                                       IntMap<? extends KilledAndAlloced> callSiteSumm) {
+                                                       IntMap<? extends KilledAndAlloced> callSiteSumm, PointsToGraph g) {
             boolean resultsChanged;
             resultsChanged = this.normalExitSummary.meet(normalExitSummary);
             resultsChanged |= this.exceptionalExitSummary.meet(exceptionalExitSummary);
@@ -712,6 +715,7 @@ public class MethodReachability {
                     IntIterator iter = tunnel.keyIterator();
                     while (iter.hasNext()) {
                         int key = iter.next();
+                        assert g.lookupPointsToGraphNodeDictionary(key) != null;
                         ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
                         if (kaa == null) {
                             kaa = KilledAndAlloced.createThreadSafeUnreachable();
@@ -731,6 +735,7 @@ public class MethodReachability {
             IntIterator iter = callSiteSumm.keyIterator();
             while (iter.hasNext()) {
                 int callSite = iter.next();
+                assert g.lookupCallSiteReplicaDictionary(callSite) != null;
                 ThreadSafeKilledAndAlloced kaa = this.callSiteSumm.get(callSite);
                 if (kaa == null) {
                     kaa = KilledAndAlloced.createThreadSafeUnreachable();
@@ -748,11 +753,13 @@ public class MethodReachability {
             return null;
         }
 
-        public MethodSummaryKillAndAllocChanges updateTunnels(IntMap<KilledAndAlloced> tunnelChanges) {
+        public MethodSummaryKillAndAllocChanges updateTunnels(IntMap<KilledAndAlloced> tunnelChanges, PointsToGraph g) {
             IntMap<ThreadLocalKilledAndAlloced> changedTunnels = new SparseIntMap<>();
             IntIterator iter = tunnelChanges.keyIterator();
             while (iter.hasNext()) {
                 int key = iter.next();
+                assert g.lookupPointsToGraphNodeDictionary(key) != null;
+
                 ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
                 if (kaa == null) {
                     kaa = KilledAndAlloced.createThreadSafeUnreachable();
