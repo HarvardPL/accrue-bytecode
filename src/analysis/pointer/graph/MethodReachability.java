@@ -13,6 +13,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.KilledAndAlloced.ThreadLocalKilledAndAlloced;
 import analysis.pointer.graph.KilledAndAlloced.ThreadSafeKilledAndAlloced;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -346,9 +347,11 @@ public class MethodReachability {
      */
     private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode) {
         long start = 0L;
-        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS || PointsToAnalysisMultiThreaded.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
             this.ppr.totalComputeMethodReachability.incrementAndGet();
+            this.ppr.publicIncrementalComputeMethodReachability.incrementAndGet();
+            this.ppr.publicComputeMethodReachability.incrementAndGet();
         }
 
 
@@ -362,7 +365,7 @@ public class MethodReachability {
 
         // The map facts records what facts are true at each interprogram point.
         Map<InterProgramPoint, ThreadLocalKilledAndAlloced> facts = new HashMap<>();
-        IntMap<ThreadLocalKilledAndAlloced> tunnel = new SparseIntMap<ThreadLocalKilledAndAlloced>();
+        IntMap<ThreadLocalKilledAndAlloced> tunnel = new SparseIntMap<>();
 
         // only create a tunnel if this is an interesting destination.
         if (isInterestingDestination(cgNode)) {
@@ -420,7 +423,7 @@ public class MethodReachability {
                     // record in the call site summary the path that we took to get to this call site.
                     ThreadLocalKilledAndAlloced x = callSiteSumm.get(callSite);
                     if (x == null) {
-                        x = ThreadLocalKilledAndAlloced.createLocalUnreachable();
+                        x = KilledAndAlloced.createLocalUnreachable();
                         callSiteSumm.put(callSite, x);
                     }
                     x.meet(inputFact);
@@ -725,7 +728,7 @@ public class MethodReachability {
                             }
                         }
                         if (kaa.meet(tunnel.get(key))) {
-                            ThreadLocalKilledAndAlloced tlkaa = ThreadLocalKilledAndAlloced.createLocalUnreachable();
+                            ThreadLocalKilledAndAlloced tlkaa = KilledAndAlloced.createLocalUnreachable();
                             tlkaa.meet(kaa);
                             changedTunnels.put(key, tlkaa);
                         }
@@ -769,7 +772,7 @@ public class MethodReachability {
                     }
                 }
                 if (kaa.meet(tunnel.get(key))) {
-                    ThreadLocalKilledAndAlloced tlkaa = ThreadLocalKilledAndAlloced.createLocalUnreachable();
+                    ThreadLocalKilledAndAlloced tlkaa = KilledAndAlloced.createLocalUnreachable();
                     tlkaa.meet(kaa);
                     changedTunnels.put(key, tlkaa);
                 }

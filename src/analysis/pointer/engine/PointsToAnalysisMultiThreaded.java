@@ -675,7 +675,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 sb.append("approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
 
                 // Print number of statements that have been queued
-                String f = "StmtAndCtxtNoDelta: %-8d; StmtAndCtxtWithDelta: %-8d; MethodReach: %-8d; AddToSet: %-8d; AddNonMostRecent: %-8d; PPSubQuery: %-8d";
+                String f = "SaCNoDelta: %-8d; SaCWithDelta: %-8d; MethodTask: %-8d; AddToSet: %-8d; AddNonMostRecent: %-8d; PPTask: %-8d";
                 String s = String.format(f,
                                          totalStmtAndCtxtNoDeltaTasks.get(),
                                          totalStmtAndCtxtWithDeltaTasks.get(),
@@ -687,24 +687,29 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 sb.append(s + "\n");
 
                 if (PRINT_NUM_PROCESSED) {
+                    String fp = "SaCNoDelta: %-8d; SaCWithDelta: %-8d; MethodTask: %-8d; AddToSet: %-8d; AddNonMostRecent: %-8d; PPTask: %-8d; ComputeMeth: %-8d; ComputePP: %-8d";
                     sb.append(elapsed + "--PROCESSED   ");
-                    s = String.format(f,
+                    s = String.format(fp,
                                       totalProcessedStmtAndContextNoDelta.get(),
                                       totalProcessedStmtAndContextWithDelta.get(),
                                       totalProcessedMethodReach.get(),
                                       AddToSetOrigin.total.get(),
                                       AddNonMostRecentOrigin.total.get(),
-                                      totalProcessedPPSubQuery.get());
+                                      totalProcessedPPSubQuery.get(),
+                                      this.g.ppReach.publicComputeMethodReachability.get(),
+                                      this.g.ppReach.publicPPQueries.get());
                     sb.append(s + "\n");
                     // Number processed since last epoch
                     sb.append(elapsed + "--INCREMENTAL ");
-                    s = String.format(f,
-                                             processedStmtAndContextNoDelta.getAndSet(0),
-                                             processedStmtAndContextWithDelta.getAndSet(0),
-                                             processedMethodReach.getAndSet(0),
-                                             AddToSetOrigin.count.getAndSet(0),
-                                             AddNonMostRecentOrigin.count.getAndSet(0),
-                                             processedPPSubQuery.getAndSet(0));
+                    s = String.format(fp,
+                                      processedStmtAndContextNoDelta.getAndSet(0),
+                                      processedStmtAndContextWithDelta.getAndSet(0),
+                                      processedMethodReach.getAndSet(0),
+                                      AddToSetOrigin.count.getAndSet(0),
+                                      AddNonMostRecentOrigin.count.getAndSet(0),
+                                      processedPPSubQuery.getAndSet(0),
+                                      this.g.ppReach.publicIncrementalComputeMethodReachability.getAndSet(0),
+                                      this.g.ppReach.publicIncrementalPPQueries.getAndSet(0));
                     sb.append(s + "\n");
                 }
                 System.err.println(sb.toString());
