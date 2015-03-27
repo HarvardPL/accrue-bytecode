@@ -715,7 +715,7 @@ public class MethodReachability {
                     IntIterator iter = tunnel.keyIterator();
                     while (iter.hasNext()) {
                         int key = iter.next();
-                        assert g.lookupPointsToGraphNodeDictionary(key) != null;
+                        assert g.lookupCallGraphNodeDictionary(key) != null;
                         ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
                         if (kaa == null) {
                             kaa = KilledAndAlloced.createThreadSafeUnreachable();
@@ -758,7 +758,7 @@ public class MethodReachability {
             IntIterator iter = tunnelChanges.keyIterator();
             while (iter.hasNext()) {
                 int key = iter.next();
-                assert g.lookupPointsToGraphNodeDictionary(key) != null;
+                assert g.lookupCallGraphNodeDictionary(key) != null;
 
                 ThreadSafeKilledAndAlloced kaa = this.tunnel.get(key);
                 if (kaa == null) {
