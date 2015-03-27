@@ -53,12 +53,12 @@ public class EscapeViaMethodStringStatement extends StringStatement {
 
         newDelta.combine(g.addEdgeToAString(rvr, svruse, allocationSite, context, originator));
 
-        System.err.println("[EscapeViaMethodStringStatement.process] " + this
-                           + "\n    " + this.getMethod()
-                           + "\n    " + "svruse = " + g.getAStringFor(svruse)
-                           + "\n    " + "svrdef = " + g.getAStringFor(svrdef)
-                           + "\n    " + "astring(rvr) = " + g.astringForPointsToGraphNode(rvr, originator)
-                           );
+        //        System.err.println("[EscapeViaMethodStringStatement.process] " + this
+        //                           + "\n    " + this.getMethod()
+        //                           + "\n    " + "svruse = " + g.getAStringFor(svruse)
+        //                           + "\n    " + "svrdef = " + g.getAStringFor(svrdef)
+        //                           + "\n    " + "astring(rvr) = " + g.astringForPointsToGraphNode(rvr, originator)
+        //                           );
         GraphDelta intermediate = g.stringVariableReplicaJoinAt(svrdef,
                                                                 pti.astringForPointsToGraphNode(rvr, originator));
         System.err.println("    " + "intermediate.scd" + intermediate.getStringConstraintDelta());
