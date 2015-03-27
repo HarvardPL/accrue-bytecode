@@ -523,6 +523,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
          */
         private boolean checkPendingQueues(int bound) {
             while (!containsPending() && isWorkToFinish()) {
+                printDiagnostics();
                 numThreadsApproximating.incrementAndGet();
                 // There are no tasks left to process approximate any remaining call-sites and field assignments with no targets
                 if (PRINT_QUEUE_SWAPS) {
