@@ -318,7 +318,7 @@ public class MethodReachability {
 
                 MethodSummaryKillAndAllocChanges newChanges = recordUpdatedTunnelMethodReachability(caller,
                                                                                                     modifiedTunnels);
-                if (newChanges.tunnelsChanged()) {
+                if (newChanges != null && newChanges.tunnelsChanged()) {
                     if (summaryChanged.containsKey(caller)) {
                         summaryChanged.get(caller).merge(newChanges);
                     }
