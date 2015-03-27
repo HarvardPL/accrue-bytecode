@@ -106,7 +106,7 @@ public class StringAndReflectiveUtil {
     public static boolean isStringMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
         return im.equals(stringBuilderAppendStringBuilderIMethod) || im.equals(stringBuilderAppendStringIMethod)
-                || im.equals(stringBuilderAppendObjectIMethod) || im.equals(stringBuilderToStringIMethod);
+                || im.equals(stringBuilderToStringIMethod);
     }
 
     public static boolean isStringInitMethod(MethodReference m) {
