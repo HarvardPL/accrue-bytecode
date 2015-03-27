@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.ObjectField;
@@ -61,9 +60,7 @@ public class LocalToFieldStringStatement extends StringStatement {
                                                                                 null, // XXX : AllocSiteNodeFactory limits the each result to one alloc site
                                                                                 false);
 
-            newDelta.combine(g.addEdge(of, ((ReflectiveHAF) haf).recordStringlike(g.getAStringFor(vUseSVR),
-                                                                                  allocationSite,
-                                                                                  context)));
+            newDelta.combine(g.addEdgeToAString(of, vUseSVR, allocationSite, context, originator));
 
             newDelta.combine(g.stringVariableReplicaJoinAt(vDefSVR, pti.astringForPointsToGraphNode(of, originator)));
         }

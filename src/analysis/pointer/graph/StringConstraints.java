@@ -86,6 +86,10 @@ public class StringConstraints {
         }
     }
 
+    public boolean isActive(StringVariableReplica x) {
+        return this.stringDependencies.isActive(x);
+    }
+
     public void recordStringStatementUseDependency(StringVariableReplica v, StmtAndContext sac) {
         this.stringDependencies.recordStatementUseDependency(v, sac);
     }

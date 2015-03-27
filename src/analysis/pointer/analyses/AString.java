@@ -81,6 +81,10 @@ public final class AString {
         return this.fs.isBottom();
     }
 
+    public boolean upperBounds(AString that) {
+        return this.fs.upperBounds(that.fs);
+    }
+
     public AString copy() {
         return new AString(JavaLangStringIClass, this.fs.copy());
     }
@@ -110,4 +114,5 @@ public final class AString {
     public String toString() {
         return "SIK(" + this.fs.toString() + ")";
     }
+
 }

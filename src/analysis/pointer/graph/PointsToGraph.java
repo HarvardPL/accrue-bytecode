@@ -32,6 +32,7 @@ import analysis.pointer.engine.DependencyRecorder;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.registrar.StatementRegistrar;
+import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 
 import com.ibm.wala.classLoader.CallSiteReference;
 import com.ibm.wala.classLoader.IClass;
@@ -51,8 +52,8 @@ import com.ibm.wala.util.intset.MutableSparseIntSet;
 import com.ibm.wala.util.intset.SparseIntSet;
 
 /**
- * Graph mapping local variables (in a particular context) and fields to
- * abstract heap locations (representing zero or more actual heap locations)
+ * Graph mapping local variables (in a particular context) and fields to abstract heap locations (representing zero or
+ * more actual heap locations)
  */
 public final class PointsToGraph implements PointsToIterable {
 
@@ -154,8 +155,7 @@ public final class PointsToGraph implements PointsToIterable {
     private ConcurrentMap<IMethod, Set<Context>> reachableContexts = new ConcurrentHashMap<>();
 
     /**
-     * The classes that will be loaded (i.e., we need to analyze their static
-     * initializers).
+     * The classes that will be loaded (i.e., we need to analyze their static initializers).
      */
     private Set<IMethod> classInitializers = AnalysisUtil.createConcurrentSet();
 
@@ -177,9 +177,7 @@ public final class PointsToGraph implements PointsToIterable {
      */
     private final HeapAbstractionFactory haf;
 
-
     private final DependencyRecorder depRecorder;
-
 
     /**
      * Is the graph still being constructed, or is it finished? Certain operations should be called only once the graph
@@ -198,13 +196,11 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     /**
-     * Populate the contexts map by adding the initial context for all the given
-     * methods
+     * Populate the contexts map by adding the initial context for all the given methods
      *
      * @param haf abstraction factory defining the initial context
      * @param initialMethods methods to be paired with the initial context
-     * @return mapping from each method in the given set to the singleton set
-     *         containing the initial context
+     * @return mapping from each method in the given set to the singleton set containing the initial context
      */
     private void populateInitialContexts(Set<IMethod> initialMethods) {
         for (IMethod m : initialMethods) {
@@ -220,8 +216,6 @@ public final class PointsToGraph implements PointsToIterable {
         IntMap<Set<TypeFilter>> supersets = this.isFilteredSubsetOf.forward(n);
         return new OrderedPair<>(unfilteredsupersets, supersets);
     }
-
-
 
     /**
      * What is the immediate representative of n? If n is its own representative (i.e., either n is not in a cycle, or n
@@ -327,6 +321,18 @@ public final class PointsToGraph implements PointsToIterable {
         return delta;
     }
 
+    public GraphDelta addEdgeToAString(PointsToGraphNode n, StringVariableReplica svr, AllocSiteNode allocationSite,
+                                       Context context, StmtAndContext originator) {
+        if (this.sc.isActive(svr)
+                && !this.astringForPointsToGraphNode(n, originator).upperBounds(this.getAStringFor(svr))) {
+            return this.addEdge(n,
+                                ((ReflectiveHAF) haf).recordStringlike(this.getAStringFor(svr), allocationSite, context));
+        }
+        else {
+            return new GraphDelta(this);
+        }
+    }
+
     /**
      * Collapse a cycle, i.e., choose a representative, and collapse all the nodes to point to that representative.
      *
@@ -369,10 +375,10 @@ public final class PointsToGraph implements PointsToIterable {
         }
         return n;
     }
+
     /**
-     * Copy the pointsto set of the source to the pointsto set of the target.
-     * This should be used when the pointsto set of the target is a supserset of
-     * the pointsto set of the source.
+     * Copy the pointsto set of the source to the pointsto set of the target. This should be used when the pointsto set
+     * of the target is a supserset of the pointsto set of the source.
      *
      * @param source
      * @param target
@@ -397,17 +403,14 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     /**
-     * Copy the pointsto set of the source to the pointsto set of the target.
-     * This should be used when the pointsto set of the target is a supserset of
-     * the pointsto set of the source.
+     * Copy the pointsto set of the source to the pointsto set of the target. This should be used when the pointsto set
+     * of the target is a supserset of the pointsto set of the source.
      *
      * @param source
      * @param target
      * @return
      */
-    public GraphDelta copyFilteredEdges(PointsToGraphNode source,
-                                        TypeFilter filter,
-                                        PointsToGraphNode target) {
+    public GraphDelta copyFilteredEdges(PointsToGraphNode source, TypeFilter filter, PointsToGraphNode target) {
         assert !this.graphFinished;
         // source is a subset of target, target is a subset of source.
         if (TypeFilter.IMPOSSIBLE.equals(filter)) {
@@ -434,8 +437,9 @@ public final class PointsToGraph implements PointsToIterable {
      * This method adds everything in s that satisfies filter to t, in both the cache and the GraphDelta,
      * and the recurses
      */
-    private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source, TypeFilter filter, /*PointsToGraphNode*/
-                                          int target) {
+    private void computeDeltaForAddedSubsetRelation(GraphDelta changed, /*PointsToGraphNode*/int source,
+                                                    TypeFilter filter, /*PointsToGraphNode*/
+                                                    int target) {
 
         IntSet s = this.pointsToSet(source);
 
@@ -454,9 +458,8 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, IntIterator toAdd,
-                                      int toAddSizeGuess,
-                                  MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
-                                  Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
+                                      int toAddSizeGuess, MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
+                                      Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
         if (USE_CYCLE_COLLAPSING) {
             if (currentlyAdding.contains(target)) {
@@ -590,6 +593,7 @@ public final class PointsToGraph implements PointsToIterable {
         assert !this.graphFinished;
         return pointsToIntIterator(lookupDictionary(n), origninator);
     }
+
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext originator) {
         n = this.getRepresentative(n);
         if (originator != null) {
@@ -598,7 +602,6 @@ public final class PointsToGraph implements PointsToIterable {
         }
         return this.pointsToSet(n).intIterator();
     }
-
 
     private static boolean satisfiesAny(Set<TypeFilter> filters, IClass type) {
         for (TypeFilter f : filters) {
@@ -618,8 +621,7 @@ public final class PointsToGraph implements PointsToIterable {
      * @param callee method being called
      * @param calleeContext analyis context for the callee
      */
-    public boolean addCall(CallSiteReference callSite, IMethod caller,
-                           Context callerContext, IMethod callee,
+    public boolean addCall(CallSiteReference callSite, IMethod caller, Context callerContext, IMethod callee,
                            Context calleeContext) {
         OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
         OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
@@ -797,8 +799,7 @@ public final class PointsToGraph implements PointsToIterable {
     }
 
     /**
-     * When we have detected that the points to sets of two nodes are identical,
-     * we can collapse them.
+     * When we have detected that the points to sets of two nodes are identical, we can collapse them.
      *
      * @param n
      * @param rep
@@ -811,7 +812,6 @@ public final class PointsToGraph implements PointsToIterable {
         // it is possible that since n and rep were registered, one or both of them were already merged.
         n = this.getRepresentative(n);
         rep = this.getRepresentative(rep);
-
 
         if (n == rep) {
             // they have already been merged.
@@ -860,10 +860,9 @@ public final class PointsToGraph implements PointsToIterable {
     /**
      * Add class initialization methods
      *
-     * @param classInits list of class initializer is initialization order (i.e.
-     *            element j is a super class of element j+1)
-     * @return true if the call graph changed as a result of this call, false
-     *         otherwise
+     * @param classInits list of class initializer is initialization order (i.e. element j is a super class of element
+     *            j+1)
+     * @return true if the call graph changed as a result of this call, false otherwise
      */
     public boolean addClassInitializers(List<IMethod> classInits) {
         Context initialContext = this.haf.initialContext();
@@ -894,8 +893,7 @@ public final class PointsToGraph implements PointsToIterable {
      * Add new entry point methods (i.e. methods called in the empty context)
      *
      * @param newEntryPoint list of methods to add
-     * @return true if the call graph changed as a result of this call, false
-     *         otherwise
+     * @return true if the call graph changed as a result of this call, false otherwise
      */
     public boolean addEntryPoint(IMethod newEntryPoint) {
         boolean changed = this.entryPoints.add(newEntryPoint);
@@ -1221,11 +1219,7 @@ public final class PointsToGraph implements PointsToIterable {
         IntIterator childIterator = children.intIterator();
         while (childIterator.hasNext()) {
             int child = childIterator.next();
-            this.findCycles(child,
-                            visited,
-                            currentlyVisiting,
-                            currentlyVisitingStack,
-                            toCollapse);
+            this.findCycles(child, visited, currentlyVisiting, currentlyVisitingStack, toCollapse);
         }
 
         currentlyVisiting.remove(n);
@@ -1276,8 +1270,7 @@ public final class PointsToGraph implements PointsToIterable {
         float util = newMap.utilization();
         int length = Math.round(newMap.size() / util);
         System.err.println("   Utilization of DenseIntMap for " + debugName + ": " + String.format("%.3f", util)
-                + " (approx "
-                + (length - newMap.size()) + " empty slots out of " + length + ")");
+                + " (approx " + (length - newMap.size()) + " empty slots out of " + length + ")");
         return new ReadOnlyConcurrentIntMap<>(newMap);
     }
 

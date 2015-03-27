@@ -206,4 +206,8 @@ public final class GraphDelta implements PointsToIterable {
         return result;
     }
 
+    public StringConstraintDelta getStringConstraintDelta() {
+        return this.scd;
+    }
+
 }

@@ -82,6 +82,16 @@ public final class FiniteSet<T> {
         return this.items.isSome() && this.items.get().isEmpty();
     }
 
+    public boolean upperBounds(FiniteSet<T> that) {
+        if (this.isTop()) {
+            return true;
+        } else if (that.isTop()) {
+            return false;
+        } else {
+            return this.getSet().containsAll(that.getSet());
+        }
+    }
+
     public FiniteSet<T> copy() {
         return FiniteSet.make(this.maxSize, this.items);
     }
@@ -170,4 +180,5 @@ public final class FiniteSet<T> {
             return o.toString();
         }
     }
+
 }

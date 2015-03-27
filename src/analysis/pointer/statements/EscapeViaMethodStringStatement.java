@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -52,11 +51,18 @@ public class EscapeViaMethodStringStatement extends StringStatement {
                                                                             null, // XXX : AllocSiteNodeFactory limits the each result to one alloc site
                                                                             false);
 
-        newDelta.combine(g.addEdge(rvr, ((ReflectiveHAF) haf).recordStringlike(g.getAStringFor(svruse),
-                                                                               allocationSite,
-                                                                               context)));
+        newDelta.combine(g.addEdgeToAString(rvr, svruse, allocationSite, context, originator));
 
-        newDelta.combine(g.stringVariableReplicaJoinAt(svrdef, pti.astringForPointsToGraphNode(rvr, originator)));
+        System.err.println("[EscapeViaMethodStringStatement.process] " + this
+                           + "\n    " + this.getMethod()
+                           + "\n    " + "svruse = " + g.getAStringFor(svruse)
+                           + "\n    " + "svrdef = " + g.getAStringFor(svrdef)
+                           + "\n    " + "astring(rvr) = " + g.astringForPointsToGraphNode(rvr, originator)
+                           );
+        GraphDelta intermediate = g.stringVariableReplicaJoinAt(svrdef,
+                                                                pti.astringForPointsToGraphNode(rvr, originator));
+        System.err.println("    " + "intermediate.scd" + intermediate.getStringConstraintDelta());
+        newDelta.combine(intermediate);
 
         return newDelta;
     }

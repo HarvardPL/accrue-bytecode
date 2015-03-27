@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -42,14 +41,12 @@ public class EscapeViaReturnStringStatement extends StringStatement {
 
         AllocSiteNode allocationSite = AllocSiteNodeFactory.createGenerated("EscapeViaReturnStringStatement",
                                                                             AnalysisUtil.getClassHierarchy()
-                                                                            .lookupClass(svr.getExpectedType()),
+                                                                                        .lookupClass(svr.getExpectedType()),
                                                                             this.getMethod(),
                                                                             null, // XXX : AllocSiteNodeFactory limits the each result to one alloc site
                                                                             false);
 
-        newDelta.combine(g.addEdge(rvr, ((ReflectiveHAF) haf).recordStringlike(g.getAStringFor(svr),
-                                                                               allocationSite,
-                                                                               context)));
+        newDelta.combine(g.addEdgeToAString(rvr, svr, allocationSite, context, originator));
 
         return newDelta;
     }

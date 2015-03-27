@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
-import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
@@ -16,7 +15,6 @@ import analysis.pointer.statements.AllocSiteNodeFactory.AllocSiteNode;
 import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 import com.ibm.wala.types.TypeReference;
 
 public class ReturnStringStatement extends StringStatement {
@@ -49,9 +47,7 @@ public class ReturnStringStatement extends StringStatement {
 
         g.recordStringStatementUseDependency(vsvr, originator);
 
-        InstanceKey ik = ((ReflectiveHAF) haf).recordStringlike(g.getAStringFor(vsvr), allocationSite, context);
-
-        newDelta.combine(g.addEdge(summaryRVR, ik));
+        newDelta.combine(g.addEdgeToAString(summaryRVR, vsvr, allocationSite, context, originator));
 
         return newDelta;
     }
