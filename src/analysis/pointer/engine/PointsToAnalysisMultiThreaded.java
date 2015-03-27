@@ -546,7 +546,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 System.err.println("in checkPendingQueues: " + numApproximated + " and approx finished: "
                         + approximationFinished
                         + ". ContainsPending: " + containsPending() + " isWorkToFinish:" + isWorkToFinish());
-                printDiagnostics();
             }
 
 
