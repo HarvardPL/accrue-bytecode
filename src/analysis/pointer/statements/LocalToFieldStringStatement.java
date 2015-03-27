@@ -65,7 +65,7 @@ public class LocalToFieldStringStatement extends StringStatement {
                                                                                   allocationSite,
                                                                                   context)));
 
-            newDelta.combine(g.stringVariableReplicaJoinAt(vDefSVR, g.astringForPointsToGraphNode(of, originator)));
+            newDelta.combine(g.stringVariableReplicaJoinAt(vDefSVR, pti.astringForPointsToGraphNode(of, originator)));
         }
 
         return newDelta;

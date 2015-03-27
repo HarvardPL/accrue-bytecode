@@ -1399,7 +1399,7 @@ public final class PointsToGraph implements PointsToIterable {
         return new GraphDelta(this, this.sc.upperBounds(svr1, svr2));
     }
 
-    private AString astringForInstanceKey(InstanceKey ik) {
+    AString astringForInstanceKey(InstanceKey ik) {
         if (ik instanceof StringInstanceKey) {
             return ((StringInstanceKey) ik).getAString();
         }
@@ -1408,6 +1408,7 @@ public final class PointsToGraph implements PointsToIterable {
         }
     }
 
+    @Override
     public AString astringForPointsToGraphNode(PointsToGraphNode n, StmtAndContext originator) {
         AString result = ((ReflectiveHAF) haf).getAStringBottom();
 

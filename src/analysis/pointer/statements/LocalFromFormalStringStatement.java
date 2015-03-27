@@ -38,7 +38,7 @@ public class LocalFromFormalStringStatement extends StringStatement {
 
         g.recordStringStatementDefineDependency(localRVR, originator);
 
-        newDelta.combine(g.stringVariableReplicaJoinAt(localRVR, g.astringForPointsToGraphNode(formalRVR, originator)));
+        newDelta.combine(g.stringVariableReplicaJoinAt(localRVR, pti.astringForPointsToGraphNode(formalRVR, originator)));
 
         return newDelta;
     }
