@@ -13,6 +13,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.KilledAndAlloced.ThreadLocalKilledAndAlloced;
 import analysis.pointer.graph.KilledAndAlloced.ThreadSafeKilledAndAlloced;
 import analysis.pointer.registrar.MethodSummaryNodes;
@@ -202,9 +203,11 @@ public class MethodReachability {
      */
     private MethodSummaryKillAndAllocChanges computeMethodSummary(/*OrderedPair<IMethod, Context>*/int cgNode) {
         long start = 0L;
-        if (ProgramPointReachability.PRINT_DIAGNOSTICS) {
+        if (ProgramPointReachability.PRINT_DIAGNOSTICS || PointsToAnalysisMultiThreaded.PRINT_DIAGNOSTICS) {
             start = System.currentTimeMillis();
             this.ppr.totalComputeMethodReachability.incrementAndGet();
+            this.ppr.publicIncrementalComputeMethodReachability.incrementAndGet();
+            this.ppr.publicComputeMethodReachability.incrementAndGet();
         }
 
         OrderedPair<IMethod, Context> n = g.lookupCallGraphNodeDictionary(cgNode);

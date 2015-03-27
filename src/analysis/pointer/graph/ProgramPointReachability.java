@@ -17,6 +17,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAlloc;
 import analysis.pointer.graph.MethodReachability.MethodSummaryKillAndAllocChanges;
 import analysis.pointer.graph.ProgramPointSubQuery.QueryCacheKey;
@@ -39,7 +40,7 @@ public final class ProgramPointReachability {
     /**
      * Whether to incrementally print diagnostic timing and count information
      */
-    public static final boolean PRINT_DIAGNOSTICS = true;
+    public static final boolean PRINT_DIAGNOSTICS = false;
     /**
      * If printing diagnostics, reset all the counts after every print.
      */
@@ -357,8 +358,10 @@ public final class ProgramPointReachability {
 
         //        this.destinations.add(destination);
         long start = 0L;
-        if (PRINT_DIAGNOSTICS) {
+        if (PRINT_DIAGNOSTICS || PointsToAnalysisMultiThreaded.PRINT_DIAGNOSTICS) {
             this.computedResponses.incrementAndGet();
+            this.publicIncrementalPPQueries.incrementAndGet();
+            this.publicPPQueries.incrementAndGet();
             start = System.currentTimeMillis();
         }
         ProgramPointDestinationQuery prq = new ProgramPointDestinationQuery(destination,
@@ -1179,25 +1182,29 @@ public final class ProgramPointReachability {
     private AtomicLong reachableImplTime = new AtomicLong(0);
 
     // Reachability counts
-    private AtomicInteger totalRequests = new AtomicInteger(0);
-    private AtomicInteger incrementalRequests = new AtomicInteger(0);
-    private AtomicInteger cachedResponses = new AtomicInteger(0);
-    private AtomicInteger computedResponses = new AtomicInteger(0);
+    private AtomicLong totalRequests = new AtomicLong(0);
+    private AtomicLong incrementalRequests = new AtomicLong(0);
+    private AtomicLong cachedResponses = new AtomicLong(0);
+    private AtomicLong computedResponses = new AtomicLong(0);
+    public AtomicLong publicIncrementalPPQueries = new AtomicLong(0);
+    public AtomicLong publicPPQueries = new AtomicLong(0);
     // Method reachability counts
-    AtomicInteger totalMethodReach = new AtomicInteger(0);
-    AtomicInteger cachedMethodReach = new AtomicInteger(0);
-    AtomicInteger computedMethodReach = new AtomicInteger(0);
-    AtomicInteger totalComputeMethodReachability = new AtomicInteger(0);
+    AtomicLong totalMethodReach = new AtomicLong(0);
+    AtomicLong cachedMethodReach = new AtomicLong(0);
+    AtomicLong computedMethodReach = new AtomicLong(0);
+    AtomicLong totalComputeMethodReachability = new AtomicLong(0);
+    public AtomicLong publicIncrementalComputeMethodReachability = new AtomicLong(0);
+    public AtomicLong publicComputeMethodReachability = new AtomicLong(0);
     // Destination query counts
-    private AtomicInteger totalDestQuery = new AtomicInteger(0);
-    private AtomicInteger cachedDestQuery = new AtomicInteger(0);
-    private AtomicInteger computedDestQuery = new AtomicInteger(0);
+    private AtomicLong totalDestQuery = new AtomicLong(0);
+    private AtomicLong cachedDestQuery = new AtomicLong(0);
+    private AtomicLong computedDestQuery = new AtomicLong(0);
     // Dependency counts
-    private AtomicInteger calleeQueryRequests = new AtomicInteger(0);
-    private AtomicInteger callerQueryRequests = new AtomicInteger(0);
-    private AtomicInteger killQueryRequests = new AtomicInteger(0);
-    private AtomicInteger methodQueryRequests = new AtomicInteger(0);
-    private AtomicInteger reachabilityRequests = new AtomicInteger(0);
+    private AtomicLong calleeQueryRequests = new AtomicLong(0);
+    private AtomicLong callerQueryRequests = new AtomicLong(0);
+    private AtomicLong killQueryRequests = new AtomicLong(0);
+    private AtomicLong methodQueryRequests = new AtomicLong(0);
+    private AtomicLong reachabilityRequests = new AtomicLong(0);
 
     public void printDiagnostics() {
         if (!PRINT_DIAGNOSTICS) {
@@ -1244,11 +1251,11 @@ public final class ProgramPointReachability {
         double methodCallerDep = methodCallerDepTime.get() / (1000.0 * analysisHandle.numThreads());
         double reachableImpl = reachableImplTime.get() / (1000.0 * analysisHandle.numThreads());
 
-        int calleeQueryCount = calleeQueryRequests.get();
-        int callerQueryCount = callerQueryRequests.get();
-        int killQueryRequestCount = killQueryRequests.get();
-        int methodQueryCount = methodQueryRequests.get();
-        int reachabilityCount = reachabilityRequests.get();
+        long calleeQueryCount = calleeQueryRequests.get();
+        long callerQueryCount = callerQueryRequests.get();
+        long killQueryRequestCount = killQueryRequests.get();
+        long methodQueryCount = methodQueryRequests.get();
+        long reachabilityCount = reachabilityRequests.get();
 
         sb.append("REACHABILITY QUERY EXECUTION\n");
         String format = "\t%-14s: %-11.3f  RATIO: %-4.4f\n";
@@ -1292,7 +1299,7 @@ public final class ProgramPointReachability {
         if (!PRINT_DIAGNOSTICS) {
             return;
         }
-        int cached = cachedResponses.getAndSet(0);
+        long cached = cachedResponses.getAndSet(0);
         double incrReq = incrementalRequests.getAndSet(0);
 
         StringBuffer sb = new StringBuffer();
@@ -1333,11 +1340,11 @@ public final class ProgramPointReachability {
         double methodCallerDep = methodCallerDepTime.getAndSet(0) / (1000.0 * analysisHandle.numThreads());
         double reachableImpl = reachableImplTime.getAndSet(0) / (1000.0 * analysisHandle.numThreads());
 
-        int calleeQueryCount = calleeQueryRequests.getAndSet(0);
-        int callerQueryCount = callerQueryRequests.getAndSet(0);
-        int killQueryRequestCount = killQueryRequests.getAndSet(0);
-        int methodQueryCount = methodQueryRequests.getAndSet(0);
-        int reachabilityCount = reachabilityRequests.getAndSet(0);
+        long calleeQueryCount = calleeQueryRequests.getAndSet(0);
+        long callerQueryCount = callerQueryRequests.getAndSet(0);
+        long killQueryRequestCount = killQueryRequests.getAndSet(0);
+        long methodQueryCount = methodQueryRequests.getAndSet(0);
+        long reachabilityCount = reachabilityRequests.getAndSet(0);
 
         sb.append("REACHABILITY QUERY EXECUTION\n");
         String format = "\t%-14s: %-11.3f  RATIO: %-4.4f\n";
