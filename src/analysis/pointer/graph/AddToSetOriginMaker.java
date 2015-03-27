@@ -1,7 +1,10 @@
 package analysis.pointer.graph;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.engine.PointsToTask;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
@@ -39,6 +42,9 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
         private final/*InstanceKeyRecency*/int trg;
         private final InterProgramPointReplica ippr;
 
+        public static final AtomicInteger count = new AtomicInteger(0);
+        public static final AtomicInteger total = new AtomicInteger(0);
+
         public AddToSetOrigin(int n, int src, int trg, InterProgramPointReplica ippr) {
             assert src >= 0;
             this.n = n;
@@ -59,6 +65,10 @@ public class AddToSetOriginMaker implements ReachabilityQueryOriginMaker {
 
         @Override
         public void process(PointsToAnalysisHandle analysisHandle) {
+            if (PointsToAnalysisMultiThreaded.PRINT_NUM_PROCESSED) {
+                count.incrementAndGet();
+                total.incrementAndGet();
+            }
             // if src starts to point to trg at ippr, then add an edge from n to trg.
             PointsToGraph g = analysisHandle.pointsToGraph();
             if (g.pointsTo(src, trg, ippr, this)) {

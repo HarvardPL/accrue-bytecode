@@ -1,7 +1,10 @@
 package analysis.pointer.graph;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.engine.PointsToAnalysisHandle;
+import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.engine.PointsToTask;
 
 /**
@@ -12,6 +15,9 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsTo
     private final/*PointsToGraphNode*/int n;
     private final ReferenceVariableReplica rvr;
     private final/*InstanceKeyRecency*/int i;
+
+    public static final AtomicInteger count = new AtomicInteger(0);
+    public static final AtomicInteger total = new AtomicInteger(0);
 
     public AddNonMostRecentOrigin(/*PointsToGraphNode*/int n, ReferenceVariableReplica rvr, /*InstanceKeyRecency*/
                                   int i) {
@@ -34,6 +40,10 @@ public class AddNonMostRecentOrigin implements ReachabilityQueryOrigin, PointsTo
 
     @Override
     public void process(PointsToAnalysisHandle analysisHandle) {
+        if (PointsToAnalysisMultiThreaded.PRINT_NUM_PROCESSED) {
+            count.incrementAndGet();
+            total.incrementAndGet();
+        }
         PointsToGraph g = analysisHandle.pointsToGraph();
 
         assert g.isMostRecentObject(i);
