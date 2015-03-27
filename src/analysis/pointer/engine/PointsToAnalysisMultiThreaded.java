@@ -53,7 +53,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
     /**
      * Should we print intermittent status messages
      */
-    private static final boolean PRINT_DIAGNOSTICS = true;
+    public static final boolean PRINT_DIAGNOSTICS = true;
+    /**
+     * Should we print intermittent status messages
+     */
+    public static final boolean PRINT_NUM_PROCESSED = true;
     /**
      * Print the CG nodes which can reach the most callees
      */
@@ -208,7 +212,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (AccrueAnalysisMain.testMode) {
             System.out.println(totalTime / 1000.0);
         }
-        g.ppReach.printDiagnostics();
         System.err.println("\n\n  ***************************** \n\n");
         System.out.println(totalTime / 1000.0);
         System.err.println("   Number of threads used : " + this.numThreads);
@@ -330,9 +333,19 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private AtomicLong totalAddNonMostRecentOriginTasks;
         private AtomicLong totalAddToSetTasks;
         private AtomicLong totalPPSubQueryTasks;
+        private AtomicLong totalMethodReachabilityTasks;
 
         private AtomicLong approximationTime;
 
+        // Count the number of statements processed
+        AtomicLong processedMethodReach = new AtomicLong(0);
+        AtomicLong processedPPSubQuery = new AtomicLong(0);
+        AtomicLong processedStmtAndContextNoDelta = new AtomicLong(0);
+        AtomicLong processedStmtAndContextWithDelta = new AtomicLong(0);
+        AtomicLong totalProcessedMethodReach = new AtomicLong(0);
+        AtomicLong totalProcessedPPSubQuery = new AtomicLong(0);
+        AtomicLong totalProcessedStmtAndContextNoDelta = new AtomicLong(0);
+        AtomicLong totalProcessedStmtAndContextWithDelta = new AtomicLong(0);
 
         /*
          * Additional queues for other tasks that should have lower priority
@@ -359,16 +372,24 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public ExecutorServiceCounter(ForkJoinPool exec) {
             this.exec = exec;
-            // Statement and context tasks
+
+            // currently queued
             this.numRemainingTasks = new AtomicLong(0);
-            this.totalStmtAndCtxtNoDeltaTasks = new AtomicLong(0);
-            this.totalStmtAndCtxtWithDeltaTasks = new AtomicLong(0);
 
-            // Other tasks
-            this.totalAddNonMostRecentOriginTasks = new AtomicLong(0);
-            this.totalAddToSetTasks = new AtomicLong(0);
-            this.totalPPSubQueryTasks = new AtomicLong(0);
+            if (PRINT_DIAGNOSTICS) {
+                // Statement and context tasks
+                this.totalStmtAndCtxtNoDeltaTasks = new AtomicLong(0);
+                this.totalStmtAndCtxtWithDeltaTasks = new AtomicLong(0);
 
+                // Other tasks
+                this.totalAddNonMostRecentOriginTasks = new AtomicLong(0);
+                this.totalAddToSetTasks = new AtomicLong(0);
+                this.totalPPSubQueryTasks = new AtomicLong(0);
+                this.totalMethodReachabilityTasks = new AtomicLong(0);
+            }
+
+
+            // Queues to be emptied incrementally
             this.pendingAddToSetOrigin = new AtomicReference<>(AnalysisUtil.<AddToSetOrigin> createConcurrentSet());
             this.pendingAddNonMostRecentOrigin = new AtomicReference<>(AnalysisUtil.<AddNonMostRecentOrigin> createConcurrentSet());
             this.pendingPPSubQuery = new AtomicReference<>(AnalysisUtil.<ProgramPointSubQuery> createConcurrentSet());
@@ -420,6 +441,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         public void submitMethodReachabilityRecomputeTask(/*Set<OrderedPair<IMethod,Context>>*/MutableIntSet toRecompute) {
             this.numRemainingTasks.incrementAndGet();
+            if (PRINT_DIAGNOSTICS) {
+                this.totalMethodReachabilityTasks.incrementAndGet();
+            }
             exec.execute(new RunnablePointsToTask(new MethodReachabilityRecomputeTask(toRecompute)));
         }
 
@@ -522,7 +546,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                 System.err.println("in checkPendingQueues: " + numApproximated + " and approx finished: "
                         + approximationFinished
                         + ". ContainsPending: " + containsPending() + " isWorkToFinish:" + isWorkToFinish());
-                printDiagnostics();
             }
 
 
@@ -633,19 +656,57 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         private void printDiagnostics() {
             if (PRINT_DIAGNOSTICS) {
                 StringBuilder sb = new StringBuilder();
-                sb.append((System.currentTimeMillis() - startTime) / 1000.0 + " numRemainingTasks: "
-                        + numRemainingTasks.get() + "; pendingAddToSetOrigin: " + pendingAddToSetOrigin.get().size()
-                        + "; pendingAddNonMostRecentOrigin: " + pendingAddNonMostRecentOrigin.get().size()
-                        + "; pendingPPSubQuery: " + pendingPPSubQuery.get().size() + "; approximationTime: "
-                        + approximationTime.get() / 1000.0 + "; numExpired: " + g.ppReach.numExpired
-                        + "; approxCGNodes: " + g.getApproxCallGraphSize() + "; approxNumInterestingCGNodes: "
-                        + g.ppReach.methodReachability.approxNumInterestingDestinations() + "\n");
-                sb.append("\ttotalStmtAndCtxtNoDeltaTasks: " + totalStmtAndCtxtNoDeltaTasks.get()
-                        + "; totalStmtAndCtxtWithDeltaTasks: " + totalStmtAndCtxtWithDeltaTasks.get()
-                        + "; totalAddNonMostRecentOriginTasks: " + totalAddNonMostRecentOriginTasks.get()
-                        + "; totalAddToSetTasks: " + totalAddToSetTasks.get() + "; totalPPSubQueryTasks: "
-                        + totalPPSubQueryTasks.get() + "; approximatedCallSites: " + approximatedCallSites
-                        + "; approximatedFieldAssigns: " + approximatedFieldAssigns);
+                double elapsed = (System.currentTimeMillis() - startTime) / 1000.0;
+
+                // Print queue sizes
+                sb.append(elapsed + "--PENDING     ");
+                sb.append("numRemainingTasks: " + numRemainingTasks.get() + "; ");
+                sb.append("AddToSet: " + pendingAddToSetOrigin.get().size() + "; ");
+                sb.append("AddNonMostRecent: " + pendingAddNonMostRecentOrigin.get().size()+ "; ");
+                sb.append("PPSubQuery: " + pendingPPSubQuery.get().size() + "\n");
+
+                // Other
+                sb.append(elapsed + "--OTHER       ");
+                sb.append("approxTime: " + approximationTime.get() + "; ");
+                sb.append("approximatedCallSites: " + approximatedCallSites + "; ");
+                sb.append("approximatedFieldAssigns: " + approximatedFieldAssigns + "; ");
+                sb.append("approxNumInterestingCGNodes: "
+                        + g.ppReach.methodReachability.approxNumInterestingDestinations() + "; ");
+                sb.append("approxCGNodes: " + g.getApproxCallGraphSize() + "\n");
+
+                // Print number of statements that have been queued
+                String f = "StmtAndCtxtNoDelta: %-8d; StmtAndCtxtWithDelta: %-8d; MethodReach: %-8d; AddToSet: %-8d; AddNonMostRecent: %-8d; PPSubQuery: %-8d";
+                String s = String.format(f,
+                                         totalStmtAndCtxtNoDeltaTasks.get(),
+                                         totalStmtAndCtxtWithDeltaTasks.get(),
+                                         totalMethodReachabilityTasks.get(),
+                                         totalAddToSetTasks.get(),
+                                         totalAddNonMostRecentOriginTasks.get(),
+                                         totalPPSubQueryTasks.get());
+                sb.append(elapsed + "--EVER QUEUED ");
+                sb.append(s + "\n");
+
+                if (PRINT_NUM_PROCESSED) {
+                    sb.append(elapsed + "--PROCESSED   ");
+                    s = String.format(f,
+                                      totalProcessedStmtAndContextNoDelta.get(),
+                                      totalProcessedStmtAndContextWithDelta.get(),
+                                      totalProcessedMethodReach.get(),
+                                      AddToSetOrigin.total.get(),
+                                      AddNonMostRecentOrigin.total.get(),
+                                      totalProcessedPPSubQuery.get());
+                    sb.append(s + "\n");
+                    // Number processed since last epoch
+                    sb.append(elapsed + "--INCREMENTAL ");
+                    s = String.format(f,
+                                             processedStmtAndContextNoDelta.getAndSet(0),
+                                             processedStmtAndContextWithDelta.getAndSet(0),
+                                             processedMethodReach.getAndSet(0),
+                                             AddToSetOrigin.count.getAndSet(0),
+                                             AddNonMostRecentOrigin.count.getAndSet(0),
+                                             processedPPSubQuery.getAndSet(0));
+                    sb.append(s + "\n");
+                }
                 System.err.println(sb.toString());
                 g.ppReach.printDiagnostics();
             }
@@ -694,6 +755,17 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             @Override
             public void process(PointsToAnalysisHandle analysisHandle) {
+                if (PointsToAnalysisMultiThreaded.PRINT_NUM_PROCESSED) {
+                    if (delta == null) {
+                        processedStmtAndContextNoDelta.incrementAndGet();
+                        totalProcessedStmtAndContextNoDelta.incrementAndGet();
+                    }
+                    else {
+                        processedStmtAndContextWithDelta.incrementAndGet();
+                        totalProcessedStmtAndContextWithDelta.incrementAndGet();
+                    }
+
+                }
                 processSaC(sac, delta, ExecutorServiceCounter.this);
             }
 
@@ -708,6 +780,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             @Override
             public void process(PointsToAnalysisHandle analysisHandle) {
+                if (PointsToAnalysisMultiThreaded.PRINT_NUM_PROCESSED) {
+                    processedMethodReach.incrementAndGet();
+                    totalProcessedMethodReach.incrementAndGet();
+                }
                 analysisHandle.pointsToGraph().ppReach.processMethodReachabilityRecomputation(toRecompute);
             }
 
@@ -722,6 +798,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
             @Override
             public void process(PointsToAnalysisHandle analysisHandle) {
+                if (PointsToAnalysisMultiThreaded.PRINT_NUM_PROCESSED) {
+                    processedPPSubQuery.incrementAndGet();
+                    totalProcessedPPSubQuery.incrementAndGet();
+                }
                 analysisHandle.pointsToGraph().ppReach.processSubQuery(sq);
             }
 

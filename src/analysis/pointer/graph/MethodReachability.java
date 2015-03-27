@@ -318,7 +318,7 @@ public class MethodReachability {
 
                 MethodSummaryKillAndAllocChanges newChanges = recordUpdatedTunnelMethodReachability(caller,
                                                                                                     modifiedTunnels);
-                if (newChanges.tunnelsChanged()) {
+                if (newChanges != null && newChanges.tunnelsChanged()) {
                     if (summaryChanged.containsKey(caller)) {
                         summaryChanged.get(caller).merge(newChanges);
                     }
@@ -734,7 +734,7 @@ public class MethodReachability {
                 ThreadSafeKilledAndAlloced kaa = this.callSiteSumm.get(callSite);
                 if (kaa == null) {
                     kaa = KilledAndAlloced.createThreadSafeUnreachable();
-                    ThreadSafeKilledAndAlloced existing = this.tunnel.putIfAbsent(callSite, kaa);
+                    ThreadSafeKilledAndAlloced existing = this.callSiteSumm.putIfAbsent(callSite, kaa);
                     if (existing != null) {
                         kaa = existing;
                     }
