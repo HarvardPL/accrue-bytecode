@@ -734,7 +734,7 @@ public class MethodReachability {
                 ThreadSafeKilledAndAlloced kaa = this.callSiteSumm.get(callSite);
                 if (kaa == null) {
                     kaa = KilledAndAlloced.createThreadSafeUnreachable();
-                    ThreadSafeKilledAndAlloced existing = this.tunnel.putIfAbsent(callSite, kaa);
+                    ThreadSafeKilledAndAlloced existing = this.callSiteSumm.putIfAbsent(callSite, kaa);
                     if (existing != null) {
                         kaa = existing;
                     }
