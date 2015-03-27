@@ -37,7 +37,8 @@ public class StringDependencies {
     }
 
     public boolean isActive(StringVariableReplica x) {
-        return this.active.contains(x);
+        // return this.active.contains(x);
+        return true;
     }
 
     public Set<StringVariableReplica> activate(StringVariableReplica x) {
