@@ -61,7 +61,7 @@ public class EscapeViaMethodStringStatement extends StringStatement {
         //                           );
         GraphDelta intermediate = g.stringVariableReplicaJoinAt(svrdef,
                                                                 pti.astringForPointsToGraphNode(rvr, originator));
-        System.err.println("    " + "intermediate.scd" + intermediate.getStringConstraintDelta());
+        //        System.err.println("    " + "intermediate.scd" + intermediate.getStringConstraintDelta());
         newDelta.combine(intermediate);
 
         return newDelta;
