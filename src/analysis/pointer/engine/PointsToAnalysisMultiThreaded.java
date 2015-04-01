@@ -161,7 +161,6 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         }
         System.err.println("\n\n  ***************************** \n\n");
         System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.out.println(totalTime / 1000.0);
         System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
