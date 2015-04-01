@@ -38,23 +38,23 @@ sudo purge
 time bin/runAnalysis.sh -cp data/tomcat_7_trunk.jar     -e tomcat.Driver_CVE_2011_0013         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx $1
 done
 
-echo ""
-echo "TOMCAT CVE_2011_2204  "
-for i in $(eval echo {1..$max}); do 
-sudo purge
-time bin/runAnalysis.sh -cp data/tomcat_7_trunk.jar     -e tomcat.Driver_CVE_2011_2204         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx
-done
+# echo ""
+# echo "TOMCAT CVE_2011_2204  "
+# for i in $(eval echo {1..$max}); do 
+# sudo purge
+# time bin/runAnalysis.sh -cp data/tomcat_7_trunk.jar     -e tomcat.Driver_CVE_2011_2204         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx
+# done
 
-echo ""
-echo "TOMCAT CVE_2010_1157 "
-for i in $(eval echo {1..$max}); do 
-sudo purge
-time bin/runAnalysis.sh -cp data/tomcat_6_trunk.jar     -e tomcat.Driver_CVE_2010_1157         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx
-done
+# echo ""
+# echo "TOMCAT CVE_2010_1157 "
+# for i in $(eval echo {1..$max}); do 
+# sudo purge
+# time bin/runAnalysis.sh -cp data/tomcat_6_trunk.jar     -e tomcat.Driver_CVE_2010_1157         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx
+# done
 
-echo ""
-echo "TOMCAT CVE_2014_0033"
-for i in $(eval echo {1..$max}); do 
-sudo purge
-time bin/runAnalysis.sh -cp data/tomcat_6_trunk.jar     -e tomcat.Driver_CVE_2014_0033         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx
-done
+# echo ""
+# echo "TOMCAT CVE_2014_0033"
+# for i in $(eval echo {1..$max}); do 
+# sudo purge
+# time bin/runAnalysis.sh -cp data/tomcat_6_trunk.jar     -e tomcat.Driver_CVE_2014_0033         -n pdg -haf "type(2,1) x CollectionsTypeSensitive(3,2) x StringBuilderFullObjSensitive(2)" -useSingleAllocForGenEx
+# done
