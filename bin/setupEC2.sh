@@ -26,6 +26,7 @@
 sudo yum -y install git ant ant-junit emacs
 export JAVA_HOME=/usr/lib/jvm/java-1.7.0-openjdk-1.7.0.75.x86_64/
 export ACCRUE_BYTECODE=/mnt/experiments/accrue-bytecode
+export PIDGIN=/mnt/experiments/accrue-bytecode
 cd /mnt/experiments/accrue-bytecode
 git pull
 ant clean; ant
