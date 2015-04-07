@@ -50,7 +50,7 @@ public class LocalToFieldStringStatement extends StringStatement {
         g.recordStringStatementUseDependency(vUseSVR, originator);
         newDelta.combine(g.recordStringVariableIndirectDependency(vDefSVR, vUseSVR));
 
-        for (InstanceKey oIK : pti.pointsToIterable(oRVR, originator)) {
+        for (InstanceKey oIK : g.pointsToIterable(oRVR, originator)) {
             ObjectField of = new ObjectField(oIK, this.f);
 
             AllocSiteNode allocationSite = AllocSiteNodeFactory.createGenerated("LocalToFieldStringStatement",
