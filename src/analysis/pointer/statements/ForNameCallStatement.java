@@ -77,46 +77,34 @@ public class ForNameCallStatement extends PointsToStatement {
         changed.combine(g.activateStringVariable(nameSVR));
 
         PointsToIterable pti = delta == null ? g : delta;
-        Optional<AString> maybeNameHat = pti.getAStringUpdatesFor(nameSVR);
 
-        //        Optional<Set<IClass>> classes = nameSIK.getStrings()
-        //                .map(stringSet -> stringSet.stream()
-        //                                           .map(string -> stringToIClass(string))
-        //                                           .flatMap(maybeIC -> maybeIC.map(ic -> Stream.of(ic))
-        //                                                                      .orElse(Stream.empty()))
-        //                                           .collect(Collectors.toSet()));
+        AString namehat = g.getAStringFor(nameSVR);
 
-        if (maybeNameHat.isNone()) {
-            // XXX: What should we do if there's no updated strings?
-            Logger.println("[ForNameCallStatement] There are no string updates for " + nameSVR);
+        Logger.println("[ForNameCallStatement] reaching class names are " + namehat);
+
+        AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
+                                                                 false);
+        FiniteSet<IClass> classes;
+        if (namehat.isTop()) {
+            classes = ((ReflectiveHAF) haf).getAClassTop();
+        }
+        else if (namehat.isBottom()) {
+            classes = ((ReflectiveHAF) haf).getAClassBottom();
         }
         else {
-            AString namehat = maybeNameHat.get();
-            Logger.println("[ForNameCallStatement] reaching class names are " + namehat);
-
-            AllocSiteNode asn = AllocSiteNodeFactory.createGenerated("forName", JavaLangClassIClass, caller, null, // XXX: I'm duplicating existing forName calls
-                                                                     false);
-            FiniteSet<IClass> classes;
-            if (namehat.isTop()) {
-                classes = ((ReflectiveHAF) haf).getAClassTop();
-            }
-            else if (namehat.isBottom()) {
-                classes = ((ReflectiveHAF) haf).getAClassBottom();
-            }
-            else {
-                Set<IClass> classSet = new HashSet<>();
-                for (String string : namehat.getStrings()) {
-                    Optional<IClass> maybeIClass = stringToIClass(string);
-                    if (maybeIClass.isSome()) {
-                        classSet.add(maybeIClass.get());
-                    }
+            Set<IClass> classSet = new HashSet<>();
+            for (String string : namehat.getStrings()) {
+                Optional<IClass> maybeIClass = stringToIClass(string);
+                if (maybeIClass.isSome()) {
+                    classSet.add(maybeIClass.get());
                 }
-                classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
             }
-
-            Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
-            changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
+            classes = ((ReflectiveHAF) haf).getAClassSet(classSet);
         }
+
+        Logger.println("[ForNameCallStatement] Reflective allocation: classes: " + classes);
+        changed.combine(g.addEdge(resultRVR, ((ReflectiveHAF) haf).recordReflective(classes, asn, context)));
+
         return changed;
     }
 
