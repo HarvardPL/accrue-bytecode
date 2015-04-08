@@ -97,10 +97,10 @@ public class StringMethodCall extends StringStatement {
             newDelta.combine(g.recordStringVariableDependency(receiverDefSVR, receiverUseSVR));
             newDelta.combine(g.recordStringVariableDependency(receiverDefSVR, argumentSVRs.get(1)));
 
-            AString maybeReceiverAString = g.getAStringFor(receiverUseSVR);
-            AString maybeArgumentAString = g.getAStringFor(argumentSVRs.get(1));
+            AString receiverAString = g.getAStringFor(receiverUseSVR);
+            AString argumentAString = g.getAStringFor(argumentSVRs.get(1));
 
-            AString newSIK = maybeReceiverAString.concat(maybeArgumentAString);
+            AString newSIK = receiverAString.concat(argumentAString);
             newDelta.combine(g.stringVariableReplicaJoinAt(receiverDefSVR, newSIK));
             return newDelta;
         }
