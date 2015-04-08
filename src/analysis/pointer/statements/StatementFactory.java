@@ -594,14 +594,16 @@ public class StatementFactory {
         return new FieldToLocalStringStatement(svv, o, f, method);
     }
 
-    public StringStatement staticFieldToLocalString(StringVariable svv, StringVariable svf, IMethod method) {
+    public StringStatement staticFieldToLocalString(StringVariable svv, StringVariable svf, String classname,
+                                                    IMethod method) {
         assert svv != null;
         assert svf != null;
         assert method != null;
+        assert classname != null;
 
         assert stringStatementNeverCreatedBefore(new StatementKey(svv, svf, method));
 
-        return new StaticFieldToLocalStringStatement(svv, svf, method);
+        return new StaticFieldToLocalStringStatement(svv, svf, classname, method);
     }
 
     public StringStatement newString(StringVariable result, IMethod method) {

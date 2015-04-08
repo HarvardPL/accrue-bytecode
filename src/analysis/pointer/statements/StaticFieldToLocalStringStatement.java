@@ -15,11 +15,13 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
 
     private final StringVariable v;
     private final StringVariable f;
+    private final String classname;
 
-    public StaticFieldToLocalStringStatement(StringVariable v, StringVariable f, IMethod method) {
+    public StaticFieldToLocalStringStatement(StringVariable v, StringVariable f, String classname, IMethod method) {
         super(method);
         this.v = v;
         this.f = f;
+        this.classname = classname;
     }
 
     @Override
@@ -43,7 +45,7 @@ public class StaticFieldToLocalStringStatement extends StringStatement {
 
     @Override
     public String toString() {
-        return v + " = " + "CLASSNAME." + f;
+        return v + " = " + classname + "." + f;
     }
 
 }

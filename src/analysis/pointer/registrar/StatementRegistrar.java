@@ -554,7 +554,9 @@ public class StatementRegistrar {
         if (StringAndReflectiveUtil.isStringType(resultType)) {
             StringVariable svv = stringVariableFactory.getOrCreateLocalDef(i, i.getDef(), ir.getMethod(), types, pp);
             StringVariable svf = stringVariableFactory.getOrCreateStaticField(i.getDeclaredField());
-            this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, ir.getMethod()));
+            this.addStringStatement(stmtFactory.staticFieldToLocalString(svv, svf, i.getDeclaredField()
+                                                                                    .getDeclaringClass()
+                                                                                    .toString(), ir.getMethod()));
         }
     }
 
