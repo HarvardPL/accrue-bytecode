@@ -2,7 +2,6 @@ package analysis.pointer.statements;
 
 import java.util.Collections;
 
-import util.Logger;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.ReflectiveHAF;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -38,7 +37,6 @@ public class StringInitStatement extends StringStatement {
 
         newDelta.combine(g.stringVariableReplicaJoinAt(svr,
                                                        ((ReflectiveHAF) haf).getAStringSet(Collections.singleton(""))));
-        Logger.println("[StringInitStatement.process] " + svr + " <- " + g.getAStringFor(svr));
 
         return newDelta;
     }
