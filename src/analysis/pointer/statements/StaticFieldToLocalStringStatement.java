@@ -14,8 +14,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 public class StaticFieldToLocalStringStatement extends StringStatement {
 
     private final StringVariable v;
-    // this cannot be final because of `replaceUses(..)`
-    private StringVariable f;
+    private final StringVariable f;
 
     public StaticFieldToLocalStringStatement(StringVariable v, StringVariable f, IMethod method) {
         super(method);
