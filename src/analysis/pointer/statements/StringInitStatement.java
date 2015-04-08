@@ -43,8 +43,7 @@ public class StringInitStatement extends StringStatement {
 
     @Override
     public String toString() {
-        // TODO Auto-generated method stub
-        return null;
+        return "(StringInitStatement " + this.sv + ")";
     }
 
 }
