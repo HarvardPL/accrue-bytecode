@@ -570,12 +570,12 @@ public class AccrueAnalysisMain {
         //                                                                         AnalysisUtil.getCache(),
         //                                                                         AnalysisUtil.getClassHierarchy(),
         //                                                                         AnalysisUtil.getScope());
-        SSAPropagationCallGraphBuilder builder = Util.makeZeroOneCFABuilder(AnalysisUtil.getOptions(),
-                                                                            AnalysisUtil.getCache(),
-                                                                            AnalysisUtil.getClassHierarchy(),
-                                                                            AnalysisUtil.getScope(),
-                                                                            new ReceiverTypeContextSelector(),
-                                                                            null);
+        SSAPropagationCallGraphBuilder builder = Util.makeVanillaZeroOneCFABuilder(AnalysisUtil.getOptions(),
+                                                                                   AnalysisUtil.getCache(),
+                                                                                   AnalysisUtil.getClassHierarchy(),
+                                                                                   AnalysisUtil.getScope(),
+                                                                                   new ReceiverTypeContextSelector(),
+                                                                                   null);
 
         //        com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory haf2 = new com.ibm.wala.ipa.callgraph.multithread.analyses.HeapAbstractionFactory() {
         //

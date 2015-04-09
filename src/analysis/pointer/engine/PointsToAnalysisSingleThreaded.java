@@ -42,6 +42,7 @@ import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.shrikeBT.IInstruction;
 import com.ibm.wala.shrikeCT.InvalidClassFileException;
 import com.ibm.wala.util.intset.IntIterator;
+import com.ibm.wala.util.intset.MutableIntSet;
 
 /**
  * Single-threaded implementation of a points-to graph solver. Given a set of
@@ -318,6 +319,15 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
         g.findCycles();
         System.err.println("   Cycles now removed " + g.cycleRemovalCount()
                            + " nodes");
+
+        System.err.println(g.numPointsToGraphNodes() + " PTG Nodes");
+        long num = 0;
+        IntMap<MutableIntSet> graph = g.getPointsToGraph();
+        IntIterator iter = graph.keyIterator();
+        while (iter.hasNext()) {
+            num += graph.get(iter.next()).size();
+        }
+        System.err.println(num + " PTG Edges");
 
         //        this.processAllStatements(g, registrar);
         g.constructionFinished();
