@@ -137,12 +137,15 @@ public class ClassInitFinder {
             LinkedList<IMethod> inits = new LinkedList<>();
             // Need to also add clinit for any super classes
 
-            // Note that object doesn't have any clinit, and interface clinits are not called until a static field is
-            // actually accessed
-            while (!klass.isInterface() && !(klass == objectClass)) {
+            // Interface clinits are not called until a static field is actually accessed
+            while (!klass.isInterface()) {
                 if (klass.getClassInitializer() != null) {
                     // class has an initializer so add it
                     inits.addFirst(klass.getClassInitializer());
+                }
+                if (klass == objectClass) {
+                    // No super class for java.lang.Object
+                    break;
                 }
                 klass = klass.getSuperclass();
             }
