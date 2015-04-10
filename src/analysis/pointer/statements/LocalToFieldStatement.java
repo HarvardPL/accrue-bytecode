@@ -74,6 +74,8 @@ public class LocalToFieldStatement extends PointsToStatement {
 
                 IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
                                                                               this.field);
+                assert ifield != null : "No field " + this.field + " in " + recHeapContext.getConcreteType() + " "
+                        + getMethod();
                 ObjectField f = new ObjectField(recHeapContext, ifield);
                 // o.f can point to anything that local can.
                 GraphDelta d1 = g.copyEdges(local, f);
@@ -88,6 +90,8 @@ public class LocalToFieldStatement extends PointsToStatement {
                 InstanceKey recHeapContext = iter.next();
                 IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
                                                                               this.field);
+                assert ifield != null : "No field " + this.field + " in " + recHeapContext.getConcreteType() + " "
+                        + getMethod();
                 ObjectField f = new ObjectField(recHeapContext, ifield);
                 GraphDelta d1 = g.copyEdges(local, f);
                 changed = changed.combine(d1);

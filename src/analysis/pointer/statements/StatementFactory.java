@@ -203,14 +203,16 @@ public class StatementFactory {
      * @param left assignee
      * @param right the assigned value
      * @param m method the points-to statement came from
+     * @param rightIsMethodSummary
      * @return statement to be processed during pointer analysis
      */
-    public LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, IMethod m) {
+    public LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, IMethod m,
+                                                      boolean rightIsMethodSummary) {
         assert left != null;
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true, false);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true, rightIsMethodSummary);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }

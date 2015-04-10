@@ -1,7 +1,6 @@
 package analysis.pointer.statements;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 import util.print.PrettyPrinter;
@@ -17,7 +16,6 @@ import analysis.pointer.registrar.StatementRegistrar;
 
 import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
 
 /**
  * Points-to statement for a local assignment, left = right
@@ -66,16 +64,6 @@ public class LocalToLocalStatement extends PointsToStatement {
             PointsToGraph g, GraphDelta delta, StatementRegistrar registrar, StmtAndContext originator) {
         PointsToGraphNode l = new ReferenceVariableReplica(context, left, haf);
         PointsToGraphNode r = new ReferenceVariableReplica(context, right, haf);
-        if (left.toString().contains("v4-closeLog")) {
-            Iterator<InstanceKey> iter = g.pointsToIterator(r, originator);
-            if (!iter.hasNext()) {
-                System.err.println(this + " " + "EMPTY");
-            }
-            while (iter.hasNext()) {
-                InstanceKey ik = iter.next();
-                System.err.println(this + " " + ik);
-            }
-        }
         // don't need to use delta, as this just adds a subset edge
         if (filter) {
             TypeFilter typeFilter = TypeFilter.create(left.getExpectedType());

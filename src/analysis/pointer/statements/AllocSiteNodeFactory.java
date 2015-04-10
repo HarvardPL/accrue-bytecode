@@ -124,7 +124,7 @@ public class AllocSiteNodeFactory {
          * @param isStringLiteral true if this allocation is for a string literal
          * @param lineNumber line number from source code if one can be found, -1 otherwise
          */
-        public AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod, int programCounter,
+        private AllocSiteNode(String debugString, IClass allocatedClass, IMethod allocatingMethod, int programCounter,
                               boolean isStringLiteral, int lineNumber) {
             assert debugString != null;
             assert allocatingMethod != null;
