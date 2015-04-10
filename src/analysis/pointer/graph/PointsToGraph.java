@@ -1,7 +1,13 @@
 package analysis.pointer.graph;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -348,6 +354,11 @@ public final class PointsToGraph {
         }
     }
 
+    /**
+     * XXX Used for printing. Maybe only create if a flag is set?
+     */
+    IntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
     protected int lookupDictionary(PointsToGraphNode node) {
         Integer n = this.reverseGraphNodeDictionary.get(node);
         if (n == null) {
@@ -360,6 +371,7 @@ public final class PointsToGraph {
             if (existing != null) {
                 return existing;
             }
+            graphNodeDictionary.put(n, node);
         }
         return n;
     }
@@ -1380,5 +1392,118 @@ public final class PointsToGraph {
 
     public StatementRegistrar getRegistrar() {
         return registrar;
+    }
+
+    /**
+     * Print the points-to graph in graphviz dot format to a file
+     *
+     * @param filename name of the file, the file is put in tests/filename.dot
+     * @param addDate if true then the date will be added to the filename
+     */
+    public void dumpPointsToGraphToFile(String filename, boolean addDate) {
+        String file = filename;
+        if (addDate) {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
+            Date dateNow = new Date();
+            String now = dateFormat.format(dateNow);
+            file += now;
+        }
+        String fullFilename = file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpPointsToGraph(out);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    private Writer dumpPointsToGraph(Writer writer) throws IOException {
+        double spread = 1.0;
+        writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
+                + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n" + "edge [fontsize=10]" + ";\n");
+
+        Map<String, Integer> dotToCount = new HashMap<>();
+        Map<PointsToGraphNode, String> n2s = new HashMap<>();
+        Map<InstanceKey, String> ik2s = new HashMap<>();
+
+        PointsToGraphNode test = null;
+
+        writer.write("/******************** NODES ********************/\n");
+        // Need to differentiate between different nodes with the same string
+        IntIterator nodeIter = pointsTo.keyIterator();
+        while(nodeIter.hasNext()) {
+            PointsToGraphNode n = graphNodeDictionary.get(nodeIter.next());
+            String nStr = escape(n.toString());
+            Integer count = dotToCount.get(nStr);
+            if (count == null) {
+                dotToCount.put(nStr, 1);
+            }
+            else {
+                dotToCount.put(nStr, count + 1);
+                nStr += " (" + count + ")";
+            }
+            n2s.put(n, nStr);
+            if (nStr.contains("Everywhere}.out")) {
+                System.err.println(nStr);
+                if (test != null) {
+                    System.err.println("OTHER: " + test);
+                    System.err.println("Equal? " + test.equals(n));
+                    ObjectField t1 = (ObjectField) test;
+                    ObjectField t2 = (ObjectField) n;
+                    System.err.println(t1.receiver() + " == " + t2.receiver() + " "
+                            + t1.receiver().equals(t2.receiver()));
+                    System.err.println(t1.getExpectedType() + " == " + t2.getExpectedType() + " "
+                            + t1.getExpectedType().equals(t2.getExpectedType()));
+                    System.err.println(t1.fieldName() + " == " + t2.fieldName() + " "
+                            + t1.fieldName().equals(t2.fieldName()));
+                }
+                test = n;
+            }
+            writer.write("\t\"" + nStr + "\";\n");
+
+            Iterator<InstanceKey> ikIter = pointsToIterator(n);
+            while (ikIter.hasNext()) {
+                InstanceKey ik = ikIter.next();
+                if (ik2s.containsKey(ik)) {
+                    // Already have a string for this instance key
+                    continue;
+                }
+                String ikStr = escape(ik.toString());
+                Integer ikCount = dotToCount.get(ikStr);
+                if (ikCount == null) {
+                    dotToCount.put(ikStr, 1);
+                }
+                else {
+                    dotToCount.put(ikStr, ikCount + 1);
+                    ikStr += " (" + ikCount + ")";
+                }
+                ik2s.put(ik, ikStr);
+            }
+        }
+
+        writer.write("/******************** EDGES ********************/\n");
+        IntIterator sourceIter = pointsTo.keyIterator();
+        while (sourceIter.hasNext()) {
+            PointsToGraphNode n = graphNodeDictionary.get(sourceIter.next());
+            Iterator<InstanceKey> ikIter = pointsToIterator(n);
+            while (ikIter.hasNext()) {
+                InstanceKey target = ikIter.next();
+                String iks = ik2s.get(target);
+                if (iks.contains("Exception") || iks.contains("CaseInsensitiveComparator")
+                        || iks.contains("allocated at void com.ibm.wala.FakeRootClass.fakeRootMethod")
+                        || iks.contains("ObjectStreamField")) {
+                    continue;
+                }
+                writer.write("\t\"" + n2s.get(n) + "\" -> \"" + ik2s.get(target) + "\";\n");
+            }
+        }
+
+        writer.write("\n}\n");
+        return writer;
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
