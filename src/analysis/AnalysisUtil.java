@@ -116,6 +116,10 @@ public class AnalysisUtil {
      * may be necessary to compare to other analyses.
      */
     private static boolean disableSignatures = false;
+    /**
+     * Resolved class for java.lang.Class
+     */
+    private static IClass classClass;
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -250,6 +254,7 @@ public class AnalysisUtil {
         objectClass = cha.lookupClass(TypeReference.JavaLangObject);
         throwableClass = cha.lookupClass(TypeReference.JavaLangThrowable);
         errorClass = cha.lookupClass(TypeReference.JavaLangError);
+        classClass = cha.lookupClass(TypeReference.JavaLangClass);
         TypeName privTN = TypeName.string2TypeName("Ljava/security/PrivilegedAction");
         TypeReference privTR = TypeReference.findOrCreate(ClassLoaderReference.Primordial, privTN);
         privilegedActionClass = cha.lookupClass(privTR);
@@ -361,7 +366,7 @@ public class AnalysisUtil {
     }
 
     /**
-     * Get the canonical class for java.lang.Objecy
+     * Get the canonical class for java.lang.Object
      *
      * @return class
      */
@@ -428,6 +433,10 @@ public class AnalysisUtil {
 
     public static AnalysisScope getScope() {
         return scope;
+    }
+
+    public static IClass getClassClass() {
+        return classClass;
     }
 
 }

@@ -124,6 +124,11 @@ public class StatementRegistrar {
     private final ConcurrentMap<TypeReference, ReferenceVariable> singletonReferenceVariables;
 
     /**
+     * Create a single copy of java.lang.Class per type
+     */
+    private final ConcurrentMap<TypeReference, ReferenceVariable> classReferenceVariables;
+
+    /**
      * Methods we have already added statements for
      */
     private final Set<IMethod> registeredMethods = AnalysisUtil.createConcurrentSet();
@@ -167,6 +172,7 @@ public class StatementRegistrar {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
+        this.classReferenceVariables = AnalysisUtil.createConcurrentHashMap();
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryPoint = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
@@ -422,7 +428,7 @@ public class StatementRegistrar {
                                                           ir.getMethod(),
                                                           pp);
         ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), types.getType(i.getVal()), ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod()));
+        this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod(), false));
     }
 
     /**
@@ -757,7 +763,7 @@ public class StatementRegistrar {
         }
 
         // Allocation of a singleton java.lang.Class object
-        ReferenceVariable rv = getOrCreateSingleton(TypeReference.JavaLangClass);
+        ReferenceVariable rv = getOrCreateSingletonClassType((TypeReference) i.getToken());
         ReferenceVariable left = rvFactory.getOrCreateLocal(i.getDef(),
                                                             TypeReference.JavaLangClass,
                                                             ir.getMethod(),
@@ -1068,6 +1074,36 @@ public class StatementRegistrar {
     }
 
     /**
+     * Get or create a singleton reference variable for a java.lang.Class object based on the generic type.
+     *
+     * @param varType type we want a singleton java.lang.Class for
+     */
+    private ReferenceVariable getOrCreateSingletonClassType(TypeReference varType) {
+        ReferenceVariable rv = this.classReferenceVariables.get(varType);
+        if (rv == null) {
+            rv = rvFactory.createClassReferenceVariable(varType);
+            ReferenceVariable existing = this.classReferenceVariables.putIfAbsent(varType, rv);
+            if (existing != null) {
+                rv = existing;
+            }
+
+            IClass klass = AnalysisUtil.getClassHierarchy().lookupClass(varType);
+            assert klass != null : "No class found for " + PrettyPrinter.typeString(varType);
+
+            // We present that the allocation for this object occurs in the entry point.
+            NewStatement stmt = stmtFactory.newForGeneratedObject(rv,
+                                                                  AnalysisUtil.getClassClass(),
+                                                                  this.entryPoint,
+                                                                  "java.lang.Class<"
+                                                                          + PrettyPrinter.typeString(varType)
+                                                                          + ">");
+            this.addStatement(stmt);
+
+        }
+        return rv;
+    }
+
+    /**
      * Add an assignment from the a thrown exception to any catch block or exit block exception that exception could
      * reach
      *
@@ -1215,7 +1251,16 @@ public class StatementRegistrar {
             }
             int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
-            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod(), true));
+            if (paramType.getName().equals(TypeReference.JavaLangObject.getName())) {
+                // Don't filter if the type is java.lang.Object since everything will pass anyway
+                this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod(), true));
+            }
+            else {
+                this.addStatement(stmtFactory.localToLocalFiltered(param,
+                                                                   methodSummary.getFormal(i),
+                                                                   ir.getMethod(),
+                                                                   true));
+            }
         }
     }
 

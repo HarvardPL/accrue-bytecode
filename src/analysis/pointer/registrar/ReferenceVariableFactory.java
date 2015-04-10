@@ -55,6 +55,11 @@ public class ReferenceVariableFactory {
             new LinkedHashMap<>();
 
     /**
+     * One node per type for java.lang.Class
+     */
+    private final Map<TypeReference, ReferenceVariable> classSingletons = new LinkedHashMap<>();
+
+    /**
      * Get the reference variable for the given local in the given method. The local should not have a primitive type or
      * null. Create a reference variable if one does not already exist
      *
@@ -151,6 +156,22 @@ public class ReferenceVariableFactory {
         ReferenceVariable rv = new ReferenceVariable(PrettyPrinter.typeString(type) + "(SINGLETON)", type, true);
         // These should only be created once assert that this is true
         assert singletons.put(type, rv) == null;
+        return rv;
+    }
+
+    /**
+     * Create a node for java.lang.Class per type.
+     *
+     * @param type type of the generic argument to java.lang.Class
+     * @return singleton reference variable for the given type
+     */
+    @SuppressWarnings("synthetic-access")
+    protected ReferenceVariable createClassReferenceVariable(TypeReference type) {
+        ReferenceVariable rv = new ReferenceVariable("java.lang.Class<" + PrettyPrinter.typeString(type) + ">",
+                                                     TypeReference.JavaLangClass,
+                                                     true);
+        // These should only be created once assert that this is true
+        assert classSingletons.put(type, rv) == null;
         return rv;
     }
 
