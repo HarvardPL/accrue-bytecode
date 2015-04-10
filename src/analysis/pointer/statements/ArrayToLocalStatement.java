@@ -1,10 +1,10 @@
 package analysis.pointer.statements;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
@@ -62,10 +62,9 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // let's do the normal processing
             for (Iterator<InstanceKey> iter = g.pointsToIterator(a, originator); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+                ObjectField contents = new ObjectField(arrHeapContext,
+                                                       PointsToGraph.ARRAY_CONTENTS,
+                                                       AnalysisUtil.getClassHierarchy().lookupClass(baseType));
                 GraphDelta d1 = g.copyEdges(contents, v);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);
@@ -77,10 +76,9 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // object k, add everything that k[i] points to to v's set.
             for (Iterator<InstanceKey> iter = delta.pointsToIterator(a); iter.hasNext();) {
                 InstanceKey arrHeapContext = iter.next();
-                ObjectField contents =
-                        new ObjectField(arrHeapContext,
-                                        PointsToGraph.ARRAY_CONTENTS,
-                                        baseType);
+                ObjectField contents = new ObjectField(arrHeapContext,
+                                                       PointsToGraph.ARRAY_CONTENTS,
+                                                       AnalysisUtil.getClassHierarchy().lookupClass(baseType));
                 GraphDelta d1 = g.copyEdges(contents, v);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
                 changed = changed.combine(d1);

@@ -1,7 +1,10 @@
 package analysis.pointer.graph;
 
+import analysis.AnalysisUtil;
+
+import com.ibm.wala.classLoader.IClass;
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.propagation.InstanceKey;
-import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -21,7 +24,7 @@ public final class ObjectField implements PointsToGraphNode {
     /**
      * Type of the field
      */
-    private final TypeReference expectedType;
+    private final IClass expectedType;
     /**
      * Hash code computed once
      */
@@ -29,7 +32,7 @@ public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Points-to graph node representing a non-static field of an object
-     * 
+     *
      * @param receiver
      *            heap context for the receiver
      * @param fieldName
@@ -37,8 +40,7 @@ public final class ObjectField implements PointsToGraphNode {
      * @param expectedType
      *            type of the field
      */
-    public ObjectField(InstanceKey receiver, String fieldName,
-            TypeReference expectedType) {
+    public ObjectField(InstanceKey receiver, String fieldName, IClass expectedType) {
         assert receiver != null;
         assert fieldName != null;
         assert expectedType != null;
@@ -50,29 +52,25 @@ public final class ObjectField implements PointsToGraphNode {
 
     /**
      * Points-to graph node representing a non-static field of an object
-     * 
+     *
      * @param receiver
      *            heap context for the receiver
-     * @param fieldReference
+     * @param ifield
      *            the field
      */
-    public ObjectField(InstanceKey receiver, FieldReference fieldReference) {
-        this(receiver,
-             fieldReference.getName().toString(),
-             fieldReference.getFieldType());
+    public ObjectField(InstanceKey receiver, IField ifield) {
+        this(receiver, ifield.getName().toString(), AnalysisUtil.getClassHierarchy()
+                                                                .lookupClass(ifield.getFieldTypeReference()));
     }
 
     @Override
     public TypeReference getExpectedType() {
-        return expectedType;
+        return expectedType.getReference();
     }
 
     public int computeHashCode() {
         final int prime = 31;
         int result = 1;
-        result =
-                prime * result
-                        + (expectedType == null ? 0 : expectedType.hashCode());
         result =
                 prime * result + (fieldName == null ? 0 : fieldName.hashCode());
         result = prime * result + memoizedHashCode;
@@ -100,14 +98,6 @@ public final class ObjectField implements PointsToGraphNode {
         if (!receiver.equals(other.receiver)) {
             return false;
         }
-        if (expectedType == null) {
-            if (other.expectedType != null) {
-                return false;
-            }
-        }
-        else if (!expectedType.equals(other.expectedType)) {
-            return false;
-        }
         if (fieldName == null) {
             if (other.fieldName != null) {
                 return false;
@@ -130,9 +120,5 @@ public final class ObjectField implements PointsToGraphNode {
 
     public String fieldName() {
         return fieldName;
-    }
-
-    public TypeReference expectedType() {
-        return expectedType;
     }
 }
