@@ -15,6 +15,7 @@ import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.impl.AbstractRootMethod;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.util.CancelException;
@@ -93,14 +94,38 @@ public class HafCallGraph extends ExplicitCallGraph {
         }
         String fullFilename = file + ".dot";
         try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
-            dumpCallGraph(out);
+            dumpCallGraph(out, this);
+            System.err.println("\nDOT written to: " + fullFilename);
+        }
+        catch (IOException e) {
+            System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
+        }
+    }
+
+    /**
+     * Print the call graph in graphviz dot format to a file
+     *
+     * @param filename name of the file, the file is put in tests/filename.dot
+     * @param addDate if true then the date will be added to the filename
+     */
+    public static void dumpCallGraphToFile(String filename, boolean addDate, CallGraph cg) {
+        String file = filename;
+        if (addDate) {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("-yyyy-MM-dd-HH_mm_ss");
+            Date dateNow = new Date();
+            String now = dateFormat.format(dateNow);
+            file += now;
+        }
+        String fullFilename = file + ".dot";
+        try (Writer out = new BufferedWriter(new FileWriter(fullFilename))) {
+            dumpCallGraph(out, cg);
             System.err.println("\nDOT written to: " + fullFilename);
         } catch (IOException e) {
             System.err.println("Could not write DOT to file, " + fullFilename + ", " + e.getMessage());
         }
     }
 
-    private Writer dumpCallGraph(Writer writer) throws IOException {
+    private static Writer dumpCallGraph(Writer writer, CallGraph cg) throws IOException {
         double spread = 1.0;
         writer.write("digraph G {\n" + "nodesep=" + spread + ";\n" + "ranksep=" + spread + ";\n"
                                         + "graph [fontsize=10]" + ";\n" + "node [fontsize=10]" + ";\n"
@@ -111,7 +136,7 @@ public class HafCallGraph extends ExplicitCallGraph {
 
         // Need to differentiate between different nodes with the same string
         writer.write("/******************** NODES ********************/\n");
-        for (CGNode n : this) {
+        for (CGNode n : cg) {
             String nStr = escape(PrettyPrinter.cgNodeString(n));
             Integer count = dotToCount.get(nStr);
             if (count == null) {
@@ -125,8 +150,8 @@ public class HafCallGraph extends ExplicitCallGraph {
         }
 
         writer.write("/******************** EDGES ********************/\n");
-        for (CGNode source : this) {
-            Iterator<CGNode> iter = this.getSuccNodes(source);
+        for (CGNode source : cg) {
+            Iterator<CGNode> iter = cg.getSuccNodes(source);
             while (iter.hasNext()) {
                 CGNode target = iter.next();
                 writer.write("\t\"" + n2s.get(source) + "\" -> \"" + n2s.get(target) + "\";\n");

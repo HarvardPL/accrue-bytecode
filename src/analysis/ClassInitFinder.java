@@ -13,6 +13,7 @@ import com.ibm.wala.classLoader.IMethod;
 import com.ibm.wala.ssa.SSAGetInstruction;
 import com.ibm.wala.ssa.SSAInstruction;
 import com.ibm.wala.ssa.SSAInvokeInstruction;
+import com.ibm.wala.ssa.SSALoadMetadataInstruction;
 import com.ibm.wala.ssa.SSANewInstruction;
 import com.ibm.wala.ssa.SSAPutInstruction;
 import com.ibm.wala.types.TypeReference;
@@ -110,6 +111,10 @@ public class ClassInitFinder {
                 }
                 return f.getDeclaringClass();
             }
+        }
+
+        if (i instanceof SSALoadMetadataInstruction) {
+            return AnalysisUtil.getClassHierarchy().lookupClass(TypeReference.JavaLangClass);
         }
 
         // Invocation of certain reflective methods in class Class and in

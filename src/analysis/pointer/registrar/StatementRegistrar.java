@@ -323,7 +323,7 @@ public class StatementRegistrar {
             return;
         case LOAD_METADATA:
             // Reflection
-            this.registerReflection((SSALoadMetadataInstruction) i, ir, this.rvFactory, types, printer);
+            this.registerLoadMetadata((SSALoadMetadataInstruction) i, ir, this.rvFactory, printer);
             return;
         case NEW_ARRAY:
             this.registerNewArray((SSANewInstruction) i, ir, this.rvFactory, types, printer);
@@ -747,12 +747,22 @@ public class StatementRegistrar {
     }
 
     /**
-     * Load-metadata is used for reflective operations
+     * Load-metadata is used for .class access
      */
-    @SuppressWarnings("unused")
-    private void registerReflection(SSALoadMetadataInstruction i, IR ir, ReferenceVariableFactory rvFactory,
-                                    TypeRepository types, PrettyPrinter pp) {
-        // TODO statement registrar not handling reflection yet
+    private void registerLoadMetadata(SSALoadMetadataInstruction i, IR ir,
+                                      ReferenceVariableFactory rvFactory, PrettyPrinter pprint) {
+        // This is a call like Object.class that returns a Class object, until we handle reflection just allocate a singleton
+        if (!i.getType().equals(TypeReference.JavaLangClass)) {
+            throw new RuntimeException("Load metadata with a non-class target " + i);
+        }
+
+        // Allocation of a singleton java.lang.Class object
+        ReferenceVariable rv = getOrCreateSingleton(TypeReference.JavaLangClass);
+        ReferenceVariable left = rvFactory.getOrCreateLocal(i.getDef(),
+                                                            TypeReference.JavaLangClass,
+                                                            ir.getMethod(),
+                                                            pprint);
+        this.addStatement(stmtFactory.localToLocal(left, rv, ir.getMethod(), false));
     }
 
     /**

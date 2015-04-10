@@ -26,7 +26,7 @@ public class TestStringAnalysis extends TestCase {
     private static final String BAR = "bar";
 
     public static void runTest(String testname, String[] expectedResult) throws ClassHierarchyException, IOException {
-        AnalysisUtil.init("classes/string/", testname, "tests/", Runtime.getRuntime().availableProcessors());
+        AnalysisUtil.init("classes/string/", testname, "tests/", Runtime.getRuntime().availableProcessors(), false);
         StringVariableFactory factory = new StringVariableFactory();
         StringAnalysisResults stringResults = new StringAnalysisResults(factory);
         IMethod main = AnalysisUtil.getOptions().getEntrypoints().iterator().next().getMethod();

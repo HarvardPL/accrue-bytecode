@@ -39,6 +39,15 @@ public final class AccrueAnalysisOptions {
     private boolean singleThreadedPointerAnalysis = false;
 
     /**
+     * Disable signatures for native and System methods. This is unsound, but may be necessary to compare to other
+     * points-to analyses
+     */
+    @Parameter(
+        names = { "-disableSignatures" },
+        description = "Disable signatures for native and System methods. This is unsound, but may be necessary to compare to other points-to analyses.")
+    private boolean disableSignatures = false;
+
+    /**
      * Output folder default is "tests"
      */
     @Parameter(names = { "-out" }, description = "Output directory, default is the tests directory.")
@@ -852,5 +861,14 @@ public final class AccrueAnalysisOptions {
      */
     public int getNumThreads() {
         return this.numThreads;
+    }
+
+    /**
+     * Whether signatures should be used by analyses
+     *
+     * @return true if signatures should be disabled
+     */
+    public boolean shouldDisableSignatures() {
+        return this.disableSignatures;
     }
 }
