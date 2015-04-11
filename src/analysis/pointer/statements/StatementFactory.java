@@ -8,7 +8,6 @@ import java.util.Set;
 import util.print.PrettyPrinter;
 import analysis.AnalysisUtil;
 import analysis.pointer.registrar.MethodSummaryNodes;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 
 import com.ibm.wala.classLoader.CallSiteReference;
@@ -95,8 +94,7 @@ public class StatementFactory {
      * @return statement to be processed during pointer analysis
      */
     public static ExceptionAssignmentStatement exceptionAssignment(ReferenceVariable thrown, ReferenceVariable caught,
-                                                                   Set<IClass> notType, IMethod m,
-                                                                   boolean isToMethodSummaryVariable) {
+                                                                   Set<IClass> notType, IMethod m) {
         assert thrown != null;
         assert caught != null;
         assert notType != null;
@@ -105,8 +103,7 @@ public class StatementFactory {
         ExceptionAssignmentStatement s = new ExceptionAssignmentStatement(thrown,
                                                                           caught,
                                                                           notType,
-                                                                          m,
-                                                                          isToMethodSummaryVariable);
+ m);
         return s;
 
     }
@@ -186,13 +183,12 @@ public class StatementFactory {
      * @param m method the points-to statement came from
      * @return statement to be processed during pointer analysis
      */
-    public LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IMethod m,
-                                              boolean rightIsMethodSummary) {
+    public LocalToLocalStatement localToLocal(ReferenceVariable left, ReferenceVariable right, IMethod m) {
         assert left != null;
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, false, rightIsMethodSummary);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, false);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -203,16 +199,14 @@ public class StatementFactory {
      * @param left assignee
      * @param right the assigned value
      * @param m method the points-to statement came from
-     * @param rightIsMethodSummary
      * @return statement to be processed during pointer analysis
      */
-    public LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, IMethod m,
-                                                      boolean rightIsMethodSummary) {
+    public LocalToLocalStatement localToLocalFiltered(ReferenceVariable left, ReferenceVariable right, IMethod m) {
         assert left != null;
         assert right != null;
         assert m != null;
 
-        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true, rightIsMethodSummary);
+        LocalToLocalStatement s = new LocalToLocalStatement(left, right, m, true);
         assert map.put(new StatementKey(left), s) == null;
         return s;
     }
@@ -539,20 +533,17 @@ public class StatementFactory {
      * @param receiver Receiver of the call
      * @param actuals Actual arguments to the call
      * @param callerException Node representing the exception thrown by this call (if any)
-     * @param rvFactory factory used to find callee summary nodes
      * @return statement to be processed during pointer analysis
      */
     public VirtualCallStatement virtualCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                             ReferenceVariable result, ReferenceVariable receiver,
-                                            List<ReferenceVariable> actuals, ReferenceVariable callerException,
-                                            ReferenceVariableFactory rvFactory) {
+                                            List<ReferenceVariable> actuals, ReferenceVariable callerException) {
         assert callSite != null;
         assert callee != null;
         assert caller != null;
         assert receiver != null;
         assert actuals != null;
         assert callerException != null;
-        assert rvFactory != null;
 
         VirtualCallStatement s = new VirtualCallStatement(callSite,
                                                           caller,
@@ -560,8 +551,7 @@ public class StatementFactory {
                                                           result,
                                                           receiver,
                                                           actuals,
-                                                          callerException,
-                                                          rvFactory);
+                                                          callerException);
         assert map.put(new StatementKey(callSite, caller, callee, result, receiver, actuals, callerException), s) == null;
         return s;
     }

@@ -118,6 +118,7 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
      *            registrar will already be populated
      * @return Points-to graph
      */
+    @SuppressWarnings("synthetic-access")
     public PointsToGraph solveSmarter(final StatementRegistrar registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf);
         this.startTime = System.currentTimeMillis();

@@ -1,12 +1,9 @@
 package analysis.pointer.statements;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import util.OrderedPair;
 import util.print.PrettyPrinter;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -30,11 +27,6 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
     private final TypeFilter filter;
 
     /**
-     * Is right from a method summary?
-     */
-    private final boolean isToMethodSummaryVariable;
-
-    /**
      * Statement for the assignment from a thrown exception to a caught exception or the summary node for the
      * exceptional exit to a method
      *
@@ -48,13 +40,10 @@ public class ExceptionAssignmentStatement extends PointsToStatement {
      * @param m
      *            method the exception is thrown in
      */
-    protected ExceptionAssignmentStatement(ReferenceVariable thrown,
-                                           ReferenceVariable caught,
-                                           Set<IClass> notType, IMethod m,
-                                           boolean isToMethodSummaryVariable) {
+    protected ExceptionAssignmentStatement(ReferenceVariable thrown, ReferenceVariable caught, Set<IClass> notType,
+                                           IMethod m) {
         super(m);
         assert notType != null;
-        this.isToMethodSummaryVariable = isToMethodSummaryVariable;
         this.thrown = thrown;
         this.caught = caught;
         if (caught.getExpectedType().equals(TypeReference.JavaLangThrowable)) {

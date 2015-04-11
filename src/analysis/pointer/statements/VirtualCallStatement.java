@@ -12,7 +12,6 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 import analysis.pointer.graph.GraphDelta;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableReplica;
-import analysis.pointer.registrar.ReferenceVariableFactory;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 
@@ -38,10 +37,6 @@ public class VirtualCallStatement extends CallStatement {
      * Reference variable for the receiver of the call
      */
     private ReferenceVariable receiver;
-    /**
-     * Factory used to create callee summary nodes
-     */
-    private final ReferenceVariableFactory rvFactory;
 
     /**
      * Points-to statement for a virtual method invocation.
@@ -53,17 +48,14 @@ public class VirtualCallStatement extends CallStatement {
      * @param receiver Receiver of the call
      * @param actuals Actual arguments to the call
      * @param exception Node representing the exception thrown by this call (if any)
-     * @param rvFactory factory for managing the creation of reference variables for local variables and static fields
      */
     protected VirtualCallStatement(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                    ReferenceVariable result, ReferenceVariable receiver,
-                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
-                                   ReferenceVariableFactory rvFactory) {
-        super(callSite, caller, result, actuals, exception);
+                                   List<ReferenceVariable> actuals, ReferenceVariable exception) {
+        super(callSite, caller, result, actuals, exception, receiver);
 
         this.callee = callee;
         this.receiver = receiver;
-        this.rvFactory = rvFactory;
     }
 
     @Override
@@ -100,8 +92,7 @@ public class VirtualCallStatement extends CallStatement {
                                                        resolvedCallee,
                                                        g,
                                                        haf,
-                                                       registrar.findOrCreateMethodSummary(resolvedCallee,
-                                                                                           this.rvFactory)));
+                                                       registrar.findOrCreateMethodSummary(resolvedCallee)));
         }
         return changed;
     }

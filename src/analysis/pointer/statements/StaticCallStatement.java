@@ -53,7 +53,7 @@ public class StaticCallStatement extends CallStatement {
                                   IMethod callee, ReferenceVariable result,
                                   List<ReferenceVariable> actuals, ReferenceVariable exception,
                                   MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception);
+        super(callSite, caller, result, actuals, exception, null);
         this.callee = callee;
         this.calleeSummary = calleeSummary;
     }

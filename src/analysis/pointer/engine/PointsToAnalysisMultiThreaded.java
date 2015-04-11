@@ -61,6 +61,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         return this.solveConcurrently(onlineRegistrar, true);
     }
 
+    @SuppressWarnings("synthetic-access")
     public PointsToGraph solveConcurrently(final StatementRegistrar registrar, final boolean registerOnline) {
         System.err.println("Starting points to engine using " + this.haf + " "
                 + PointsToAnalysisMultiThreaded.numThreads() + " threads");

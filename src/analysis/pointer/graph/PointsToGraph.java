@@ -1460,7 +1460,6 @@ public final class PointsToGraph {
                 }
                 test = n;
             }
-            writer.write("\t\"" + nStr + "\";\n");
 
             Iterator<InstanceKey> ikIter = pointsToIterator(n);
             while (ikIter.hasNext()) {

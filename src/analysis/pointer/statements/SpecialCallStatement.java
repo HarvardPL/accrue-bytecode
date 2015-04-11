@@ -61,7 +61,7 @@ public class SpecialCallStatement extends CallStatement {
                                    IMethod callee, ReferenceVariable result,
                                    ReferenceVariable receiver, List<ReferenceVariable> actuals,
                                    ReferenceVariable exception, MethodSummaryNodes calleeSummary) {
-        super(callSite, caller, result, actuals, exception);
+        super(callSite, caller, result, actuals, exception, receiver);
         this.callee = callee;
         this.receiver = receiver;
         this.calleeSummary = calleeSummary;

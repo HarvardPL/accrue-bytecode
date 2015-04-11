@@ -43,7 +43,7 @@ public final class ObjectField implements PointsToGraphNode {
     public ObjectField(InstanceKey receiver, String fieldName, IClass expectedType) {
         assert receiver != null;
         assert fieldName != null;
-        assert expectedType != null;
+        assert expectedType != null : "No class for " + fieldName + " on " + receiver;
         this.receiver = receiver;
         this.fieldName = fieldName;
         this.expectedType = expectedType;
