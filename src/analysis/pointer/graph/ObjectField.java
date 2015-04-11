@@ -18,6 +18,11 @@ public final class ObjectField implements PointsToGraphNode {
     private final InstanceKey receiver;
 
     /**
+     * Name of the declaring class
+     */
+    private final IClass declaringClass;
+
+    /**
      * Name of the field
      */
     private final String fieldName;
@@ -40,12 +45,13 @@ public final class ObjectField implements PointsToGraphNode {
      * @param expectedType
      *            type of the field
      */
-    public ObjectField(InstanceKey receiver, String fieldName, IClass expectedType) {
+    public ObjectField(InstanceKey receiver, IClass declaringClass, String fieldName, IClass expectedType) {
         assert receiver != null;
         assert fieldName != null;
         assert expectedType != null : "No class for " + fieldName + " on " + receiver;
         this.receiver = receiver;
         this.fieldName = fieldName;
+        this.declaringClass = declaringClass;
         this.expectedType = expectedType;
         memoizedHashCode = computeHashCode();
     }
@@ -59,8 +65,10 @@ public final class ObjectField implements PointsToGraphNode {
      *            the field
      */
     public ObjectField(InstanceKey receiver, IField ifield) {
-        this(receiver, ifield.getName().toString(), AnalysisUtil.getClassHierarchy()
-                                                                .lookupClass(ifield.getFieldTypeReference()));
+        this(receiver,
+             ifield.getDeclaringClass(),
+             ifield.getName().toString(),
+             AnalysisUtil.getClassHierarchy().lookupClass(ifield.getFieldTypeReference()));
     }
 
     @Override
@@ -71,10 +79,9 @@ public final class ObjectField implements PointsToGraphNode {
     public int computeHashCode() {
         final int prime = 31;
         int result = 1;
-        result =
-                prime * result + (fieldName == null ? 0 : fieldName.hashCode());
-        result = prime * result + memoizedHashCode;
-        result = prime * result + (receiver == null ? 0 : receiver.hashCode());
+        result = prime * result + ((this.declaringClass == null) ? 0 : this.declaringClass.hashCode());
+        result = prime * result + ((this.fieldName == null) ? 0 : this.fieldName.hashCode());
+        result = prime * result + ((this.receiver == null) ? 0 : this.receiver.hashCode());
         return result;
     }
 
@@ -91,19 +98,32 @@ public final class ObjectField implements PointsToGraphNode {
         if (obj == null) {
             return false;
         }
-        if (!(obj instanceof ObjectField)) {
+        if (getClass() != obj.getClass()) {
             return false;
         }
         ObjectField other = (ObjectField) obj;
-        if (!receiver.equals(other.receiver)) {
+        if (this.declaringClass == null) {
+            if (other.declaringClass != null) {
+                return false;
+            }
+        }
+        else if (!this.declaringClass.equals(other.declaringClass)) {
             return false;
         }
-        if (fieldName == null) {
+        if (this.fieldName == null) {
             if (other.fieldName != null) {
                 return false;
             }
         }
-        else if (!fieldName.equals(other.fieldName)) {
+        else if (!this.fieldName.equals(other.fieldName)) {
+            return false;
+        }
+        if (this.receiver == null) {
+            if (other.receiver != null) {
+                return false;
+            }
+        }
+        else if (!this.receiver.equals(other.receiver)) {
             return false;
         }
         return true;

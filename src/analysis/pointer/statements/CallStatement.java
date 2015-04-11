@@ -236,9 +236,11 @@ public abstract class CallStatement extends PointsToStatement {
                 return changed;
             }
             ObjectField contents = new ObjectField(receiver,
+                                                   receiver.getConcreteType(),
                                                    PointsToGraph.ARRAY_CONTENTS,
                                                    AnalysisUtil.getClassHierarchy().lookupClass(baseType));
             ObjectField newContents = new ObjectField(newHeapContext,
+                                                      newHeapContext.getConcreteType(),
                                                       PointsToGraph.ARRAY_CONTENTS,
                                                       AnalysisUtil.getClassHierarchy().lookupClass(baseType));
             GraphDelta contentsChange = g.copyEdges(contents, newContents);

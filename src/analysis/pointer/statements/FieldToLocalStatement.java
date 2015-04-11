@@ -79,7 +79,7 @@ public class FieldToLocalStatement extends PointsToStatement {
                 IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
                                                                               this.declaredField);
                 assert ifield != null : "No field " + this.declaredField + " in " + recHeapContext.getConcreteType()
-                        + " " + getMethod();
+                        + "; method: " + getMethod() + "; context: " + context;
                 ObjectField f = new ObjectField(recHeapContext, ifield);
 
                 //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
@@ -96,7 +96,7 @@ public class FieldToLocalStatement extends PointsToStatement {
                 IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
                                                                               this.declaredField);
                 assert ifield != null : "No field " + this.declaredField + " in " + recHeapContext.getConcreteType()
-                        + " " + getMethod();
+                        + "; method: " + getMethod() + "; context: " + context;
                 ObjectField f = new ObjectField(recHeapContext, ifield);
                 GraphDelta d1 = g.copyEdges(f, left);
                 changed = changed.combine(d1);
