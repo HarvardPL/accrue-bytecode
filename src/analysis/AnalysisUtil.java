@@ -120,6 +120,10 @@ public class AnalysisUtil {
      * Resolved class for java.lang.Class
      */
     private static IClass classClass;
+    /**
+     * Whether to disable the programmatic signature for Object.clone() and array clone
+     */
+    public static boolean disableObjectClone = false;
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -167,22 +171,27 @@ public class AnalysisUtil {
      * @param classPath Java class path to load class filed from with entries separated by ":"
      * @param entryPoint entry point main method, e.g mypackage.mysubpackage.MyClass
      * @param outputDirectory directory to put outputfiles into
-     * @param disableSignatures
+     * @param disableSignatures Whether signatures should be used. If this flag is true then the analysis results could
+     *            be more unsound, but this may be necessary to compare to other analyses.
+     * @param disableObjectClone Whether to disable the programmatic signature for Object.clone() and array clone
      *
      * @throws IOException Thrown when the analysis scope is invalid
      * @throws ClassHierarchyException Thrown by WALA during class hierarchy construction, if there are issues with the
      *             class path and for other reasons see {@link ClassHierarchy}
      */
     public static void init(String classPath, String entryPoint, String outputDirectory, int numThreads,
-                            boolean disableSignatures) throws IOException, ClassHierarchyException {
+                            boolean disableSignatures, boolean disableObjectClone) throws IOException,
+                                                                                  ClassHierarchyException {
         AnalysisUtil.numThreads = numThreads;
         AnalysisUtil.outputDirectory = outputDirectory;
+        AnalysisUtil.disableSignatures = disableSignatures;
+        AnalysisUtil.disableObjectClone = disableObjectClone;
+
         AnalysisUtil.cache = new AnalysisCache();
 
-
         AnalysisUtil.scope = AnalysisScopeReader.readJavaScope(PRIMORDIAL_FILENAME,
-                                                                EXCLUSIONS_FILE,
-                                                                AnalysisUtil.class.getClassLoader());
+                                                               EXCLUSIONS_FILE,
+                                                               AnalysisUtil.class.getClassLoader());
         System.err.println("CLASSPATH=" + classPath);
         AnalysisScopeReader.addClassPathToScope(classPath, scope, ClassLoaderReference.Application);
 
@@ -208,10 +217,6 @@ public class AnalysisUtil {
         }
         AnalysisUtil.options = new AnalysisOptions(scope, entrypoints);
 
-        if (disableSignatures) {
-            AnalysisUtil.disableSignatures = true;
-        }
-
         addEntriesToRootMethod();
         setUpCommonClasses();
         ensureSignatures();
@@ -223,7 +228,8 @@ public class AnalysisUtil {
         IMethod m = cha.resolveMethod(systemClass, arrayCopy);
         if (getIR(m) == null) {
             System.err.println("WARNING: cannot resolve signatures. Ensure \"classes/signatures\" is on the analysis classpath set with \"-cp\".");
-        } else {
+        }
+        else {
             System.err.println("Signatures: ENABLED");
         }
     }

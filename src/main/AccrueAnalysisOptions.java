@@ -48,6 +48,24 @@ public final class AccrueAnalysisOptions {
     private boolean disableSignatures = false;
 
     /**
+     * Disable default signatures for native methods that do not have native signatures. This is less sound, but may be
+     * necessary to compare to other points-to analyses
+     */
+    @Parameter(
+        names = { "-disableDefaultNativeSignatures" },
+        description = "Disable default signatures for native methods that do not have native signatures. This is less sound, but may be necessary to compare to other points-to analyses")
+    private boolean disableDefaultNativeSignatures = false;
+
+    /**
+     * Disable default signatures for native methods that do not have native signatures. This is less sound, but may be
+     * necessary to compare to other points-to analyses
+     */
+    @Parameter(
+        names = { "-disableObjectClone" },
+        description = "Disable the programmatic signature for Object.clone() and array clone")
+    private boolean disableObjectClone = false;
+
+    /**
      * Output folder default is "tests"
      */
     @Parameter(names = { "-out" }, description = "Output directory, default is the tests directory.")
@@ -870,5 +888,24 @@ public final class AccrueAnalysisOptions {
      */
     public boolean shouldDisableSignatures() {
         return this.disableSignatures;
+    }
+
+    /**
+     * Whether a default signature should be used for native methods without signatures. The default signature allocates
+     * and returns a new object of the return type.
+     *
+     * @return true if default signatures should be disabled
+     */
+    public boolean shouldDisableDefaultNativeSignatures() {
+        return this.disableDefaultNativeSignatures;
+    }
+
+    /**
+     * Whether the inline signature for Object.clone() and array clone should be disabled
+     *
+     * @return true if the inline signature for Object.clone() and array clone should be disabled
+     */
+    public boolean shouldDisableObjectClone() {
+        return this.disableObjectClone;
     }
 }

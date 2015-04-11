@@ -27,6 +27,7 @@ import analysis.pointer.duplicates.RemoveDuplicateStatements.VariableIndex;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
+import analysis.pointer.statements.CallStatement;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -116,6 +117,10 @@ public class StatementRegistrar {
     private final boolean useSingleAllocForImmutableWrappers;
 
     private final boolean useSingleAllocForSwing = true;
+    /**
+     * Whether to use a signature that allocates the return type when there is no other signature
+     */
+    private final boolean useDefaultSignatures;
 
     /**
      * If the above is true and only one allocation will be made for each generated exception type. This map holds that
@@ -165,10 +170,13 @@ public class StatementRegistrar {
      * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for any immutable wrapper
      *            class. This will reduce the size of the points-to graph (and speed up the points-to analysis), but
      *            result in a loss of precision for these classes.
+     * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
+     *            other signature
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
-                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers) {
+                              boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
+                              boolean useDefaultNativeSignatures) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
         this.singletonReferenceVariables = AnalysisUtil.createConcurrentHashMap();
@@ -176,6 +184,7 @@ public class StatementRegistrar {
         this.handledStringLit = AnalysisUtil.createConcurrentSet();
         this.entryPoint = AnalysisUtil.getFakeRoot();
         this.stmtFactory = factory;
+        this.useDefaultSignatures = useDefaultNativeSignatures;
         this.useSingleAllocForGenEx = useSingleAllocForGenEx || useSingleAllocPerThrowableType;
         System.err.println("Singleton allocation site per generated exception type: " + this.useSingleAllocForGenEx);
         this.useSingleAllocForPrimitiveArrays = useSingleAllocForPrimitiveArrays;
@@ -210,7 +219,7 @@ public class StatementRegistrar {
             if (ir == null) {
                 // Native method with no signature
                 assert m.isNative() : "No IR for non-native method: " + PrettyPrinter.methodString(m);
-                this.registerNative(m, this.rvFactory);
+                this.registerNative(m);
                 return true;
             }
 
@@ -268,8 +277,9 @@ public class StatementRegistrar {
      * A listener that will get notified of newly created statements.
      */
     private StatementListener stmtListener = null;
-    int swingClasses = 0;
-
+    /**
+     * Total number of statements that are removed when duplicate statements are removed
+     */
     private static int removed = 0;
 
     /**
@@ -428,7 +438,7 @@ public class StatementRegistrar {
                                                           ir.getMethod(),
                                                           pp);
         ReferenceVariable v1 = rvFactory.getOrCreateLocal(i.getVal(), types.getType(i.getVal()), ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod(), false));
+        this.addStatement(stmtFactory.localToLocalFiltered(v2, v1, ir.getMethod()));
     }
 
     /**
@@ -575,7 +585,7 @@ public class StatementRegistrar {
             }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
-            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
+            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee);
             this.addStatement(stmtFactory.staticCall(i.getCallSite(),
                                                      ir.getMethod(),
                                                      resolvedCallee,
@@ -587,12 +597,15 @@ public class StatementRegistrar {
         else if (i.isSpecial()) {
             Set<IMethod> resolvedMethods = resolveMethodsForInvocation(i, ir.getMethod());
             if (resolvedMethods.isEmpty()) {
-                // XXX No methods found!
+                if (PointsToAnalysis.outputLevel > 1) {
+                    System.err.println("No methods found for " + i);
+                }
+                // No methods found!
                 return;
             }
             assert resolvedMethods.size() == 1;
             IMethod resolvedCallee = resolvedMethods.iterator().next();
-            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee, rvFactory);
+            MethodSummaryNodes calleeSummary = this.findOrCreateMethodSummary(resolvedCallee);
             this.addStatement(stmtFactory.specialCall(i.getCallSite(),
                                                       ir.getMethod(),
                                                       resolvedCallee,
@@ -614,8 +627,7 @@ public class StatementRegistrar {
                                                       result,
                                                       receiver,
                                                       actuals,
-                                                      exception,
-                                                      rvFactory));
+                                                      exception));
         }
         else {
             throw new UnsupportedOperationException("Unhandled invocation code: " + i.getInvocationCode() + " for "
@@ -639,7 +651,7 @@ public class StatementRegistrar {
         assert klass != null : "No class found for " + PrettyPrinter.typeString(i.getNewSite().getDeclaredType());
         if (useSingleAllocForPrimitiveArrays && resultType.getArrayElementType().isPrimitiveType()) {
             ReferenceVariable rv = getOrCreateSingleton(resultType);
-            this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(a, rv, ir.getMethod()));
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(a,
@@ -688,26 +700,25 @@ public class StatementRegistrar {
         if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
             // the newly allocated object is throwable, and we only want one allocation per throwable type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod()));
 
         }
         else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(allocType)) {
             // The newly allocated object is an immutable wrapper class, and we only want one allocation site for each type
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod()));
         }
         else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
             // the newly allocated object is a string, and we only want one allocation for strings
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod()));
 
         }
         else if (useSingleAllocForSwing
                 && (klass.toString().contains("Ljavax/swing/") || klass.toString().contains("Lsun/swing/") || klass.toString()
                                                                                                                    .contains("Lcom/sun/java/swing"))) {
-            swingClasses++;
             ReferenceVariable rv = getOrCreateSingleton(allocType);
-            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod(), false));
+            this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod()));
         }
         else if (klass.toString().contains("swing")) {
             System.err.println("SWING CLASS: " + klass);
@@ -768,7 +779,7 @@ public class StatementRegistrar {
                                                             TypeReference.JavaLangClass,
                                                             ir.getMethod(),
                                                             pprint);
-        this.addStatement(stmtFactory.localToLocal(left, rv, ir.getMethod(), false));
+        this.addStatement(stmtFactory.localToLocal(left, rv, ir.getMethod()));
     }
 
     /**
@@ -788,7 +799,7 @@ public class StatementRegistrar {
         }
 
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getResult(), valType, ir.getMethod(), pp);
-        ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getReturn();
+        ReferenceVariable summary = this.findOrCreateMethodSummary(ir.getMethod()).getReturn();
         this.addStatement(stmtFactory.returnStatement(v, summary, ir.getMethod(), i));
     }
 
@@ -808,12 +819,11 @@ public class StatementRegistrar {
      * Get the method summary nodes for the given method, create if necessary
      *
      * @param method method to get summary nodes for
-     * @param rvFactory factory for creating new reference variables (if necessary)
      */
-    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method, ReferenceVariableFactory rvFactory) {
+    public MethodSummaryNodes findOrCreateMethodSummary(IMethod method) {
         MethodSummaryNodes msn = this.methods.get(method);
         if (msn == null) {
-            msn = new MethodSummaryNodes(method, rvFactory);
+            msn = new MethodSummaryNodes(method);
             MethodSummaryNodes ex = this.methods.putIfAbsent(method, msn);
             if (ex != null) {
                 msn = ex;
@@ -1000,7 +1010,7 @@ public class StatementRegistrar {
         if (useSingleAllocForStrings) {
             // v = string
             ReferenceVariable rv = getOrCreateSingleton(AnalysisUtil.getStringClass().getReference());
-            this.addStatement(stmtFactory.localToLocal(stringLit, rv, m, false));
+            this.addStatement(stmtFactory.localToLocal(stringLit, rv, m));
         }
         else {
             // v = new String
@@ -1147,11 +1157,7 @@ public class StatementRegistrar {
 
                 if (maybeCaught || definitelyCaught) {
                     caught = rvFactory.getOrCreateLocal(catchIns.getException(), caughtType, ir.getMethod(), pp);
-                    this.addStatement(StatementFactory.exceptionAssignment(thrown,
-                                                                           caught,
-                                                                           notType,
-                                                                           ir.getMethod(),
-                                                                           false));
+                    this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
                 }
 
                 // if we have definitely caught the exception, no need to add more exception assignment statements.
@@ -1164,10 +1170,10 @@ public class StatementRegistrar {
             }
             else {
                 assert succ.isExitBlock() : "Exceptional successor should be catch block or exit block.";
-                // TODO do not propagate java.lang.Errors out of this class, this is possibly unsound
-                // TODO uncomment to not propagate errors notType.add(AnalysisUtil.getErrorClass());
-                caught = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory).getException();
-                this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod(), true));
+                // uncomment to not propagate errors this is probably unsound
+                // notType.add(AnalysisUtil.getErrorClass());
+                caught = this.findOrCreateMethodSummary(ir.getMethod()).getException();
+                this.addStatement(StatementFactory.exceptionAssignment(thrown, caught, notType, ir.getMethod()));
             }
         }
     }
@@ -1197,8 +1203,16 @@ public class StatementRegistrar {
         this.addStatement(stmtFactory.newForNative(summary, allocatedClass, m));
     }
 
-    private void registerNative(IMethod m, ReferenceVariableFactory rvFactory) {
-        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m, rvFactory);
+    private void registerNative(IMethod m) {
+        if (m.getReference().equals(CallStatement.CLONE) && !AnalysisUtil.disableObjectClone) {
+            // Object.clone() is handled in CallStatement.processObjectOrArrayClone
+            return;
+        }
+        if (!useDefaultSignatures) {
+            // Don't create signatures for native methods without them
+            return;
+        }
+        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(m);
         if (!m.getReturnType().isPrimitiveType()) {
             // Allocation of return value
             this.registerAllocationForNative(m, m.getReturnType(), methodSummary.getReturn());
@@ -1214,8 +1228,7 @@ public class StatementRegistrar {
                     this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                            methodSummary.getException(),
                                                                            Collections.<IClass> emptySet(),
-                                                                           m,
-                                                                           true));
+                                                                           m));
                     this.registerAllocationForNative(m, exType, ex);
                     containsRTE |= exType.equals(TypeReference.JavaLangRuntimeException);
                 }
@@ -1235,14 +1248,13 @@ public class StatementRegistrar {
             this.addStatement(StatementFactory.exceptionAssignment(ex,
                                                                    methodSummary.getException(),
                                                                    Collections.<IClass> emptySet(),
-                                                                   m,
-                                                                   true));
+                                                                   m));
             this.registerAllocationForNative(m, TypeReference.JavaLangRuntimeException, methodSummary.getException());
         }
     }
 
     private void registerFormalAssignments(IR ir, ReferenceVariableFactory rvFactory, PrettyPrinter pp) {
-        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod(), rvFactory);
+        MethodSummaryNodes methodSummary = this.findOrCreateMethodSummary(ir.getMethod());
         for (int i = 0; i < ir.getNumberOfParameters(); i++) {
             TypeReference paramType = ir.getParameterType(i);
             if (paramType.isPrimitiveType()) {
@@ -1253,13 +1265,12 @@ public class StatementRegistrar {
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
             if (paramType.getName().equals(TypeReference.JavaLangObject.getName())) {
                 // Don't filter if the type is java.lang.Object since everything will pass anyway
-                this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod(), true));
+                this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod()));
             }
             else {
                 this.addStatement(stmtFactory.localToLocalFiltered(param,
                                                                    methodSummary.getFormal(i),
-                                                                   ir.getMethod(),
-                                                                   true));
+                                                                   ir.getMethod()));
             }
         }
     }

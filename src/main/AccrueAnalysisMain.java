@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,7 @@ import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis;
 import analysis.pointer.engine.PointsToAnalysisMultiThreaded;
 import analysis.pointer.engine.PointsToAnalysisSingleThreaded;
+import analysis.pointer.graph.HafCallGraph;
 import analysis.pointer.graph.PointsToGraph;
 import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.StatementRegistrar;
@@ -57,6 +59,7 @@ import com.ibm.wala.ipa.callgraph.AnalysisOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisOptions.ReflectionOptions;
 import com.ibm.wala.ipa.callgraph.AnalysisScope;
 import com.ibm.wala.ipa.callgraph.CGNode;
+import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.impl.Util;
@@ -115,6 +118,8 @@ public class AccrueAnalysisMain {
         int numThreads = useSingleThreadedPointerAnalysis ? 1 : options.getNumThreads();
         testMode = options.isTestMode();
         boolean disableSignatures = options.shouldDisableSignatures();
+        boolean useDefaultNativeSignatures = !options.shouldDisableDefaultNativeSignatures();
+        boolean disableObjectClone = options.shouldDisableObjectClone();
 
         // Trade-offs for points-to analysis precision vs. size/time
         boolean singleGenEx = options.shouldUseSingleAllocForGenEx();
@@ -144,7 +149,7 @@ public class AccrueAnalysisMain {
         PointsToGraph g;
         ReferenceVariableCache rvCache;
         AccessibleLocationResults alr;
-        AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads, disableSignatures);
+        AnalysisUtil.init(classPath, entryPoint, outputDir, numThreads, disableSignatures, disableObjectClone);
         switch (analysisName) {
         case "pointsto":
             runWalaPointerAnalysis(haf,
@@ -154,7 +159,9 @@ public class AccrueAnalysisMain {
                                    singleString,
                                    singleWrappers,
                                    classPath,
-                                   entryPoint);
+                                   entryPoint,
+                                   fileLevel,
+                                   useDefaultNativeSignatures);
             break;
         case "pointsto2":
             results = generatePointsToGraph(outputLevel,
@@ -165,11 +172,15 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
-            //            g.dumpPointsToGraphToFile(fileName + "_ptg", false);
+            //
             if (fileLevel > 0) {
                 g.getCallGraph().dumpCallGraphToFile(outputDir + "/" + fileName + "_cg", false);
+            }
+            if (fileLevel > 1) {
+                g.dumpPointsToGraphToFile(outputDir + "/" + fileName + "_ptg", false);
             }
             //            System.err.println(g.getNodes().size() + " Nodes");
             int num = 0;
@@ -202,7 +213,8 @@ public class AccrueAnalysisMain {
                                singleThrowable,
                                singlePrimArray,
                                singleString,
-                               singleWrappers);
+                               singleWrappers,
+                               useDefaultNativeSignatures);
             break;
         case "nonnull":
             results = generatePointsToGraph(outputLevel,
@@ -213,7 +225,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             ReachabilityResults r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -230,7 +243,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -250,7 +264,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -301,7 +316,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -318,7 +334,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(outputLevel, g, rvCache, null);
@@ -333,7 +350,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             printAllCFG(g, outputDir);
             break;
@@ -364,7 +382,8 @@ public class AccrueAnalysisMain {
                                             singleThrowable,
                                             singlePrimArray,
                                             singleString,
-                                            singleWrappers);
+                                            singleWrappers,
+                                            useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
             r = runReachability(otherOutputLevel, g, rvCache, null);
@@ -493,6 +512,8 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
+     *            other signature
      * @return the resulting points-to graph
      */
     private static OrderedPair<PointsToGraph, ReferenceVariableCache> generatePointsToGraph(int outputLevel,
@@ -503,7 +524,8 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForThrowable,
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings,
-                                                                                            boolean useSingleAllocForImmutableWrappers) {
+                                                                                            boolean useSingleAllocForImmutableWrappers,
+                                                                                            boolean useDefaultNativeSignatures) {
         PointsToAnalysis analysis;
         if (singleThreaded) {
             analysis = new PointsToAnalysisSingleThreaded(haf);
@@ -521,7 +543,8 @@ public class AccrueAnalysisMain {
                                                useSingleAllocForThrowable,
                                                useSingleAllocForPrimitiveArrays,
                                                useSingleAllocForStrings,
-                                               useSingleAllocForImmutableWrappers);
+                                               useSingleAllocForImmutableWrappers,
+                                               useDefaultNativeSignatures);
             g = analysis.solveAndRegister(registrar);
         }
         else {
@@ -530,7 +553,8 @@ public class AccrueAnalysisMain {
                                                                            useSingleAllocForThrowable,
                                                                            useSingleAllocForPrimitiveArrays,
                                                                            useSingleAllocForStrings,
-                                                                           useSingleAllocForImmutableWrappers);
+                                                                           useSingleAllocForImmutableWrappers,
+                                                                           useDefaultNativeSignatures);
             pass.run();
             registrar = pass.getRegistrar();
             PointsToAnalysis.outputLevel = outputLevel;
@@ -557,26 +581,14 @@ public class AccrueAnalysisMain {
         return new OrderedPair<>(g, rvCache);
     }
 
-    @SuppressWarnings("unused")
     private static void runWalaPointerAnalysis(final HeapAbstractionFactory haf, boolean useSingleAllocForGenEx,
                                                boolean useSingleAllocForThrowable,
                                                boolean useSingleAllocForPrimitiveArrays,
                                                boolean useSingleAllocForStrings,
                                                boolean useSingleAllocForImmutableWrappers, String classPath,
-                                               String entryPoint) throws IOException, ClassHierarchyException {
-
-        //        // Run our points-to analysis to generate class initializers (how do we void out the AnalysisUtil?)
-        //        OrderedPair<PointsToGraph, ReferenceVariableCache> out = generatePointsToGraph(0,
-        //                                                                                       haf,
-        //                                                                                       false,
-        //                                                                                       false,
-        //                                                                                       useSingleAllocForGenEx,
-        //                                                                                       useSingleAllocForThrowable,
-        //                                                                                       useSingleAllocForPrimitiveArrays,
-        //                                                                                       useSingleAllocForStrings,
-        //                                                                                       useSingleAllocForImmutableWrappers);
-        //        PointsToGraph g = out.fst();
-
+                                               String entryPoint, int fileLevel, boolean useDefaultNativeSignatures)
+                                                                                                                    throws IOException,
+                                                                                                                    ClassHierarchyException {
         // Set up WALA's points-to analysis
         AnalysisCache cache = new AnalysisCache();
         AnalysisScope scope = AnalysisScopeReader.readJavaScope(AnalysisUtil.PRIMORDIAL_FILENAME,
@@ -597,13 +609,6 @@ public class AccrueAnalysisMain {
                     + entryPoint.replace(".", "/"));
         }
 
-        //        Set<Entrypoint> eps = new HashSet<>();
-        //        for (CGNode n : entries) {
-        //            Entrypoint ep = new DefaultEntrypoint(n.getMethod(), cha);
-        //            eps.add(ep);
-        //            eps.add(entrypoints.iterator().next());
-        //        }
-
         AnalysisOptions options = new AnalysisOptions(scope, entrypoints);
 
         options.setReflectionOptions(ReflectionOptions.NONE);
@@ -621,46 +626,79 @@ public class AccrueAnalysisMain {
             long start = System.currentTimeMillis();
             ExplicitCallGraph cg = (ExplicitCallGraph) builder.makeCallGraph(options, null);
             System.err.println("FINISHED: " + (System.currentTimeMillis() - start) / 1000.0);
-            System.err.println("\t" + cg.getNumberOfNodes() + " call graph nodes");
-            //            HafCallGraph.dumpCallGraphToFile("walaCallGraph", false, cg);
-            //            HafCallGraph.dumpCallGraphToFile("ourCallGraph", false, g.getCallGraph());
-            //            for (CGNode n : g.getCallGraph()) {
-            //
-            //                CGNode walaN = null;
-            //                for (CGNode nn : cg) {
-            //                    if (PrettyPrinter.cgNodeString(n).equals(PrettyPrinter.cgNodeString(nn))) {
-            //                        walaN = nn;
-            //                        break;
-            //                    }
-            //                }
-            //                if (walaN == null) {
-            //                    System.err.println(n + " not in WALA");
-            //                    continue;
-            //                }
-            //
-            //                Iterator<CGNode> walaSuccs = cg.getSuccNodes(walaN);
-            //                while (walaSuccs.hasNext()) {
-            //                    boolean found = false;
-            //                    CGNode walaSucc = walaSuccs.next();
-            //                    Iterator<CGNode> succs = g.getCallGraph().getSuccNodes(n);
-            //                    while (succs.hasNext()) {
-            //                        CGNode succ = succs.next();
-            //                        if (PrettyPrinter.cgNodeString(walaSucc).equals(PrettyPrinter.cgNodeString(succ))) {
-            //                            found = true;
-            //                            break;
-            //                        }
-            //                    }
-            //                    if (!found) {
-            //                        System.err.println("UNFOUND: " + PrettyPrinter.cgNodeString(n) + " -> "
-            //                                + PrettyPrinter.cgNodeString(walaSucc));
-            //                    }
-            //                }
-            //            }
+            System.err.println("\tWALA CG nodes: " + cg.getNumberOfNodes());
+            if (fileLevel > 0) {
+                // Run our points-to analysis and compare the results to WALA's
+                // This is only to find bugs not for performance comparison
+                OrderedPair<PointsToGraph, ReferenceVariableCache> out = generatePointsToGraph(0,
+                                                                                               haf,
+                                                                                               false,
+                                                                                               false,
+                                                                                               useSingleAllocForGenEx,
+                                                                                               useSingleAllocForThrowable,
+                                                                                               useSingleAllocForPrimitiveArrays,
+                                                                                               useSingleAllocForStrings,
+                                                                                               useSingleAllocForImmutableWrappers,
+                                                                                               useDefaultNativeSignatures);
+                PointsToGraph g = out.fst();
+                HafCallGraph.dumpCallGraphToFile("walaCallGraph", false, cg);
+                HafCallGraph.dumpCallGraphToFile("ourCallGraph", false, g.getCallGraph());
+                compareCallGraphs(cg, g.getCallGraph(), true);
+                System.err.println("##########################  REVERSE COMPARE  ##########################");
+                compareCallGraphs(g.getCallGraph(), cg, false);
+            }
+
         }
         catch (IllegalArgumentException | CancelException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Print the edges in call graph 1 where the first node is in call graph 2 but the edge is not
+     *
+     * @param cg1 call graph to compare to
+     * @param cg2 call graph to compare
+     * @param firstIsWala whether the first call graph is from WALA otherwise the second is
+     */
+    private static void compareCallGraphs(CallGraph cg1, CallGraph cg2, boolean firstIsWala) {
+        for (CGNode n : cg2) {
+
+            CGNode walaN = null;
+            for (CGNode nn : cg1) {
+                if (PrettyPrinter.cgNodeString(n).equals(PrettyPrinter.cgNodeString(nn))) {
+                    walaN = nn;
+                    break;
+                }
+            }
+            if (walaN == null) {
+                System.err.println("NODE: " + PrettyPrinter.cgNodeString(n)
+                        + (firstIsWala ? " not in WALA" : " not in Ours"));
+                continue;
+            }
+
+            Iterator<CGNode> walaSuccs = cg1.getSuccNodes(walaN);
+            while (walaSuccs.hasNext()) {
+                boolean found = false;
+                CGNode walaSucc = walaSuccs.next();
+                Iterator<CGNode> succs = cg2.getSuccNodes(n);
+                while (succs.hasNext()) {
+                    CGNode succ = succs.next();
+                    if (PrettyPrinter.cgNodeString(walaSucc).equals(PrettyPrinter.cgNodeString(succ))) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    //                    if (walaSucc.getContext().toString().contains("Exception>")) {
+                    //                        // We know we are more precise than WALA for exceptions
+                    //                        continue;
+                    //                    }
+                    System.err.println("UNFOUND: " + PrettyPrinter.cgNodeString(n) + " -> "
+                            + PrettyPrinter.cgNodeString(walaSucc));
+                }
+            }
         }
     }
 
@@ -778,12 +816,15 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
+     *            other signature
      */
     private static void runBooleanConstant(String entryPoint, int outputLevel, HeapAbstractionFactory haf,
                                            String outputDir, boolean singleThreaded, boolean isOnline,
                                            boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
-                                           boolean useSingleAllocForImmutableWrappers) {
+                                           boolean useSingleAllocForImmutableWrappers,
+                                           boolean useDefaultNativeSignatures) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
                                                                                            isOnline,
@@ -792,7 +833,8 @@ public class AccrueAnalysisMain {
                                                                                            useSingleAllocForThrowable,
                                                                                            useSingleAllocForPrimitiveArrays,
                                                                                            useSingleAllocForStrings,
-                                                                                           useSingleAllocForImmutableWrappers);
+                                                                                           useSingleAllocForImmutableWrappers,
+                                                                                           useDefaultNativeSignatures);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);
         for (CGNode n : results.fst().getCallGraph()) {

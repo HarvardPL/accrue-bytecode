@@ -56,16 +56,20 @@ public class StatementRegistrationPass {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
+     *            other signature
      */
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
-                                     boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers) {
+                                     boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
+                                     boolean useDefaultNativeSignatures) {
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
                                            useSingleAllocForThrowable,
                                            useSingleAllocForPrimitiveArrays,
                                            useSingleAllocForStrings,
-                                           useSingleAllocForImmutableWrappers);
+                                           useSingleAllocForImmutableWrappers,
+                                           useDefaultNativeSignatures);
     }
 
     /**
@@ -219,7 +223,6 @@ public class StatementRegistrationPass {
         }
 
         System.err.println("Statement registration took " + (System.currentTimeMillis() - start) + "ms");
-        System.err.println("Saw " + registrar.swingClasses + " allocations from the Swing libraries.");
         if (!AccrueAnalysisMain.testMode) {
             System.gc();
             System.err.println("USED " + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000)
