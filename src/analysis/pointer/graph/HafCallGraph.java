@@ -158,7 +158,7 @@ public class HafCallGraph extends ExplicitCallGraph {
             }
         }
 
-        writer.write("\n};\n");
+        writer.write("\n}\n");
         return writer;
     }
 
