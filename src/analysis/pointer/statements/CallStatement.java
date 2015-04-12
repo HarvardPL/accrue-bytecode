@@ -235,14 +235,18 @@ public abstract class CallStatement extends PointsToStatement {
             if (baseType.isPrimitiveType()) {
                 return changed;
             }
+
+            IClass base = AnalysisUtil.getClassHierarchy().lookupClass(receiver.getConcreteType()
+                                                                               .getReference()
+                                                                               .getArrayElementType());
             ObjectField contents = new ObjectField(receiver,
                                                    receiver.getConcreteType(),
                                                    PointsToGraph.ARRAY_CONTENTS,
-                                                   AnalysisUtil.getClassHierarchy().lookupClass(baseType));
+                                                   base);
             ObjectField newContents = new ObjectField(newHeapContext,
                                                       newHeapContext.getConcreteType(),
                                                       PointsToGraph.ARRAY_CONTENTS,
-                                                      AnalysisUtil.getClassHierarchy().lookupClass(baseType));
+                                                      base);
             GraphDelta contentsChange = g.copyEdges(contents, newContents);
             changed = changed.combine(contentsChange);
         }

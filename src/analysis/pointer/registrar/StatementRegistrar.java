@@ -399,7 +399,7 @@ public class StatementRegistrar {
 
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getDef(), baseType, ir.getMethod(), pp);
         ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.arrayToLocal(v, a, baseType, ir.getMethod()));
+        this.addStatement(stmtFactory.arrayToLocal(v, a, ir.getMethod()));
     }
 
     /**
@@ -418,7 +418,7 @@ public class StatementRegistrar {
 
         ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pp);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getValue(), valueType, ir.getMethod(), pp);
-        this.addStatement(stmtFactory.localToArrayContents(a, v, baseType, ir.getMethod(), i));
+        this.addStatement(stmtFactory.localToArrayContents(a, v, ir.getMethod(), i));
     }
 
     /**
@@ -1263,15 +1263,7 @@ public class StatementRegistrar {
             }
             int paramNum = ir.getParameter(i);
             ReferenceVariable param = rvFactory.getOrCreateLocal(paramNum, paramType, ir.getMethod(), pp);
-            if (paramType.getName().equals(TypeReference.JavaLangObject.getName())) {
-                // Don't filter if the type is java.lang.Object since everything will pass anyway
-                this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod()));
-            }
-            else {
-                this.addStatement(stmtFactory.localToLocalFiltered(param,
-                                                                   methodSummary.getFormal(i),
-                                                                   ir.getMethod()));
-            }
+            this.addStatement(stmtFactory.localToLocal(param, methodSummary.getFormal(i), ir.getMethod()));
         }
     }
 

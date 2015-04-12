@@ -44,17 +44,14 @@ public class StatementFactory {
      *
      * @param v Points-to graph node for the assignee
      * @param a Points-to graph node for the array being accessed
-     * @param baseType base type of the array
      * @return statement to be processed during pointer analysis
      */
-    public ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, TypeReference baseType,
-                                              IMethod m) {
+    public ArrayToLocalStatement arrayToLocal(ReferenceVariable v, ReferenceVariable a, IMethod m) {
         assert v != null;
         assert a != null;
-        assert baseType != null;
         assert m != null;
 
-        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, m);
+        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, m);
         assert map.put(new StatementKey(v), s) == null;
         return s;
     }
@@ -134,19 +131,17 @@ public class StatementFactory {
      *
      * @param array array assigned into
      * @param local assigned value
-     * @param baseType type of the array elements
      * @param m method the statement was created for
      * @return statement to be processed during pointer analysis
      */
     public LocalToArrayStatement localToArrayContents(ReferenceVariable array, ReferenceVariable local,
-                                                      TypeReference baseType, IMethod m, SSAArrayStoreInstruction i) {
+                                                      IMethod m, SSAArrayStoreInstruction i) {
         assert array != null;
         assert local != null;
-        assert baseType != null;
         assert m != null;
         assert i != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, m);
+        LocalToArrayStatement s = new LocalToArrayStatement(array, local, m);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(array, local, i), s) == null;
         return s;
@@ -256,7 +251,7 @@ public class StatementFactory {
         assert innerArray != null;
         assert m != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), m);
+        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, m);
         assert map.put(new StatementKey(outerArray, innerArray), s) == null;
         return s;
     }
