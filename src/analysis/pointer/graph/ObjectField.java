@@ -102,14 +102,7 @@ public final class ObjectField implements PointsToGraphNode {
             return false;
         }
         ObjectField other = (ObjectField) obj;
-        if (this.declaringClass == null) {
-            if (other.declaringClass != null) {
-                return false;
-            }
-        }
-        else if (!this.declaringClass.equals(other.declaringClass)) {
-            return false;
-        }
+
         if (this.fieldName == null) {
             if (other.fieldName != null) {
                 return false;
@@ -124,6 +117,15 @@ public final class ObjectField implements PointsToGraphNode {
             }
         }
         else if (!this.receiver.equals(other.receiver)) {
+            return false;
+        }
+
+        if (this.declaringClass == null) {
+            if (other.declaringClass != null) {
+                return false;
+            }
+        }
+        else if (!this.declaringClass.equals(other.declaringClass)) {
             return false;
         }
         return true;
