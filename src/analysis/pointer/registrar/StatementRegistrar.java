@@ -153,9 +153,9 @@ public class StatementRegistrar {
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
      * points-to graph.
-     * 
+     *
      * @param factory factory used to create points-to statements
-     * 
+     *
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -282,6 +282,7 @@ public class StatementRegistrar {
      * A listener that will get notified of newly created statements.
      */
     private StatementListener stmtListener = null;
+
     /**
      * Total number of statements that are removed when duplicate statements are removed
      */
@@ -724,8 +725,9 @@ public class StatementRegistrar {
             ReferenceVariable rv = getOrCreateSingleton(allocType);
             this.addStatement(stmtFactory.localToLocal(result, rv, ir.getMethod()));
         }
-        else if (klass.toString().contains("swing")) {
-            System.err.println("SWING CLASS: " + klass);
+        else if (klass.toString().contains("swing") && !printedSwingWarning) {
+            printedSwingWarning = true;
+            System.err.println("USES Java Swing library. May want to use option -useSingleAllocForSwing.");
         }
         else {
             this.addStatement(stmtFactory.newForNormalAlloc(result,
@@ -735,6 +737,12 @@ public class StatementRegistrar {
                                                             pp.getLineNumber(i)));
         }
     }
+
+    /**
+     * Print a warning when a class in the swing library is encountered and we are not using a single alloc for these
+     * classes
+     */
+    private boolean printedSwingWarning = false;
 
     /**
      * x = phi(x_1, x_2, ...)
