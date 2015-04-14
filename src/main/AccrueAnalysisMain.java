@@ -625,7 +625,7 @@ public class AccrueAnalysisMain {
             System.err.println("STARTING WALA POINTER ANALYSIS");
             long start = System.currentTimeMillis();
             ExplicitCallGraph cg = (ExplicitCallGraph) builder.makeCallGraph(options, null);
-            System.err.println("FINISHED: " + (System.currentTimeMillis() - start) / 1000.0);
+            System.out.println((System.currentTimeMillis() - start) / 1000.0);
             System.err.println("\tWALA CG nodes: " + cg.getNumberOfNodes());
             if (fileLevel > 0) {
                 // Run our points-to analysis and compare the results to WALA's
