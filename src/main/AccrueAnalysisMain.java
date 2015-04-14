@@ -63,6 +63,7 @@ import com.ibm.wala.ipa.callgraph.CallGraph;
 import com.ibm.wala.ipa.callgraph.Entrypoint;
 import com.ibm.wala.ipa.callgraph.impl.ExplicitCallGraph;
 import com.ibm.wala.ipa.callgraph.impl.Util;
+import com.ibm.wala.ipa.callgraph.propagation.PointerKey;
 import com.ibm.wala.ipa.callgraph.propagation.ReceiverTypeContextSelector;
 import com.ibm.wala.ipa.callgraph.propagation.SSAPropagationCallGraphBuilder;
 import com.ibm.wala.ipa.cha.ClassHierarchy;
@@ -644,7 +645,15 @@ public class AccrueAnalysisMain {
             long start = System.currentTimeMillis();
             ExplicitCallGraph cg = (ExplicitCallGraph) builder.makeCallGraph(options, null);
             System.out.println((System.currentTimeMillis() - start) / 1000.0);
+            long nodes = 0;
+            long edges = 0;
+            for (PointerKey key : builder.getPointerAnalysis().getPointerKeys()) {
+                nodes++;
+                edges += builder.getPointerAnalysis().getPointsToSet(key).size();
+            }
             System.err.println("\tWALA CG nodes: " + cg.getNumberOfNodes());
+            System.err.println("\tWALA PTG nodes: " + nodes);
+            System.err.println("\tWALA PTG edges: " + edges);
             if (fileLevel > 0) {
                 // Run our points-to analysis and compare the results to WALA's
                 // This is only to find bugs not for performance comparison
