@@ -127,6 +127,7 @@ public class AccrueAnalysisMain {
         boolean singlePrimArray = options.shouldUseSingleAllocForPrimitiveArrays();
         boolean singleString = options.shouldUseSingleAllocForStrings();
         boolean singleWrappers = options.shouldUseSingleAllocForImmutableWrappers();
+        boolean singleSwing = options.shouldUseSingleAllocForSwing();
 
         try {
             System.err.println("J2SE_dir is " + WalaProperties.loadProperties().getProperty(WalaProperties.J2SE_DIR));
@@ -158,6 +159,7 @@ public class AccrueAnalysisMain {
                                    singlePrimArray,
                                    singleString,
                                    singleWrappers,
+                                   singleSwing,
                                    classPath,
                                    entryPoint,
                                    fileLevel,
@@ -173,6 +175,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             //
@@ -214,6 +217,7 @@ public class AccrueAnalysisMain {
                                singlePrimArray,
                                singleString,
                                singleWrappers,
+                               singleSwing,
                                useDefaultNativeSignatures);
             break;
         case "nonnull":
@@ -226,6 +230,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
@@ -244,6 +249,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
@@ -265,6 +271,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
@@ -317,6 +324,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
@@ -335,6 +343,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
@@ -351,6 +360,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             printAllCFG(g, outputDir);
@@ -383,6 +393,7 @@ public class AccrueAnalysisMain {
                                             singlePrimArray,
                                             singleString,
                                             singleWrappers,
+                                            singleSwing,
                                             useDefaultNativeSignatures);
             g = results.fst();
             rvCache = results.snd();
@@ -512,6 +523,9 @@ public class AccrueAnalysisMain {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useSingleAllocForSwing If true then only one allocation will be made for each type of in the java swing
+     *            API
+     *
      * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
      *            other signature
      * @return the resulting points-to graph
@@ -525,6 +539,7 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForPrimitiveArrays,
                                                                                             boolean useSingleAllocForStrings,
                                                                                             boolean useSingleAllocForImmutableWrappers,
+                                                                                            boolean useSingleAllocForSwing,
                                                                                             boolean useDefaultNativeSignatures) {
         PointsToAnalysis analysis;
         if (singleThreaded) {
@@ -544,6 +559,7 @@ public class AccrueAnalysisMain {
                                                useSingleAllocForPrimitiveArrays,
                                                useSingleAllocForStrings,
                                                useSingleAllocForImmutableWrappers,
+                                               useSingleAllocForSwing,
                                                useDefaultNativeSignatures);
             g = analysis.solveAndRegister(registrar);
         }
@@ -554,6 +570,7 @@ public class AccrueAnalysisMain {
                                                                            useSingleAllocForPrimitiveArrays,
                                                                            useSingleAllocForStrings,
                                                                            useSingleAllocForImmutableWrappers,
+                                                                           useSingleAllocForSwing,
                                                                            useDefaultNativeSignatures);
             pass.run();
             registrar = pass.getRegistrar();
@@ -585,7 +602,8 @@ public class AccrueAnalysisMain {
                                                boolean useSingleAllocForThrowable,
                                                boolean useSingleAllocForPrimitiveArrays,
                                                boolean useSingleAllocForStrings,
-                                               boolean useSingleAllocForImmutableWrappers, String classPath,
+                                               boolean useSingleAllocForImmutableWrappers,
+                                               boolean useSingleAllocForSwing, String classPath,
                                                String entryPoint, int fileLevel, boolean useDefaultNativeSignatures)
                                                                                                                     throws IOException,
                                                                                                                     ClassHierarchyException {
@@ -639,6 +657,7 @@ public class AccrueAnalysisMain {
                                                                                                useSingleAllocForPrimitiveArrays,
                                                                                                useSingleAllocForStrings,
                                                                                                useSingleAllocForImmutableWrappers,
+                                                                                               useSingleAllocForSwing,
                                                                                                useDefaultNativeSignatures);
                 PointsToGraph g = out.fst();
                 HafCallGraph.dumpCallGraphToFile("walaCallGraph", false, cg);
@@ -823,7 +842,7 @@ public class AccrueAnalysisMain {
                                            String outputDir, boolean singleThreaded, boolean isOnline,
                                            boolean useSingleAllocForGenEx, boolean useSingleAllocForThrowable,
                                            boolean useSingleAllocForPrimitiveArrays, boolean useSingleAllocForStrings,
-                                           boolean useSingleAllocForImmutableWrappers,
+                                           boolean useSingleAllocForImmutableWrappers, boolean useSingleAllocForSwing,
                                            boolean useDefaultNativeSignatures) {
         OrderedPair<PointsToGraph, ReferenceVariableCache> results = generatePointsToGraph(outputLevel,
                                                                                            haf,
@@ -834,6 +853,7 @@ public class AccrueAnalysisMain {
                                                                                            useSingleAllocForPrimitiveArrays,
                                                                                            useSingleAllocForStrings,
                                                                                            useSingleAllocForImmutableWrappers,
+                                                                                           useSingleAllocForSwing,
                                                                                            useDefaultNativeSignatures);
         BooleanConstantDataFlow df = null;
         System.err.println("ENTRY: " + entryPoint);

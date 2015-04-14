@@ -157,6 +157,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
+        System.out.println(totalTime / 1000.0);
         if (AccrueAnalysisMain.testMode) {
             System.out.println(totalTime / 1000.0);
         }

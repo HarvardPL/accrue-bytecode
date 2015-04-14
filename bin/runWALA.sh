@@ -1,4 +1,5 @@
-# bin/runAllAWS.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt                                                                                                                                                                          
+# bin/runWALA.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt  
+# nohup bin/runWALA.sh > wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                  
 
 max=10
 

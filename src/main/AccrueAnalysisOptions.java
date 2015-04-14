@@ -192,6 +192,14 @@ public final class AccrueAnalysisOptions {
     private boolean useSingleAllocForImmutableWrappers = false;
 
     /**
+     * If true then only one allocation will be made for each class in the java swing API
+     */
+    @Parameter(
+        names = { "-useSingleAllocForSwing" },
+        description = "If set then only one allocation site will be used for each type in the Java Swing API. This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in a loss of precision for these classes.")
+    private boolean useSingleAllocForSwing = false;
+
+    /**
      * Name of the analysis to be run
      */
     @Parameter(names = { "-n", "-analyisName" }, validateWith = AccrueAnalysisOptions.AnalysisNameValidator.class, description = "Name of the analysis to run.")
@@ -907,5 +915,9 @@ public final class AccrueAnalysisOptions {
      */
     public boolean shouldDisableObjectClone() {
         return this.disableObjectClone;
+    }
+
+    public boolean shouldUseSingleAllocForSwing() {
+        return useSingleAllocForSwing;
     }
 }

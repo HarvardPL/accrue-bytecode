@@ -116,7 +116,7 @@ public class StatementRegistrar {
      */
     private final boolean useSingleAllocForImmutableWrappers;
 
-    private final boolean useSingleAllocForSwing = true;
+    private final boolean useSingleAllocForSwing;
     /**
      * Whether to use a signature that allocates the return type when there is no other signature
      */
@@ -153,9 +153,9 @@ public class StatementRegistrar {
     /**
      * Class that manages the registration of points-to statements. These describe how certain expressions modify the
      * points-to graph.
-     *
+     * 
      * @param factory factory used to create points-to statements
-     *
+     * 
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -170,12 +170,16 @@ public class StatementRegistrar {
      * @param useSingleAllocForImmutableWrappers If true then only one allocation will be made for any immutable wrapper
      *            class. This will reduce the size of the points-to graph (and speed up the points-to analysis), but
      *            result in a loss of precision for these classes.
+     * @param useSingleAllocForSwing If true then only one allocation will be made for any class in the java Swing API.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for these classes.
      * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
      *            other signature
      */
     public StatementRegistrar(StatementFactory factory, boolean useSingleAllocForGenEx,
                               boolean useSingleAllocPerThrowableType, boolean useSingleAllocForPrimitiveArrays,
                               boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
+                              boolean useSingleAllocForSwing,
                               boolean useDefaultNativeSignatures) {
         this.methods = AnalysisUtil.createConcurrentHashMap();
         this.statementsForMethod = AnalysisUtil.createConcurrentHashMap();
@@ -198,6 +202,7 @@ public class StatementRegistrar {
         this.useSingleAllocForImmutableWrappers = useSingleAllocForImmutableWrappers;
         System.err.println("Singleton allocation site per immutable wrapper type: "
                 + this.useSingleAllocForImmutableWrappers);
+        this.useSingleAllocForSwing = useSingleAllocForSwing;
         System.err.println("Singleton allocation site per Swing library type: " + this.useSingleAllocForSwing);
     }
 
@@ -414,7 +419,6 @@ public class StatementRegistrar {
         }
 
         TypeReference arrayType = types.getType(i.getArrayRef());
-        TypeReference baseType = arrayType.getArrayElementType();
 
         ReferenceVariable a = rvFactory.getOrCreateLocal(i.getArrayRef(), arrayType, ir.getMethod(), pp);
         ReferenceVariable v = rvFactory.getOrCreateLocal(i.getValue(), valueType, ir.getMethod(), pp);

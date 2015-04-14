@@ -38,9 +38,9 @@ public class StatementRegistrationPass {
 
     /**
      * Create a pass which will generate points-to statements
-     *
+     * 
      * @param factory factory used to create points-to statements
-     *
+     * 
      * @param useSingleAllocForGenEx If true then only one allocation will be made for each generated exception type.
      *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
      *            a loss of precision for such exceptions.
@@ -56,12 +56,16 @@ public class StatementRegistrationPass {
      *            immutable wrapper. This will reduce the size of the points-to graph (and speed up the points-to
      *            analysis), but result in a loss of precision for these classes. These are: java.lang.String, all
      *            primitive wrapper classes, and BigDecimal and BigInteger (if not overridden).
+     * @param useSingleAllocForSwing If true then only one allocation will be made for any class in the java Swing API.
+     *            This will reduce the size of the points-to graph (and speed up the points-to analysis), but result in
+     *            a loss of precision for these classes.
      * @param useDefaultNativeSignatures Whether to use a signature that allocates the return type when there is no
      *            other signature
      */
     public StatementRegistrationPass(StatementFactory factory, boolean useSingleAllocForGenEx,
                                      boolean useSingleAllocForThrowable, boolean useSingleAllocForPrimitiveArrays,
                                      boolean useSingleAllocForStrings, boolean useSingleAllocForImmutableWrappers,
+                                     boolean useSingleAllocForSwing,
                                      boolean useDefaultNativeSignatures) {
         registrar = new StatementRegistrar(factory,
                                            useSingleAllocForGenEx,
@@ -69,6 +73,7 @@ public class StatementRegistrationPass {
                                            useSingleAllocForPrimitiveArrays,
                                            useSingleAllocForStrings,
                                            useSingleAllocForImmutableWrappers,
+                                           useSingleAllocForSwing,
                                            useDefaultNativeSignatures);
     }
 
