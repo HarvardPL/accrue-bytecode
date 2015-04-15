@@ -23,12 +23,11 @@ public interface DependencyRecorder {
     void startCollapseNode(int n, int rep);
 
     /**
-     * Record that we have finished collapsing n and it will now be represented by rep.
-     * 
+     * Record that we have finished collapsing n.
+     *
      * @param n
-     * @param rep
      */
-    void finishCollapseNode(int n, int rep);
+    void finishCollapseNode(int n);
 
     /**
      * Record that callee is now called in calleeContext.

@@ -101,13 +101,13 @@ public final class PointsToGraph {
     * relations between PointsToGraphNodes, in order to let us more efficiently
     * propagate changes to the graph.
     *
-    * Moreover, since cycles may be collapsed, we use the map representative to
-    * record the "representative" node for nodes that have been collapsed. Note
-    * that we maintain the invariants (up to race conditions; i.e., a thread may
-    * observe these invariants broken, but they will shortly be fixed.)
-    *   - if a \in domain(representative) then a \not\in domain(pointsTo)
-    *   - if a \in domain(representative) then a \not\in domain(isUnfilteredSubsetOf)
-    *   - if a \in domain(representative) then a \not\in domain(isFilteredSubsetOf)
+    * We use the map representative to record the "representative" node for nodes
+    * that have been collapsed. Once node a has been collapsed to another node
+    * (i.e., a \in domain(representative)), then any processing of statements
+    * should not add to the points to set of a, but should instead add to the
+    * points to set of the representative of a. To ensure that concurrency
+    * is handled correctly with respect to cycle collapsing, all of the
+    * subset relations for a are left intact (i.e., isUnfilteredSubsetOf, etc).
     *
     * Note also that it is possible that (a,b) \in representative and b \in domain(representative),
     * i.e., the representative of a collapsed node may itself get collapsed.
@@ -838,18 +838,23 @@ public final class PointsToGraph {
 
         assert rep < n : "Should always collapse to the lowest number node";
 
-        // The following protocol is wrong. It is not thread safe, and there
-        // are a number of possible races.
-
         // Notify the dependency recorder
         depRecorder.startCollapseNode(n, rep);
 
-        // update the subset relations.
-        this.isUnfilteredSubsetOf.duplicate(n, rep);
-        this.isFilteredSubsetOf.duplicate(n, rep);
+        // update the subset relations
+        while (true) {
+            // update the subset relations.
+            this.isUnfilteredSubsetOf.duplicate(n, rep);
+            this.isFilteredSubsetOf.duplicate(n, rep);
 
-        Integer existingRep = this.representative.putIfAbsent(n, rep);
-        assert existingRep == null; // This is broken in concurrent settings. We need some other protocol
+            Integer existingRep = this.representative.putIfAbsent(n, rep);
+            if (existingRep == null || existingRep.intValue() == rep) {
+                break;
+            }
+            // while we were duplicating the subset relations, someone else got in
+            // and collapsed n to some other representative!
+            rep = existingRep;
+        }
 
         // update the points to sets, so that
         // n now points to the rep set.
@@ -859,11 +864,7 @@ public final class PointsToGraph {
             repSet.addAll(oldN);
         }
 
-        // remove the subset relations
-        this.isUnfilteredSubsetOf.removeEdgesTo(n);
-        this.isFilteredSubsetOf.removeEdgesTo(n);
-
-        depRecorder.finishCollapseNode(n, rep);
+        depRecorder.finishCollapseNode(n);
     }
 
     public AtomicInteger clinitCount = new AtomicInteger(0);

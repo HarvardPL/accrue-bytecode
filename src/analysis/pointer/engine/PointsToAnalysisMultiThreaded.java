@@ -94,12 +94,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void finishCollapseNode(int n, int rep) {
-                // remove the old dependency.
-                Set<StmtAndContext> deps = interestingDepedencies.get(n);
-                if (deps != null) {
-                    interestingDepedencies.remove(n);
-                }
+            public void finishCollapseNode(int n) {
+                // remove the old dependencies.
+                interestingDepedencies.remove(n);
             }
 
             @Override

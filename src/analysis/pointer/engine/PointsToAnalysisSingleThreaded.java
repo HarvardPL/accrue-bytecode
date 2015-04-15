@@ -149,12 +149,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
 
             @Override
-            public void finishCollapseNode(int n, int rep) {
-                // remove the old dependency.
-                Set<StmtAndContext> deps = PointsToAnalysisSingleThreaded.this.interestingDepedencies.get(n);
-                if (deps != null) {
-                    PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
-                }
+            public void finishCollapseNode(int n) {
+                // remove the old dependencies.
+                PointsToAnalysisSingleThreaded.this.interestingDepedencies.remove(n);
             }
 
             @Override
