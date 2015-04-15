@@ -82,6 +82,7 @@ import com.ibm.wala.util.config.AnalysisScopeReader;
 public class AccrueAnalysisMain {
 
     public static boolean testMode;
+    public static int fileLevel;
 
     /**
      * Run one of the selected tests
@@ -111,13 +112,13 @@ public class AccrueAnalysisMain {
         String entryPoint = options.getEntryPoint();
         int outputLevel = options.getOutputLevel();
         String analysisName = options.getAnalysisName();
-        int fileLevel = options.getFileLevel();
+        AccrueAnalysisMain.fileLevel = options.getFileLevel();
         String classPath = options.getAnalysisClassPath();
         HeapAbstractionFactory haf = options.getHaf();
         boolean isOnline = options.registerOnline();
         boolean useSingleThreadedPointerAnalysis = options.useSingleThreadedPointerAnalysis();
         int numThreads = useSingleThreadedPointerAnalysis ? 1 : options.getNumThreads();
-        testMode = options.isTestMode();
+        AccrueAnalysisMain.testMode = options.isTestMode();
         boolean disableSignatures = options.shouldDisableSignatures();
         boolean useDefaultNativeSignatures = !options.shouldDisableDefaultNativeSignatures();
         boolean disableObjectClone = options.shouldDisableObjectClone();
@@ -647,9 +648,11 @@ public class AccrueAnalysisMain {
             System.out.println((System.currentTimeMillis() - start) / 1000.0);
             long nodes = 0;
             long edges = 0;
+            System.err.println("\n!!!!!!!!!!!!!!!! POINTS-TO-GRAPH-NODES !!!!!!!!!!!!!!!!");
             for (PointerKey key : builder.getPointerAnalysis().getPointerKeys()) {
                 nodes++;
                 edges += builder.getPointerAnalysis().getPointsToSet(key).size();
+                //System.out.println(escape(key));
             }
             System.err.println("\tWALA CG nodes: " + cg.getNumberOfNodes());
             System.err.println("\tWALA PTG nodes: " + nodes);
@@ -681,6 +684,10 @@ public class AccrueAnalysisMain {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
+    }
+
+    private static String escape(PointerKey key) {
+        return key.toString().replace("\"", "\\\"").replace("\n", "(newline)");
     }
 
     /**

@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import main.AccrueAnalysisMain;
 import util.OrderedPair;
 import util.intmap.ConcurrentIntMap;
 import util.intmap.DenseIntMap;
@@ -355,9 +356,11 @@ public final class PointsToGraph {
     }
 
     /**
-     * XXX Used for printing. Maybe only create if a flag is set?
+     * Used for printing. Only create if in test mode or if printing the points-to graph
      */
-    IntMap<PointsToGraphNode> graphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+    public IntMap<PointsToGraphNode> graphNodeDictionary = !AccrueAnalysisMain.testMode
+            || (AccrueAnalysisMain.fileLevel > 0)
+            ? PointsToAnalysisMultiThreaded.<PointsToGraphNode> makeConcurrentIntMap() : null;
 
     protected int lookupDictionary(PointsToGraphNode node) {
         Integer n = this.reverseGraphNodeDictionary.get(node);
@@ -371,7 +374,9 @@ public final class PointsToGraph {
             if (existing != null) {
                 return existing;
             }
-            graphNodeDictionary.put(n, node);
+            if (!AccrueAnalysisMain.testMode || (AccrueAnalysisMain.fileLevel > 0)) {
+                graphNodeDictionary.put(n, node);
+            }
         }
         return n;
     }

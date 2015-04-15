@@ -166,20 +166,23 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
         System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
         System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
-        if (!AccrueAnalysisMain.testMode) {
-            IntMap<MutableIntSet> graph = g.getPointsToGraph();
-            IntIterator nodes = graph.keyIterator();
-            long totalEdges = 0;
-            while (nodes.hasNext()) {
-                int n = nodes.next();
-                if (g.isCollapsedNode(n)) {
-                    // don't double count this node
-                    continue;
-                }
-                IntSet s = graph.get(n);
-                totalEdges += s.size();
+
+        // Compute the number of edges
+        IntMap<MutableIntSet> graph = g.getPointsToGraph();
+        IntIterator nodes = graph.keyIterator();
+        long totalEdges = 0;
+        while (nodes.hasNext()) {
+            int n = nodes.next();
+            if (g.isCollapsedNode(n)) {
+                // don't double count this node
+                continue;
             }
-            System.err.println("   Num graph edges        : " + totalEdges);
+            IntSet s = graph.get(n);
+            totalEdges += s.size();
+        }
+        System.err.println("   Num graph edges        : " + totalEdges);
+
+        if (!AccrueAnalysisMain.testMode) {
 
             //        System.err.println("   Cycles removed         : " + g.cycleRemovalCount() + " nodes");
             System.err.println("   Memory utilization     : "
@@ -194,9 +197,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             this.processAllStatements(g, registrar);
             g.findCycles();
             System.err.println("   New num nodes collapsed    : " + g.cycleRemovalCount());
-            long totalEdges = 0;
-            IntMap<MutableIntSet> graph = g.getPointsToGraph();
-            IntIterator nodes = graph.keyIterator();
+            totalEdges = 0;
+            graph = g.getPointsToGraph();
+            nodes = graph.keyIterator();
             while (nodes.hasNext()) {
                 int n = nodes.next();
                 if (g.isCollapsedNode(n)) {
