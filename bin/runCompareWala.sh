@@ -10,12 +10,12 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32; do 
+for threads in 2 4 8 16 32; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
 
-time bin/runAnalysis.sh -cp data/dacapo-2006-10-MR2.jar -e dacapo.${BM}.Main -n pointsto2 -disableSignatures -disableDefaultNativeSignatures -haf "WalaReceiverTypeContextSelector" -numThreads $threads -testMode $1
+time bin/runAnalysis.sh -cp data/dacapo-2006-10-MR2.jar -e dacapo.${BM}.Main -n pointsto2 -disableSignatures -disableDefaultNativeSignatures -haf "WalaReceiverTypeContextSelector" -numThreads $threads -useSingleAllocForGenEx -testMode $1
 
 done # run several times
 done # run for many different thread numbers
