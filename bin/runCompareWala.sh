@@ -10,7 +10,7 @@ do \
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 echo PROCESSING ${BM}...
 
-for threads in 2 4 8 16 32; do 
+for threads in 1 2 4 8 16 32; do 
 echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
