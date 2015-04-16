@@ -130,9 +130,16 @@ public final class PointsToGraph {
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
-     * cycles) and which node now represents them.
+     * cycles) and which node now represents them. This is a union-find data structure.
      */
     private final ConcurrentIntMap<Integer> representative = USE_CYCLE_COLLAPSING
+            ? PointsToAnalysisMultiThreaded.<Integer> makeConcurrentIntMap() : null;
+
+    /**
+     * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
+     * cycles) and which node now represents them.
+     */
+    private final ConcurrentIntMap<Integer> immediateRepresentative = USE_CYCLE_COLLAPSING
             ? PointsToAnalysisMultiThreaded.<Integer> makeConcurrentIntMap() : null;
 
     /**
@@ -235,7 +242,7 @@ public final class PointsToGraph {
         if (!USE_CYCLE_COLLAPSING) {
             return null;
         }
-        return this.representative.get(n);
+        return this.immediateRepresentative.get(n);
     }
 
     /**
@@ -249,12 +256,21 @@ public final class PointsToGraph {
         if (!USE_CYCLE_COLLAPSING) {
             return n;
         }
-        int rep;
-        Integer x = n;
-        do {
-            rep = x;
-            x = this.representative.get(x);
-        } while (x != null);
+        Integer rep = this.representative.get(n);
+        if (rep == null) {
+            return n;
+        }
+
+        int x = this.getRepresentative(rep);
+        while (x != rep) {
+            if (this.representative.replace(n, rep, x)) {
+                // successfully updated to the new rep, a la union-find
+                return x;
+            }
+            // the rep changed out from under us, try it again.
+            rep = this.representative.get(n);
+            x = this.getRepresentative(rep);
+        }
         return rep;
     }
 
@@ -268,7 +284,7 @@ public final class PointsToGraph {
         if (!USE_CYCLE_COLLAPSING) {
             return false;
         }
-        return this.representative.containsKey(n);
+        return this.immediateRepresentative.containsKey(n);
     }
 
     /**
@@ -558,7 +574,7 @@ public final class PointsToGraph {
             // it is possible that the filter set is empty, due to race conditions.
             // No trouble, we will just ignore it, and pretend we got in there before
             // the relation between target and m was created.
-            if (!filterSet.isEmpty()) {
+            if (filterSet != null && !filterSet.isEmpty()) {
                 filterStack.push(filterSet);
                 addToSetAndSupersets(changed,
                                      m,
@@ -838,16 +854,21 @@ public final class PointsToGraph {
 
         assert rep < n : "Should always collapse to the lowest number node";
 
-        // Notify the dependency recorder
-        depRecorder.startCollapseNode(n, rep);
-
         // update the subset relations
         while (true) {
+            // Notify the dependency recorder
+            depRecorder.startCollapseNode(n, rep);
+
             // update the subset relations.
             this.isUnfilteredSubsetOf.duplicate(n, rep);
             this.isFilteredSubsetOf.duplicate(n, rep);
 
-            Integer existingRep = this.representative.putIfAbsent(n, rep);
+            Integer existingRep = this.immediateRepresentative.putIfAbsent(n, rep);
+            if (existingRep == null) {
+                // we were the first to put it in, so update the representative map
+                Integer old = this.representative.putIfAbsent(n, rep);
+                assert old == null;
+            }
             if (existingRep == null || existingRep.intValue() == rep) {
                 break;
             }
