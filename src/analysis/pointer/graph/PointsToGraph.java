@@ -272,6 +272,7 @@ public final class PointsToGraph {
             rep = this.representative.get(n);
             x = this.getRepresentative(rep);
         }
+        assert !isCollapsedNode(rep);
         return rep;
     }
 
@@ -619,9 +620,9 @@ public final class PointsToGraph {
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
 
-            if (m == target) {
-                continue;
-            }
+//            if (m == target) {
+//                continue;
+//            }
             addToSetAndSupersets(changed,
                                  m,
                                  added.intIterator(),
@@ -636,9 +637,9 @@ public final class PointsToGraph {
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
-            if (m == target) {
-                continue;
-            }
+//            if (m == target) {
+//                continue;
+//            }
 
             @SuppressWarnings("null")
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
@@ -945,10 +946,8 @@ public final class PointsToGraph {
         }
 
         // update the subset relations.
-        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> supersets = this.immediateSuperSetsOf(n);
-        IntSet unfilteredSupersets = supersets.fst();
-        IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
         IntSet repSet = pointsToSet(rep);
+        IntSet unfilteredSupersets = this.isUnfilteredSubsetOf.forward(n);
         if (unfilteredSupersets != null) {
             IntIterator iter = unfilteredSupersets.intIterator();
 
@@ -967,6 +966,7 @@ public final class PointsToGraph {
             }
         }
 
+        IntMap<Set<TypeFilter>> filteredSupersets = this.isFilteredSubsetOf.forward(n);
         if (filteredSupersets != null) {
             IntIterator iter = filteredSupersets.keyIterator();
             while (iter.hasNext()) {

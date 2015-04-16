@@ -190,7 +190,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
             GraphDelta delta = g.findCycles();
-            assert delta == null || delta.isEmpty();
+            assert delta == null || delta.isEmpty() : delta.toString();
             System.err.println("   New num nodes collapsed    : " + g.cycleRemovalCount());
             totalEdges = 0;
             graph = g.getPointsToGraph();
@@ -383,7 +383,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                         }
                         System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
                         failcount++;
-                        if (failcount > 10) {
+                        if (failcount > 3) {
                             System.err.println("\nThere may be more failures, but exiting now...");
                             System.exit(1);
                         }
