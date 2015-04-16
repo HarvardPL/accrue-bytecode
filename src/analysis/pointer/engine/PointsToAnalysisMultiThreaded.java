@@ -189,7 +189,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         if (paranoidMode) {
             // check that nothing went wrong, and that we have indeed reached a fixed point.
             this.processAllStatements(g, registrar);
-            g.findCycles();
+            GraphDelta delta = g.findCycles();
+            assert delta == null || delta.isEmpty();
             System.err.println("   New num nodes collapsed    : " + g.cycleRemovalCount());
             totalEdges = 0;
             graph = g.getPointsToGraph();

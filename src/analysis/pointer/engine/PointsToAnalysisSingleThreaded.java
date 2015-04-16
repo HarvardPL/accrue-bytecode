@@ -314,7 +314,9 @@ public class PointsToAnalysisSingleThreaded extends PointsToAnalysis {
             }
         }
         System.err.println("   Finding more cycles...");
-        g.findCycles();
+        GraphDelta delta = g.findCycles();
+        assert delta == null || delta.isEmpty();
+
         System.err.println("   Cycles now removed " + g.cycleRemovalCount()
                            + " nodes");
 

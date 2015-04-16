@@ -130,16 +130,16 @@ public final class PointsToGraph {
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
-     * cycles) and which node now represents them. This is a union-find data structure.
+     * cycles) and which node now represents them.
      */
-    private final ConcurrentIntMap<Integer> representative = USE_CYCLE_COLLAPSING
+    private final ConcurrentIntMap<Integer> immediateRepresentative = USE_CYCLE_COLLAPSING
             ? PointsToAnalysisMultiThreaded.<Integer> makeConcurrentIntMap() : null;
 
     /**
      * Map from PointsToGraphNodes to PointsToGraphNodes, indicating which nodes have been collapsed (due to being in
      * cycles) and which node now represents them.
      */
-    private final ConcurrentIntMap<Integer> immediateRepresentative = USE_CYCLE_COLLAPSING
+    private final ConcurrentIntMap<Integer> representative = USE_CYCLE_COLLAPSING
             ? PointsToAnalysisMultiThreaded.<Integer> makeConcurrentIntMap() : null;
 
     /**
@@ -256,6 +256,7 @@ public final class PointsToGraph {
         if (!USE_CYCLE_COLLAPSING) {
             return n;
         }
+
         Integer rep = this.representative.get(n);
         if (rep == null) {
             return n;
@@ -365,7 +366,7 @@ public final class PointsToGraph {
                     // no need to collapse this.
                     continue;
                 }
-                this.collapseNodes(n, rep);
+                this.collapseNodes(n, rep, delta);
                 delta.collapseNodes(n, rep);
             }
         }
@@ -406,21 +407,43 @@ public final class PointsToGraph {
      * @return
      */
     public GraphDelta copyEdges(PointsToGraphNode source, PointsToGraphNode target) {
-        assert !this.graphFinished;
-        int s = this.getRepresentative(lookupDictionary(source));
-        int t = this.getRepresentative(lookupDictionary(target));
-
         GraphDelta changed = new GraphDelta(this);
-        if (s == t) {
+        copyEdges(this.getRepresentative(lookupDictionary(source)),
+                  this.getRepresentative(lookupDictionary(target)),
+                  changed);
+        return changed;
+    }
+
+    /**
+     * Copy the pointsto set of the source to the pointsto set of the target. This should be used when the pointsto set
+     * of the target is a supserset of the pointsto set of the source.
+     *
+     * @param source
+     * @param target
+     * @return
+     */
+    private void copyEdges(int/*PointsToGraphNode*/source, int/*PointsToGraphNode*/target, GraphDelta changed) {
+        assert !this.graphFinished;
+
+        if (source == target) {
             // don't bother adding
-            return changed;
+            return;
         }
 
         // source is a subset of target, target is a superset of source.
-        if (isUnfilteredSubsetOf.add(s, t)) {
-            computeDeltaForAddedSubsetRelation(changed, s, null, t);
+        if (isUnfilteredSubsetOf.add(source, target)) {
+            computeDeltaForAddedSubsetRelation(changed, source, null, target);
+
+            if (USE_CYCLE_COLLAPSING) {
+                int newS = this.getRepresentative(source);
+                int newT = this.getRepresentative(target);
+                if (newS != source || newT != target) {
+                    // the representative of either s or t changed.
+                    // We need to redo the copyEdges with the newRepresentatives
+                    copyEdges(newS, newT, changed);
+                }
+            }
         }
-        return changed;
     }
 
     /**
@@ -435,26 +458,49 @@ public final class PointsToGraph {
     public GraphDelta copyFilteredEdges(PointsToGraphNode source,
                                         TypeFilter filter,
                                         PointsToGraphNode target) {
+        GraphDelta changed = new GraphDelta(this);
+        copyFilteredEdges(this.getRepresentative(lookupDictionary(source)),
+                          filter,
+                          this.getRepresentative(lookupDictionary(target)),
+                          changed);
+        return changed;
+    }
+
+    /**
+     * Copy the pointsto set of the source to the pointsto set of the target. This should be used when the pointsto set
+     * of the target is a supserset of the pointsto set of the source.
+     *
+     * @param source
+     * @param target
+     * @return
+     */
+    private void copyFilteredEdges(int/*PointsToGraphNode*/source, TypeFilter filter, int/*PointsToGraphNode*/target,
+                                   GraphDelta changed) {
+
         assert !this.graphFinished;
         // source is a subset of target, target is a subset of source.
         if (TypeFilter.IMPOSSIBLE.equals(filter)) {
             // impossible filter! Don't bother adding the relationship.
-            return new GraphDelta(this);
+            return;
         }
 
-        int s = this.getRepresentative(lookupDictionary(source));
-        int t = this.getRepresentative(lookupDictionary(target));
-
-        if (s == t) {
+        if (source == target) {
             // don't bother adding
-            return new GraphDelta(this);
+            return;
         }
 
-        GraphDelta changed = new GraphDelta(this);
-        if (isFilteredSubsetOf.add(s, t, filter)) {
-            computeDeltaForAddedSubsetRelation(changed, s, filter, t);
+        if (isFilteredSubsetOf.add(source, target, filter)) {
+            computeDeltaForAddedSubsetRelation(changed, source, filter, target);
+            if (USE_CYCLE_COLLAPSING) {
+                int newS = this.getRepresentative(source);
+                int newT = this.getRepresentative(target);
+                if (newS != source || newT != target) {
+                    // the representative of either s or t changed.
+                    // We need to redo the copyEdges with the newRepresentatives
+                    copyFilteredEdges(newS, filter, newT, changed);
+                }
+            }
         }
-        return changed;
     }
 
     /*
@@ -485,7 +531,7 @@ public final class PointsToGraph {
                                   MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                   Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
-        if (USE_CYCLE_COLLAPSING) {
+        if (USE_CYCLE_COLLAPSING && toCollapse != null) {
             if (currentlyAdding.contains(target)) {
                 // we detected a cycle!
                 int foundAt = -1;
@@ -543,6 +589,24 @@ public final class PointsToGraph {
             return;
         }
 
+        int newRep;
+        if (USE_CYCLE_COLLAPSING && (newRep = this.getRepresentative(target)) != target) {
+            // whoops! The target got merged with something else while we were in the middle
+            // of adding to it.
+            // to make sure we don't lose any instance keys, we will add the elements again on newRep...
+            // We don't bother adding directly to the supersets of target, since all the supersets of
+            // target will be supersets of newRep...
+            addToSetAndSupersets(changed,
+                                 newRep,
+                                 added.intIterator(),
+                                 added.size(),
+                                 currentlyAdding,
+                                 currentlyAddingStack,
+                                 filterStack,
+                                 toCollapse);
+            return;
+        }
+
         // We added at least one element to target, so let's recurse on the immediate supersets of target.
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
@@ -555,6 +619,9 @@ public final class PointsToGraph {
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
 
+            if (m == target) {
+                continue;
+            }
             addToSetAndSupersets(changed,
                                  m,
                                  added.intIterator(),
@@ -569,6 +636,10 @@ public final class PointsToGraph {
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
+            if (m == target) {
+                continue;
+            }
+
             @SuppressWarnings("null")
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
             // it is possible that the filter set is empty, due to race conditions.
@@ -830,60 +901,106 @@ public final class PointsToGraph {
      * @param n
      * @param rep
      */
-    void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep) {
+    void collapseNodes(/*PointsToGraphNode*/int n, /*PointsToGraphNode*/int rep, GraphDelta delta) {
         if (!USE_CYCLE_COLLAPSING) {
             throw new UnsupportedOperationException("We do not currently support cycle collapsing");
         }
         assert n != rep : "Can't collapse a node with itself";
-        // it is possible that since n and rep were registered, one or both of them were already merged.
-        n = this.getRepresentative(n);
-        rep = this.getRepresentative(rep);
 
-
-        if (n == rep) {
-            // they have already been merged.
-            return;
-        }
-
-        if (n < rep) {
-            // swap the representative and n, since we always collapse to the lower number.
-            int temp = rep;
-            rep = n;
-            n = temp;
-        }
-
-        assert rep < n : "Should always collapse to the lowest number node";
-
-        // update the subset relations
         while (true) {
+            // it is possible that since n and rep were registered, one or both of them were already merged.
+            n = this.getRepresentative(n);
+            rep = this.getRepresentative(rep);
+
+            if (n == rep) {
+                // they have already been merged.
+                return;
+            }
+
+            if (n < rep) {
+                // swap the representative and n, since we always collapse to the lower number.
+                int temp = rep;
+                rep = n;
+                n = temp;
+            }
+
+            assert rep < n : "Should always collapse to the lowest number node";
+
             // Notify the dependency recorder
             depRecorder.startCollapseNode(n, rep);
-
-            // update the subset relations.
-            this.isUnfilteredSubsetOf.duplicate(n, rep);
-            this.isFilteredSubsetOf.duplicate(n, rep);
 
             Integer existingRep = this.immediateRepresentative.putIfAbsent(n, rep);
             if (existingRep == null) {
                 // we were the first to put it in, so update the representative map
                 Integer old = this.representative.putIfAbsent(n, rep);
                 assert old == null;
+                break;
             }
-            if (existingRep == null || existingRep.intValue() == rep) {
+            if (existingRep.intValue() == rep) {
+                // someone else update the rep, but to the same representative..
                 break;
             }
             // while we were duplicating the subset relations, someone else got in
             // and collapsed n to some other representative!
-            rep = existingRep;
         }
 
-        // update the points to sets, so that
-        // n now points to the rep set.
-        MutableIntSet repSet = pointsToSet(rep);
-        MutableIntSet oldN = this.pointsTo.put(n, repSet);
-        if (oldN != null) {
-            repSet.addAll(oldN);
+        // update the subset relations.
+        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> supersets = this.immediateSuperSetsOf(n);
+        IntSet unfilteredSupersets = supersets.fst();
+        IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
+        IntSet repSet = pointsToSet(rep);
+        if (unfilteredSupersets != null) {
+            IntIterator iter = unfilteredSupersets.intIterator();
+
+            while (iter.hasNext()) {
+                int ss = iter.next();
+                if (rep != ss && this.isUnfilteredSubsetOf.add(rep, ss)) {
+                    addToSetAndSupersets(delta,
+                                         ss,
+                                         repSet.intIterator(),
+                                         repSet.size(),
+                                         MutableSparseIntSet.makeEmpty(),
+                                         new IntStack(),
+                                         new Stack<Set<TypeFilter>>(),
+                                         null);
+                }
+            }
         }
+
+        if (filteredSupersets != null) {
+            IntIterator iter = filteredSupersets.keyIterator();
+            while (iter.hasNext()) {
+                int ss = iter.next();
+                if (rep == ss) {
+                    continue;
+                }
+                for (TypeFilter filter : filteredSupersets.get(ss)) {
+                    if (this.isFilteredSubsetOf.add(rep, ss, filter)) {
+                        addToSetAndSupersets(delta,
+                                             ss,
+                                             new FilteredIterator(repSet.intIterator(), filter),
+                                             repSet.size(),
+                                             MutableSparseIntSet.makeEmpty(),
+                                             new IntStack(),
+                                             new Stack<Set<TypeFilter>>(),
+                                             null);
+                    }
+                }
+            }
+        }
+
+        // update the points to sets of rep,
+        // to make sure it contains everything
+        // that n points to.
+        IntSet nset = this.pointsToSet(n);
+        addToSetAndSupersets(delta,
+                             rep,
+                             nset.intIterator(),
+                             nset.size(),
+                             MutableSparseIntSet.makeEmpty(),
+                             new IntStack(),
+                             new Stack<Set<TypeFilter>>(),
+                             null);
 
         depRecorder.finishCollapseNode(n);
     }
@@ -1164,17 +1281,18 @@ public final class PointsToGraph {
         if (!USE_CYCLE_COLLAPSING) {
             return 0;
         }
-        return this.representative.size();
+        return this.immediateRepresentative.size();
     }
 
     /**
      * Find cycles in the superset relation of the pointstograph nodes, and collapse them. Note that this method is not
      * thread safe.
      */
-    public void findCycles() {
+    public GraphDelta findCycles() {
         if (!USE_CYCLE_COLLAPSING) {
-            return;
+            return null;
         }
+        GraphDelta delta = new GraphDelta(this);
         boolean someCollapsed;
         do {
             someCollapsed = false;
@@ -1197,11 +1315,11 @@ public final class PointsToGraph {
                         continue;
                     }
                     someCollapsed = true;
-                    this.collapseNodes(n, rep);
+                    this.collapseNodes(n, rep, delta);
                 }
             }
         } while (someCollapsed);
-
+        return delta;
     }
 
     private void findCycles(/*PointsToGraphNode*/int n, MutableIntSet visited, MutableIntSet currentlyVisiting,
