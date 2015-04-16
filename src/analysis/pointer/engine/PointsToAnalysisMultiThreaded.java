@@ -375,6 +375,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     }
                     changed |= !d.isEmpty();
                     if (!d.isEmpty()) {
+                        IntIterator iter = d.domainIterator();
+                        while (iter.hasNext()) {
+                            int n = iter.next();
+                            assert !g.isCollapsedNode(n) : "Apparently we added to a collapsed node";
+                        }
                         System.err.println("uhoh Failed on " + s + "\n    Delta is " + d);
                         failcount++;
                         if (failcount > 10) {
