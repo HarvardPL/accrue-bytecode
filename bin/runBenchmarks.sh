@@ -15,7 +15,7 @@ echo $threads" threads"
 
 for i in $(eval echo {1..$max}); do 
 
-time bin/runAnalysis.sh -cp data/dacapo-2006-10-MR2.jar -e dacapo.${BM}.Main -n pointsto2 $1
+time bin/runAnalysis.sh -cp data/dacapo-2006-10-MR2.jar -e dacapo.${BM}.Main -n pointsto2 -numThreads $threads -testMode $1
 
 done # run several times
 done # run for many different thread numbers
