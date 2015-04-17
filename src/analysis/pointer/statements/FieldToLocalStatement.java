@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -17,6 +18,7 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.FieldReference;
 
@@ -75,7 +77,9 @@ public class FieldToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
-                    ObjectField f = new ObjectField(recHeapContext, this.declaredField);
+                    IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
+                                                                                  this.declaredField);
+                    ObjectField f = new ObjectField(recHeapContext, ifield);
                     //GraphDelta d1 = g.copyFilteredEdges(f, filter, left);
                     GraphDelta d1 = g.copyEdges(f, pre, left, post);
                     changed = changed.combine(d1);
@@ -92,7 +96,9 @@ public class FieldToLocalStatement extends PointsToStatement {
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(rec, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
-                    ObjectField f = new ObjectField(recHeapContext, this.declaredField);
+                    IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
+                                                                                  this.declaredField);
+                    ObjectField f = new ObjectField(recHeapContext, ifield);
                     GraphDelta d1 = g.copyEdges(f, pre, left, post);
                     changed = changed.combine(d1);
                 }

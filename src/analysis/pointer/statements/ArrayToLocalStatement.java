@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -17,8 +18,8 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to graph statement for an assignment from an array element, v = a[i]
@@ -27,24 +28,20 @@ public class ArrayToLocalStatement extends PointsToStatement {
 
     private final ReferenceVariable value;
     private ReferenceVariable array;
-    private final TypeReference baseType;
 
     /**
      * Points-to graph statement for an assignment from an array element, v = a[i]
      *
      * @param v variable being assigned into
      * @param a variable for the array being accessed
-     * @param baseType base type of the array
      * @param pp the program point of the statement
      */
-    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, TypeReference baseType, ProgramPoint pp) {
+    protected ArrayToLocalStatement(ReferenceVariable v, ReferenceVariable a, ProgramPoint pp) {
         super(pp);
         this.value = v;
         this.array = a;
         assert !v.isFlowSensitive();
         assert !a.isFlowSensitive();
-
-        this.baseType = baseType;
     }
 
     @Override
@@ -64,7 +61,17 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // let's do the normal processing
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
+                if (g.isNullInstanceKey(arrHeapContext)) {
+                    // The target is null
+                    continue;
+                }
+                IClass base = AnalysisUtil.getClassHierarchy().lookupClass(arrHeapContext.getConcreteType()
+                                                                                         .getReference()
+                                                                                         .getArrayElementType());
+                ObjectField contents = new ObjectField(arrHeapContext,
+                                                       arrHeapContext.getConcreteType(),
+                                                       PointsToGraph.ARRAY_CONTENTS,
+                                                       base);
                 assert !contents.isFlowSensitive() : "Trying to use flow sensitive array contents field. Make sure the rest of the code is consistent.";
                 GraphDelta d1 = g.copyEdges(contents, pre, v, post);
                 // GraphDelta d1 = g.copyFilteredEdges(contents, filter, v);
@@ -77,7 +84,17 @@ public class ArrayToLocalStatement extends PointsToStatement {
             // object k, add everything that k[i] points to to v's set.
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
+                if (g.isNullInstanceKey(arrHeapContext)) {
+                    // The target is null
+                    continue;
+                }
+                IClass base = AnalysisUtil.getClassHierarchy().lookupClass(arrHeapContext.getConcreteType()
+                                                                                         .getReference()
+                                                                                         .getArrayElementType());
+                ObjectField contents = new ObjectField(arrHeapContext,
+                                                       arrHeapContext.getConcreteType(),
+                                                       PointsToGraph.ARRAY_CONTENTS,
+                                                       base);
                 assert !contents.isFlowSensitive() : "Trying to use flow sensitive array contents field. Make sure the rest of the code is consistent.";
 
                 GraphDelta d1 = g.copyEdges(contents, pre, v, post);

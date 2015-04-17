@@ -61,7 +61,6 @@ import com.ibm.wala.ssa.SSAThrowInstruction;
 import com.ibm.wala.ssa.SSAUnaryOpInstruction;
 import com.ibm.wala.ssa.SymbolTable;
 import com.ibm.wala.ssa.Value;
-import com.ibm.wala.types.FieldReference;
 import com.ibm.wala.types.TypeReference;
 
 /**
@@ -828,8 +827,7 @@ public class NonNullDataFlow extends IntraproceduralDataFlow<VarContext<NonNullA
             NonNullAbsVal inLoc = in.getLocation(loc);
             if (inLoc == null) {
                 // Haven't seen this field yet check whether it could point to null at this instruction
-                FieldReference fieldRef = loc.getField().getReference();
-                ObjectField of = new ObjectField((InstanceKeyRecency) loc.getReceiverContext(), fieldRef);
+                ObjectField of = new ObjectField((InstanceKeyRecency) loc.getReceiverContext(), loc.getField());
                 if (couldFieldPointToNull(of, i)) {
                     inLoc = NonNullAbsVal.MAY_BE_NULL;
                 }

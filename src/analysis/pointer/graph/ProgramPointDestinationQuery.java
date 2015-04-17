@@ -707,7 +707,7 @@ public final class ProgramPointDestinationQuery {
             if (n instanceof ObjectField) {
                 ObjectField of = (ObjectField) n;
                 if (of.fieldName().equals(fr.getName().toString())
-                        && of.expectedType().getName().equals(fr.getFieldType().getName())) {
+                        && of.getExpectedType().getName().equals(fr.getFieldType().getName())) {
                     // The field in the noKill set has the same name and type as the field that may be killed by the field assignment
                     // Assume that it does kill the field, this is unsound, but we later will recover soundness by
                     // 1. Adding something to the points-to set for the receiver and checking whether it then kills

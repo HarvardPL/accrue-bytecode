@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
 import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
@@ -18,8 +19,8 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
+import com.ibm.wala.classLoader.IClass;
 import com.ibm.wala.ipa.callgraph.Context;
-import com.ibm.wala.types.TypeReference;
 
 /**
  * Points-to graph statement for an assignment into an array, a[i] = v
@@ -33,10 +34,6 @@ public class LocalToArrayStatement extends PointsToStatement {
      * Value inserted into array
      */
     private ReferenceVariable value;
-    /**
-     * Type of array elements
-     */
-    private final TypeReference baseType;
 
     /**
      * Statement for an assignment into an array, a[i] = v. Note that we do not reason about the individual array
@@ -44,16 +41,14 @@ public class LocalToArrayStatement extends PointsToStatement {
      *
      * @param a points-to graph node for array assigned into
      * @param value points-to graph node for assigned value
-     * @param baseType type of the array elements
      * @param pp program point the points-to statement came from
      */
-    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, TypeReference baseType, ProgramPoint pp) {
+    public LocalToArrayStatement(ReferenceVariable a, ReferenceVariable v, ProgramPoint pp) {
         super(pp);
         assert !v.isFlowSensitive();
         assert !a.isFlowSensitive();
         array = a;
         value = v;
-        this.baseType = baseType;
     }
 
     @Override
@@ -71,7 +66,17 @@ public class LocalToArrayStatement extends PointsToStatement {
             // no changes, let's do the processing in a straightforward way.
             for (Iterator<InstanceKeyRecency> iter = g.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
+                if (g.isNullInstanceKey(arrHeapContext)) {
+                    // The target is null
+                    continue;
+                }
+                IClass base = AnalysisUtil.getClassHierarchy().lookupClass(arrHeapContext.getConcreteType()
+                                                                                         .getReference()
+                                                                                         .getArrayElementType());
+                ObjectField contents = new ObjectField(arrHeapContext,
+                                                       arrHeapContext.getConcreteType(),
+                                                       PointsToGraph.ARRAY_CONTENTS,
+                                                       base);
 
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive();
@@ -86,7 +91,17 @@ public class LocalToArrayStatement extends PointsToStatement {
             // point to everything that the RHS can.
             for (Iterator<InstanceKeyRecency> iter = delta.pointsToIterator(a, pre, originator); iter.hasNext();) {
                 InstanceKeyRecency arrHeapContext = iter.next();
-                ObjectField contents = new ObjectField(arrHeapContext, PointsToGraph.ARRAY_CONTENTS, baseType, true);
+                if (g.isNullInstanceKey(arrHeapContext)) {
+                    // The target is null
+                    continue;
+                }
+                IClass base = AnalysisUtil.getClassHierarchy().lookupClass(arrHeapContext.getConcreteType()
+                                                                                         .getReference()
+                                                                                         .getArrayElementType());
+                ObjectField contents = new ObjectField(arrHeapContext,
+                                                       arrHeapContext.getConcreteType(),
+                                                       PointsToGraph.ARRAY_CONTENTS,
+                                                       base);
 
                 // contents should never be flow sensitive, since it can never be a singleton
                 assert !contents.isFlowSensitive() : "Contents should never be flow sensitive";

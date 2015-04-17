@@ -94,7 +94,7 @@ public class NewStatement extends PointsToStatement {
         IClass allocatedClass = alloc.getAllocatedClass();
         if (!allocatedClass.isArrayClass()) {
             for (IField fld : allocatedClass.getAllInstanceFields()) {
-                ObjectField objfld = new ObjectField(newHeapContext, fld.getReference());
+                ObjectField objfld = new ObjectField(newHeapContext, fld);
                 d = d.combine(g.addEdge(objfld, g.nullInstanceKey(), ppr.post()));
             }
         }

@@ -608,10 +608,9 @@ public final class PointsToGraph {
         assert !concreteType.isArrayClass() : "We don't currently track the most recent version of arrays.";
 
         for (IField fld : concreteType.getAllInstanceFields()) {
-            int recFld = lookupDictionary(new ObjectField(newlyAllocated, fld.getReference()));
+            int recFld = lookupDictionary(new ObjectField(newlyAllocated, fld));
 
-            int notrecFld = lookupDictionary(new ObjectField(lookupInstanceKeyDictionary(iknotrecent),
-                                                             fld.getReference()));
+            int notrecFld = lookupDictionary(new ObjectField(lookupInstanceKeyDictionary(iknotrecent), fld));
 
             assert isFlowSensitivePointsToGraphNode(recFld);
             assert !isFlowSensitivePointsToGraphNode(notrecFld);

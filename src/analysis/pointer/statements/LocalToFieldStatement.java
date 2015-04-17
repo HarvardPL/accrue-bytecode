@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import util.OrderedPair;
+import analysis.AnalysisUtil;
 import analysis.pointer.analyses.HeapAbstractionFactory;
 import analysis.pointer.analyses.recency.InstanceKeyRecency;
 import analysis.pointer.analyses.recency.RecencyHeapAbstractionFactory;
@@ -19,6 +20,7 @@ import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.StatementRegistrar;
 import analysis.pointer.statements.ProgramPoint.InterProgramPointReplica;
 
+import com.ibm.wala.classLoader.IField;
 import com.ibm.wala.ipa.callgraph.Context;
 import com.ibm.wala.types.FieldReference;
 
@@ -73,7 +75,9 @@ public class LocalToFieldStatement extends PointsToStatement {
             while (iter.hasNext()) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
-                    ObjectField of = new ObjectField(recHeapContext, this.field);
+                    IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
+                                                                                  this.field);
+                    ObjectField of = new ObjectField(recHeapContext, ifield);
                     // o.f can point to anything that local can.
                     GraphDelta d1 = g.copyEdges(local, pre, of, post);
                     changed = changed.combine(d1);
@@ -90,7 +94,9 @@ public class LocalToFieldStatement extends PointsToStatement {
             while (iter.hasNext()) {
                 InstanceKeyRecency recHeapContext = iter.next();
                 if (!g.isNullInstanceKey(recHeapContext)) {
-                    ObjectField of = new ObjectField(recHeapContext, this.field);
+                    IField ifield = AnalysisUtil.getClassHierarchy().resolveField(recHeapContext.getConcreteType(),
+                                                                                  this.field);
+                    ObjectField of = new ObjectField(recHeapContext, ifield);
                     GraphDelta d1 = g.copyEdges(local, pre, of, post);
                     changed = changed.combine(d1);
                 }
@@ -134,7 +140,8 @@ public class LocalToFieldStatement extends PointsToStatement {
             // The receiver points to exactly one object, and it is the most recent. Strong update!
             // So we will kill the field!
             // We definitely kill the ObjectField(pointedTo, field);
-            return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ObjectField(pointedTo, field));
+            IField ifield = AnalysisUtil.getClassHierarchy().resolveField(pointedTo.getConcreteType(), this.field);
+            return new OrderedPair<Boolean, PointsToGraphNode>(Boolean.TRUE, new ObjectField(pointedTo, ifield));
         }
         // the receiver either points to more than one object, or points to a non-most recent object.
         // either way, we don't kill the field.

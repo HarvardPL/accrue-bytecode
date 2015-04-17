@@ -56,7 +56,7 @@ public class StatementFactory {
         assert baseType != null;
         assert pp != null;
 
-        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, baseType, pp);
+        ArrayToLocalStatement s = new ArrayToLocalStatement(v, a, pp);
         assert map.put(new StatementKey(v), s) == null;
         return s;
     }
@@ -149,7 +149,7 @@ public class StatementFactory {
         assert pp != null;
         assert i != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(array, local, baseType, pp);
+        LocalToArrayStatement s = new LocalToArrayStatement(array, local, pp);
         // Could be duplicated in the same method, if we want a unique key use the instruction
         assert map.put(new StatementKey(array, local, i), s) == null;
         return s;
@@ -261,7 +261,7 @@ public class StatementFactory {
         assert innerArray != null;
         assert pp != null;
 
-        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, innerArray.getExpectedType(), pp);
+        LocalToArrayStatement s = new LocalToArrayStatement(outerArray, innerArray, pp);
         assert map.put(new StatementKey(outerArray, innerArray), s) == null;
         return s;
     }
