@@ -217,6 +217,8 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println(g.getCallGraph().getNumberOfNodes());
         System.err.println(g.numPointsToGraphNodes());
         System.err.println(totalEdges);
+        System.err.println("\t" + g.getCallGraph().getNumberOfNodes() + "\t&" + g.numPointsToGraphNodes() + "\t&"
+                + totalEdges + "\\\\ \\hline");
 
         return g;
     }
