@@ -147,7 +147,7 @@ public final class PointsToGraph {
      * is not yet correct. There are a number of concurrency issues. It will work in a single threaded setting, but not
      * concurrently.
      */
-    static final boolean USE_CYCLE_COLLAPSING = false;
+    static final boolean USE_CYCLE_COLLAPSING = true;
 
     /* ***************************************************************************
     *
@@ -221,7 +221,7 @@ public final class PointsToGraph {
     }
 
     // Return the immediate supersets of PointsToGraphNode n. That is, any node m such that n is an immediate subset of m
-    public OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSuperSetsOf(int n) {
+    private OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSuperSetsOf(int n) {
         n = this.getRepresentative(n);
 
         IntSet unfilteredsupersets = this.isUnfilteredSubsetOf.forward(n);
@@ -620,9 +620,9 @@ public final class PointsToGraph {
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
 
-//            if (m == target) {
-//                continue;
-//            }
+            if (m == target) {
+                continue;
+            }
             addToSetAndSupersets(changed,
                                  m,
                                  added.intIterator(),
@@ -637,9 +637,9 @@ public final class PointsToGraph {
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
-//            if (m == target) {
-//                continue;
-//            }
+            if (m == target) {
+                continue;
+            }
 
             @SuppressWarnings("null")
             Set<TypeFilter> filterSet = filteredSupersets.get(m);
@@ -952,8 +952,11 @@ public final class PointsToGraph {
             IntIterator iter = unfilteredSupersets.intIterator();
 
             while (iter.hasNext()) {
-                int ss = iter.next();
+                int ss = this.getRepresentative(iter.next());
                 if (rep != ss && this.isUnfilteredSubsetOf.add(rep, ss)) {
+                    // we added a new relation from rep to ss, because there was a relation from
+                    // n to ss. So we are responsible for propagating
+                    // all any new additions to the pointsTo sets.
                     addToSetAndSupersets(delta,
                                          ss,
                                          repSet.intIterator(),
@@ -970,7 +973,7 @@ public final class PointsToGraph {
         if (filteredSupersets != null) {
             IntIterator iter = filteredSupersets.keyIterator();
             while (iter.hasNext()) {
-                int ss = iter.next();
+                int ss = this.getRepresentative(iter.next());
                 if (rep == ss) {
                     continue;
                 }
@@ -988,6 +991,19 @@ public final class PointsToGraph {
                 }
             }
         }
+
+        // Add all of the pointsto set of rep to
+        // n, to make sure that we trigger all appropriate
+        // statements that depended on n.
+        IntSet repset = this.pointsToSet(rep);
+        addToSetAndSupersets(delta,
+                             n,
+                             repset.intIterator(),
+                             repset.size(),
+                             MutableSparseIntSet.makeEmpty(),
+                             new IntStack(),
+                             new Stack<Set<TypeFilter>>(),
+                             null);
 
         // update the points to sets of rep,
         // to make sure it contains everything
@@ -1326,6 +1342,10 @@ public final class PointsToGraph {
                             IntStack currentlyVisitingStack, IntMap<MutableIntSet> toCollapse) {
         if (!USE_CYCLE_COLLAPSING) {
             throw new UnsupportedOperationException("We do not currently support collapsing cycles.");
+        }
+        if (isCollapsedNode(n)) {
+            // ignore collapsed nodes
+            return;
         }
         if (currentlyVisiting.contains(n)) {
             // we detected a cycle!
