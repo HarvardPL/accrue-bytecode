@@ -1,7 +1,9 @@
 package analysis.pointer.engine;
 
 import java.lang.management.ManagementFactory;
+import java.text.NumberFormat;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -218,8 +220,10 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println(g.numPointsToGraphNodes());
         System.err.println(totalEdges);
         System.err.println("\n\n" + AnalysisUtil.entryPoint);
-        System.err.println("\t&" + g.getCallGraph().getNumberOfNodes() + "\t&" + g.numPointsToGraphNodes() + "\t&"
-                + totalEdges + "\\\\ \\hline");
+        System.err.println("\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(g.getCallGraph().getNumberOfNodes()) + "\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(g.numPointsToGraphNodes()) + "\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(totalEdges) + "\t \\\\ \\hline");
         System.err.println("\n");
 
         return g;
