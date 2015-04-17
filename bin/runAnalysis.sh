@@ -29,7 +29,7 @@ run() {
     fi
     
     if [ $timeout -gt 0 ]; then
-        eval timeout3.sh -t $timeout java "$vmargs" "$cmmd" "$args"
+        eval bin/timeout3.sh -t $timeout java "$vmargs" "$cmmd" "$args"
     else
         eval java "$vmargs" "$cmmd" "$args"
     fi
