@@ -543,6 +543,7 @@ public class AccrueAnalysisMain {
                                                                                             boolean useSingleAllocForImmutableWrappers,
                                                                                             boolean useSingleAllocForSwing,
                                                                                             boolean useDefaultNativeSignatures) {
+        System.err.println(AnalysisUtil.entryPoint);
         PointsToAnalysis analysis;
         if (singleThreaded) {
             analysis = new PointsToAnalysisSingleThreaded(haf);
@@ -684,10 +685,6 @@ public class AccrueAnalysisMain {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
-    }
-
-    private static String escape(PointerKey key) {
-        return key.toString().replace("\"", "\\\"").replace("\n", "(newline)");
     }
 
     /**

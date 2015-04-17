@@ -1,5 +1,5 @@
 # bin/runBenchmarks.sh 2>&1 | tee wala$(date +"%Y.%m.%d.%H.%M.%S").txt  
-# nohup bin/runBenchmarks.sh > wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                           
+# nohup bin/runBenchmarks.sh "-useSingleAllocForImmutableWrappers -useSingleAllocForPrimitiveArrays -useSingleAllocPerThrowableType"> wala$(date +"%Y.%m.%d.%H.%M.%S").txt 2> walaerr$(date +"%Y.%m.%d.%H.%M.%S").txt &                                                                                                                                                                           
 
 max=1
 

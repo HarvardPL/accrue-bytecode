@@ -1,0 +1,5 @@
+Difference with WALA
+- We use the CFG to make sure that only uncaught exceptions reach a successor catch block. This means that WALA will sometime imprecisely propagate exceptions.
+- XXX There are some edges in WALAs that are not in ours where the heap context for the receiver is not the same as for "this" not sure why
+- We use default signatures for native methods, allocating an instance of the return class and returning it
++ They add the static initializer for the generic type for loadMetadata operations. I assume this is for reflection later? Calling .class does NOT load the static initializer.

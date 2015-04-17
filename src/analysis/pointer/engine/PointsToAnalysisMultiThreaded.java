@@ -192,7 +192,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             GraphDelta delta = g.findCycles();
             assert delta == null || delta.isEmpty() : delta.toString();
             System.err.println("   New num nodes collapsed    : " + g.cycleRemovalCount());
-            totalEdges = 0;
+            long totalEdges2 = 0;
             graph = g.getPointsToGraph();
             nodes = graph.keyIterator();
             while (nodes.hasNext()) {
@@ -202,9 +202,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     continue;
                 }
                 IntSet s = graph.get(n);
-                totalEdges += s.size();
+                totalEdges2 += s.size();
             }
-            System.err.println("   New num graph edges        : " + totalEdges);
+            System.err.println("   New num graph edges        : " + totalEdges2);
 
         }
         g.constructionFinished();
@@ -214,6 +214,9 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
         }
+        System.err.println(g.getCallGraph().getNumberOfNodes());
+        System.err.println(g.numPointsToGraphNodes());
+        System.err.println(totalEdges);
 
         return g;
     }

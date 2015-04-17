@@ -124,6 +124,7 @@ public class AnalysisUtil {
      * Whether to disable the programmatic signature for Object.clone() and array clone
      */
     public static boolean disableObjectClone = false;
+    public static String entryPoint;
 
     /**
      * Methods should be accessed statically, make sure to call {@link AnalysisUtil#init(String, String)} before running
@@ -182,6 +183,7 @@ public class AnalysisUtil {
     public static void init(String classPath, String entryPoint, String outputDirectory, int numThreads,
                             boolean disableSignatures, boolean disableObjectClone) throws IOException,
                                                                                   ClassHierarchyException {
+        AnalysisUtil.entryPoint = entryPoint;
         AnalysisUtil.numThreads = numThreads;
         AnalysisUtil.outputDirectory = outputDirectory;
         AnalysisUtil.disableSignatures = disableSignatures;
