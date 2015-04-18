@@ -147,7 +147,7 @@ public final class PointsToGraph {
      * is not yet correct. There are a number of concurrency issues. It will work in a single threaded setting, but not
      * concurrently.
      */
-    static final boolean USE_CYCLE_COLLAPSING = true;
+    static final boolean USE_CYCLE_COLLAPSING = false;
 
     /* ***************************************************************************
     *
@@ -220,16 +220,6 @@ public final class PointsToGraph {
         }
     }
 
-    // Return the immediate supersets of PointsToGraphNode n. That is, any node m such that n is an immediate subset of m
-    private OrderedPair<IntSet, IntMap<Set<TypeFilter>>> immediateSuperSetsOf(int n) {
-        n = this.getRepresentative(n);
-
-        IntSet unfilteredsupersets = this.isUnfilteredSubsetOf.forward(n);
-        IntMap<Set<TypeFilter>> supersets = this.isFilteredSubsetOf.forward(n);
-        return new OrderedPair<>(unfilteredsupersets, supersets);
-    }
-
-
 
     /**
      * What is the immediate representative of n? If n is its own representative (i.e., either n is not in a cycle, or n
@@ -299,11 +289,6 @@ public final class PointsToGraph {
     public GraphDelta addEdge(PointsToGraphNode node, InstanceKey heapContext) {
         assert node != null && heapContext != null;
         assert !this.graphFinished;
-
-        int n = lookupDictionary(node);
-
-        n = this.getRepresentative(n);
-
         Integer h = this.reverseInstanceKeyDictionary.get(heapContext);
         if (h == null) {
             // not in the dictionary yet
@@ -331,12 +316,23 @@ public final class PointsToGraph {
         }
 
         GraphDelta delta = new GraphDelta(this);
-        if (!this.pointsToSet(n).contains(h)) {
+        int n = lookupDictionary(node);
+
+        // Get the pointsTo set for (the representative of) n.
+        // Requires a loop due to concurrent threads changing the representative of n.
+        MutableIntSet ptset;
+        do {
+            n = this.getRepresentative(n);
+            ptset = this.pointsToSet(n);
+        } while (ptset == null);
+
+        if (!ptset.contains(h)) {
             IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
             addToSetAndSupersets(delta,
                                  n,
                                  SparseIntSet.singleton(h).intIterator(),
                                  1,
+                                 true,
                                  MutableSparseIntSet.makeEmpty(),
                                  new IntStack(),
                                  new Stack<Set<TypeFilter>>(),
@@ -512,6 +508,10 @@ public final class PointsToGraph {
                                           int target) {
 
         IntSet s = this.pointsToSet(source);
+        while (s == null) {
+            source = this.getRepresentative(source);
+            s = this.pointsToSet(source);
+        }
 
         // Now take care of all the supersets of target...
         IntMap<MutableIntSet> toCollapse = new SparseIntMap<>();
@@ -519,6 +519,7 @@ public final class PointsToGraph {
                              target,
                              filter == null ? s.intIterator() : new FilteredIterator(s.intIterator(), filter),
                              s.size(),
+                             true,
                              MutableSparseIntSet.makeEmpty(),
                              new IntStack(),
                              new Stack<Set<TypeFilter>>(),
@@ -527,8 +528,25 @@ public final class PointsToGraph {
 
     }
 
-    private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, IntIterator toAdd,
-                                      int toAddSizeGuess,
+    /**
+     * Add the elements in toAdd to the target. If addToSuperSets is true, then propagate any changes to the supersets
+     * of target. Arguments currentlyAdding, currentlyAddingStack, and filterStack are used in the detectino of cycles,
+     * and cycles that are found are recorded in toCollapse (if it is non-null). Any changes made to the points to graph
+     * are recorded in the GraphDelta changed.
+     * 
+     * @param changed
+     * @param target
+     * @param toAdd
+     * @param toAddSizeGuess
+     * @param addToSuperSets
+     * @param currentlyAdding
+     * @param currentlyAddingStack
+     * @param filterStack
+     * @param toCollapse
+     */
+    private void addToSetAndSupersets(GraphDelta changed, /*PointsToGraphNode*/int target, /*Iterator<InstanceKey>*/
+                                      IntIterator toAdd,
+                                      int toAddSizeGuess, boolean addToSuperSets,
                                   MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                   Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
@@ -573,6 +591,24 @@ public final class PointsToGraph {
         // Now we actually add the set to the target, both in the cache, and in the GraphDelta
         MutableIntSet deltaSet = null;
         MutableIntSet graphSet = this.pointsToSet(target);
+
+        if (USE_CYCLE_COLLAPSING && graphSet == null) {
+            // whoops! target has been collapsed.
+            // Don't bother adding to target and supersets, just go straight for
+            // the representative of target.
+            addToSetAndSupersets(changed,
+                                 this.getRepresentative(target),
+                                 toAdd,
+                                 toAddSizeGuess,
+                                 addToSuperSets,
+                                 currentlyAdding,
+                                 currentlyAddingStack,
+                                 filterStack,
+                                 toCollapse);
+            return;
+
+        }
+
         MutableIntSet added = MutableSparseIntSet.makeEmpty();
 
         while (toAdd.hasNext()) {
@@ -601,6 +637,7 @@ public final class PointsToGraph {
                                  newRep,
                                  added.intIterator(),
                                  added.size(),
+                                 addToSuperSets,
                                  currentlyAdding,
                                  currentlyAddingStack,
                                  filterStack,
@@ -608,12 +645,15 @@ public final class PointsToGraph {
             return;
         }
 
-        // We added at least one element to target, so let's recurse on the immediate supersets of target.
+        // We added at least one element to target
+        // So let's recurse on the immediate supersets of target, if we need to
+        if (!addToSuperSets) {
+            return;
+        }
+
         currentlyAdding.add(target);
         currentlyAddingStack.push(target);
-        OrderedPair<IntSet, IntMap<Set<TypeFilter>>> supersets = this.immediateSuperSetsOf(target);
-        IntSet unfilteredSupersets = supersets.fst();
-        IntMap<Set<TypeFilter>> filteredSupersets = supersets.snd();
+        IntSet unfilteredSupersets = this.isUnfilteredSubsetOf.forward(target);
         IntIterator iter = unfilteredSupersets == null ? EmptyIntIterator.instance()
                 : unfilteredSupersets.intIterator();
         filterStack.push(null);
@@ -627,6 +667,7 @@ public final class PointsToGraph {
                                  m,
                                  added.intIterator(),
                                  added.size(),
+                                 addToSuperSets,
                                  currentlyAdding,
                                  currentlyAddingStack,
                                  filterStack,
@@ -634,6 +675,7 @@ public final class PointsToGraph {
 
         }
         filterStack.pop();
+        IntMap<Set<TypeFilter>> filteredSupersets = this.isFilteredSubsetOf.forward(target);
         iter = filteredSupersets == null ? EmptyIntIterator.instance() : filteredSupersets.keyIterator();
         while (iter.hasNext()) {
             int m = this.getRepresentative(iter.next());
@@ -652,6 +694,7 @@ public final class PointsToGraph {
                                      m,
                                      new FilteredIterator(added.intIterator(), filterSet),
                                      added.size(),
+                                     addToSuperSets,
                                      currentlyAdding,
                                      currentlyAddingStack,
                                      filterStack,
@@ -690,12 +733,18 @@ public final class PointsToGraph {
         return pointsToIntIterator(lookupDictionary(n), origninator);
     }
     public IntIterator pointsToIntIterator(/*PointsToGraphNode*/int n, StmtAndContext originator) {
-        n = this.getRepresentative(n);
+        MutableIntSet s;
+        do {
+            n = this.getRepresentative(n);
+            s = this.pointsToSet(n);
+        } while (s == null);
+
         if (originator != null) {
             // If the originating statement is null then the graph is finished and there is no need to record this read
             this.recordRead(n, originator);
         }
-        return this.pointsToSet(n).intIterator();
+
+        return s.intIterator();
     }
 
 
@@ -943,10 +992,19 @@ public final class PointsToGraph {
             }
             // while we were duplicating the subset relations, someone else got in
             // and collapsed n to some other representative!
+            // Try again...
         }
 
-        // update the subset relations.
-        IntSet repSet = pointsToSet(rep);
+        // First, get the representative's points to set.
+        IntSet repSet = this.pointsToSet(rep);
+        while (repSet == null) {
+            rep = this.getRepresentative(rep);
+            repSet = this.pointsToSet(rep);
+        }
+
+        // Update the subset relations, i.e., if ss is a superset of n,
+        // make ss a superset of rep.
+        // (This is needed for correctness.)
         IntSet unfilteredSupersets = this.isUnfilteredSubsetOf.forward(n);
         if (unfilteredSupersets != null) {
             IntIterator iter = unfilteredSupersets.intIterator();
@@ -961,6 +1019,7 @@ public final class PointsToGraph {
                                          ss,
                                          repSet.intIterator(),
                                          repSet.size(),
+                                         true,
                                          MutableSparseIntSet.makeEmpty(),
                                          new IntStack(),
                                          new Stack<Set<TypeFilter>>(),
@@ -983,6 +1042,7 @@ public final class PointsToGraph {
                                              ss,
                                              new FilteredIterator(repSet.intIterator(), filter),
                                              repSet.size(),
+                                             true,
                                              MutableSparseIntSet.makeEmpty(),
                                              new IntStack(),
                                              new Stack<Set<TypeFilter>>(),
@@ -995,30 +1055,29 @@ public final class PointsToGraph {
         // Add all of the pointsto set of rep to
         // n, to make sure that we trigger all appropriate
         // statements that depended on n.
+        // (This is needed for correctness.)
         IntSet repset = this.pointsToSet(rep);
-        addToSetAndSupersets(delta,
-                             n,
-                             repset.intIterator(),
-                             repset.size(),
+        addToSetAndSupersets(delta, n, repset.intIterator(), repset.size(), false, // no need to add them to the supersets of n...
                              MutableSparseIntSet.makeEmpty(),
                              new IntStack(),
                              new Stack<Set<TypeFilter>>(),
                              null);
 
-        // update the points to sets of rep,
-        // to make sure it contains everything
-        // that n points to.
-        IntSet nset = this.pointsToSet(n);
-        addToSetAndSupersets(delta,
-                             rep,
-                             nset.intIterator(),
-                             nset.size(),
-                             MutableSparseIntSet.makeEmpty(),
-                             new IntStack(),
-                             new Stack<Set<TypeFilter>>(),
-                             null);
+        // now that we have taken care of setting the representative for n,
+        // adding the new subset relations, etc., we can look at removing
+        // stuff that will update the points to set of n.
 
+        // First, tell the dependency recorder we have finished collapsing,
+        // so it can remove any dependencies on pointsTo(n).
+        // (This is an optimization, and not needed for correctness.)
         depRecorder.finishCollapseNode(n);
+
+        // Second, we can actually remove pointsTo(n). (If anyone has a reference
+        // to it at the moment, that will still work, but in the future anyone
+        // calling this.pointsToSet(n) will get the points to set for the
+        // representative of n.)
+        // (This is an optimization, and not needed for correctness.)
+        this.pointsTo.remove(n);
     }
 
     public AtomicInteger clinitCount = new AtomicInteger(0);
@@ -1280,6 +1339,13 @@ public final class PointsToGraph {
     private MutableIntSet pointsToSet(/*PointsToGraphNode*/int n) {
         MutableIntSet s = this.pointsTo.get(n);
         if (s == null && !graphFinished) {
+            if (USE_CYCLE_COLLAPSING) {
+                if (this.isCollapsedNode(n)) {
+                    // we've collapsed this node. Don't recreate a points to set for it.
+                    // Clients just have to deal with this maybe returning null.
+                    return null;
+                }
+            }
             s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
             MutableIntSet ex = this.pointsTo.putIfAbsent(n, s);
             if (ex != null) {
