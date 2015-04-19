@@ -175,7 +175,23 @@ public final class PointsToGraph {
      * A thread-safe representation of the call graph that we populate during the analysis, and then convert it to a
      * HafCallGraph later.
      */
-    private ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>>> callGraphMap = AnalysisUtil.createConcurrentHashMap();
+    /* ConcurrentMap<OrderedPair<IMethod, Context>, ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>>> */
+    private ConcurrentIntMap<ConcurrentMap<CallSiteReference, MutableIntSet>> callGraphMap = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
+    /**
+     * GraphNode counter, for unique integers for call graph nodes
+     */
+    private final AtomicInteger callGraphNodeCounter = new AtomicInteger(0);
+
+    /**
+     * Dictionary for mapping ints to CG nodes.
+     */
+    private ConcurrentIntMap<OrderedPair<IMethod, Context>> callGraphNodeDictionary = PointsToAnalysisMultiThreaded.makeConcurrentIntMap();
+
+    /**
+     * Dictionary for mapping CG Nodes to ints
+     */
+    private ConcurrentMap<OrderedPair<IMethod, Context>, Integer> reverseCallGraphNodeDictionary = new ConcurrentHashMap<>();
 
     private HafCallGraph callGraph = null;
 
@@ -372,8 +388,7 @@ public final class PointsToGraph {
     /**
      * Used for printing. Only create if in test mode or if printing the points-to graph
      */
-    public IntMap<PointsToGraphNode> graphNodeDictionary = !AccrueAnalysisMain.testMode
-            || (AccrueAnalysisMain.fileLevel > 0)
+    public IntMap<PointsToGraphNode> graphNodeDictionary = (AccrueAnalysisMain.fileLevel > 0)
             ? PointsToAnalysisMultiThreaded.<PointsToGraphNode> makeConcurrentIntMap() : null;
 
     protected int lookupDictionary(PointsToGraphNode node) {
@@ -388,12 +403,31 @@ public final class PointsToGraph {
             if (existing != null) {
                 return existing;
             }
-            if (!AccrueAnalysisMain.testMode || (AccrueAnalysisMain.fileLevel > 0)) {
+            if (AccrueAnalysisMain.fileLevel > 0) {
                 graphNodeDictionary.put(n, node);
             }
         }
         return n;
     }
+
+    private int lookupCallGraphDictionary(OrderedPair<IMethod, Context> node) {
+        Integer n = this.reverseCallGraphNodeDictionary.get(node);
+        if (n == null) {
+            // not in the dictionary yet
+            if (this.graphFinished) {
+                return -1;
+            }
+            n = callGraphNodeCounter.getAndIncrement();
+
+            callGraphNodeDictionary.put(n, node);
+            Integer existing = this.reverseCallGraphNodeDictionary.putIfAbsent(node, n);
+            if (existing != null) {
+                return existing;
+            }
+        }
+        return n;
+    }
+
     /**
      * Copy the pointsto set of the source to the pointsto set of the target.
      * This should be used when the pointsto set of the target is a supserset of
@@ -533,7 +567,7 @@ public final class PointsToGraph {
      * of target. Arguments currentlyAdding, currentlyAddingStack, and filterStack are used in the detectino of cycles,
      * and cycles that are found are recorded in toCollapse (if it is non-null). Any changes made to the points to graph
      * are recorded in the GraphDelta changed.
-     * 
+     *
      * @param changed
      * @param target
      * @param toAdd
@@ -550,39 +584,41 @@ public final class PointsToGraph {
                                   MutableIntSet currentlyAdding, IntStack currentlyAddingStack,
                                   Stack<Set<TypeFilter>> filterStack, IntMap<MutableIntSet> toCollapse) {
         // Handle detection of cycles.
-        if (USE_CYCLE_COLLAPSING && toCollapse != null) {
-            if (currentlyAdding.contains(target)) {
-                // we detected a cycle!
-                int foundAt = -1;
-                boolean hasMeaningfulFilter = false;
-                for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
-                    if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
-                        foundAt = i;
-                    }
-                    hasMeaningfulFilter |= filterStack.get(i) != null;
-                }
-                if (!hasMeaningfulFilter) {
-                    // we can collapse some nodes together!
-                    // Choose the lowest numbered element of the cycle as the representative,
-                    // so that if another thread is also trying to collapse this cycle,
-                    // they will agree on the representative.
-                    int representative = target;
-                    MutableIntSet toCollapseSet = MutableSparseIntSet.makeEmpty();
-                    for (int i = foundAt + 1; i < filterStack.size(); i++) {
-                        int n = currentlyAddingStack.get(i);
-                        toCollapseSet.add(n);
-                        if (n < representative) {
-                            representative = n;
+        if (USE_CYCLE_COLLAPSING) {
+            if (toCollapse != null) {
+                if (currentlyAdding.contains(target)) {
+                    // we detected a cycle!
+                    int foundAt = -1;
+                    boolean hasMeaningfulFilter = false;
+                    for (int i = 0; !hasMeaningfulFilter && i < currentlyAdding.size(); i++) {
+                        if (foundAt < 0 && currentlyAddingStack.get(i) == target) {
+                            foundAt = i;
                         }
+                        hasMeaningfulFilter |= filterStack.get(i) != null;
                     }
+                    if (!hasMeaningfulFilter) {
+                        // we can collapse some nodes together!
+                        // Choose the lowest numbered element of the cycle as the representative,
+                        // so that if another thread is also trying to collapse this cycle,
+                        // they will agree on the representative.
+                        int representative = target;
+                        MutableIntSet toCollapseSet = MutableSparseIntSet.makeEmpty();
+                        for (int i = foundAt + 1; i < filterStack.size(); i++) {
+                            int n = currentlyAddingStack.get(i);
+                            toCollapseSet.add(n);
+                            if (n < representative) {
+                                representative = n;
+                            }
+                        }
 
-                    // Put the toCollapseSet in the toCollapse map, for the representative.
-                    MutableIntSet existingCollapseSet = toCollapse.get(representative);
-                    if (existingCollapseSet == null) {
-                        toCollapse.put(representative, toCollapseSet);
-                    }
-                    else {
-                        existingCollapseSet.addAll(toCollapseSet);
+                        // Put the toCollapseSet in the toCollapse map, for the representative.
+                        MutableIntSet existingCollapseSet = toCollapse.get(representative);
+                        if (existingCollapseSet == null) {
+                            toCollapse.put(representative, toCollapseSet);
+                        }
+                        else {
+                            existingCollapseSet.addAll(toCollapseSet);
+                        }
                     }
                 }
             }
@@ -592,21 +628,22 @@ public final class PointsToGraph {
         MutableIntSet deltaSet = null;
         MutableIntSet graphSet = this.pointsToSet(target);
 
-        if (USE_CYCLE_COLLAPSING && graphSet == null) {
-            // whoops! target has been collapsed.
-            // Don't bother adding to target and supersets, just go straight for
-            // the representative of target.
-            addToSetAndSupersets(changed,
-                                 this.getRepresentative(target),
-                                 toAdd,
-                                 toAddSizeGuess,
-                                 addToSuperSets,
-                                 currentlyAdding,
-                                 currentlyAddingStack,
-                                 filterStack,
-                                 toCollapse);
-            return;
-
+        if (USE_CYCLE_COLLAPSING) {
+            if (graphSet == null) {
+                // whoops! target has been collapsed.
+                // Don't bother adding to target and supersets, just go straight for
+                // the representative of target.
+                addToSetAndSupersets(changed,
+                                     this.getRepresentative(target),
+                                     toAdd,
+                                     toAddSizeGuess,
+                                     addToSuperSets,
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     toCollapse);
+                return;
+            }
         }
 
         MutableIntSet added = MutableSparseIntSet.makeEmpty();
@@ -627,22 +664,25 @@ public final class PointsToGraph {
         }
 
         int newRep;
-        if (USE_CYCLE_COLLAPSING && (newRep = this.getRepresentative(target)) != target) {
-            // whoops! The target got merged with something else while we were in the middle
-            // of adding to it.
-            // to make sure we don't lose any instance keys, we will add the elements again on newRep...
-            // We don't bother adding directly to the supersets of target, since all the supersets of
-            // target will be supersets of newRep...
-            addToSetAndSupersets(changed,
-                                 newRep,
-                                 added.intIterator(),
-                                 added.size(),
-                                 addToSuperSets,
-                                 currentlyAdding,
-                                 currentlyAddingStack,
-                                 filterStack,
-                                 toCollapse);
-            return;
+        if (USE_CYCLE_COLLAPSING) {
+            if ((newRep = this.getRepresentative(target)) != target) {
+
+                // whoops! The target got merged with something else while we were in the middle
+                // of adding to it.
+                // to make sure we don't lose any instance keys, we will add the elements again on newRep...
+                // We don't bother adding directly to the supersets of target, since all the supersets of
+                // target will be supersets of newRep...
+                addToSetAndSupersets(changed,
+                                     newRep,
+                                     added.intIterator(),
+                                     added.size(),
+                                     addToSuperSets,
+                                     currentlyAdding,
+                                     currentlyAddingStack,
+                                     filterStack,
+                                     toCollapse);
+                return;
+            }
         }
 
         // We added at least one element to target
@@ -769,23 +809,23 @@ public final class PointsToGraph {
     public boolean addCall(CallSiteReference callSite, IMethod caller,
                            Context callerContext, IMethod callee,
                            Context calleeContext) {
-        OrderedPair<IMethod, Context> callerPair = new OrderedPair<>(caller, callerContext);
-        OrderedPair<IMethod, Context> calleePair = new OrderedPair<>(callee, calleeContext);
+        int callerPair = lookupCallGraphDictionary(new OrderedPair<>(caller, callerContext));
+        int calleePair = lookupCallGraphDictionary(new OrderedPair<>(callee, calleeContext));
 
-        ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> m = this.callGraphMap.get(callerPair);
+        ConcurrentMap<CallSiteReference, MutableIntSet> m = this.callGraphMap.get(callerPair);
         if (m == null) {
             m = AnalysisUtil.createConcurrentHashMap();
-            ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> existing = this.callGraphMap.putIfAbsent(callerPair,
+            ConcurrentMap<CallSiteReference, MutableIntSet> existing = this.callGraphMap.putIfAbsent(callerPair,
                                                                                                                           m);
             if (existing != null) {
                 m = existing;
             }
         }
 
-        Set<OrderedPair<IMethod, Context>> s = m.get(callSite);
+        MutableIntSet s = m.get(callSite);
         if (s == null) {
-            s = AnalysisUtil.createConcurrentSet();
-            Set<OrderedPair<IMethod, Context>> existing = m.putIfAbsent(callSite, s);
+            s = PointsToAnalysisMultiThreaded.makeConcurrentIntSet();
+            MutableIntSet existing = m.putIfAbsent(callSite, s);
 
             if (existing != null) {
                 s = existing;
@@ -885,7 +925,38 @@ public final class PointsToGraph {
         return haf;
     }
 
+    private int numCGNodes = -1;
+
     /**
+     * Get the number of call graph nodes. Only call after construction.
+     */
+    public int getNumberOfCallGraphNodes() {
+        if (this.numCGNodes < 0) {
+            int num = 0;
+
+            MutableIntSet nodes = MutableSparseIntSet.makeEmpty();
+            IntIterator callerIter = this.callGraphMap.keyIterator();
+            while (callerIter.hasNext()) {
+                int callerPair = callerIter.next();
+                ConcurrentMap<CallSiteReference, MutableIntSet> m = this.callGraphMap.get(callerPair);
+                for (CallSiteReference callSite : m.keySet()) {
+                    nodes.addAll(m.get(callSite));
+                }
+            }
+
+            num += nodes.size();
+            num += this.entryPoints.size();
+            num += this.classInitializers.size();
+            // Root method itself
+            num++;
+            this.numCGNodes = num;
+        }
+
+        return this.numCGNodes;
+    }
+
+
+        /**
      * Get the procedure call graph
      *
      * @return call graph
@@ -901,15 +972,20 @@ public final class PointsToGraph {
         HafCallGraph callGraph = new HafCallGraph(this.haf);
         this.callGraph = callGraph;
         try {
-            for (OrderedPair<IMethod, Context> callerPair : this.callGraphMap.keySet()) {
+            IntIterator callerIter = this.callGraphMap.keyIterator();
+            while (callerIter.hasNext()) {
+                int callerInt = callerIter.next();
+                OrderedPair<IMethod, Context> callerPair = callGraphNodeDictionary.get(callerInt);
                 IMethod caller = callerPair.fst();
                 Context callerContext = callerPair.snd();
                 CGNode src = callGraph.findOrCreateNode(caller, callerContext);
 
-                ConcurrentMap<CallSiteReference, Set<OrderedPair<IMethod, Context>>> m = this.callGraphMap.get(callerPair);
+                ConcurrentMap<CallSiteReference, MutableIntSet> m = this.callGraphMap.get(callerInt);
                 for (CallSiteReference callSite : m.keySet()) {
-                    Set<OrderedPair<IMethod, Context>> calleePairs = m.get(callSite);
-                    for (OrderedPair<IMethod, Context> calleePair : calleePairs) {
+                    MutableIntSet calleePairs = m.get(callSite);
+                    IntIterator calleeIter = calleePairs.intIterator();
+                    while (calleeIter.hasNext()) {
+                        OrderedPair<IMethod, Context> calleePair = callGraphNodeDictionary.get(calleeIter.next());
                         IMethod callee = calleePair.fst();
                         Context calleeContext = calleePair.snd();
 
@@ -1496,8 +1572,10 @@ public final class PointsToGraph {
 
         // this.reachableContexts = compact(this.reachableContexts);
         this.pointsTo = compact(this.pointsTo, "pointsTo");
+
         this.instanceKeyDictionary = compact(this.instanceKeyDictionary, "instanceKeyDictionary");
-        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary, "reverseGraphNodeDictionary");
+
+        this.reverseGraphNodeDictionary = compact(this.reverseGraphNodeDictionary);
     }
 
     /**
@@ -1521,7 +1599,7 @@ public final class PointsToGraph {
     /**
      * Produce a more compact map. This reduces memory usage, but gives back a read-only map.
      */
-    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m, String debugName) {
+    private static <K, V> ConcurrentMap<K, V> compact(ConcurrentMap<K, V> m) {
         if (m.isEmpty()) {
             return new ReadOnlyConcurrentMap<>(Collections.<K, V> emptyMap());
         }
