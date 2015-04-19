@@ -76,8 +76,10 @@ public class FullObjSensitive extends HeapAbstractionFactory {
 
     @Override
     public AllocationNameContext initialContext() {
-        return AllocationNameContext.create(null);
+        return INITIAL;
     }
+
+    private static final AllocationNameContext INITIAL = AllocationNameContext.create(null);
 
     @Override
     public String toString() {
