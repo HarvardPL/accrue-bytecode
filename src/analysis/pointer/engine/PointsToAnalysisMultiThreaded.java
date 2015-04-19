@@ -184,10 +184,11 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
         System.err.println("   Num graph edges        : " + totalEdges);
         System.err.println("   Num CG nodes           : " + numCGNodes);
 
+        System.err.println("\n\nENTRY: " + AnalysisUtil.entryPoint);
         System.err.println(numCGNodes);
         System.err.println(ptgNodes);
         System.err.println(totalEdges);
-        System.err.println("\n\nENTRY: " + AnalysisUtil.entryPoint);
+        System.err.println(numCGNodes + " " + ptgNodes + " " + totalEdges);
         System.err.println("\t&\t" + NumberFormat.getNumberInstance(Locale.US).format(numCGNodes) + "\t&\t"
                 + NumberFormat.getNumberInstance(Locale.US).format(ptgNodes) + "\t&\t"
                 + NumberFormat.getNumberInstance(Locale.US).format(totalEdges) + "\t \\\\ \\hline");
