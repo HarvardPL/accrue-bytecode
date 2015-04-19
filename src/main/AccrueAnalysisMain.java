@@ -187,20 +187,6 @@ public class AccrueAnalysisMain {
             if (fileLevel > 1) {
                 g.dumpPointsToGraphToFile(outputDir + "/" + fileName + "_ptg", false);
             }
-            //            System.err.println(g.getNodes().size() + " Nodes");
-            int num = 0;
-            //            for (PointsToGraphNode n : g.getNodes()) {
-            //                num += g.getPointsToSet(n).size();
-            //            }
-            System.err.println(num + " Edges");
-            //            System.err.println(g.getAllHContexts().size() + " HContexts");
-
-            int numNodes = 0;
-            for (@SuppressWarnings("unused")
-            CGNode n : g.getCallGraph()) {
-                numNodes++;
-            }
-            System.err.println(numNodes + " CGNodes");
             break;
         case "maincfg":
             entry = AnalysisUtil.getOptions().getEntrypoints().iterator().next();
@@ -589,9 +575,6 @@ public class AccrueAnalysisMain {
                 }
             }
         }
-        //        System.err.println(g.getNodes().size() + " PTG nodes.");
-        System.err.println(g.getCallGraph().getNumberOfNodes() + " CG nodes.");
-        System.err.println(g.clinitCount + " Class initializers.");
         if (singleThreaded) {
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).lines2 + " lines of code analyzed.");
             System.err.println(((PointsToAnalysisSingleThreaded) analysis).instructions + " instructions analyzed.");

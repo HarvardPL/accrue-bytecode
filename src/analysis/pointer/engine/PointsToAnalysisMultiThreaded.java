@@ -156,12 +156,7 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
 
         long endTime = System.currentTimeMillis();
         long totalTime = endTime - startTime;
-        System.out.println(totalTime / 1000.0);
-        System.err.println("\n\n  ***************************** \n\n");
-        System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
-        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
-        System.err.println("   Num graph source nodes : " + g.numPointsToGraphNodes());
-        System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
+        int ptgNodes = g.numPointsToGraphNodes();
 
         // Compute the number of edges
         IntMap<MutableIntSet> graph = g.getPointsToGraph();
@@ -176,7 +171,27 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             IntSet s = graph.get(n);
             totalEdges += s.size();
         }
+
+        // number of call graph nodes
+        int numCGNodes = g.getNumberOfCallGraphNodes();
+
+        System.out.println(totalTime / 1000.0);
+        System.err.println("\n\n  ***************************** \n\n");
+        System.err.println("   Total time             : " + totalTime / 1000.0 + "s.");
+        System.err.println("   Number of threads used : " + PointsToAnalysisMultiThreaded.numThreads());
+        System.err.println("   Num graph source nodes : " + ptgNodes);
+        System.err.println("   Num nodes collapsed    : " + g.cycleRemovalCount());
         System.err.println("   Num graph edges        : " + totalEdges);
+        System.err.println("   Num CG nodes           : " + numCGNodes);
+
+        System.err.println(numCGNodes);
+        System.err.println(ptgNodes);
+        System.err.println(totalEdges);
+        System.err.println("\n\nENTRY: " + AnalysisUtil.entryPoint);
+        System.err.println("\t&\t" + NumberFormat.getNumberInstance(Locale.US).format(numCGNodes) + "\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(ptgNodes) + "\t&\t"
+                + NumberFormat.getNumberInstance(Locale.US).format(totalEdges) + "\t \\\\ \\hline");
+        System.err.println("\n");
 
         if (!AccrueAnalysisMain.testMode) {
 
@@ -209,22 +224,14 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             System.err.println("   New num graph edges        : " + totalEdges2);
 
         }
-        g.constructionFinished();
         if (!AccrueAnalysisMain.testMode) {
+            g.constructionFinished();
             System.gc();
             System.err.println("   Memory post compression: "
                     + (ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1000000) + "MB");
             System.err.println("\n\n");
         }
-        System.err.println(g.getCallGraph().getNumberOfNodes());
-        System.err.println(g.numPointsToGraphNodes());
-        System.err.println(totalEdges);
-        System.err.println("\n\n" + AnalysisUtil.entryPoint);
-        System.err.println("\t&\t"
-                + NumberFormat.getNumberInstance(Locale.US).format(g.getCallGraph().getNumberOfNodes()) + "\t&\t"
-                + NumberFormat.getNumberInstance(Locale.US).format(g.numPointsToGraphNodes()) + "\t&\t"
-                + NumberFormat.getNumberInstance(Locale.US).format(totalEdges) + "\t \\\\ \\hline");
-        System.err.println("\n");
+
 
         return g;
     }
