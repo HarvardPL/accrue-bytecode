@@ -1,11 +1,11 @@
 package util;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
 import util.optional.Optional;
+import analysis.AnalysisUtil;
 
 import com.ibm.wala.util.functions.Function;
 
@@ -15,10 +15,20 @@ public final class FiniteSet<T> {
     private final int maxSize;
     private Optional<Set<T>> items;
 
+    private static <T> Set<T> makeEmptyUnderlyingSet() {
+        return AnalysisUtil.createConcurrentSet();
+    }
+
+    private static <T> Set<T> makeEmptyUnderlyingSet(Collection<T> t) {
+        Set<T> s = AnalysisUtil.createConcurrentSet();
+        s.addAll(t);
+        return s;
+    }
+
     /* factories */
 
     public static <T> FiniteSet<T> makeBottom(int maxSize) {
-        return new FiniteSet<>(maxSize, Optional.some((Set<T>) new HashSet<T>()));
+        return new FiniteSet<>(maxSize, Optional.some((Set<T>) makeEmptyUnderlyingSet()));
     }
 
     public static <T> FiniteSet<T> makeTop(int maxSize) {
@@ -26,11 +36,11 @@ public final class FiniteSet<T> {
     }
 
     public static <T> FiniteSet<T> makeFiniteSet(int maxSize, Collection<T> items) {
-        return new FiniteSet<>(maxSize, Optional.some((Set<T>) new HashSet<>(items)));
+        return new FiniteSet<>(maxSize, Optional.some((Set<T>) makeEmptyUnderlyingSet()));
     }
 
     public static <T> FiniteSet<T> make(int maxSize, Optional<? extends Collection<T>> c) {
-        return new FiniteSet<>(maxSize, c.isSome() ? Optional.<Set<T>> some(new HashSet<>(c.get()))
+        return new FiniteSet<>(maxSize, c.isSome() ? Optional.<Set<T>> some(makeEmptyUnderlyingSet(c.get()))
                 : Optional.<Set<T>> none());
     }
 
@@ -115,7 +125,7 @@ public final class FiniteSet<T> {
         if (this.items.isNone()) {
             optionalResult = Optional.none();
         } else {
-            Set<U> setResult = new HashSet<>();
+            Set<U> setResult = makeEmptyUnderlyingSet();
             for (T item : this.items.get()) {
                 setResult.add(f.apply(item));
             }
@@ -128,7 +138,7 @@ public final class FiniteSet<T> {
     public <U> FiniteSet<U> flatMap(Function<? super T, ? extends FiniteSet<U>> f) {
         if (this.items.isSome()) {
             Set<T> s = this.items.get();
-            Set<U> a = new HashSet<>();
+            Set<U> a = makeEmptyUnderlyingSet();
             for (T t : s) {
                 FiniteSet<U> r = f.apply(t);
                 if (r.items.isSome()) {
