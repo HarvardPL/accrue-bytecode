@@ -3,6 +3,7 @@ package analysis.pointer.engine;
 import java.lang.management.ManagementFactory;
 import java.text.NumberFormat;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -30,7 +31,10 @@ import com.ibm.wala.util.intset.IntSet;
 import com.ibm.wala.util.intset.MutableIntSet;
 
 public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
-
+    /**
+     * Should we use one task for all the statements associated with a GraphDelta?
+     */
+    private static final boolean ONE_TASK_PER_DELTA = false;
 
     /**
      * An interesting dependency from node n to StmtAndContext sac exists when a modification to the pointstoset of n
@@ -248,10 +252,20 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             return;
         }
         IntIterator iter = changes.domainIterator();
-        while (iter.hasNext()) {
-            int n = iter.next();
-            for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
-                execService.submitTask(depSaC, changes);
+        if (ONE_TASK_PER_DELTA) {
+            Set<StmtAndContext> depSaCs = new HashSet<>();
+            while (iter.hasNext()) {
+                int n = iter.next();
+                depSaCs.addAll(this.getInterestingDependencies(n));
+            }
+            execService.submitTask(depSaCs, changes);
+        }
+        else {
+            while (iter.hasNext()) {
+                int n = iter.next();
+                for (StmtAndContext depSaC : this.getInterestingDependencies(n)) {
+                    execService.submitTask(depSaC, changes);
+                }
             }
         }
 
@@ -317,6 +331,13 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             exec.execute(new RunnableStmtAndContext(sac, delta));
         }
 
+        public void submitTask(Set<StmtAndContext> sacs, GraphDelta delta) {
+            this.numTasks.incrementAndGet();
+            assert delta != null;
+            this.totalTasksWithDelta.incrementAndGet();
+            exec.execute(new RunnableStmtAndContextsWithDelta(sacs, delta));
+        }
+
         public void finishedTask() {
             if (this.numTasks.decrementAndGet() == 0) {
                 // Notify anyone that was waiting.
@@ -361,6 +382,32 @@ public class PointsToAnalysisMultiThreaded extends PointsToAnalysis {
             public void run() {
                 try {
                     processSaC(sac, delta, ExecutorServiceCounter.this);
+                    ExecutorServiceCounter.this.finishedTask();
+                }
+                catch (Throwable e) {
+                    e.printStackTrace();
+                    System.exit(0);
+                    // No seriously DIE!
+                    Runtime.getRuntime().halt(0);
+                }
+            }
+        }
+
+        public class RunnableStmtAndContextsWithDelta implements Runnable {
+            private final Set<StmtAndContext> sacs;
+            private final GraphDelta delta;
+
+            public RunnableStmtAndContextsWithDelta(Set<StmtAndContext> stmtAndContexts, GraphDelta delta) {
+                this.sacs = stmtAndContexts;
+                this.delta = delta;
+            }
+
+            @Override
+            public void run() {
+                try {
+                    for (StmtAndContext sac : sacs) {
+                        processSaC(sac, delta, ExecutorServiceCounter.this);
+                    }
                     ExecutorServiceCounter.this.finishedTask();
                 }
                 catch (Throwable e) {
