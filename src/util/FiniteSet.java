@@ -36,7 +36,7 @@ public final class FiniteSet<T> {
     }
 
     public static <T> FiniteSet<T> makeFiniteSet(int maxSize, Collection<T> items) {
-        return new FiniteSet<>(maxSize, Optional.some((Set<T>) makeEmptyUnderlyingSet()));
+        return new FiniteSet<>(maxSize, Optional.some(makeEmptyUnderlyingSet(items)));
     }
 
     public static <T> FiniteSet<T> make(int maxSize, Optional<? extends Collection<T>> c) {
