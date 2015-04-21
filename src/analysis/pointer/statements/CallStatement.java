@@ -164,7 +164,12 @@ public abstract class CallStatement extends PointsToStatement {
 
         if (!AnalysisUtil.disableObjectClone && callee.getReference().equals(CLONE)) {
             // Do not actually "call" Object.clone() and array clone, just record the effects here
-            GraphDelta objCloneChange = processObjectOrArrayClone(callerContext, receiver, calleeContext, g, haf);
+            GraphDelta objCloneChange = processObjectOrArrayClone(callee,
+                                                                  callerContext,
+                                                                  receiver,
+                                                                  calleeContext,
+                                                                  g,
+                                                                  haf);
             changed = changed.combine(objCloneChange);
         }
         return changed;
@@ -184,6 +189,8 @@ public abstract class CallStatement extends PointsToStatement {
      * <p>
      * XXX make this its own statement separate from CallStatement, could be the single statment inside Object.clone()
      *
+     * @param callee
+     *
      * @param callerContext context for the caller
      * @param receiver receiver heap context
      * @param calleeContext context for the callee
@@ -192,7 +199,7 @@ public abstract class CallStatement extends PointsToStatement {
      * @param calleeSummary summary nodes for the call to clone
      * @return Any changes made to the points-to graph
      */
-    private final GraphDelta processObjectOrArrayClone(Context callerContext, InstanceKey receiver,
+    private final GraphDelta processObjectOrArrayClone(IMethod callee, Context callerContext, InstanceKey receiver,
                                                        Context calleeContext, PointsToGraph g,
                                                        HeapAbstractionFactory haf) {
         GraphDelta changed = new GraphDelta(g);
@@ -206,16 +213,24 @@ public abstract class CallStatement extends PointsToStatement {
             return g.addEdge(new ReferenceVariableReplica(callerContext, result, haf), receiver);
         }
 
+        IClass klass = receiver.getConcreteType();
+        if (g.getRegistrar().useSingletonForClass(klass)) {
+            ReferenceVariableReplica singletonRep = new ReferenceVariableReplica(haf.initialContext(),
+                                                                                 g.getRegistrar()
+                                                                                  .getSingletonForClass(klass), haf);
+            return g.copyEdges(singletonRep, new ReferenceVariableReplica(callerContext, result, haf));
+        }
+
         assert result != null;
 
 
         // Allocate a new object to hold the results of the clone
-        String name = "clone-" + PrettyPrinter.typeString(receiver.getConcreteType());
-        AllocSiteNode n = cloneAllocations.get(receiver.getConcreteType());
+        String name = "clone-" + PrettyPrinter.typeString(klass);
+        AllocSiteNode n = cloneAllocations.get(klass);
         if (n == null) {
             // pass null in as the result, there may be multiple recievers for a single call site each of which gets an allocation
-            n = AllocSiteNodeFactory.createGenerated(name, receiver.getConcreteType(), getMethod(), null, false);
-            AllocSiteNode existing = cloneAllocations.putIfAbsent(receiver.getConcreteType(), n);
+            n = AllocSiteNodeFactory.createGenerated(name, klass, callee, null, false);
+            AllocSiteNode existing = cloneAllocations.putIfAbsent(klass, n);
             if (existing != null) {
                 n = existing;
             }
@@ -229,18 +244,16 @@ public abstract class CallStatement extends PointsToStatement {
         GraphDelta resChanged = g.addEdge(r, newHeapContext);
         changed = changed.combine(resChanged);
 
-        if (receiver.getConcreteType().isArrayClass()) {
+        if (klass.isArrayClass()) {
             // Copy the CONTENTS field from the old array to the new one
-            TypeReference baseType = receiver.getConcreteType().getReference().getArrayElementType();
+            TypeReference baseType = klass.getReference().getArrayElementType();
             if (baseType.isPrimitiveType()) {
                 return changed;
             }
 
-            IClass base = AnalysisUtil.getClassHierarchy().lookupClass(receiver.getConcreteType()
-                                                                               .getReference()
-                                                                               .getArrayElementType());
+            IClass base = AnalysisUtil.getClassHierarchy().lookupClass(baseType);
             ObjectField contents = new ObjectField(receiver,
-                                                   receiver.getConcreteType(),
+                                                   klass,
                                                    PointsToGraph.ARRAY_CONTENTS,
                                                    base);
             ObjectField newContents = new ObjectField(newHeapContext,
@@ -252,7 +265,7 @@ public abstract class CallStatement extends PointsToStatement {
         }
         else {
             // Copy edges from the fields from the receiver to the fields of the new object
-            for (IField f : receiver.getConcreteType().getAllInstanceFields()) {
+            for (IField f : klass.getAllInstanceFields()) {
                 if (f.getFieldTypeReference().isPrimitiveType()) {
                     // Primitive fields get copied not aliased
                     continue;

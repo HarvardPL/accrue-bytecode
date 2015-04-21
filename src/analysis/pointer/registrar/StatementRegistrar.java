@@ -1363,4 +1363,43 @@ public class StatementRegistrar {
     public boolean shouldUseSingleAllocForGenEx() {
         return useSingleAllocForGenEx;
     }
+
+    /**
+     * Whether to use a single allocation site for allocations of the given class
+     * 
+     * @param klass class being allocated
+     * @return true if a single allocation site should be used
+     */
+    public boolean useSingletonForClass(IClass klass) {
+        if (useSingleAllocForPrimitiveArrays && klass.isArrayClass()
+                && klass.getReference().getArrayElementType().isPrimitiveType()) {
+            return true;
+        }
+        if (useSingleAllocPerThrowableType && TypeRepository.isAssignableFrom(AnalysisUtil.getThrowableClass(), klass)) {
+            return true;
+        }
+        else if (useSingleAllocForImmutableWrappers && Signatures.isImmutableWrapperType(klass.getReference())) {
+            return true;
+        }
+        else if (useSingleAllocForStrings && TypeRepository.isAssignableFrom(AnalysisUtil.getStringClass(), klass)) {
+            return true;
+        }
+        else if (useSingleAllocForSwing
+                && (klass.toString().contains("Ljavax/swing/") || klass.toString().contains("Lsun/swing/") || klass.toString()
+                                                                                                                   .contains("Lcom/sun/java/swing"))) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * If the class is has a single allocation site then return the singleton reference variable representing a newly
+     * allocated object of that type. Otherwise return null.
+     * 
+     * @param klass class to check
+     * @return the singleton reference variable or null if the class is not a singleton
+     */
+    public ReferenceVariable getSingletonForClass(IClass klass) {
+        return this.singletonReferenceVariables.get(klass.getReference());
+    }
 }

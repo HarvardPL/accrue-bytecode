@@ -388,7 +388,7 @@ public final class PointsToGraph {
     /**
      * Used for printing. Only create if in test mode or if printing the points-to graph
      */
-    public IntMap<PointsToGraphNode> graphNodeDictionary = (AccrueAnalysisMain.fileLevel > 0)
+    public IntMap<PointsToGraphNode> graphNodeDictionary = (!AccrueAnalysisMain.testMode)
             ? PointsToAnalysisMultiThreaded.<PointsToGraphNode> makeConcurrentIntMap() : null;
 
     protected int lookupDictionary(PointsToGraphNode node) {
@@ -403,7 +403,7 @@ public final class PointsToGraph {
             if (existing != null) {
                 return existing;
             }
-            if (AccrueAnalysisMain.fileLevel > 0) {
+            if (!AccrueAnalysisMain.testMode) {
                 graphNodeDictionary.put(n, node);
             }
         }
@@ -1753,22 +1753,6 @@ public final class PointsToGraph {
                 nStr += " (" + count + ")";
             }
             n2s.put(n, nStr);
-            if (nStr.contains("Everywhere}.out")) {
-                System.err.println(nStr);
-                if (test != null) {
-                    System.err.println("OTHER: " + test);
-                    System.err.println("Equal? " + test.equals(n));
-                    ObjectField t1 = (ObjectField) test;
-                    ObjectField t2 = (ObjectField) n;
-                    System.err.println(t1.receiver() + " == " + t2.receiver() + " "
-                            + t1.receiver().equals(t2.receiver()));
-                    System.err.println(t1.getExpectedType() + " == " + t2.getExpectedType() + " "
-                            + t1.getExpectedType().equals(t2.getExpectedType()));
-                    System.err.println(t1.fieldName() + " == " + t2.fieldName() + " "
-                            + t1.fieldName().equals(t2.fieldName()));
-                }
-                test = n;
-            }
 
             Iterator<InstanceKey> ikIter = pointsToIterator(n);
             while (ikIter.hasNext()) {
