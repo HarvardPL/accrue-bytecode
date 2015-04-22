@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import util.FiniteSet;
 import util.Logger;
 import util.optional.Optional;
 import analysis.AnalysisUtil;
@@ -232,9 +233,9 @@ public class ClassMethodInvocationStatement extends
             assert actuals.size() == 1;
             for (InstanceKey receiverIK : receiverIKs) {
                 if (receiverIK instanceof ClassInstanceKey) {
-                    Optional<Set<IClass>> classes = ((ClassInstanceKey) receiverIK).getReflectedType().maybeIterable();
-                    if (classes.isSome()) {
-                        for (IClass klass : classes.get()) {
+                    FiniteSet<IClass> classes = ((ClassInstanceKey) receiverIK).getReflectedType();
+                    if (!classes.isTop()) {
+                        for (IClass klass : classes.getSet()) {
                             // XXX: This is broken; ASNF will only allow one ASN per result but we might need many because
                             //      there could be many different classes flowing to this point.
                             //      I work around this by passing null for the fourth argument.
