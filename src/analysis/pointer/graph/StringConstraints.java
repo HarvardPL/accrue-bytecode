@@ -1,9 +1,7 @@
 package analysis.pointer.graph;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicReference;
 
 import util.Logger;
 import analysis.AnalysisUtil;
@@ -13,9 +11,8 @@ import analysis.pointer.engine.PointsToAnalysis.StmtAndContext;
 
 public class StringConstraints {
 
-    private final ConcurrentMap<StringVariableReplica, AtomicReference<AString>> map;
+    private final ConcurrentMap<StringVariableReplica, AString> map;
     private final ReflectiveHAF haf;
-    private final AString initialString;
     private final StringDependencies stringDependencies;
 
     /* Factory Methods */
@@ -28,7 +25,6 @@ public class StringConstraints {
 
     private StringConstraints(ReflectiveHAF haf) {
         this.haf = haf;
-        this.initialString = haf.getAStringSet(Collections.singleton(""));
         this.map = AnalysisUtil.createConcurrentHashMap();
         this.stringDependencies = StringDependencies.make();
     }
@@ -36,40 +32,26 @@ public class StringConstraints {
     /* Logic */
 
     public AString getAStringFor(StringVariableReplica svr) {
-        AtomicReference<AString> ref = this.map.get(svr);
-        if (ref == null) {
+        AString shat = this.map.get(svr);
+        if (shat == null) {
             return haf.getAStringBottom();
         }
         else {
-            return ref.get();
+            return shat;
         }
     }
 
     public StringConstraintDelta joinAt(StringVariableReplica svr, AString shat) {
         if (this.stringDependencies.isActive(svr)) {
             // Logger.println("[joinAt] isActive " + svr + " joining in " + shat);
-            AtomicReference<AString> ref = this.map.get(svr);
-            if (ref == null) {
-                ref = new AtomicReference<>(shat); // make the initial value in the atomic reference shat.
-                AtomicReference<AString> existing = this.map.putIfAbsent(svr, ref);
-                if (existing != null) {
-                    // someone beat us to it.
-                    ref = existing;
-                }
-            }
-            // here, ref is not null, and points to the appropriate AtomicReference for svr.
-            // Also, the contents of ref is non-null.
-            AString current, result;
+            AString current = this.getOrInitialize(svr, shat);
+            AString newval;
             do {
-                current = ref.get();
-                result = current.join(shat);
-                if (result.equals(current)) {
-                    // no change!
-                    break;
-                }
-            } while (!ref.compareAndSet(current, result));
+                current = this.map.get(svr);
+                newval = current.join(shat);
+            } while (!newval.equals(current) && !this.map.replace(svr, current, newval));
 
-            if (result.equals(current)) {
+            if (newval.equals(current)) {
                 // We didn't change the AString for svr.
                 return StringConstraintDelta.makeEmpty(this);
             }
@@ -83,18 +65,17 @@ public class StringConstraints {
         }
     }
 
-    public StringConstraintDelta upperBounds(StringVariableReplica svr1, StringVariableReplica svr2) {
-        if (this.stringDependencies.isActive(svr1)) {
-            if (this.map.containsKey(svr2)) {
-                return this.joinAt(svr1, this.map.get(svr2));
-            }
-            else {
-                return StringConstraintDelta.makeEmpty(this);
+    private AString getOrInitialize(StringVariableReplica svr, AString shat) {
+        AString current = this.map.get(svr);
+        if (current == null) {
+            current = shat;
+            AString existing = this.map.putIfAbsent(svr, current);
+            if (existing != null) {
+                // someone beat us to it
+                current = existing;
             }
         }
-        else {
-            return StringConstraintDelta.makeEmpty(this);
-        }
+        return current;
     }
 
     public StringConstraintDelta recordDependency(StringVariableReplica x, StringVariableReplica y) {
