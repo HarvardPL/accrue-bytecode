@@ -1132,14 +1132,11 @@ public final class PointsToGraph {
         // n, to make sure that we trigger all appropriate
         // statements that depended on n.
         // (This is needed for correctness.)
-        IntSet repset = this.pointsToSet(rep);
-        if (repset != null) {
-            addToSetAndSupersets(delta, n, repset.intIterator(), repset.size(), false, // no need to add them to the supersets of n...
-                                 MutableSparseIntSet.makeEmpty(),
-                                 new IntStack(),
-                                 new Stack<Set<TypeFilter>>(),
-                                 null);
-        }
+        addToSetAndSupersets(delta, n, repSet.intIterator(), repSet.size(), false, // no need to add them to the supersets of n...
+                             MutableSparseIntSet.makeEmpty(),
+                             new IntStack(),
+                             new Stack<Set<TypeFilter>>(),
+                             null);
 
         // now that we have taken care of setting the representative for n,
         // adding the new subset relations, etc., we can look at removing
