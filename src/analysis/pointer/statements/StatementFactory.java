@@ -741,6 +741,23 @@ public class StatementFactory {
         return new EscapeViaMethodStringStatement(rv, svuse, svdef, method);
     }
 
+    public StringStatement getPropertyCall(CallSiteReference callSite, IMethod method, MethodReference declaredTarget,
+                                           StringVariable svresult, List<StringVariable> svarguments) {
+        assert callSite != null;
+        assert method != null;
+        assert declaredTarget != null;
+        assert svresult != null;
+        assert svarguments != null;
+
+        assert stringStatementNeverCreatedBefore(new StatementKey(callSite,
+                                                                  method,
+                                                                  declaredTarget,
+                                                                  svresult,
+                                                                  svarguments));
+
+        return new GetPropertyStatement(callSite, method, declaredTarget, svresult, svarguments);
+    }
+
     public PointsToStatement forNameCall(CallSiteReference callSite, IMethod caller, MethodReference callee,
                                          ReferenceVariable result, List<StringVariable> actuals) {
         assert callSite != null;

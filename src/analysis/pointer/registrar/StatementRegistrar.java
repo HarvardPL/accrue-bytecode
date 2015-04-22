@@ -35,6 +35,7 @@ import analysis.pointer.graph.ReferenceVariableCache;
 import analysis.pointer.registrar.ReferenceVariableFactory.ReferenceVariable;
 import analysis.pointer.registrar.strings.StringVariable;
 import analysis.pointer.statements.ForNameCallStatement;
+import analysis.pointer.statements.GetPropertyStatement;
 import analysis.pointer.statements.LocalToFieldStatement;
 import analysis.pointer.statements.NewStatement;
 import analysis.pointer.statements.PointsToStatement;
@@ -704,6 +705,22 @@ public class StatementRegistrar {
                                                           result,
                                                           svarguments));
 
+            }
+            else if (GetPropertyStatement.isGetPropertyCall(i)) {
+                List<StringVariable> svarguments = new ArrayList<>(i.getNumberOfParameters());
+                for (int j = 0; j < i.getNumberOfParameters(); ++j) {
+                    svarguments.add(stringVariableFactory.getOrCreateLocalUse(i, i.getUse(j), ir.getMethod(), types, pp));
+                }
+                StringVariable svresult = stringVariableFactory.getOrCreateLocalUse(i,
+                                                                                    i.getReturnValue(0),
+                                                                                    ir.getMethod(),
+                                                                                    types,
+                                                                                    pp);
+                this.addStringStatement(stmtFactory.getPropertyCall(i.getCallSite(),
+                                                                    ir.getMethod(),
+                                                                    i.getDeclaredTarget(),
+                                                                    svresult,
+                                                                    svarguments));
             }
             else {
                 Set<Integer> stringArguments = getStringArgumentsForMethod(i, types);

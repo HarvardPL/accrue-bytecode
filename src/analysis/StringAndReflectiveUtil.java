@@ -63,6 +63,20 @@ public class StringAndReflectiveUtil {
 
     public static final IClass stringIClass = getIClass("Ljava/lang/StringBuilder");
 
+    private static final TypeReference JavaLangSystemTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                                TypeName.string2TypeName("Ljava/lang/System"));
+    private static final IMethod systemGetProperty1IMethod = getIMethod(JavaLangSystemTypeReference,
+                                                                        "getProperty",
+                                                                        "(Ljava/lang/String;)Ljava/lang/String;");
+    private static final IMethod systemGetProperty2IMethod = getIMethod(JavaLangSystemTypeReference,
+                                                                        "getProperty",
+                                                                        "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+    private static final TypeReference JavaLangSecurityTypeReference = TypeReference.findOrCreate(ClassLoaderReference.Application,
+                                                                                                  TypeName.string2TypeName("Ljava/lang/Security"));
+    private static final IMethod securityGetPropertyIMethod = getIMethod(JavaLangSecurityTypeReference,
+                                                                         "getProperty",
+                                                                         "(Ljava/lang/String;)Ljava/lang/String;");
+
     private static IMethod methodReferenceToIMethod(MethodReference m) {
         return AnalysisUtil.getClassHierarchy().resolveMethod(m);
     }
@@ -90,7 +104,8 @@ public class StringAndReflectiveUtil {
     public static boolean isStringType(TypeReference t) {
         if (t == null) {
             return false;
-        } else {
+        }
+        else {
             IClass iclass = typeReferenceToIClass(t);
             return iclass != null
                     && (iclass.equals(JavaLangStringIClass) || iclass.equals(JavaLangStringBuilderIClass));
@@ -112,5 +127,11 @@ public class StringAndReflectiveUtil {
     public static boolean isStringInitMethod(MethodReference m) {
         IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(m);
         return im.equals(stringBuilderInitIMethod) || im.equals(stringInitMethod);
+    }
+
+    public static boolean isGetPropertyCall(MethodReference methodReference) {
+        IMethod im = AnalysisUtil.getClassHierarchy().resolveMethod(methodReference);
+        return im.equals(systemGetProperty1IMethod) || im.equals(systemGetProperty2IMethod)
+                || im.equals(securityGetPropertyIMethod);
     }
 }
